@@ -3,7 +3,7 @@ import type { ConversationNodeDefinitionInput } from '@deepseek-ai/dsh-client-ui
 import type { TrajectoryConversationViewNode } from '@deepseek-ai/dsh-client-ui-trajectory/client';
 
 /** @brief Preserve REPL call ownership after the native step settles its final assistant reply. */
-export const replTrajectory: ConversationNodeDefinitionInput = {
+export const replTrajectory: ConversationNodeDefinitionInput<null> = {
     kind: 'ts-repl-execution',
     target: 'trajectory',
     match: {
@@ -13,8 +13,8 @@ export const replTrajectory: ConversationNodeDefinitionInput = {
             return { id: `${event.data.turn}:${event.data.step}`, role: execution ? 'start' : 'update' };
         },
     },
-    start: () => undefined,
-    update: () => undefined,
+    start: () => null,
+    update: context => context.state,
     buildViewNode: context => {
         const start = context.start;
         const event = start?.event;
