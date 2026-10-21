@@ -9,14 +9,13 @@ export interface PhysicalTool {
     output: unknown;
 }
 
-/** @brief Semantic naming and independent execution authorization. */
+/** @brief Semantic naming, exposure and stable path configuration. */
 export interface Mapping {
     id: string;
     path: string;
     aliases: string[];
     description?: string;
     enabled: boolean;
-    authorized: boolean;
     pinned: boolean;
 }
 
@@ -24,7 +23,7 @@ export interface Mapping {
 export interface Usage { calls: number; lastUsed: number; exposures: number }
 /** @brief Versioned complete registry state, committed atomically. */
 export interface RegistryState { version: 1; revision: number; mappings: Mapping[]; usage: Record<string, Usage> }
-/** @brief Structured maintenance proposal; grants cannot be authored by the model. */
+/** @brief Structured maintenance proposal; execution policy remains owned by DSH. */
 export interface Proposal { revision: number; changes: Array<{ id: string; path: string; aliases?: string[]; description?: string }> }
 
 const forbidden = new Set(['__proto__', 'prototype', 'constructor', '__dsh', 'then']);
@@ -80,7 +79,7 @@ export class SemanticRegistry {
         return [...this.physical.values()].map(tool => ({
             id: tool.id,
             path: `unknown.${toolName(tool.id)}`,
-            aliases: [], enabled: true, authorized: false, pinned: false,
+            aliases: [], enabled: true, pinned: false,
             ...this.state.mappings.find(m => m.id === tool.id), tool,
         }));
     }
@@ -89,7 +88,7 @@ export class SemanticRegistry {
         const ids = new Set<string>();
         const paths: string[] = [];
         for (const m of mappings) {
-            if (!m || typeof m.id !== 'string' || ids.has(m.id) || !Array.isArray(m.aliases) || m.aliases.some(a => typeof a !== 'string') || typeof m.enabled !== 'boolean' || typeof m.authorized !== 'boolean' || typeof m.pinned !== 'boolean' || (m.description !== undefined && typeof m.description !== 'string')) throw new Error('Invalid mapping');
+            if (!m || typeof m.id !== 'string' || ids.has(m.id) || !Array.isArray(m.aliases) || m.aliases.some(a => typeof a !== 'string') || typeof m.enabled !== 'boolean' || typeof m.pinned !== 'boolean' || (m.description !== undefined && typeof m.description !== 'string')) throw new Error('Invalid mapping');
             ids.add(m.id);
             for (const path of [m.path, ...m.aliases]) {
                 validatePath(path);
@@ -136,7 +135,7 @@ export class SemanticRegistry {
             const old = mappings.get(change.id);
             if (old && (old.pinned || old.path !== change.path)) throw new Error(`Stable mapping cannot move: ${change.id}`);
             if (old && change.aliases && old.aliases.some(alias => !change.aliases!.includes(alias))) throw new Error(`Stable alias cannot be removed: ${change.id}`);
-            mappings.set(change.id, { enabled: true, authorized: false, pinned: false, aliases: [], ...old, ...change });
+            mappings.set(change.id, { enabled: true, pinned: false, aliases: [], ...old, ...change });
         }
         await this.configure([...mappings.values()], proposal.revision);
     }
@@ -172,7 +171,7 @@ export class SemanticRegistry {
 
     async invoke(path: string, args: unknown, dispatch: (id: string, args: unknown) => Promise<unknown>): Promise<unknown> {
         const mapping = this.effective().find(m => m.path === path || m.aliases.includes(path));
-        if (!mapping?.enabled || !mapping.authorized) throw new Error(`Execution denied: ${path}`);
+        if (!mapping?.enabled) throw new Error(`Execution denied: ${path}`);
         const errors = validateJsonSchemaValue(mapping.tool.parameters as JsonSchemaNode, args);
         if (errors.length) throw new Error(`Invalid arguments: ${errors.join('; ')}`);
         const value = await dispatch(mapping.id, args);

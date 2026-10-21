@@ -12,7 +12,7 @@ import { registerManagement } from './web/routes.js';
 
 export const name = 'dsh-ts-intellisense';
 export const inject = ['llm', 'tools', 'agents', 'systemPrompt', 'storage', storageBackendServiceKey('json'), 'subagents', 'connection'];
-/** @brief Public plugin options; execution permissions are stored in the semantic registry. */
+/** @brief Public plugin options; execution permissions remain owned by native DSH policies. */
 export interface Config { route?: string; provider?: string; model?: string; timeoutMs?: number; maxContinuations?: number }
 
 /** @brief Mount an npm-installed Cordis plugin using DSH's native services. */

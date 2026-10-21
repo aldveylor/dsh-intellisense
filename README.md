@@ -15,7 +15,7 @@ node run.mjs --no-open --port 3000
 
 脚本构建插件并启动 **DSH Web 服务**。首次启动按 DSH 引导配置上游模型的 API 凭据；默认上游为 `deepseek-official` / `deepseek-flash`，可在 `cordis.patch.yml` 修改。Web 登录 token 与模型 API key 是两种凭据：打开终端输出的带 token 登录链接，取得浏览器会话后再使用页面。不要分享该链接。管理界面继承 DSH 的认证，直接未登录访问会返回 401。
 
-在登录后的同一浏览器访问 `/api/ts-intellisense`，配置工具路径和授权。路径示例 `std.fs.read`。未配置工具使用工具原名对应的 `unknown.tool_name` 路径（非标识符字符以 `$十六进制码点$` 转义，数字开头和保留名称添加 `$tool$` 前缀），默认不可执行；创建映射不自动授权。新建会话选择 `ts-repl` 路由，启动补丁也将其设为默认提供方。授权设置与 DSH 本身的工具策略、guard 都必须允许调用。
+在登录后的同一浏览器访问 `/api/ts-intellisense`，配置工具路径。路径示例 `std.fs.read`。未配置工具使用工具原名对应的 `unknown.tool_name` 路径（非标识符字符以 `$十六进制码点$` 转义，数字开头和保留名称添加 `$tool$` 前缀），保留下划线，不自动拆分分类。未配置工具可直接调用，执行权限交给 DSH 原生策略判断。新建会话选择 `ts-repl` 路由，启动补丁也将其设为默认提供方。调用仍须通过 DSH 本身的工具策略和 guard。
 
 `node run.mjs --help` 查看原生 Web 启动参数，`./run.sh` 为同一入口的包装。Node.js 入口直接调用 DSH 启动 API，自动构建插件、生成 `build/run.patch.yml`，并通过绝对路径加载本项目插件。进程目录及注册的 Web 工作区均为本项目的 `build/workspace`，默认配置和数据目录为 `build/workspace/.dsh`；可通过 `DSH_HOME` 显式覆盖。默认首次运行需要在此独立配置中设置模型凭据。
 
@@ -41,7 +41,7 @@ await (async () => {
 })()
 ```
 
-VM 不暴露 `console`；使用最后一个表达式返回执行结果。VM 直接支持原生 `Promise`，使用 `Promise.all` / `Promise.race` 等标准接口。每次请求提示当前会话变量及类型、可用根命名空间，以及从持久化调用统计中选出的常用/最近工具路径。`await tools.sort()` 创建维护子代理，返回命名空间整理提案；也可在管理页面触发。提案经过结构、身份、稳定路径、固定别名和版本验证，在页面明确批准后才写入。整理子代理只能提交结构化输出，不能执行物理工具；新映射仍需单独授权。
+VM 不暴露 `console`；使用最后一个表达式返回执行结果。VM 直接支持原生 `Promise`，使用 `Promise.all` / `Promise.race` 等标准接口。每次请求提示当前会话变量及类型、可用根命名空间，以及从持久化调用统计中选出的常用/最近工具路径。`await tools.sort()` 创建维护子代理，返回命名空间整理提案；也可在管理页面触发。提案经过结构、身份、稳定路径、固定别名和版本验证，在页面明确批准后才写入。整理子代理只能提交结构化输出，不能执行物理工具；新映射的执行权限仍由 DSH 原生策略判断。
 
 ## 实现与边界
 
@@ -62,6 +62,6 @@ npm test           # 构建后运行 node:test / tsx
 npm pack --dry-run # 查看发布内容
 ```
 
-测试覆盖原生 DSH AgentLoop/注册表/存储集成、补全续写、原生工具 guard、VM 词法规则、持久检查点、映射事务、独立授权、超时和子进程权限。真实 Web 服务另做过 HTTP 验证：未登录 401，经 token 登录后 HTML、JS 和状态接口均为 200。自动测试使用确定性上游适配器，没有调用付费模型；未验证真实模型遵循协议的稳定性。
+测试覆盖原生 DSH AgentLoop/注册表/存储集成、补全续写、原生工具 guard、VM 词法规则、持久检查点、映射事务、超时和子进程权限。真实 Web 服务另做过 HTTP 验证：未登录 401，经 token 登录后 HTML、JS 和状态接口均为 200。自动测试使用确定性上游适配器，没有调用付费模型；未验证真实模型遵循协议的稳定性。
 
 实现参考：[DSH 插件发布文档](https://deepseek-harness.github.io/deepseek-harness/en/develop/basic/publish.html)、[dsh-find-plugin](https://github.com/awesome-dsh-plugin/dsh-find-plugin)、[dsh-deploy-master](https://github.com/Olympianz/dsh-deploy-master)。内部模块说明见 [src/model.md](src/model.md)。

@@ -44,7 +44,7 @@ function render(): void {
         if (filter && !`${item.id} ${item.path} ${item.tool.description}`.toLowerCase().includes(filter)) continue;
         let mapping = mappings.find(m => m.id === item.id);
         const ensure = (): Mapping => {
-            if (!mapping) { mapping = { id: item.id, path: '', aliases: [], enabled: true, authorized: false, pinned: false }; mappings.push(mapping); }
+            if (!mapping) { mapping = { id: item.id, path: '', aliases: [], enabled: true, pinned: false }; mappings.push(mapping); }
             return mapping;
         };
         const row = document.createElement('tr');
@@ -56,7 +56,7 @@ function render(): void {
         const aliases = field(mapping?.aliases.join(', ') ?? '', v => { ensure().aliases = v.split(',').map(a => a.trim()).filter(Boolean); }); aliases.placeholder = '别名，以逗号分隔';
         names.append(path, aliases); row.append(names);
         const description = document.createElement('td'); description.append(field(mapping?.description ?? item.tool.description, v => { ensure().description = v; })); row.append(description);
-        for (const key of ['enabled', 'authorized', 'pinned'] as const) {
+        for (const key of ['enabled', 'pinned'] as const) {
             const cell = document.createElement('td'); const input = document.createElement('input'); input.type = 'checkbox'; input.checked = mapping?.[key] ?? (key === 'enabled'); input.setAttribute('aria-label', `${key} ${item.id}`);
             input.addEventListener('change', () => { ensure()[key] = input.checked; }); cell.append(input); row.append(cell);
         }
