@@ -6,22 +6,23 @@ import { MemoryStore, type Store } from '../../src/storage/store.js';
 import { SemanticRegistry, type Mapping } from '../../src/registry/registry.js';
 
 const physical = [{ id: 'read-file', description: 'Read file', parameters: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'], additionalProperties: false }, output: { type: 'string' } }];
-const mapping = (extra: Partial<Mapping> = {}): Mapping => ({ id: 'read-file', path: 'std.fs.read', aliases: [], enabled: true, authorized: false, pinned: false, ...extra });
+const mapping = (extra: Partial<Mapping> = {}): Mapping => ({ id: 'read-file', path: 'std.fs.read', aliases: [], enabled: true, pinned: false, ...extra });
 
-test('unknown identities are stable, denied and never automatically classified', async () => {
+test('unknown identities stay stable and delegate execution policy to native dispatch', async () => {
     const registry = new SemanticRegistry(new MemoryStore()); registry.refresh(physical);
     const first = registry.effective()[0]!.path;
     registry.refresh(physical);
-    assert.equal(registry.effective()[0]!.path, first); assert.match(first, /^unknown\.t_/);
-    await assert.rejects(registry.invoke(first, { path: 'x' }, async () => 'bad'), /denied/);
+    assert.equal(registry.effective()[0]!.path, first); assert.equal(first, 'unknown.read$2d$file');
+    await assert.rejects(registry.invoke(first, { path: 'x' }, async () => { throw new Error('Native policy denied'); }), /Native policy denied/);
+    assert.equal(await registry.invoke(first, { path: 'x' }, async id => id), 'read-file');
 });
 
-test('mapping, invocation validation, independent authorization and statistics', async () => {
+test('mapping enablement, invocation validation and statistics', async () => {
     const store = new MemoryStore(); const registry = new SemanticRegistry(store); registry.refresh(physical);
-    await registry.configure([mapping()], 0);
-    assert.match(registry.declarations(), /Promise<string>/);
+    await registry.configure([mapping({ enabled: false })], 0);
     await assert.rejects(registry.invoke('std.fs.read', { path: 'a' }, async () => 'a'), /denied/);
-    await registry.configure([mapping({ authorized: true, aliases: ['files.read'] })], 1);
+    await registry.configure([mapping({ aliases: ['files.read'] })], 1);
+    assert.match(registry.declarations(), /Promise<string>/);
     await assert.rejects(registry.invoke('std.fs.read', { path: 3 }, async () => 'bad'), /Invalid arguments/);
     await registry.expose(['std.fs.read']);
     assert.equal(registry.snapshot().usage['read-file']!.calls, 0);
@@ -42,10 +43,10 @@ test('pinned and stable paths survive proposals; stale and hostile proposals rej
     assert.equal(registry.snapshot().revision, 1);
 });
 
-test('new organization mappings stay unauthorized and persistence failures do not partially commit', async () => {
+test('organization mappings contain no execution policy and persistence failures do not partially commit', async () => {
     const registry = new SemanticRegistry(new MemoryStore()); registry.refresh(physical);
     await registry.applyProposal({ revision: 0, changes: [{ id: 'read-file', path: 'std.fs.read' }] });
-    assert.equal(registry.snapshot().mappings[0]!.authorized, false);
+    assert.deepEqual(registry.snapshot().mappings[0], mapping());
     const broken: Store = { load: async () => undefined, save: async () => { throw new Error('disk unavailable'); } };
     const other = new SemanticRegistry(broken); other.refresh(physical);
     await assert.rejects(other.configure([mapping()], 0), /disk/);
@@ -64,7 +65,7 @@ test('namespace hints retain call history and respect visibility and enabled map
     const registry = new SemanticRegistry(store);
     const tools = [...physical, { ...physical[0]!, id: 'write-file' }];
     registry.refresh(tools);
-    await registry.configure([mapping({ authorized: true, aliases: ['files.read'] }), mapping({ id: 'write-file', path: 'std.fs.write', authorized: true })], 0);
+    await registry.configure([mapping({ aliases: ['files.read'] }), mapping({ id: 'write-file', path: 'std.fs.write' })], 0);
     await registry.invoke('files.read', { path: 'a' }, async () => 'ok');
     await registry.invoke('std.fs.read', { path: 'a' }, async () => 'ok');
     await registry.invoke('std.fs.write', { path: 'b' }, async () => 'ok');

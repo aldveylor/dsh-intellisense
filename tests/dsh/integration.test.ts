@@ -51,7 +51,7 @@ test('installed DSH agent loop, plugin, storage, completion, tools and web confi
         assert(stateRoute);
         let state = await (await stateRoute.fetch(new Request('http://localhost/api/ts-intellisense-state'))).json();
         assert.match(state.effective[0].path, /^unknown\./);
-        const configured = await stateRoute.fetch(new Request('http://localhost/api/ts-intellisense-state', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'configure', revision: 0, mappings: [{ id: 'read', path: 'std.fs.read', aliases: [], enabled: true, authorized: true, pinned: false }] }) }));
+        const configured = await stateRoute.fetch(new Request('http://localhost/api/ts-intellisense-state', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'configure', revision: 0, mappings: [{ id: 'read', path: 'std.fs.read', aliases: [], enabled: true, pinned: false }] }) }));
         assert.equal(configured.status, 200, await configured.text());
         const agent = await ctx.agentLoop.create(SessionId('integration'), { provider: 'ts-repl', model: 'test' });
         const errors: unknown[] = []; ctx.on('agent/error', ({ error }) => { errors.push(error); });
@@ -71,7 +71,7 @@ test('installed DSH agent loop, plugin, storage, completion, tools and web confi
         assert.match(model.requests.at(-1)!.system!, /<!> const count: 7/);
         assert.match(model.requests.at(-1)!.system!, /Frequently used namespaces \/ tool paths:\n<!> std\.fs\.read/);
         assert.match(model.requests.at(-1)!.system!, /Recently used namespaces \/ tool paths:\n<!> std\.fs\.read/);
-        assert(agent.session.deriveMessages().at(-1)!.content.some(b => b.type === 'text' && b.text.includes('// 8')));
+        assert(agent.session.deriveMessages().at(-1)!.content.some(b => b.type === 'text' && b.text === '8'));
         state = await (await stateRoute.fetch(new Request('http://localhost/api/ts-intellisense-state'))).json();
         assert.equal(state.state.usage.read.calls, 1);
         // Reproduce session.v4.jsonl: a TS agent's UI selection routes directly to another provider.
@@ -95,7 +95,7 @@ test('installed DSH agent loop, plugin, storage, completion, tools and web confi
         assert.equal(agent.session.requestHeader()!.config.provider, 'mock-account');
         assert(frozenRequest && Object.isFrozen(frozenRequest));
         assert.equal(frozenRequest.provider, 'mock-account');
-        assert(agent.session.deriveMessages().at(-1)!.content.some(b => b.type === 'text' && b.text.includes('// 8') && !b.text.includes('<|INTELLISENSE|>')));
+        assert(agent.session.deriveMessages().at(-1)!.content.some(b => b.type === 'text' && b.text === '8' && !b.text.includes('<|INTELLISENSE|>')));
         // Auxiliary LLM calls and ordinary agents must retain their normal provider behavior.
         selectedModel.responses.push('session title');
         let title = '';
@@ -109,7 +109,7 @@ test('installed DSH agent loop, plugin, storage, completion, tools and web confi
         await nativeAgent.whenIdle();
         assert(nativeAgent.session.deriveMessages().at(-1)!.content.some(b => b.type === 'text' && b.text === 'native prose'));
         selection.current = { provider: 'ts-repl', model: 'test', reasoningEffort: undefined };
-        // An independent native guard still denies an authorized semantic function.
+        // An independent native guard still denies an enabled semantic function.
         ctx.tools.guard(() => 'Native policy denial');
         model.responses.push('await std.fs.read({path: "b"})');
         await send('try denied tool');

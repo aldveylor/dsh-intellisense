@@ -90,7 +90,8 @@ test('empty completion prioritizes VM roots and bindings before standard library
         runtime.update(env);
         await runtime.execute('binding', 'const zStored = 7');
         const result = complete(runtime, env, '');
-        for (const name of ['unknown', 'zStored', 'Promise', 'console', 'tools']) assert(result.candidates.some(c => c.name === name));
+        for (const name of ['unknown', 'zStored', 'Promise', 'tools']) assert(result.candidates.some(c => c.name === name));
+        assert(!result.candidates.some(c => c.name === 'console'));
         assert(!result.candidates.some(c => c.kind === 'keyword'));
         assert.match(result.context, /omitted names are not evidence of absence/);
         assert(complete(runtime, env, 'unknown.').candidates.some(c => c.path === 'unknown.read'));

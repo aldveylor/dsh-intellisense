@@ -36,7 +36,7 @@ test('async CPU hangs terminate the process without hanging the parent', async (
 test('even a VM host-realm escape cannot read host credentials or spawn child processes', async () => {
     const runtime = new IsolatedSession(unavailable, unavailable, 10_000);
     try {
-        const escaped = '(console.log as any).constructor("return process")()';
+        const escaped = '(tools.sort as any).constructor("return process")()';
         await assert.rejects(runtime.execute('read', `${escaped}.getBuiltinModule("node:fs").readFileSync("/etc/passwd", "utf8")`), /Access.*(?:denied|restricted)|not allowed/i);
         await assert.rejects(runtime.execute('spawn', `${escaped}.getBuiltinModule("node:child_process").execSync("true")`), /Access.*(?:denied|restricted)|not allowed/i);
     } finally { runtime.dispose(); }
