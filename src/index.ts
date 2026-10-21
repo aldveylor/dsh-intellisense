@@ -21,7 +21,7 @@ export async function apply(ctx: Context, options: Config = {}): Promise<void> {
     if (!Number.isSafeInteger(config.timeoutMs) || config.timeoutMs < 100 || !Number.isSafeInteger(config.maxContinuations) || config.maxContinuations < 1) throw new Error('Invalid timeout or continuation limit');
     const backend = ctx.storage.backend.get('json');
     if (!backend.kv) throw new Error('DSH json backend does not support KV storage');
-    const unit = await backend.kv.open({ name: 'ts-intellisense', version: 1, tables: ['state'], hasGlobal: false, layout: 'per-record' });
+    const unit = await backend.kv.open({ name: 'ts_intellisense', version: 1, tables: ['state'], hasGlobal: false, layout: 'per-record' });
     const store = new DshStore(unit);
     const registry = new SemanticRegistry(store); await registry.load();
     const organization = new OrganizationService(ctx, registry, config.provider, config.model);

@@ -53,8 +53,12 @@ export class TypeScriptAdapter extends LlmAdapter {
             pending = (async () => {
                 const runtime = new IsolatedSession(
                     (path, args, signal) => this.registry.invoke(path, args, async (id, value) => {
-                        if (!this.ctx.agents.get(agent.id) || !agent.ctx.tools.get(id, agent)) throw new Error('Tool is no longer available in this session');
-                        const result = await agent.ctx.tools.execute({ callId: ToolCallId(`ts-${randomUUID()}`), name: id, arguments: value, agent, signal: signal ?? new AbortController().signal });
+                        if (this.ctx.agents.get(agent.id) !== agent || !agent.ctx.tools.get(id, agent)) throw new Error('Tool is no longer available in this session');
+                        const callId = ToolCallId(`ts-${randomUUID()}`);
+                        const auditKey = `dispatch_${this.key(callId)}`;
+                        await this.store.save(auditKey, { status: 'started', session: agent.id, callId, physicalId: id, arguments: value });
+                        const result = await agent.ctx.tools.execute({ callId, name: id, arguments: value, agent, signal: signal ?? new AbortController().signal });
+                        await this.store.save(auditKey, { status: 'completed', session: agent.id, callId, physicalId: id, arguments: value, result });
                         if (result.isError) throw new Error(result.error.message);
                         for (const context of result.additionalContexts ?? []) agent.inject(context);
                         return result.value;

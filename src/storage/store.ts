@@ -10,15 +10,18 @@ export interface Store {
 
 /** @brief Uses a DSH-owned KV unit and its native durability contract. */
 export class DshStore implements Store {
+    private snapshot: Promise<Record<string, unknown>> | undefined;
+
     constructor(private unit: KvUnit) {}
 
     async load<T>(key: string): Promise<T | undefined> {
-        const snapshot = await this.unit.loadAll();
-        return snapshot.tables.state?.[key] as T | undefined;
+        this.snapshot ??= this.unit.loadAll().then(snapshot => snapshot.tables.state ?? {});
+        return structuredClone((await this.snapshot)[key]) as T | undefined;
     }
 
     async save<T>(key: string, value: T): Promise<void> {
         await this.unit.putRecord('state', key, value);
+        if (this.snapshot) (await this.snapshot)[key] = structuredClone(value);
     }
 }
 

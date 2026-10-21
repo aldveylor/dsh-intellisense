@@ -29,16 +29,16 @@ export interface RegistryState { version: 1; revision: number; mappings: Mapping
 export interface Proposal { revision: number; changes: Array<{ id: string; path: string; aliases?: string[]; description?: string }> }
 
 const forbidden = new Set(['__proto__', 'prototype', 'constructor', '__dsh', 'then']);
-const reserved = new Set(['tools', 'whenAll', 'whenAny', 'console', 'globalThis', 'Promise', 'Object', 'Array', 'JSON', 'Math', 'String', 'Number', 'Boolean', 'Date', 'Error', 'undefined', 'NaN', 'Infinity']);
+const reserved = new Set(['tools', 'whenAll', 'whenAny', 'console', 'globalThis', 'Promise', 'Object', 'Array', 'JSON', 'Math', 'String', 'Number', 'Boolean', 'Date', 'Error', 'Reflect', 'Symbol', 'Map', 'Set', 'WeakMap', 'WeakSet', 'RegExp', 'Function', 'eval', 'Intl', 'ArrayBuffer', 'Uint8Array', 'undefined', 'NaN', 'Infinity']);
 
 /** @brief Validate semantic paths before generating declarations or runtime objects. */
 export function validatePath(path: string): void {
     const parts = path.split('.');
-    if (parts.length < 2 || parts.some(p => !/^[a-zA-Z_$][\w$]*$/.test(p) || forbidden.has(p)) || reserved.has(parts[0]!)) {
+    if (parts.length < 2 || parts.some(p => !/^[a-zA-Z_$][\w$]*$/.test(p) || forbidden.has(p) || p.startsWith('__dsh')) || reserved.has(parts[0]!)) {
         throw new Error(`Invalid or reserved namespace path: ${path}`);
     }
     // Ask TypeScript's type renderer to quote property names; root keywords are excluded below.
-    if (/^(?:const|let|var|function|class|new|delete|return|await|import|export|this|super|default|if|else|switch|case|try|catch|throw|while|for|do|break|continue|yield|void|typeof|instanceof|in|enum|extends|implements|interface|package|private|protected|public|static|with|debugger)$/.test(parts[0]!)) {
+    if (/^(?:const|let|var|function|class|new|delete|return|await|import|export|this|super|default|if|else|switch|case|try|catch|throw|while|for|do|break|continue|yield|void|typeof|instanceof|in|enum|extends|implements|interface|package|private|protected|public|static|with|debugger|null|true|false)$/.test(parts[0]!)) {
         throw new Error(`Reserved namespace root: ${parts[0]}`);
     }
 }
@@ -107,7 +107,7 @@ export class SemanticRegistry {
             if (revision !== this.state.revision) throw new Error('Registry revision conflict; reload before saving');
             this.validateMappings(detached);
             for (const m of detached) {
-                if (!this.physical.has(m.id)) throw new Error(`Unknown physical identity: ${m.id}`);
+                if (!this.physical.has(m.id) && !this.state.mappings.some(old => old.id === m.id)) throw new Error(`Unknown physical identity: ${m.id}`);
                 const old = this.state.mappings.find(o => o.id === m.id);
                 if (old?.pinned && (old.path !== m.path || JSON.stringify(old.aliases) !== JSON.stringify(m.aliases))) throw new Error(`Pinned mapping: ${m.id}`);
             }
@@ -130,6 +130,7 @@ export class SemanticRegistry {
             seen.add(change.id);
             const old = mappings.get(change.id);
             if (old && (old.pinned || old.path !== change.path)) throw new Error(`Stable mapping cannot move: ${change.id}`);
+            if (old && change.aliases && old.aliases.some(alias => !change.aliases!.includes(alias))) throw new Error(`Stable alias cannot be removed: ${change.id}`);
             mappings.set(change.id, { enabled: true, authorized: false, pinned: false, aliases: [], ...old, ...change });
         }
         await this.configure([...mappings.values()], proposal.revision);
@@ -161,8 +162,8 @@ export class SemanticRegistry {
         const value = await dispatch(mapping.id, args);
         await this.transaction(async () => {
             const next = this.snapshot();
-            const usage = next.usage[mapping.id] ?? { calls: 0, lastUsed: 0, exposures: 0 };
-            next.usage[mapping.id] = { ...usage, calls: usage.calls + 1, lastUsed: Date.now() };
+            const usage = (Object.hasOwn(next.usage, mapping.id) ? next.usage[mapping.id] : undefined) ?? { calls: 0, lastUsed: 0, exposures: 0 };
+            Object.defineProperty(next.usage, mapping.id, { value: { ...usage, calls: usage.calls + 1, lastUsed: Date.now() }, enumerable: true, configurable: true, writable: true });
             await this.store.save('registry', next);
             this.state = next;
         });
@@ -173,8 +174,8 @@ export class SemanticRegistry {
         await this.transaction(async () => {
             const next = this.snapshot();
             for (const id of new Set(this.effective().filter(m => paths.includes(m.path) || m.aliases.some(a => paths.includes(a))).map(m => m.id))) {
-                const usage = next.usage[id] ?? { calls: 0, lastUsed: 0, exposures: 0 };
-                next.usage[id] = { ...usage, exposures: usage.exposures + 1 };
+                const usage = (Object.hasOwn(next.usage, id) ? next.usage[id] : undefined) ?? { calls: 0, lastUsed: 0, exposures: 0 };
+                Object.defineProperty(next.usage, id, { value: { ...usage, exposures: usage.exposures + 1 }, enumerable: true, configurable: true, writable: true });
             }
             await this.store.save('registry', next);
             this.state = next;
