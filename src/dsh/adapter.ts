@@ -97,7 +97,7 @@ export class TypeScriptAdapter extends LlmAdapter {
         const usage: TokenUsage = { inputTokens: 0, outputTokens: 0 };
         const journal: unknown[] = [];
         const upstream: GenerateOptions = {
-            ...options, provider: this.config.provider, model: options.model || this.config.model,
+            ...options, provider: options.provider === this.config.route ? this.config.provider : options.provider, model: options.model || this.config.model,
             tools: [], toolHistory: undefined,
             // The adapter owns this separate internal request; the loop's input remains immutable.
             system: this.prompt(agent, await runtime.declarations()), messages: options.messages.filter(m => m.role !== 'system'),

@@ -8,7 +8,7 @@
 
 `storage/store.ts` 定义 Store，生产使用 DSH JSON backend 的 `ts_intellisense` KV 单元、state 表；MemoryStore 和原子 FileStore 用于独立使用。保存注册表、会话数据检查点、续写日志、请求执行状态和物理工具派发日志。已完成请求返回缓存，未确定结果拒绝重试，不重放工具来恢复变量。
 
-`dsh/adapter.ts` 通过受支持的 LlmAdapter 维护独立上游请求和续写历史，不修改 AgentLoop 冻结请求。每会话串行生成与执行。`physical()` 根据 agent 作用域读取实际 schema；每次执行前刷新 namespace 和声明。上游 tools 数组为空；最终向原生 loop 返回一个合并 assistant 结果。工具 additionalContexts 仍经原生 agent.inject 注入。
+`dsh/adapter.ts` 通过受支持的 LlmAdapter 维护独立上游请求和续写历史，不修改 AgentLoop 冻结请求。`index.ts` 通过官方 `llm/stream` waterfall 和 `isAgentLoopRequest` 识别 TS 会话的主循环请求，即使 UI 模型选择将 provider 切至原生路由，也交给 REPL 控制器并保留选中的上游 provider/model；内部续写、标题/压缩请求和普通会话不经过该接管。每会话串行生成与执行。`physical()` 根据 agent 作用域读取实际 schema；每次执行前刷新 namespace 和声明。上游 tools 数组为空；最终向原生 loop 返回一个合并 assistant 结果。工具 additionalContexts 仍经原生 agent.inject 注入。
 
 ## 编译与执行
 

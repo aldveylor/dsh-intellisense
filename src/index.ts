@@ -1,4 +1,5 @@
 import type { Context } from '@deepseek-ai/cordis';
+import { isAgentLoopRequest } from '@deepseek-ai/dsh-llm';
 import { storageBackendServiceKey } from '@deepseek-ai/dsh-storage';
 import '@deepseek-ai/dsh-system-prompt';
 import '@deepseek-ai/dsh-agent';
@@ -27,6 +28,11 @@ export async function apply(ctx: Context, options: Config = {}): Promise<void> {
     const organization = new OrganizationService(ctx, registry, config.provider, config.model);
     const adapter = new TypeScriptAdapter(ctx, config, registry, store, organization);
     ctx.llm.registerAdapter([config.route], adapter);
+    ctx.on('llm/stream', (request, next) => {
+        const agent = request.sessionId ? ctx.agents.get(request.sessionId) : undefined;
+        if (isAgentLoopRequest(request) && !request.purpose && request.provider !== config.route && agent?.options.provider === config.route) return adapter.stream(request);
+        return next();
+    });
     ctx.on('agent/created', async ({ agent }) => {
         if (agent.options.provider === config.route) agent.ctx.tools.presentAs('native');
         return undefined;

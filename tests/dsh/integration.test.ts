@@ -4,9 +4,9 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Context } from '@deepseek-ai/cordis';
-import LlmRuntime, { LlmAdapter, createUserMessage, type GenerateOptions, type StreamChunk } from '@deepseek-ai/dsh-llm';
+import LlmRuntime, { LlmAdapter, createUserMessage, isAgentLoopRequest, type GenerateOptions, type StreamChunk } from '@deepseek-ai/dsh-llm';
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session';
-import AgentRegistry from '@deepseek-ai/dsh-agent';
+import AgentRegistry, { installModelSelection } from '@deepseek-ai/dsh-agent';
 import AgentLoop from '@deepseek-ai/dsh-agent-loop';
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt';
 import ToolRuntime, { defineTool } from '@deepseek-ai/dsh-tools';
@@ -74,6 +74,41 @@ test('installed DSH agent loop, plugin, storage, completion, tools and web confi
         assert(agent.session.deriveMessages().at(-1)!.content.some(b => b.type === 'text' && b.text.includes('// 8')));
         state = await (await stateRoute.fetch(new Request('http://localhost/api/ts-intellisense-state'))).json();
         assert.equal(state.state.usage.read.calls, 1);
+        // Reproduce session.v4.jsonl: a TS agent's UI selection routes directly to another provider.
+        const selectedModel = new MockModel();
+        selectedModel.responses = ['<|INTELLISENSE|>', 'count + 1'];
+        ctx.llm.registerAdapter(['mock-account'], selectedModel);
+        const selection = { assembled: undefined, current: { provider: 'mock-account', model: 'selected', reasoningEffort: undefined } };
+        installModelSelection(agent.ctx, selection);
+        let frozenRequest: GenerateOptions | undefined;
+        ctx.on('llm/stream', (request, next) => {
+            if (isAgentLoopRequest(request) && request.sessionId === agent.id) frozenRequest = request;
+            return next();
+        }, { prepend: true });
+        await send('inspect current namespace after switching provider');
+        assert.equal(errors.length, 0, String(errors[0]));
+        assert.equal(selectedModel.requests.length, 2);
+        assert.equal(selectedModel.requests[0]!.provider, 'mock-account');
+        assert.equal(selectedModel.requests[0]!.model, 'selected');
+        assert.deepEqual(selectedModel.requests[0]!.tools, []);
+        assert(selectedModel.requests[1]!.messages.some(m => m.role === 'system' && m.content.some(b => b.type === 'text' && b.text.includes('IntelliSense:'))));
+        assert.equal(agent.session.requestHeader()!.config.provider, 'mock-account');
+        assert(frozenRequest && Object.isFrozen(frozenRequest));
+        assert.equal(frozenRequest.provider, 'mock-account');
+        assert(agent.session.deriveMessages().at(-1)!.content.some(b => b.type === 'text' && b.text.includes('// 8') && !b.text.includes('<|INTELLISENSE|>')));
+        // Auxiliary LLM calls and ordinary agents must retain their normal provider behavior.
+        selectedModel.responses.push('session title');
+        let title = '';
+        for await (const chunk of ctx.llm.stream({ provider: 'mock-account', model: 'selected', sessionId: agent.id, purpose: 'session-title', messages: [] })) {
+            if (chunk.type === 'text-delta') title += chunk.text;
+        }
+        assert.equal(title, 'session title');
+        const nativeAgent = await ctx.agentLoop.create(SessionId('native'), { provider: 'mock-account', model: 'selected' });
+        selectedModel.responses.push('native prose');
+        nativeAgent.followup(createUserMessage({ content: [{ type: 'text', text: 'native response' }], source: { kind: 'user' } }));
+        await nativeAgent.whenIdle();
+        assert(nativeAgent.session.deriveMessages().at(-1)!.content.some(b => b.type === 'text' && b.text === 'native prose'));
+        selection.current = { provider: 'ts-repl', model: 'test', reasoningEffort: undefined };
         // An independent native guard still denies an authorized semantic function.
         ctx.tools.guard(() => 'Native policy denial');
         model.responses.push('await std.fs.read({path: "b"})');
