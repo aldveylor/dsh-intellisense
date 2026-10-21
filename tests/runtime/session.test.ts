@@ -81,3 +81,18 @@ test('native Promise supports execution and completion without legacy helpers', 
         await assert.rejects(runtime.execute('shadow', 'const Promise = 1'), /Reserved binding/);
     } finally { runtime.dispose(); }
 });
+
+
+test('empty completion prioritizes VM roots and bindings before standard library names', async () => {
+    const runtime = make();
+    const env = { declarations: 'declare const unknown: { read(args: {}): Promise<string> };', paths: ['unknown.read'] };
+    try {
+        runtime.update(env);
+        await runtime.execute('binding', 'const zStored = 7');
+        const result = complete(runtime, env, '');
+        for (const name of ['unknown', 'zStored', 'Promise', 'console', 'tools']) assert(result.candidates.some(c => c.name === name));
+        assert(!result.candidates.some(c => c.kind === 'keyword'));
+        assert.match(result.context, /omitted names are not evidence of absence/);
+        assert(complete(runtime, env, 'unknown.').candidates.some(c => c.path === 'unknown.read'));
+    } finally { runtime.dispose(); }
+});

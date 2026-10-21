@@ -14,7 +14,7 @@
 
 `typescript/project.ts` 管理虚拟 TS 源文件、环境声明与标准库，使用官方 Language Service 做全段语法/语义检查，再用 transpileModule 编译，不使用 AST 解释器。普通段整体执行；含顶层 await 的段按语句生成执行单元。await 初始化值通过临时全局属性传递，随后以真实 const/let/var 声明建立 VM 顶层绑定；临时属性立即删除。记录各单元 source map。跨 await 单元的提升/TDZ 与完整模块存在差别；独立类型声明不跨段保留。
 
-`typescript/completion.ts` 只分析不完整输入，不执行它。使用真实环境声明、会话推导类型和 TS language service 生成成员、变量、部分标识符、文档、签名和参数提示。
+`typescript/completion.ts` 只分析不完整输入，不执行它。使用真实环境声明、会话推导类型和 TS language service 生成成员、变量、部分标识符、文档、签名和参数提示。全局补全优先当前 VM 绑定、工具根命名空间与 Promise，过滤关键字并注明截断，避免前 40 项标准库候选淹没实际环境。
 
 `runtime/session.ts` 为每会话保留真实 vm.Context 与词法声明。没有变量代理或 del。JS const/let 重声明与 delete 规则保留；声明结果不显示，最终有意义的表达式自动显示。执行 ID 与源码绑定，重复 ID 返回相同 Promise。检查点序列化可复制的值和类型元数据，不保存闭包或重放工具。
 
