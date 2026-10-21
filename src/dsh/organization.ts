@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 import '@deepseek-ai/dsh-subagent';
 
 /** @brief Structured output constraints omit all execution policy changes. */
-const proposalSchema: ObjectJsonSchema = {
+export const proposalSchema: ObjectJsonSchema = {
     type: 'object', additionalProperties: false, required: ['revision', 'changes'],
     properties: {
         revision: { type: 'integer' },

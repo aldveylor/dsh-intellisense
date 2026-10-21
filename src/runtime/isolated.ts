@@ -19,7 +19,7 @@ export class IsolatedSession {
     private bridgeWork = new Set<Promise<void>>();
     private completed = new Map<string, { source: string; promise: Promise<ExecutionResult> }>();
 
-    constructor(private invoke: (path: string, args: unknown, signal?: AbortSignal) => Promise<unknown>, private organize: (signal?: AbortSignal) => Promise<unknown>, private timeoutMs = 30_000) {
+    constructor(private invoke: (path: string, args: unknown, signal?: AbortSignal) => Promise<unknown>, private timeoutMs = 30_000) {
         let worker = fileURLToPath(new URL('./worker.js', import.meta.url));
         if (!existsSync(worker)) worker = fileURLToPath(new URL('../../dist/runtime/worker.js', import.meta.url));
         const packageRoot = resolve(fileURLToPath(new URL('../../', import.meta.url)));
@@ -43,12 +43,12 @@ export class IsolatedSession {
             if (!pending) return;
             this.pending.delete(message.id); clearTimeout(pending.timer);
             if (message.error) pending.reject(new Error(message.error)); else pending.resolve(message.value);
-        } else if (message.type === 'invoke' || message.type === 'sort') {
+        } else if (message.type === 'invoke') {
             try {
                 if (!this.executing) throw new Error('No active execution owns this capability request');
                 this.signal?.throwIfAborted();
                 if ((JSON.stringify(message.args) ?? '').length > 1_048_576) throw new Error('Tool argument size limit exceeded');
-                const value = message.type === 'sort' ? await this.organize(this.signal) : await this.invoke(message.path, message.args, this.signal);
+                const value = await this.invoke(message.path, message.args, this.signal);
                 if (this.child.connected) this.child.send({ type: 'bridge-result', id: message.id, value });
             } catch (error) {
                 if (this.child.connected) this.child.send({ type: 'bridge-result', id: message.id, error: error instanceof Error ? error.message : String(error) });

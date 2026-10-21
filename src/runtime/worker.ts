@@ -8,14 +8,14 @@ const outstanding = new Map<number, { resolve(value: unknown): void; reject(erro
 let nextCall = 0;
 let environment: Environment = { declarations: '', paths: [] };
 /** @brief Ask the parent to invoke a capability through native DSH execution policies. */
-function bridge(kind: 'invoke' | 'sort', path: string, args: unknown): Promise<unknown> {
+function bridge(kind: 'invoke', path: string, args: unknown): Promise<unknown> {
     const id = ++nextCall;
     return new Promise((resolve, reject) => {
         outstanding.set(id, { resolve, reject });
         process.send?.({ type: kind, id, path, args });
     });
 }
-const runtime = new SessionRuntime((path, args) => bridge('invoke', path, args), () => bridge('sort', '', null));
+const runtime = new SessionRuntime((path, args) => bridge('invoke', path, args));
 let queue: Promise<unknown> = Promise.resolve();
 process.on('message', (message: Request | { type: 'bridge-result'; id: number; value?: unknown; error?: string }) => {
     if ('type' in message) {

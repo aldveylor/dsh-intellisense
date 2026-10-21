@@ -78,7 +78,7 @@ export class TypeScriptAdapter extends LlmAdapter {
                         for (const context of result.additionalContexts ?? []) agent.inject(context);
                         return result.value;
                     }),
-                    signal => this.organization.propose(agent, signal ?? new AbortController().signal), this.config.timeoutMs,
+                    this.config.timeoutMs,
                 );
                 const checkpoint = await this.store.load<SessionCheckpoint>(`session_${this.key(agent.id)}`);
                 try { if (checkpoint) await runtime.restore(checkpoint); }

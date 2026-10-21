@@ -21,10 +21,9 @@ export class SessionRuntime {
     private completed = new Map<string, { source: string; result: Promise<ExecutionResult> }>();
     private queue: Promise<unknown> = Promise.resolve();
 
-    constructor(private invoke: (path: string, args: unknown) => Promise<unknown>, private organize: () => Promise<unknown> = async () => { throw new Error('Organization is unavailable'); }) {
+    constructor(private invoke: (path: string, args: unknown) => Promise<unknown>) {
         this.context = vm.createContext(Object.create(null), { codeGeneration: { strings: false, wasm: false } });
         new vm.Script('delete globalThis.console').runInContext(this.context);
-        Object.defineProperty(this.context, 'tools', { value: Object.freeze({ sort: () => this.organize() }) });
     }
 
     update(environment: Environment): void {
