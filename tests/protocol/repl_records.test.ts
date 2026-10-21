@@ -47,3 +47,24 @@ test('codes keeps every generated segment and each IntelliSense query has its fu
     }
     assert.deepEqual(replay, codes);
 });
+
+test('repeated lookup records include cached results and the terminal rejection without repeating the query', async () => {
+    const records: any[] = [];
+    const completion = { candidates: [], signatures: ['read(args: {}): Promise<string>'], context: 'known members' };
+    let queries = 0;
+    await assert.rejects(runConversation({
+        generate: () => generation('std.fs.<|INTELLISENSE|>'),
+        intellisense: record => records.push(record),
+        complete: async () => { queries++; return completion; },
+        execute: async () => { throw new Error('Must not execute'); },
+        journal: async () => {},
+    }, { provider: 'mock', model: 'test', messages: [] }, 'repeated-records'), /three times/);
+    assert.equal(queries, 1);
+    assert.equal(records.length, 6);
+    assert.deepEqual(records.filter(record => record.phase === 'request').map(record => record.round), [0, 1, 2]);
+    const results = records.filter(record => record.phase === 'result');
+    assert.deepEqual(results[0].result, completion);
+    assert.deepEqual(results[1].result, completion);
+    assert.equal(results[1].reused, true);
+    assert.match(results[2].error, /three times/);
+});

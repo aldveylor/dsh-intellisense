@@ -30,7 +30,7 @@ const file = await std.fs.read({ path: "notes.txt" });
 file;
 ```
 
-实际工具名称、说明、参数和返回值来自当前 DSH 注册表的原生 schema；工具列表补全提供名称、签名和原生说明；参数与返回值说明由 TypeScript 根据光标位置按需解析，可在调用、参数对象或返回值成员处请求补全，不直接附完整 schema；上例需要先配置对应工具。模型通过 `await std.fs.<|INTELLISENSE|>` 请求真实补全，主动结束本次生成；插件在完整响应结束后加入内部 system 补全上下文和原始 assistant 前缀，再请求续写。不会添加伪造用户消息，也不会中断正在生成的流。`<|LINE_BREAK|>` 累积输入并换行，`<|BREAK|>` 放弃输入；补全用于构造待执行代码；续写完成后解析、类型检查、编译并执行，向用户返回最后一个表达式的执行结果，不回显源码。不执行不完整源码。若模型误输出 DSML 包装或原生工具调用，插件拒绝该响应，并要求改用 TypeScript，保留此前未执行的前缀。
+实际工具名称、说明、参数和返回值来自当前 DSH 注册表的原生 schema；命名空间及工具名称前缀补全只提供名称和原生说明，不展开参数；已知路径和参数可直接调用，不必每次补全。`std.fs.read<|INTELLISENSE|>` 提供 read 的签名和参数说明，以及不展开参数的 read* 候选；`std.fs.read(<|INTELLISENSE|>` 只提供已选中调用的参数提示，不列 read*；参数与返回值说明由 TypeScript 根据光标位置按需解析，可在调用、参数对象或返回值成员处请求补全，不直接附完整 schema；上例需要先配置对应工具。模型通过 `await std.fs.<|INTELLISENSE|>` 请求真实补全，主动结束本次生成；插件在完整响应结束后加入内部 system 补全上下文和原始 assistant 前缀，再请求续写。不会添加伪造用户消息，也不会中断正在生成的流。`<|LINE_BREAK|>` 累积输入并换行，`<|BREAK|>` 放弃输入；补全用于构造待执行代码；续写完成后解析、类型检查、编译并执行，向用户返回最后一个表达式的执行结果，不回显源码。不执行不完整源码。若模型误输出 DSML 包装或原生工具调用，插件拒绝该响应，并要求改用 TypeScript，保留此前未执行的前缀。
 
 每个会话有独立 VM，直接使用 VM 顶层词法变量：`const`、`let`、函数和闭包在后续段可访问。最后一个表达式的结果自动显示，Promise 自动等待。变量使用 JS 原生规则，没有 `del` 命令或绑定代理；`delete object.optionalProperty` 使用正常 TypeScript 检查和 JS 行为，不能删除词法绑定后重新声明。不要把 `const` / `let` 当成 `globalThis` 的属性。
 
@@ -43,12 +43,12 @@ await (async () => {
 })()
 ```
 
-VM 不暴露 `console`；使用最后一个表达式返回执行结果。VM 直接支持原生 `Promise`，使用 `Promise.all` / `Promise.race` 等标准接口。每次请求提示当前会话变量及类型、可用根命名空间，以及从持久化调用统计中选出的常用/最近工具路径。`await unknown.tools_namespace({})`（或配置后的语义路径） 创建维护子代理，返回命名空间整理提案；也可在管理页面触发。提案经过结构、身份、稳定路径、固定别名和版本验证，在页面明确批准后才写入。整理子代理只能提交结构化输出，不能执行物理工具；新映射的执行权限仍由 DSH 原生策略判断。
+VM 不暴露 `console`。使用全局固定的 `vm.print(...values)` 将工具结果或中间值输出给 agent，agent 读取反馈后继续生成下一段程序；打印值不直接作为对话回复。运行时错误同样反馈给 agent，VM、已初始化变量和已有副作用保留，出错代码不会自动重放。无打印、错误或重启的程序以最后一个表达式返回用户回复。`vm.restart()` 立即结束当前段并新建 Context；`vm.restart(["file", "result"])` 可保留指定变量的可复制值及其 const/let/var 属性，其他变量清除。未初始化变量、未知名称或函数等不可复制值会使转移失败，并保留当前 Context。工具配置和固定回调始终保留。VM 直接支持原生 `Promise`，使用 `Promise.all` / `Promise.race` 等标准接口。每次请求提示当前会话变量及类型、可用根命名空间，以及从持久化调用统计中选出的常用/最近工具路径。`await unknown.tools_namespace({})`（或配置后的语义路径） 创建维护子代理，返回命名空间整理提案；也可在管理页面触发。提案经过结构、身份、稳定路径、固定别名和版本验证，在页面明确批准后才写入。整理子代理只能提交结构化输出，不能执行物理工具；新映射的执行权限仍由 DSH 原生策略判断。
 
 ## 实现与边界
 
 - 固定 DSH `0.2.1-rc.2` 和 TypeScript `5.9.3`。虚拟 Language Service 提供类型诊断、变量/成员补全和参数提示，`transpileModule` 生成 JS 与 source map。源码树、环境声明和会话符号独立更新。
-- `LlmAdapter` 注册 `ts-repl` 路由，在插件拥有的上游请求中管理续写历史，原生 AgentLoop 实时接收上游思考流及最终执行结果；“轨迹”实时展示生成中的 TypeScript 源码，续写和纠错更新同一条代码记录，通过校验后再执行；思考过程继续流式显示，对话仅显示最终执行结果。轨迹同时记录真实子工具的参数、结果、错误及展示信息，并通过原生请求目录保留子工具 schema。该路由不向模型暴露原生工具 schema；工具实际调用仍通过 `agent.ctx.tools.execute`，保留原生参数验证、策略和 guard。
+- `LlmAdapter` 注册 `ts-repl` 路由，在插件拥有的上游请求中管理续写历史，原生 AgentLoop 实时接收上游思考流及最终执行结果；“轨迹”以 `ts_repl` 的 `codes: string[]` 参数实时展示每次生成的原始代码段（含控制标记），保留续写及纠错过程，并成对保存每次 INTELLISENSE 查询和完整结果；VM_EXECUTE 子记录保存各段执行结果、打印、异常及当前绑定，通过校验后才执行；思考过程继续流式显示，对话仅显示最终执行结果。轨迹同时记录真实子工具的参数、结果、错误及展示信息，并通过原生请求目录保留子工具 schema。该路由不向模型暴露原生工具 schema；工具实际调用仍通过 `agent.ctx.tools.execute`，保留原生参数验证、策略和 guard。
 - 原生 API 包括 `agent/created`、`system-prompt/assemble`、`ctx.agents.get/list`、`ctx.llm.registerAdapter/stream/listModels`、`ctx.storage.backend.get('json').kv.open`、`ctx.subagents.startActivation`、`ctx.connection.fetch.register` 和 `ctx.effect`。管理接口使用原生 Connection 认证、Host/Origin 和 owner-peer 检查。
 - 普通段编译为原生 `vm.Script`，保留该段内的提升和 TDZ。顶层 await 使用分阶段执行：等待初始化值后创建真实顶层声明，或等待异步表达式。**跨 await 阶段的提升和 TDZ 不等同完整 ECMAScript 模块**；含 await 的块不支持提升 `var`，可使用 async IIFE。跨段保留运行时值与推导类型，独立的 interface/type 声明不会作为完整源码模块持续保留；不支持 import/namespace。这不是完整 Node.js/ts-node 环境。
 - 每会话一个受 Node Permission Model 限制的子进程，限制内存、同步 VM 时间和异步执行时间；禁用普通 VM 字符串动态代码生成。`node:vm` 本身不是安全边界，注入的宿主函数可能提供宿主 realm 的间接入口。子进程权限拒绝任意文件读取、写入、启动子进程等能力；**不提供操作系统级隔离，也不限制所有网络访问**。运行对抗性不可信代码时应额外使用非特权容器或系统沙箱。
@@ -68,6 +68,6 @@ npm test           # 构建后运行 node:test / tsx
 npm pack --dry-run # 查看发布内容
 ```
 
-既有测试包含 React 原生入口注册及独立页面交互、实时思考与原生工具轨迹、原生 DSH AgentLoop/注册表/存储集成、补全续写、原生工具 guard、VM 词法规则、持久检查点、映射事务、超时和子进程权限。本轮改动已通过源码与客户端构建、补全位置/失效映射/轨迹归属的定向检查，以及真实 Web HTTP 验证：未登录 401，经 token 登录后 HTML、JS 和全局状态接口均为 200。按项目规范未更新或运行依赖旧会话配置和最大纠错参数的测试。自动测试使用确定性上游适配器，没有调用付费模型；未验证真实模型遵循协议的稳定性。
+既有测试包含 React 原生入口注册及独立页面交互、实时思考与原生工具轨迹、原生 DSH AgentLoop/注册表/存储集成、补全续写、原生工具 guard、VM 词法规则、持久检查点、映射事务、超时和子进程权限。本轮改动通过源码与客户端构建、所新增测试的严格类型检查，以及 9 项定向检查：补全位置与提示词、完整 IntelliSense 记录、VM 输出/错误反馈、变量保留重启、隔离进程 IPC、真实 DSH 多段执行与最终回复缓存、只读内置块；另以原生客户端组装器检查实时轨迹与历史回放一致。按项目规范未更新或运行依赖旧会话配置和最大纠错参数的测试。自动测试使用确定性上游适配器，没有调用付费模型；未验证真实模型遵循协议的稳定性。
 
 实现参考：[DSH 插件发布文档](https://deepseek-harness.github.io/deepseek-harness/en/develop/basic/publish.html)、[dsh-find-plugin](https://github.com/awesome-dsh-plugin/dsh-find-plugin)、[dsh-deploy-master](https://github.com/Olympianz/dsh-deploy-master)。插件入口与配置位置参考 [ModLens](https://github.com/liustack/modlens/blob/main/dsh/client.js)。内部模块说明见 [src/model.md](src/model.md)。

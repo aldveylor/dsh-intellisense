@@ -124,6 +124,7 @@ export class TypeScriptAdapter extends LlmAdapter {
         const logger = this.ctx.logger('ts-intellisense');
         const position = this.positions.get(agent.id);
         const trace = position ? new ExecutionTrace(agent, position, options) : undefined;
+        let lastResult: ExecutionResult | undefined;
         const response = await runConversation({
             code: (round, code) => trace?.updateCode(round, code),
             intellisense: record => trace?.intellisense(record),
@@ -176,15 +177,19 @@ export class TypeScriptAdapter extends LlmAdapter {
                 if (previous?.status === 'failed') throw new Error(previous.error);
                 await this.store.save<ExecutionRecord>(executionKey, { status: 'started' });
                 trace?.begin();
+                const executionCallId = ToolCallId(`ts-execute-${randomUUID()}`);
+                trace?.start(executionCallId, 'VM_EXECUTE', { code: source });
                 if (trace) this.executions.set(agent.id, trace);
                 try {
                     const result = await runtime.execute(id, source, options.signal);
-                    trace?.finish(result.output);
+                    trace?.executionResult(executionCallId, source, result);
+                    lastResult = result;
                     const checkpoint = await runtime.checkpoint();
                     await this.store.save(`session_${this.key(agent.id)}`, checkpoint);
-                    await this.store.save<ExecutionRecord>(executionKey, { status: 'completed', source, result });
+                    await this.store.save<ExecutionRecord>(`execution_${id}`, { status: result.error ? 'failed' : 'completed', source, result, error: result.error });
                     return result;
                 } catch (error) {
+                    trace?.executionResult(executionCallId, source, { output: '', declarations: [], error: error instanceof Error ? error.message : String(error) });
                     trace?.finish(error instanceof Error ? error.message : String(error), true);
                     await this.store.save<ExecutionRecord>(executionKey, { status: 'failed', error: error instanceof Error ? error.message : String(error) });
                     throw error;
@@ -195,8 +200,9 @@ export class TypeScriptAdapter extends LlmAdapter {
             trace?.finish(error instanceof Error ? error.message : String(error), true);
             throw error;
         });
-        if (response.abandoned) trace?.finish('Input abandoned without execution.');
         const text = response.abandoned ? 'Input abandoned without execution.' : response.output;
+        trace?.finish(text);
+        await this.store.save<ExecutionRecord>(executionKey, { status: 'completed', source: response.source, result: { ...lastResult, output: text, declarations: await runtime.declarations() } });
         return { text, usage, index: nextIndex };
     }
 

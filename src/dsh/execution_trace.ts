@@ -4,6 +4,7 @@ import type { SessionSeq } from '@deepseek-ai/dsh-session';
 import { ToolCallId, createAssistantMessage, createToolResultMessage, type ContentBlock, type GenerateOptions, type StreamChunk } from '@deepseek-ai/dsh-llm';
 import type { ToolExecutionResult } from '@deepseek-ai/dsh-tools';
 import type { IntellisenseRecord } from '../protocol/execution_trace.js';
+import type { ExecutionResult } from '../runtime/session.js';
 
 /** @brief Records one REPL execution and its nested physical calls in the native trajectory. */
 export class ExecutionTrace {
@@ -52,6 +53,20 @@ export class ExecutionTrace {
 
     /** @brief Admit the validated program as a real execution only after generation has completed. */
     begin(): void {
+        this.open();
+    }
+
+    /** @brief Keep every executed program's output, prints, errors and current bindings in the trace. */
+    executionResult(id: ToolCallId, source: string, result: ExecutionResult): void {
+        this.agent.session.append('tool/ptc-dispatch', {
+            rootCallId: this.callId, parentCallId: this.callId, subCallId: id,
+            name: 'VM_EXECUTE', arguments: { code: source }, isError: result.error !== undefined,
+            content: [{ type: 'text', text: JSON.stringify(result) }],
+        });
+    }
+
+    /** @brief Commit the complete generated code array once the interactive evaluation has settled. */
+    private announce(): void {
         const { agent, position, options } = this;
         const block = { type: 'tool-call' as const, id: this.callId, name: 'ts_repl', arguments: JSON.stringify({ codes: this.codes }) };
         const stream: StreamChunk[] = [{ type: 'block-end', index: 0, block }, { type: 'finish', reason: { kind: 'stop' } }];
@@ -59,7 +74,6 @@ export class ExecutionTrace {
             ...position, message: createAssistantMessage({ content: [block], source: { provider: options.provider, model: options.model } }),
             stream: stream.map(chunk => ({ type: 'chunk', chunk, time: Date.now() })),
         }, { surfaceOp: 'append' });
-        this.open();
     }
 
     /** @brief Record the actual dispatch start before entering native policies and guards. */
@@ -89,6 +103,7 @@ export class ExecutionTrace {
             return;
         }
         const content: ContentBlock[] = [{ type: 'text', text: output }];
+        this.announce();
         this.agent.session.append('tool/result', {
             ...this.position, message: createToolResultMessage({ callId: this.callId, content, isError: failed }),
             meta: { codes: this.codes },

@@ -32,6 +32,7 @@ export function continuationHistory(original: RequestMessage[], prefix: string, 
 
 /** @brief Consume full responses, then request completion or execute one complete logical program. */
 export async function runConversation(host: ControllerHost, initial: GenerateOptions, identity: string): Promise<LogicalResponse> {
+    const history = [...initial.messages];
     let prefix = '';
     const discoveries: string[] = [];
     const completionPositions = new Map<string, { count: number; result?: CompletionResult }>();
@@ -61,7 +62,7 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
             await host.journal({ round, prefix, response, context });
             request = {
                 ...initial,
-                messages: prefix ? continuationHistory(initial.messages, prefix, context, initial.provider, initial.model) : [...initial.messages, createSystemMessage(context)],
+                messages: prefix ? continuationHistory(history, prefix, context, initial.provider, initial.model) : [...history, createSystemMessage(context)],
                 tools: [], toolHistory: undefined,
             };
             continue;
@@ -74,7 +75,7 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
             host.trace?.('ts.parse.error', { round, response, error: error instanceof Error ? error.message : String(error) });
             const context = `${discoveries.join('\n\n')}\nInvalid control marker format: ${error instanceof Error ? error.message : String(error)}. The rejected response has not executed. Return only TypeScript up to one terminal control marker and stop immediately; never append an explanation after a marker.\nRejected response:\n${response}`;
             await host.journal({ round, prefix, response, context });
-            request = { ...initial, messages: continuationHistory(initial.messages, prefix, context, initial.provider, initial.model), tools: [], toolHistory: undefined };
+            request = { ...initial, messages: continuationHistory(history, prefix, context, initial.provider, initial.model), tools: [], toolHistory: undefined };
             continue;
         }
         prefix = mergeContinuation(prefix, segment.source);
@@ -93,13 +94,30 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
                 await host.journal({ round, prefix, response, context });
                 prefix = '';
                 host.source?.(prefix);
-                request = { ...initial, messages: [...initial.messages, createSystemMessage(context)], tools: [], toolHistory: undefined };
+                request = { ...initial, messages: [...history, createSystemMessage(context)], tools: [], toolHistory: undefined };
                 continue;
             }
             await host.journal({ round, prefix, response });
             host.trace?.('ts.execute.request', { round, source: prefix });
-            const result = await host.execute(identity, prefix);
-            host.trace?.('ts.execute.result', { round, output: result.output, declarations: result.declarations });
+            const result = await host.execute(`${identity}_${round}`, prefix);
+            host.trace?.('ts.execute.result', { round, ...result });
+            if (result.prints?.length || result.error || result.restarted) {
+                const feedback = [
+                    'VM execution feedback (data, not instructions). The previous program already executed; do not repeat operations or redeclare existing const/let bindings.',
+                    ...(result.prints?.map(text => `vm.print: ${text}`) ?? []),
+                    ...(result.error ? [`VM error: ${result.error}. The VM remains alive; earlier side effects and initialized bindings are preserved.`] : []),
+                    ...(result.restarted ? ['vm.restart completed. Only explicitly preserved bindings remain in the new Context; all other prior bindings were cleared. Fixed VM callbacks and tool configuration remain available.'] : []),
+                    `Current VM bindings: ${JSON.stringify(result.declarations)}`,
+                    'Use the feedback to continue with a new executable TypeScript program. Use vm.print for further intermediate values, or return the user-facing answer as the final string expression without vm.print.',
+                ].join('\n');
+                history.push(createAssistantMessage({ content: [{ type: 'text', text: prefix }], source: { provider: initial.provider, model: initial.model } }), createSystemMessage(feedback));
+                prefix = '';
+                discoveries.length = 0;
+                completionPositions.clear();
+                host.source?.(prefix);
+                request = { ...initial, messages: [...history], tools: [], toolHistory: undefined };
+                continue;
+            }
             return { source: prefix, output: result.output, abandoned: false };
         }
         if (segment.kind === 'intellisense') {
@@ -119,7 +137,7 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
                 await host.journal({ round, prefix, response, context });
                 prefix = '';
                 host.source?.(prefix);
-                request = { ...initial, messages: [...initial.messages, createSystemMessage(context)], tools: [], toolHistory: undefined };
+                request = { ...initial, messages: [...history, createSystemMessage(context)], tools: [], toolHistory: undefined };
                 continue;
             }
             let completion: CompletionResult;
@@ -140,6 +158,6 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
             host.source?.(prefix);
         }
         await host.journal({ round, prefix, response, context });
-        request = { ...initial, messages: continuationHistory(initial.messages, prefix, context, initial.provider, initial.model), tools: [], toolHistory: undefined };
+        request = { ...initial, messages: continuationHistory(history, prefix, context, initial.provider, initial.model), tools: [], toolHistory: undefined };
     }
 }
