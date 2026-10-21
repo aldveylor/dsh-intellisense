@@ -29,7 +29,7 @@ export async function apply(ctx: Context, options: Config = {}): Promise<void> {
     ctx.tools.register({
         name: 'tools_namespace',
         description: 'Sort tools into semantic namespaces. Return an organization proposal for human approval in the TypeScript tools management UI.',
-        parameters: {},
+        parameters: { type: 'object', properties: {}, additionalProperties: false },
         output: {
             schema: { type: 'object', properties: { id: { type: 'string' }, proposal: proposalSchema } },
             render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
@@ -39,7 +39,7 @@ export async function apply(ctx: Context, options: Config = {}): Promise<void> {
             return organization.propose(execution.agent, execution.signal);
         },
     });
-    const adapter = new TypeScriptAdapter(ctx, config, registry, store, organization);
+    const adapter = new TypeScriptAdapter(ctx, config, registry, store);
     ctx.llm.registerAdapter([config.route], adapter);
     ctx.on('llm/stream', (request, next) => {
         const agent = request.sessionId ? ctx.agents.get(request.sessionId) : undefined;

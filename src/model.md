@@ -4,7 +4,7 @@
 
 ## 数据与调用
 
-`registry/registry.ts` 将物理工具 ID、语义路径/别名、启用、固定映射和统计分开保存。物理工具从实际 DSH runtime 读取，未配置工具只出现在 `unknown.<工具名>` 路径；非标识符字符（含 `$`）以 `$十六进制码点$` 转义，数字开头和保留名称添加 `$tool$` 前缀，避免名称碰撞。调用先验证映射启用状态和 JSON Schema，再交给 DSH execute；未配置工具同样可派发，执行授权完全交给原生 guard/策略判断，注册表不保存独立授权字段。配置事务串行化，持久化成功后提交内存状态，revision 防止旧页面覆盖更新。补全曝光与成功调用分别统计，使用频率和时间只在类型候选内排序。
+`registry/registry.ts` 将物理工具 ID、语义路径/别名、启用、固定映射和统计分开保存。物理工具从实际 DSH runtime 读取，未配置工具只出现在 `unknown.<工具名>` 路径；非标识符字符（含 `$`）以 `$十六进制码点$` 转义，数字开头和保留名称添加 `$tool$` 前缀，避免名称碰撞。调用先验证映射启用状态和 JSON Schema，再交给 DSH execute；未配置工具同样可派发，执行授权完全交给原生 guard/策略判断，注册表不保存独立授权字段。命名空间元数据独立保存路径、常显设置和注释；注释进入 TS 声明文档，常显节点在 agent 可访问其后代工具时加入每轮提示词。配置事务串行化，持久化成功后提交内存状态，revision 防止旧页面覆盖更新。补全曝光与成功调用分别统计，使用频率和时间只在类型候选内排序。
 
 `storage/store.ts` 定义 Store，生产使用 DSH JSON backend 的 `ts_intellisense` KV 单元、state 表；MemoryStore 和原子 FileStore 用于独立使用。保存注册表、会话数据检查点、续写日志、请求执行状态和物理工具派发日志。已完成请求返回缓存，未确定结果拒绝重试，不重放工具来恢复变量。
 
@@ -24,6 +24,6 @@
 
 `protocol/markers.ts` 在响应完全结束后识别末尾控制标记；`controller.ts` 要求模型自愿 stop 后发起下一次生成，保留前缀，追加 system 补全信息与 assistant 前缀，不伪造用户消息。单独的补全标记在空源码位置请求补全，续写仅追加 system 上下文，不构造空 assistant 前缀。完整无标记输入先经子进程纯编译校验，失败时携带已有补全上下文、拒绝源码和纯文本诊断，在续写上限内要求重写整段；校验阶段不记录执行状态、不产生副作用。运行时错误不自动重试。通过 DSH 原生 `ts-intellisense` logger 记录每轮响应、控制标记解析、补全请求及结果、编译校验诊断、执行源码及结果、请求错误，并携带会话/请求标识。各轮补全信息累计保留，同一光标重复查询时携带已取得的 VM 上下文重置未执行缓冲并要求生成完整程序，避免无进展补全循环，只在通过校验后执行。原生工具调用或 DSML 包装响应会被拒绝并在续写次数上限内要求改用原始 TypeScript，保留此前未执行前缀，不展示或执行被拒绝的协议内容。`prompt.ts` 在每次请求展示当前 VM 会话绑定及其类型、可用根命名空间与原生 Promise；根据持久化成功调用统计补充常用/最近工具路径（含别名），按 agent 可见工具过滤。详细工具签名按需补全；提示明确补全用于构造待执行代码，补全后应完成真实调用并以最后一个表达式返回结果。用户可见回复默认使用用户语言的自然语言字符串，普通对话直接返回字符串，工具调用后以真实结果组织自然语言答复；仅在用户明确要求时返回代码或结构化数据。
 
-`dsh/organization.ts` 使用原生 spawn 子代理和结构化输出 schema。提前保留 childId 并安装执行 guard，仅允许结构化输出工具。提案先在内存快照验证，等待 UI 批准后以 revision 校验并事务提交；不能修改 DSH 原生执行策略。
+`dsh/organization.ts` 使用原生 spawn 子代理和结构化输出 schema。提前保留 childId 并安装执行 guard，仅允许结构化输出工具。提案先在内存快照验证，等待 UI 批准后以 revision 校验并事务提交；不能修改 DSH 原生执行策略。整理功能通过 `index.ts` 注册为普通物理工具 `tools_namespace`，默认位于 `unknown.tools_namespace`，可由 UI 挂载和命名；统一经过 schema 校验、原生执行策略、调用轨迹和使用统计，不再注入 VM 专用 `tools.sort` 或 sort IPC 通道。
 
-`web/routes.ts` 使用原生 Connection fetch 注册认证路由。`web/management_panel.tsx` 使用 React 实现命名空间树、schema 检查、版本化配置草稿、搜索、会话选择、组织提案与明确批准；不可信工具元数据作为 React 文本渲染。`web/client.ts` 通过原生 settings.plugins.tab 插槽挂载到“设置 → 插件 → TypeScript 工具”，由 package.json 的 dsh.client 声明和 ./client 导出被宿主发现。`web/ui.ts` 与 `web/standalone.tsx` 保留独立认证页面并复用同一组件。`scripts/build_client.mjs` 构建共享宿主 React 的原生懒加载模块及内含 React 的独立页面脚本，npm build 与 run.mjs 均执行前端打包。状态修改同步更新注册表，下一次补全/执行刷新运行时声明和命名空间，提示词变更通过原生事件通知。
+`web/routes.ts` 使用原生 Connection fetch 注册认证路由。`web/management_panel.tsx` 使用 React 实现上下布局：上方为可展开的命名空间树，节点右侧配置常显与注释，并支持新建空命名空间；下方为工具积木，未挂载工具显示红色。拖拽积木到节点或点击挂载按钮，打开命名空间、名称和主路径/别名挂载对话框；固定映射禁止拖拽和移动。保留 schema 检查、版本化配置草稿、搜索、会话选择、组织提案与明确批准；不可信工具元数据作为 React 文本渲染。`web/client.ts` 通过原生 settings.plugins.tab 插槽挂载到“设置 → 插件 → TypeScript 工具”，由 package.json 的 dsh.client 声明和 ./client 导出被宿主发现。`web/ui.ts` 与 `web/standalone.tsx` 保留独立认证页面并复用同一组件。`scripts/build_client.mjs` 构建共享宿主 React 的原生懒加载模块及内含 React 的独立页面脚本，npm build 与 run.mjs 均执行前端打包。状态修改同步更新注册表，下一次补全/执行刷新运行时声明和命名空间，提示词变更通过原生事件通知。

@@ -9,7 +9,6 @@ import { IsolatedSession } from '../runtime/isolated.js';
 import type { SessionCheckpoint, ExecutionResult } from '../runtime/session.js';
 import { environmentPrompt } from '../protocol/prompt.js';
 import { runConversation } from '../protocol/controller.js';
-import type { OrganizationService } from './organization.js';
 import { ExecutionTrace } from './execution_trace.js';
 
 /** @brief Plugin route and the actual upstream model provider stay separate. */
@@ -24,7 +23,7 @@ export class TypeScriptAdapter extends LlmAdapter {
     private positions = new Map<string, { turn: number; step: number }>();
     private executions = new Map<string, ExecutionTrace>();
 
-    constructor(private ctx: Context, readonly config: AdapterConfig, private registry: SemanticRegistry, private store: Store, private organization: OrganizationService) {
+    constructor(private ctx: Context, readonly config: AdapterConfig, private registry: SemanticRegistry, private store: Store) {
         super();
         ctx.on('agent/assistant-stream', ({ agent, frame }) => {
             if (frame.type === 'start') this.positions.set(agent.id, { turn: frame.turn, step: frame.step });
