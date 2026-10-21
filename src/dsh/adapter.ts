@@ -91,7 +91,7 @@ export class TypeScriptAdapter extends LlmAdapter {
         const identity = this.key(JSON.stringify({ session: agent.id, messages: options.messages, model: options.model }));
         const executionKey = `execution_${identity}`;
         const previous = await this.store.load<ExecutionRecord>(executionKey);
-        if (previous?.status === 'completed') return { text: this.render(previous.source ?? '', previous.result!.output), usage: { inputTokens: 0, outputTokens: 0 } };
+        if (previous?.status === 'completed') return { text: previous.result!.output, usage: { inputTokens: 0, outputTokens: 0 } };
         if (previous?.status === 'failed') throw new Error(previous.error);
         if (previous?.status === 'started') throw new Error('A prior execution has an uncertain outcome and will not be repeated');
         const usage: TokenUsage = { inputTokens: 0, outputTokens: 0 };
@@ -139,12 +139,8 @@ export class TypeScriptAdapter extends LlmAdapter {
             },
             journal: async record => { journal.push(record); await this.store.save(`continuation_${identity}`, journal); },
         }, upstream, identity, this.config.maxContinuations);
-        const text = response.abandoned ? 'Input abandoned without execution.' : this.render(response.source, response.output);
+        const text = response.abandoned ? 'Input abandoned without execution.' : response.output;
         return { text, usage };
-    }
-
-    private render(source: string, output: string): string {
-        return `${source}${output ? `\n\n// Result:\n${output.split('\n').map(line => `// ${line}`).join('\n')}` : ''}`;
     }
 
     override async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {

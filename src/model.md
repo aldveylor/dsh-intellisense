@@ -8,7 +8,7 @@
 
 `storage/store.ts` 定义 Store，生产使用 DSH JSON backend 的 `ts_intellisense` KV 单元、state 表；MemoryStore 和原子 FileStore 用于独立使用。保存注册表、会话数据检查点、续写日志、请求执行状态和物理工具派发日志。已完成请求返回缓存，未确定结果拒绝重试，不重放工具来恢复变量。
 
-`dsh/adapter.ts` 通过受支持的 LlmAdapter 维护独立上游请求和续写历史，不修改 AgentLoop 冻结请求。`index.ts` 通过官方 `llm/stream` waterfall 和 `isAgentLoopRequest` 识别 TS 会话的主循环请求，即使 UI 模型选择将 provider 切至原生路由，也交给 REPL 控制器并保留选中的上游 provider/model；内部续写、标题/压缩请求和普通会话不经过该接管。每会话串行生成与执行。`physical()` 根据 agent 作用域读取实际 schema；每次执行前刷新 namespace 和声明。上游 tools 数组为空；最终向原生 loop 返回一个合并 assistant 结果。工具 additionalContexts 仍经原生 agent.inject 注入。
+`dsh/adapter.ts` 通过受支持的 LlmAdapter 维护独立上游请求和续写历史，不修改 AgentLoop 冻结请求。`index.ts` 通过官方 `llm/stream` waterfall 和 `isAgentLoopRequest` 识别 TS 会话的主循环请求，即使 UI 模型选择将 provider 切至原生路由，也交给 REPL 控制器并保留选中的上游 provider/model；内部续写、标题/压缩请求和普通会话不经过该接管。每会话串行生成与执行。`physical()` 根据 agent 作用域读取实际 schema；每次执行前刷新 namespace 和声明。上游 tools 数组为空；最终向原生 loop 返回 VM 执行结果，不回显生成源码；完成请求缓存同样返回执行结果。工具 additionalContexts 仍经原生 agent.inject 注入。
 
 ## 编译与执行
 
@@ -22,7 +22,7 @@
 
 ## 协议、维护与界面
 
-`protocol/markers.ts` 在响应完全结束后识别末尾控制标记；`controller.ts` 要求模型自愿 stop 后发起下一次生成，保留前缀，追加 system 补全信息与 assistant 前缀，不伪造用户消息。单独的补全标记在空源码位置请求补全，续写仅追加 system 上下文，不构造空 assistant 前缀。完整无标记输入先经子进程纯编译校验，失败时携带已有补全上下文、拒绝源码和纯文本诊断，在续写上限内要求重写整段；校验阶段不记录执行状态、不产生副作用。运行时错误不自动重试。各轮补全信息累计保留，同一光标重复查询时携带已取得的 VM 上下文重置未执行缓冲并要求生成完整程序，避免无进展补全循环，只在通过校验后执行。原生工具调用或 DSML 包装响应会被拒绝并在续写次数上限内要求改用原始 TypeScript，保留此前未执行前缀，不展示或执行被拒绝的协议内容。`prompt.ts` 在每次请求展示当前 VM 会话绑定及其类型、可用根命名空间与原生 Promise；根据持久化成功调用统计补充常用/最近工具路径（含别名），按 agent 可见工具过滤。详细工具签名按需补全。
+`protocol/markers.ts` 在响应完全结束后识别末尾控制标记；`controller.ts` 要求模型自愿 stop 后发起下一次生成，保留前缀，追加 system 补全信息与 assistant 前缀，不伪造用户消息。单独的补全标记在空源码位置请求补全，续写仅追加 system 上下文，不构造空 assistant 前缀。完整无标记输入先经子进程纯编译校验，失败时携带已有补全上下文、拒绝源码和纯文本诊断，在续写上限内要求重写整段；校验阶段不记录执行状态、不产生副作用。运行时错误不自动重试。各轮补全信息累计保留，同一光标重复查询时携带已取得的 VM 上下文重置未执行缓冲并要求生成完整程序，避免无进展补全循环，只在通过校验后执行。原生工具调用或 DSML 包装响应会被拒绝并在续写次数上限内要求改用原始 TypeScript，保留此前未执行前缀，不展示或执行被拒绝的协议内容。`prompt.ts` 在每次请求展示当前 VM 会话绑定及其类型、可用根命名空间与原生 Promise；根据持久化成功调用统计补充常用/最近工具路径（含别名），按 agent 可见工具过滤。详细工具签名按需补全；提示明确补全用于构造待执行代码，补全后应完成真实调用并以最后一个表达式返回结果。
 
 `dsh/organization.ts` 使用原生 spawn 子代理和结构化输出 schema。提前保留 childId 并安装执行 guard，仅允许结构化输出工具。提案先在内存快照验证，等待 UI 批准后以 revision 校验并事务提交；不能修改授权。
 

@@ -83,7 +83,7 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
         }
         if (segment.kind === 'intellisense') {
             if (lastCompletion === prefix) {
-                const context = `${discoveries.join('\n\n')}\nThe same cursor has already been inspected; its current VM members are listed above. No source has executed. Discard the unfinished buffer and write a complete executable TypeScript program that answers the original request. To list namespace members without invoking tools, print Object.keys(namespace). Do not repeat the same discovery request.`;
+                const context = `${discoveries.join('\n\n')}\nThe same cursor has already been inspected; its current VM members are listed above. No source has executed. Discard the unfinished buffer and write a complete executable TypeScript program that answers the original request. To list namespace members without invoking tools, use Object.keys(namespace) as the final executable expression. Do not repeat the same discovery request.`;
                 await host.journal({ round, prefix, response, context });
                 prefix = '';
                 lastCompletion = undefined;
