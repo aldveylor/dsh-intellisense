@@ -121,8 +121,8 @@ export class TypeScriptAdapter extends LlmAdapter {
         const upstream: GenerateOptions = {
             ...options, provider: options.provider === this.config.route ? this.config.provider : options.provider, model: options.model || this.config.model,
             tools: [], toolHistory: undefined,
-            // The adapter owns this separate internal request; the loop's input remains immutable.
-            system: await this.prompt(agent, await runtime.declarations()), messages: options.messages.filter(m => m.role !== 'system'),
+            // Inject after native assembly so complete personas and mode policies remain intact.
+            system: [options.system, await this.prompt(agent, await runtime.declarations())].filter(Boolean).join('\n\n'),
         };
         const logger = this.ctx.logger('ts-intellisense');
         const response = await runConversation({

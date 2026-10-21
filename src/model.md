@@ -10,7 +10,7 @@
 
 `storage/store.ts` 定义 Store，生产使用 DSH JSON backend 的 `ts_intellisense` KV 单元、state 表；MemoryStore 和原子 FileStore 用于独立使用。保存注册表、会话数据检查点、续写日志、请求执行状态和物理工具派发日志。已完成请求返回缓存，未确定结果拒绝重试，不重放工具来恢复变量。
 
-`dsh/adapter.ts` 通过受支持的 LlmAdapter 维护独立上游请求和续写历史，不修改 AgentLoop 冻结请求。`index.ts` 通过官方 `llm/stream` waterfall 和 `isAgentLoopRequest` 识别 TS 会话的主循环请求，即使 UI 模型选择将 provider 切至原生路由，也交给 REPL 控制器并保留选中的上游 provider/model；内部续写、标题/压缩请求和普通会话不经过该接管。每会话串行生成与执行。`physical()` 根据 agent 作用域读取实际 schema（通过原生 schemas/get 取得描述、参数和返回值）；每次执行前刷新 namespace 和声明。上游 tools 数组为空；实时转发上游 reasoning 内容并为跨轮续写分配独立块索引，最终向原生 loop 返回 VM 执行结果，不回显生成源码；完成请求缓存同样返回执行结果且不重复记录或派发工具。`dsh/execution_trace.ts` 将每次 REPL 执行记录为原生 ts_repl 调用/结果，其物理工具通过成对的 tool/ptc-dispatch-start、tool/ptc-dispatch 事件记录真实参数、结果、错误和展示元数据，供轨迹实时显示与持久化回放。执行事件直接记录已执行调用，最终流不发送可再次执行的 tool-call 块。工具 additionalContexts 仍经原生 agent.inject 注入。
+`dsh/adapter.ts` 通过受支持的 LlmAdapter 维护独立上游请求和续写历史，不修改 AgentLoop 冻结请求。`index.ts` 通过官方 `llm/stream` waterfall 和 `isAgentLoopRequest` 识别 TS 会话的主循环请求，即使 UI 模型选择将 provider 切至原生路由，也交给 REPL 控制器并保留选中的上游 provider/model；内部续写、标题/压缩请求和普通会话不经过该接管。每会话串行生成与执行。`physical()` 根据 agent 作用域读取实际 schema（通过原生 schemas/get 取得描述、参数和返回值）；每次执行前刷新 namespace 和声明。通过 `system-prompt/assemble` 仅移除 `tool:*`、`tools:*` 原工具提示分区并清空原生工具目录，保留人设、计划/团队策略、技能、项目指令和运行上下文；适配器保留原 `system` 与全部历史消息，追加带实时 VM 绑定的 REPL 协议。注入在原生组装之后进行，兼容极简预设的 complete 人设；REPL 提示不重新定义人设或模式授权。会话作用域的 native 呈现仅用于让 REPL 通过原生执行管线派发物理工具。上游 tools 数组为空；实时转发上游 reasoning 内容并为跨轮续写分配独立块索引，最终向原生 loop 返回 VM 执行结果，不回显生成源码；完成请求缓存同样返回执行结果且不重复记录或派发工具。`dsh/execution_trace.ts` 将每次 REPL 执行记录为原生 ts_repl 调用/结果，其物理工具通过成对的 tool/ptc-dispatch-start、tool/ptc-dispatch 事件记录真实参数、结果、错误和展示元数据，供轨迹实时显示与持久化回放。执行事件直接记录已执行调用，最终流不发送可再次执行的 tool-call 块。工具 additionalContexts 仍经原生 agent.inject 注入。
 
 ## 编译与执行
 

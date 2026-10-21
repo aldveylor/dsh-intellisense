@@ -48,6 +48,7 @@ export async function apply(ctx: Context, options: Config = {}): Promise<void> {
     });
     ctx.on('agent/created', async ({ agent }) => {
         if (agent.options.provider === config.route) {
+            // REPL dispatches physical tools directly through the native execution pipeline.
             agent.ctx.tools.presentAs('native');
             await adapter.registryFor(agent);
         }
@@ -57,7 +58,7 @@ export async function apply(ctx: Context, options: Config = {}): Promise<void> {
         const assembled = await next();
         if (context.agent?.options.provider === config.route) {
             assembled.tools = [];
-            assembled.sections = [{ name: 'typescript-repl', text: await adapter.prompt(context.agent), interpolate: false }];
+            assembled.sections = assembled.sections.filter(section => !section.name.startsWith('tool:') && !section.name.startsWith('tools:'));
         }
         return assembled;
     });
