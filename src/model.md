@@ -1,6 +1,6 @@
 # 源码模型
 
-入口 `index.ts` 按原生 Cordis 依赖装配 `ts-repl` 路由、注册表、维护服务和认证管理接口；释放时关闭会话进程。无需 DSH core 补丁。根目录 `cordis.patch.yml` 为发布包入口，`run.sh` 将插件路径改为本地构建产物的绝对路径，并在 `build/workspace` 中启动 DSH，自动加载本项目插件供开发运行。
+入口 `index.ts` 按原生 Cordis 依赖装配 `ts-repl` 路由、注册表、维护服务和认证管理接口；释放时关闭会话进程。无需 DSH core 补丁。根目录 `cordis.patch.yml` 为发布包入口。`run.mjs` 自动构建并将插件路径改为本地构建产物的绝对路径，通过 DSH `runProfile` API 启动 Web，使用并注册 `build/workspace` 工作区，默认配置与数据位于其下的 `.dsh`（允许 `DSH_HOME` 覆盖）；`run.sh` 为 Node.js 入口包装。
 
 ## 数据与调用
 
