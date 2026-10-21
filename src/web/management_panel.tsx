@@ -24,53 +24,80 @@ async function request<T>(api: string, body?: unknown, signal?: AbortSignal): Pr
     return data;
 }
 
-/** @brief Draggable tool block with an inspectable mapping and native schemas. */
-function ToolBlock({ tool, mapping, busy, mount, update, remove }: {
-    tool: PhysicalTool; mapping?: Mapping; busy: boolean; mount: () => void;
-    update: (patch: Partial<Mapping>) => void; remove: () => void;
-}) {
-    return <section title={[tool.description, mapping?.description].filter(Boolean).join('\n')} className={`ts-tool ${mapping?.path.trim() ? '' : 'ts-unmounted'}`}
-        draggable={!busy && !mapping?.pinned} onDragStart={event => {
+/** @brief Compact physical tool block; dropping it creates or moves its mapping directly. */
+function ToolBlock({ tool, mapping, busy }: { tool: PhysicalTool; mapping?: Mapping; busy: boolean }) {
+    return <section title={[tool.description, mapping?.description].filter(Boolean).join('\n')}
+        className={`ts-tool ${mapping?.path.trim() ? '' : 'ts-unmounted'}`} draggable={!busy && !mapping?.pinned}
+        onDragStart={event => {
             event.dataTransfer.setData('application/x-ts-tool', tool.id);
-            event.dataTransfer.effectAllowed = 'copyMove';
+            event.dataTransfer.effectAllowed = 'move';
         }}>
-        <div className="ts-actions"><strong>{tool.id}</strong><small>{mapping?.path.trim() ? '已挂载' : '未挂载'}</small>
-            <button disabled={busy || mapping?.pinned} onClick={mount}>挂载</button></div>
-        <code>{mapping?.path || 'unknown'}</code>
-        <details><summary>配置 / 类型</summary><div className="ts-tool-config">
-            <label>语义路径<input aria-label={`语义路径 ${tool.id}`} value={mapping?.path ?? ''} disabled={busy || mapping?.pinned}
-                onChange={e => update({ path: e.target.value })} /></label>
-            <label>别名<input aria-label={`别名 ${tool.id}`} value={mapping?.aliases.join(',') ?? ''} disabled={busy || mapping?.pinned}
-                placeholder="以逗号分隔" onChange={e => update({ aliases: e.target.value.split(',') })} /></label>
-            <label>备注<input aria-label={`映射备注 ${tool.id}`} value={mapping?.description ?? ''} disabled={busy}
-                onChange={e => update({ description: e.target.value })} /></label>
-            <div className="ts-actions"><label><input type="checkbox" aria-label={`启用 ${tool.id}`} checked={mapping?.enabled ?? true} disabled={busy}
-                onChange={e => update({ enabled: e.target.checked })} />启用</label>
-                <label><input type="checkbox" aria-label={`固定 ${tool.id}`} checked={mapping?.pinned ?? false} disabled={busy}
-                    onChange={e => update({ pinned: e.target.checked })} />固定</label>
-                <button disabled={busy || !mapping || mapping.pinned} onClick={remove}>取消挂载</button></div>
-            <h4>参数</h4><pre>{JSON.stringify(tool.parameters, null, 2)}</pre>
-            <h4>返回值</h4><pre>{JSON.stringify(tool.output, null, 2)}</pre>
-        </div></details>
+        <strong>{tool.id}</strong><code>{mapping?.path || '未挂载'}</code>
     </section>;
 }
 
-/** @brief Name a child namespace inline; empty names and Escape discard the pending entry. */
-function NamespacePlaceholder({ parent = '', busy, create }: {
-    parent?: string; busy: boolean; create: (path: string) => boolean;
+/** @brief Editable mapped name, always shown beside the original physical tool identity. */
+function MappedTool({ mapping, path, description, busy, rename, remove }: {
+    mapping: Mapping; path: string; description?: string; busy: boolean;
+    rename: (path: string, name: string) => boolean; remove: (path: string) => void;
 }) {
     const [name, setName] = useState<string>();
+
+    /** @brief Begin renaming only mappings that can be moved. */
+    function begin(): void {
+        if (!busy && !mapping.pinned) setName(path.split('.').at(-1)!);
+    }
+
+    return <li className="ts-tree-tool" title={description} draggable={name === undefined && !busy && !mapping.pinned}
+        onDragStart={event => {
+            event.stopPropagation();
+            event.dataTransfer.setData('application/x-ts-tool', mapping.id);
+            event.dataTransfer.setData('application/x-ts-mapping', path);
+            event.dataTransfer.effectAllowed = 'move';
+        }}>
+        {name === undefined ? <code role="button" tabIndex={busy || mapping.pinned ? -1 : 0}
+            title="双击重命名" onDoubleClick={begin} onKeyDown={event => {
+                if (event.key === 'Enter') { event.preventDefault(); begin(); }
+            }}>{path.split('.').at(-1)}</code> : <input autoFocus aria-label={`映射名称 ${path}`} value={name} disabled={busy}
+                onChange={event => setName(event.target.value)} onBlur={() => {
+                    const value = name.trim();
+                    if (!value || rename(path, value)) setName(undefined);
+                }} onKeyDown={event => {
+                    if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); }
+                    if (event.key === 'Escape') { event.preventDefault(); setName(undefined); }
+                }} />}
+        <span aria-hidden="true">→</span><small>{mapping.id}</small>
+        <button aria-label={`移除映射 ${path}`} title="移除映射" disabled={busy || mapping.pinned} onClick={() => remove(path)}>×</button>
+    </li>;
+}
+
+/** @brief Name a child namespace inline; empty names and Escape discard the pending entry. */
+function NamespacePlaceholder({ parent = '', busy, create, drop }: {
+    parent?: string; busy: boolean; create: (path: string) => boolean;
+    drop?: (id: string, path: string, source?: string) => void;
+}) {
+    const [name, setName] = useState<string>();
+    const [over, setOver] = useState(false);
 
     /** @brief Start naming without changing the persisted namespace draft. */
     function begin(): void {
         if (!busy) setName('');
     }
 
-    return <li className="ts-empty ts-namespace-placeholder">
+    return <li className={`ts-empty ts-namespace-placeholder ${over ? 'ts-drop-over' : ''}`}
+        onDragOver={event => {
+            if (parent && !busy && event.dataTransfer.types.includes('application/x-ts-tool')) {
+                event.preventDefault(); event.stopPropagation(); setOver(true);
+            }
+        }} onDragLeave={() => setOver(false)} onDrop={event => {
+            if (!parent) return;
+            event.preventDefault(); event.stopPropagation(); setOver(false);
+            if (!busy) drop?.(event.dataTransfer.getData('application/x-ts-tool'), parent, event.dataTransfer.getData('application/x-ts-mapping'));
+        }}>
         {name === undefined ? <span role="button" tabIndex={busy ? -1 : 0} aria-disabled={busy}
             title="双击添加命名空间" onDoubleClick={begin} onKeyDown={event => {
                 if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); begin(); }
-            }}>将工具积木拖到此节点</span> : <input autoFocus aria-label={`命名新命名空间 ${parent || '根节点'}`}
+            }}>{parent ? '将工具积木拖到此节点' : '双击添加根命名空间'}</span> : <input autoFocus aria-label={`命名新命名空间 ${parent || '根节点'}`}
             placeholder="命名空间名称" value={name} disabled={busy} onChange={event => setName(event.target.value)}
             onBlur={() => {
                 const value = name.trim();
@@ -83,21 +110,22 @@ function NamespacePlaceholder({ parent = '', busy, create }: {
 }
 
 /** @brief Recursive expandable namespace node with editable metadata and drop targets. */
-function NamespaceNode({ path, paths, mappings, namespaces, busy, configure, drop, create }: {
+function NamespaceNode({ path, paths, mappings, namespaces, busy, configure, drop, create, rename, remove, tools }: {
     path: string; paths: string[]; mappings: Mapping[]; namespaces: Namespace[]; busy: boolean;
-    configure: (path: string, patch: Partial<Namespace>) => void; drop: (id: string, path: string) => void;
-    create: (path: string) => boolean;
+    configure: (path: string, patch: Partial<Namespace>) => void; drop: (id: string, path: string, source?: string) => void;
+    create: (path: string) => boolean; rename: (path: string, name: string) => boolean;
+    remove: (path: string) => void; tools: PhysicalTool[];
 }) {
     const [over, setOver] = useState(false);
     const config = namespaces.find(n => n.path === path);
     const children = paths.filter(p => p.startsWith(`${path}.`) && p.split('.').length === path.split('.').length + 1);
-    const mounted = mappings.flatMap(m => [m.path, ...m.aliases].map(p => ({ path: p, id: m.id })))
+    const mounted = mappings.flatMap(m => [m.path, ...m.aliases].map(p => ({ path: p, mapping: m })))
         .filter(m => m.path.slice(0, m.path.lastIndexOf('.')) === path);
     return <li><details open><summary className={over ? 'ts-drop-over' : ''}
         onDragOver={event => { if (!busy && event.dataTransfer.types.includes('application/x-ts-tool')) { event.preventDefault(); setOver(true); } }}
         onDragLeave={() => setOver(false)} onDrop={event => {
-            event.preventDefault(); setOver(false);
-            if (!busy) drop(event.dataTransfer.getData('application/x-ts-tool'), path);
+            event.preventDefault(); event.stopPropagation(); setOver(false);
+            if (!busy) drop(event.dataTransfer.getData('application/x-ts-tool'), path, event.dataTransfer.getData('application/x-ts-mapping'));
         }}><span className="ts-node-name">{path.split('.').at(-1)}</span>
         <span className="ts-node-config" onClick={event => event.stopPropagation()}>
             <label><input type="checkbox" aria-label={`一直显示 ${path}`} checked={config?.alwaysVisible ?? false} disabled={busy}
@@ -106,9 +134,10 @@ function NamespaceNode({ path, paths, mappings, namespaces, busy, configure, dro
                 onChange={event => configure(path, { description: event.target.value })} />
         </span></summary><ul>
         {children.map(child => <NamespaceNode key={child} path={child} paths={paths} mappings={mappings} namespaces={namespaces}
-            busy={busy} configure={configure} drop={drop} create={create} />)}
-        {mounted.map(m => <li className="ts-tree-tool" key={`${m.id}:${m.path}`}><code>{m.path.split('.').at(-1)}</code><small>{m.id}</small></li>)}
-        <NamespacePlaceholder parent={path} busy={busy} create={create} />
+            busy={busy} configure={configure} drop={drop} create={create} rename={rename} remove={remove} tools={tools} />)}
+        {mounted.map(m => <MappedTool key={`${m.mapping.id}:${m.path}`} mapping={m.mapping} path={m.path} busy={busy}
+            description={tools.find(tool => tool.id === m.mapping.id)?.description} rename={rename} remove={remove} />)}
+        <NamespacePlaceholder parent={path} busy={busy} create={create} drop={drop} />
         </ul></details></li>;
 }
 
@@ -117,7 +146,6 @@ export function ManagementPanel({ api }: ManagementPanelProps) {
     const [view, setView] = useState<View>();
     const [mappings, setMappings] = useState<Mapping[]>([]);
     const [namespaces, setNamespaces] = useState<Namespace[]>([]);
-    const [mount, setMount] = useState<{ id: string; namespace: string; name: string; alias: boolean }>();
     const [sessionId, setSessionId] = useState('');
     const [search, setSearch] = useState('');
     const [status, setStatus] = useState('正在加载…');
@@ -187,19 +215,67 @@ export function ManagementPanel({ api }: ManagementPanelProps) {
         return true;
     }
 
-    /** @brief Open the same naming flow for drops and keyboard-accessible mount buttons. */
-    function beginMount(id: string, namespace: string): void {
+    /** @brief Detect collisions across all callable mappings and namespace nodes. */
+    function occupied(path: string, source?: string): boolean {
+        return paths.includes(path) || mappings.flatMap(m => [m.path, ...m.aliases]).filter(p => p !== source)
+            .some(p => p === path || p.startsWith(`${path}.`) || path.startsWith(`${p}.`));
+    }
+
+    /** @brief Replace one mapped path while keeping the tool's physical identity intact. */
+    function replacePath(source: string, path: string): void {
+        setMappings(current => current.map(m => ({ ...m,
+            path: m.path === source ? path : m.path,
+            aliases: m.aliases.map(p => p === source ? path : p),
+        })));
+    }
+
+    /** @brief Mount immediately in the specific namespace receiving the drop. */
+    function mountTool(id: string, namespace: string, source?: string): void {
         const tool = view?.tools.find(t => t.id === id);
         const mapping = mappings.find(m => m.id === id);
-        if (!tool || busy || mapping?.pinned) return;
-        setMount({ id, namespace, name: mapping?.path.split('.').at(-1) ?? tool.id.replace(/[^a-zA-Z0-9_$]/g, '_').replace(/^(?=\d)/, '_'), alias: false });
+        if (busy || !tool || mapping?.pinned || !paths.includes(namespace)) return;
+        if (source && source !== mapping?.path && !mapping?.aliases.includes(source)) return;
+        const previous = source || mapping?.path;
+        const name = previous?.split('.').at(-1) || view?.effective.find(m => m.id === id)?.path.split('.').at(-1) ||
+            tool.id.replace(/[^a-zA-Z0-9_$]/g, '_').replace(/^(?=\d)/, '_');
+        let path = `${namespace}.${name}`;
+        if (path === previous) return;
+        for (let suffix = 2; occupied(path, previous); suffix++) path = `${namespace}.${name}_${suffix}`;
+        configureNamespace(namespace, {});
+        if (previous) {
+            configureNamespace(previous.split('.').slice(0, -1).join('.'), {});
+            replacePath(previous, path);
+        } else update(tool, { path });
+        setStatus('已更新映射，请保存配置。');
+    }
+
+    /** @brief Rename only the mapped identifier, never the underlying physical tool. */
+    function renameMapping(source: string, name: string): boolean {
+        const mapping = mappings.find(m => m.path === source || m.aliases.includes(source));
+        if (busy || !mapping || mapping.pinned) return false;
+        const path = `${source.split('.').slice(0, -1).join('.')}.${name}`;
+        if (!/^[a-zA-Z_$][\w$]*$/.test(name) || ['__proto__', 'prototype', 'constructor', 'then'].includes(name) || name.startsWith('__dsh') || occupied(path, source)) {
+            setStatus('映射名称无效或与现有路径冲突。'); return false;
+        }
+        replacePath(source, path); setStatus('已更新映射名称，请保存配置。');
+        return true;
+    }
+
+    /** @brief Remove a single mapping, promoting another mapped path when one remains. */
+    function removeMapping(path: string): void {
+        const mapping = mappings.find(m => m.path === path || m.aliases.includes(path));
+        if (busy || !mapping || mapping.pinned) return;
+        configureNamespace(path.split('.').slice(0, -1).join('.'), {});
+        const remaining = [mapping.path, ...mapping.aliases].filter(p => p !== path);
+        setMappings(current => current.flatMap(m => m.id !== mapping.id ? [m] : remaining.length ? [{ ...m, path: remaining[0]!, aliases: remaining.slice(1) }] : []));
+        setStatus('已移除映射，请保存配置。');
     }
 
     return <div className="ts-intellisense">
         <style>{styles}</style>
         <header><h1>TypeScript 工具注册表</h1><small>物理工具 · 语义命名空间 · DSH 原生策略</small></header>
         <p role="status" aria-live="polite">{status}</p>
-        <div className="ts-actions">
+        <div className="ts-toolbar"><div className="ts-actions">
             <button disabled={busy} onClick={() => void action('正在刷新…', reload)}>刷新</button>
             <button disabled={busy || !view} onClick={() => void action('正在保存…', async () => {
                 await request(api, { action: 'configure', revision: view!.state.revision, namespaces, mappings: mappings.map(m => ({ ...m, path: m.path.trim(), aliases: m.aliases.map(alias => alias.trim()).filter(Boolean) })) });
@@ -212,51 +288,19 @@ export function ManagementPanel({ api }: ManagementPanelProps) {
             <button disabled={busy || !sessionId || !view} onClick={() => void action('维护子代理正在生成整理提案…', async () => {
                 setProposal(await request(api, { action: 'organize', sessionId })); setStatus('整理提案已生成，请审核后应用。');
             })}>生成整理提案</button>
-            <input type="search" aria-label="搜索工具" placeholder="搜索名称、路径或描述" value={search} onChange={e => setSearch(e.target.value)} />
-        </div>
+            </div><div className="ts-actions"><input type="search" aria-label="搜索工具" placeholder="搜索名称、路径或描述" value={search} onChange={e => setSearch(e.target.value)} />
+        </div></div>
         <main><section className="ts-namespaces"><h2>命名空间树</h2>
-            <small>拖动积木到树节点挂载；双击空白提示添加命名空间，输入名称后按 Enter 或移开焦点确认。</small>
+            <small>拖入具体命名空间或其提示区域即可映射；双击映射名重命名，双击空白提示添加命名空间。</small>
             <ul className="ts-tree">{paths.filter(path => !path.includes('.')).map(path => <NamespaceNode key={path} path={path}
-                paths={paths} mappings={mappings} namespaces={namespaces} busy={busy} configure={configureNamespace} drop={beginMount} create={createNamespace} />)}
+                paths={paths} mappings={mappings} namespaces={namespaces} busy={busy} configure={configureNamespace} drop={mountTool} create={createNamespace} rename={renameMapping} remove={removeMapping} tools={view?.tools ?? []} />)}
                 <NamespacePlaceholder busy={busy || !view} create={createNamespace} />
             </ul>
             <small>unknown：{unknown} 个未挂载工具 · 执行权限由 DSH 原生策略判断。</small>
         </section><section className="ts-toolbox"><h2>工具积木 <small>{tools.length} 个工具 · 红色表示未挂载</small></h2>
-            <div className="ts-blocks">{tools.map(tool => <ToolBlock key={tool.id} tool={tool} mapping={mappings.find(m => m.id === tool.id)} busy={busy}
-                mount={() => beginMount(tool.id, paths[0] ?? '')} update={patch => update(tool, patch)}
-                remove={() => setMappings(current => current.filter(m => m.id !== tool.id))} />)}</div>
+            <div className="ts-blocks">{tools.map(tool => <ToolBlock key={tool.id} tool={tool} mapping={mappings.find(m => m.id === tool.id)} busy={busy} />)}</div>
             {view && !tools.length && <p>{filter ? '没有匹配的工具。' : '当前没有可用工具。'}</p>}
         </section></main>
-        {mount && <div className="ts-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="ts-mount-title">
-            <form onSubmit={event => {
-                event.preventDefault();
-                const tool = view?.tools.find(t => t.id === mount.id);
-                if (!tool) return;
-                const path = `${mount.namespace}.${mount.name.trim()}`;
-                const existing = mappings.find(m => m.id === tool.id);
-                const occupied = [...mappings.flatMap(m => [m.path, ...m.aliases]), ...namespaces.map(n => n.path)];
-                if (!/^[a-zA-Z_$][\w$]*$/.test(mount.name.trim()) || occupied.some(p => p === path || p.startsWith(`${path}.`)) ||
-                    mappings.flatMap(m => [m.path, ...m.aliases]).some(p => path.startsWith(`${p}.`))) {
-                    setStatus('挂载名称无效或与现有路径冲突。'); return;
-                }
-                update(tool, mount.alias && existing ? { aliases: [...existing.aliases, path] } : { path });
-                setMount(undefined); setStatus('已更新挂载草稿，请保存配置。');
-            }}>
-                <h2 id="ts-mount-title">挂载工具 {mount.id}</h2>
-                <label>命名空间<select aria-label="挂载命名空间" required value={mount.namespace} disabled={busy}
-                    onChange={event => setMount({ ...mount, namespace: event.target.value })}>
-                    <option value="" disabled>选择命名空间</option>{paths.map(path => <option key={path}>{path}</option>)}
-                </select></label>
-                <label>工具名称<input aria-label="挂载名称" required autoFocus value={mount.name} disabled={busy}
-                    onChange={event => setMount({ ...mount, name: event.target.value })} /></label>
-                <label>挂载方式<select aria-label="挂载方式" value={mount.alias ? 'alias' : 'move'} disabled={busy}
-                    onChange={event => setMount({ ...mount, alias: event.target.value === 'alias' })}>
-                    <option value="move">设为主路径</option><option value="alias" disabled={!mappings.some(m => m.id === mount.id && m.path)}>添加别名挂载</option>
-                </select></label><p><code>{mount.namespace}.{mount.name}</code></p>
-                <div className="ts-actions"><button disabled={busy || !mount.namespace} type="submit">确认挂载</button>
-                    <button type="button" disabled={busy} onClick={() => setMount(undefined)}>取消</button></div>
-            </form>
-        </section></div>}
         {proposal && <div className="ts-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="ts-proposal-title">
             <h2 id="ts-proposal-title">整理提案</h2><pre>{JSON.stringify(proposal.proposal, null, 2)}</pre>
             <p>应用后更新命名映射；执行权限仍由 DSH 原生策略判断。</p>
@@ -268,15 +312,15 @@ export function ManagementPanel({ api }: ManagementPanelProps) {
 }
 
 const styles = `
-.ts-intellisense{font:14px system-ui,sans-serif;color:var(--text-primary,#dce3ed);padding:24px;min-width:850px;box-sizing:border-box}
-.ts-intellisense *{box-sizing:border-box}.ts-intellisense header{display:flex;align-items:center;gap:24px}.ts-intellisense h1{font-size:22px}.ts-intellisense h2{font-size:17px}.ts-intellisense h4{margin:12px 0 4px}
+.ts-intellisense{font:14px system-ui,sans-serif;color:var(--text-primary,#dce3ed);padding:16px;width:100%;min-width:0;box-sizing:border-box}
+.ts-intellisense *{box-sizing:border-box}.ts-intellisense header{display:flex;align-items:center;gap:8px 24px;flex-wrap:wrap}.ts-intellisense h1{font-size:22px}.ts-intellisense h2{font-size:17px}.ts-intellisense h4{margin:12px 0 4px}
 .ts-intellisense button,.ts-intellisense input,.ts-intellisense select{font:inherit;color:inherit;background:var(--bg-secondary,#1c2633);border:1px solid var(--border-color,#425069);border-radius:6px;padding:8px}
 .ts-intellisense button{cursor:pointer}.ts-intellisense button:hover{background:var(--bg-hover,#304565)}.ts-intellisense :disabled{opacity:.5;cursor:default}
-.ts-intellisense main{display:flex;flex-direction:column;gap:24px;margin-top:24px}.ts-namespaces,.ts-toolbox{background:var(--bg-secondary,#18202c);border:1px solid var(--border-color,#303d50);border-radius:10px;padding:20px;min-width:0}
+.ts-intellisense main{width:100%;min-width:0;display:flex;flex-direction:column;gap:24px;margin-top:24px}.ts-namespaces,.ts-toolbox{background:var(--bg-secondary,#18202c);border:1px solid var(--border-color,#303d50);border-radius:10px;padding:16px;min-width:0;width:100%}
 .ts-intellisense pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}.ts-intellisense input[type=checkbox]{width:16px;height:16px;vertical-align:middle}
-.ts-tree,.ts-tree ul{list-style:none;padding-left:24px}.ts-tree{padding-left:0;max-height:440px;overflow:auto}.ts-tree summary{padding:8px;border-radius:6px;cursor:pointer;border:1px solid transparent}.ts-tree summary:hover{background:var(--bg-hover,#25384b)}.ts-tree summary.ts-drop-over{background:#245340;border:1px dashed #74ddb0}
-.ts-node-name{display:inline-block;min-width:180px;font-family:monospace;font-weight:600}.ts-node-config{display:inline-flex;align-items:center;gap:20px;margin-left:20px}.ts-node-config input:not([type=checkbox]){width:320px}.ts-tree-tool{display:flex;gap:20px;align-items:center;padding:8px 24px;color:#84cfba}.ts-empty{color:var(--text-secondary,#a5b4c6);padding:12px}
-.ts-blocks{display:flex;flex-wrap:wrap;align-items:flex-start;gap:16px 12px;padding:8px 0}.ts-tool{position:relative;border:1px solid #418d78;border-left:4px solid #56ba9d;border-radius:6px;background:var(--bg-primary,#142c2a);padding:8px 10px;flex:0 0 auto;max-width:100%;min-width:0;overflow-wrap:anywhere;transition:box-shadow .15s,transform .15s}.ts-tool:before{content:'';position:absolute;top:-6px;left:16px;width:26px;height:6px;border:1px solid #418d78;border-bottom:0;border-radius:6px 6px 0 0;background:inherit}.ts-tool[draggable=true]{cursor:grab}.ts-tool[draggable=true]:hover{transform:translateY(-2px);box-shadow:0 5px 14px #0003}.ts-tool[draggable=true]:active{cursor:grabbing}.ts-tool.ts-unmounted{border-color:#e47777;border-left-color:#ed7070;background:var(--bg-primary,#351e27)}.ts-tool.ts-unmounted:before{border-color:#e47777}.ts-tool.ts-unmounted>.ts-actions small{color:#ed8b8b}.ts-tool>.ts-actions{gap:8px;flex-wrap:nowrap}.ts-tool>.ts-actions button{padding:3px 6px;font-size:12px}.ts-tool>code{display:block;margin-top:5px;font-size:11px;color:var(--text-secondary,#a5b4c6)}.ts-tool details{cursor:auto;margin:5px 0 0;font-size:12px}.ts-tool details summary{cursor:pointer}.ts-tool:has(details[open]){z-index:2}.ts-tool-config{position:absolute;top:100%;left:0;z-index:3;width:min(420px,70vw);max-height:420px;overflow:auto;padding:12px 16px;background:var(--bg-primary,#18202c);border:1px solid var(--border-color,#425069);border-radius:6px;box-shadow:0 8px 20px #0006;font-size:14px;cursor:auto}.ts-namespace-placeholder>span{cursor:text;display:inline-block}.ts-namespace-placeholder>span:hover{color:var(--text-primary,#dce3ed)}.ts-tool label,.ts-backdrop form>label{display:block;margin:12px 0}.ts-tool label>input:not([type=checkbox]),.ts-backdrop form>label>input,.ts-backdrop form>label>select{display:block;width:100%;margin-top:6px}
-.ts-intellisense [role=status]{white-space:pre-wrap;margin:16px 0;color:var(--text-secondary,#a8d4f2)}.ts-intellisense small{color:var(--text-secondary,#a5b4c6)}.ts-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.ts-tree details{margin:10px 0}
+.ts-tree,.ts-tree ul{list-style:none;padding-left:24px}.ts-tree{padding-left:0;max-height:440px;overflow:auto}.ts-tree summary{padding:8px;border-radius:6px;cursor:pointer;border:1px solid transparent}.ts-tree summary:hover{background:var(--bg-hover,#25384b)}.ts-tree .ts-drop-over{background:#245340;border:1px dashed #74ddb0}
+.ts-node-name{display:inline;font-family:monospace;font-weight:600;overflow-wrap:anywhere}.ts-node-config{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:8px;min-width:0}.ts-node-config label{flex:0 0 auto}.ts-node-config input:not([type=checkbox]){flex:1 1 120px;width:0;min-width:0;max-width:100%}.ts-tree-tool{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 12px;color:#84cfba;min-width:0}.ts-tree-tool code{cursor:text;overflow-wrap:anywhere}.ts-tree-tool small{overflow-wrap:anywhere}.ts-tree-tool>input{width:140px;max-width:100%;min-width:0}.ts-tree-tool button{padding:0 5px;font-size:13px}.ts-tree-tool[draggable=true]{cursor:grab}.ts-empty{color:var(--text-secondary,#a5b4c6);padding:12px}
+.ts-blocks{display:flex;flex-wrap:wrap;align-items:flex-start;gap:16px 12px;padding:8px 0}.ts-tool{position:relative;border:1px solid #418d78;border-left:4px solid #56ba9d;border-radius:6px;background:var(--bg-primary,#142c2a);padding:8px 10px;flex:0 0 auto;max-width:100%;min-width:0;overflow-wrap:anywhere;transition:box-shadow .15s,transform .15s}.ts-tool:before{content:'';position:absolute;top:-6px;left:16px;width:26px;height:6px;border:1px solid #418d78;border-bottom:0;border-radius:6px 6px 0 0;background:inherit}.ts-tool>code{display:block;margin-top:4px;font-size:11px;color:var(--text-secondary,#a5b4c6)}.ts-tool[draggable=true]{cursor:grab}.ts-tool[draggable=true]:hover{transform:translateY(-2px);box-shadow:0 5px 14px #0003}.ts-tool[draggable=true]:active{cursor:grabbing}.ts-tool.ts-unmounted{border-color:#e47777;border-left-color:#ed7070;background:var(--bg-primary,#351e27)}.ts-tool.ts-unmounted:before{border-color:#e47777}.ts-namespace-placeholder>span{cursor:text;display:inline-block}.ts-namespace-placeholder>span:hover{color:var(--text-primary,#dce3ed)}
+.ts-intellisense [role=status]{white-space:pre-wrap;margin:16px 0;color:var(--text-secondary,#a8d4f2)}.ts-intellisense small{color:var(--text-secondary,#a5b4c6)}.ts-toolbar{display:flex;flex-direction:column;gap:8px;min-width:0}.ts-toolbar input[type=search]{width:100%;min-width:0}.ts-toolbar select{min-width:0;max-width:100%;flex:1 1 160px}.ts-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.ts-tree details{margin:10px 0}
 .ts-backdrop{position:fixed;inset:0;z-index:1000;background:#0008;display:grid;place-items:center}.ts-backdrop section{background:var(--bg-primary,#18202c);border:1px solid var(--border-color,#425069);border-radius:10px;padding:24px;width:min(1000px,85vw);max-height:85vh;overflow:auto}
 `;
