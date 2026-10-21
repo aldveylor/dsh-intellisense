@@ -1,4 +1,6 @@
 import { jsonSchemaToTs, validateJsonSchemaValue, type JsonSchemaNode } from '@deepseek-ai/dsh-tools';
+import { toolName, validatePath } from './path.js';
+export { validatePath } from './path.js';
 import type { Store } from '../storage/store.js';
 
 /** @brief Stable physical identity and the enforced native JSON contracts. */
@@ -17,6 +19,7 @@ export interface Mapping {
     description?: string;
     enabled: boolean;
     pinned: boolean;
+    alwaysVisible?: boolean;
 }
 
 /** @brief Persisted namespace documentation and unconditional prompt visibility. */
@@ -25,30 +28,9 @@ export interface Namespace { path: string; alwaysVisible: boolean; description: 
 /** @brief Successful physical invocations, independent of completion exposure. */
 export interface Usage { calls: number; lastUsed: number; exposures: number }
 /** @brief Versioned complete registry state, committed atomically. */
-export interface RegistryState { version: 1; revision: number; mappings: Mapping[]; namespaces?: Namespace[]; usage: Record<string, Usage> }
+export interface RegistryState { version: 1; revision: number; mappings: Mapping[]; namespaces?: Namespace[]; order?: string[]; usage: Record<string, Usage> }
 /** @brief Structured maintenance proposal; execution policy remains owned by DSH. */
 export interface Proposal { revision: number; changes: Array<{ id: string; path: string; aliases?: string[]; description?: string }> }
-
-const forbidden = new Set(['__proto__', 'prototype', 'constructor', '__dsh', 'then']);
-const reserved = new Set(['tools', 'console', 'globalThis', 'Promise', 'Object', 'Array', 'JSON', 'Math', 'String', 'Number', 'Boolean', 'Date', 'Error', 'Reflect', 'Symbol', 'Map', 'Set', 'WeakMap', 'WeakSet', 'RegExp', 'Function', 'eval', 'Intl', 'ArrayBuffer', 'Uint8Array', 'undefined', 'NaN', 'Infinity']);
-
-/** @brief Validate semantic paths before generating declarations or runtime objects. */
-export function validatePath(path: string): void {
-    const parts = path.split('.');
-    if (parts.length < 2 || parts.some(p => !/^[a-zA-Z_$][\w$]*$/.test(p) || forbidden.has(p) || p.startsWith('__dsh')) || reserved.has(parts[0]!)) {
-        throw new Error(`Invalid or reserved namespace path: ${path}`);
-    }
-    // Ask TypeScript's type renderer to quote property names; root keywords are excluded below.
-    if (/^(?:const|let|var|function|class|new|delete|return|await|import|export|this|super|default|if|else|switch|case|try|catch|throw|while|for|do|break|continue|yield|void|typeof|instanceof|in|enum|extends|implements|interface|package|private|protected|public|static|with|debugger|null|true|false)$/.test(parts[0]!)) {
-        throw new Error(`Reserved namespace root: ${parts[0]}`);
-    }
-}
-
-/** @brief Encode physical names as readable, collision-free callable identifiers. */
-function toolName(id: string): string {
-    const name = id.replace(/[^a-zA-Z0-9_]/gu, character => `$${character.codePointAt(0)!.toString(16)}$`);
-    return !name || /^[0-9]/.test(name) || forbidden.has(name) || name.startsWith('__dsh') ? `$tool$${name}` : name;
-}
 
 /** @brief Transactional semantic registry; unconfigured identities remain under unknown. */
 export class SemanticRegistry {
@@ -92,7 +74,7 @@ export class SemanticRegistry {
         const ids = new Set<string>();
         const paths: string[] = [];
         for (const m of mappings) {
-            if (!m || typeof m.id !== 'string' || ids.has(m.id) || !Array.isArray(m.aliases) || m.aliases.some(a => typeof a !== 'string') || typeof m.enabled !== 'boolean' || typeof m.pinned !== 'boolean' || (m.description !== undefined && typeof m.description !== 'string')) throw new Error('Invalid mapping');
+            if (!m || typeof m.id !== 'string' || ids.has(m.id) || !Array.isArray(m.aliases) || m.aliases.some(a => typeof a !== 'string') || typeof m.enabled !== 'boolean' || typeof m.pinned !== 'boolean' || (m.description !== undefined && typeof m.description !== 'string') || (m.alwaysVisible !== undefined && typeof m.alwaysVisible !== 'boolean')) throw new Error('Invalid mapping');
             ids.add(m.id);
             for (const path of [m.path, ...m.aliases]) {
                 validatePath(path);
@@ -122,7 +104,7 @@ export class SemanticRegistry {
         return result;
     }
 
-    async configure(mappings: Mapping[], revision: number, namespaces?: Namespace[]): Promise<void> {
+    async configure(mappings: Mapping[], revision: number, namespaces?: Namespace[], order?: string[]): Promise<void> {
         const detached = structuredClone(mappings);
         await this.transaction(async () => {
             if (revision !== this.state.revision) throw new Error('Registry revision conflict; reload before saving');
@@ -137,7 +119,12 @@ export class SemanticRegistry {
             for (const old of this.state.mappings) {
                 if (old.pinned && !detached.some(m => m.id === old.id)) throw new Error(`Pinned mapping: ${old.id}`);
             }
-            const next = { ...this.state, revision: this.state.revision + 1, mappings: detached, namespaces: metadata };
+            const requestedOrder = order ?? this.state.order ?? [];
+            if (!Array.isArray(requestedOrder) || requestedOrder.some(path => typeof path !== 'string')) throw new Error('Invalid tree order');
+            const known = new Set([...metadata.map(n => n.path), ...detached.flatMap(m => [m.path, ...m.aliases])]
+                .flatMap(path => path.split('.').map((_, i, parts) => parts.slice(0, i + 1).join('.'))));
+            const treeOrder = [...new Set(requestedOrder)].filter(path => known.has(path));
+            const next = { ...this.state, revision: this.state.revision + 1, mappings: detached, namespaces: metadata, order: treeOrder };
             await this.store.save('registry', next);
             this.state = next;
         });
@@ -181,9 +168,14 @@ export class SemanticRegistry {
 
     /** @brief Include configured namespace hints only when an agent can access a descendant. */
     namespaceVisibility(allowed?: Set<string>): string[] {
-        const paths = this.effective().filter(m => m.enabled && (!allowed || allowed.has(m.id))).flatMap(m => [m.path, ...m.aliases]);
-        return (this.state.namespaces ?? []).filter(n => n.alwaysVisible && paths.some(path => path.startsWith(`${n.path}.`)))
-            .map(n => `${n.path}${n.description ? ` — ${n.description}` : ''}`);
+        const visible = this.effective().filter(m => m.enabled && (!allowed || allowed.has(m.id)));
+        const paths = visible.flatMap(m => [m.path, ...m.aliases]);
+        return [
+            ...(this.state.namespaces ?? []).filter(n => n.alwaysVisible && paths.some(path => path.startsWith(`${n.path}.`)))
+                .map(n => `${n.path}${n.description ? ` — ${n.description}` : ''}`),
+            ...visible.filter(m => m.alwaysVisible).flatMap(m => [m.path, ...m.aliases]
+                .map(path => `${path}${m.tool.description ? ` — ${m.tool.description}` : ''}`)),
+        ];
     }
 
     roots(): string[] { return [...new Set(this.effective().filter(m => m.enabled).flatMap(m => [m.path, ...m.aliases].map(p => p.split('.')[0]!)))].sort(); }

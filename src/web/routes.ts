@@ -31,9 +31,9 @@ export function registerManagement(ctx: Context, globalRegistry: SemanticRegistr
             if (!request.headers.get('content-type')?.startsWith('application/json')) return Response.json({ error: 'Expected application/json' }, { status: 415, headers });
             const bodyText = await request.text();
             if (bodyText.length > 1_048_576) return Response.json({ error: 'Body exceeds 1 MiB' }, { status: 413, headers });
-            const body = JSON.parse(bodyText) as { action: string; mappings: Mapping[]; namespaces?: Namespace[]; revision: number; sessionId: string; id: string };
+            const body = JSON.parse(bodyText) as { action: string; mappings: Mapping[]; namespaces?: Namespace[]; order?: string[]; revision: number; sessionId: string; id: string };
             const registry = await resolveRegistry(body.sessionId);
-            if (body.action === 'configure') await registry.configure(body.mappings, body.revision, body.namespaces);
+            if (body.action === 'configure') await registry.configure(body.mappings, body.revision, body.namespaces, body.order);
             else if (body.action === 'organize') {
                 const parent = body.sessionId ? ctx.agents.get(SessionId(body.sessionId)) : sessions[0];
                 if (!parent || parent.options.provider !== adapter.config.route) throw new Error('Select a live TypeScript session');
