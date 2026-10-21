@@ -16,7 +16,7 @@
 
 `typescript/completion.ts` 只分析不完整输入，不执行它。完整成员候选直接查询当前 VM 的 globalThis、词法绑定和对象属性，实际运行时成员决定可见名称；未执行源码内的局部符号仍通过 TS 分析。查询不调用 getter 或 Proxy trap。真实环境声明、会话推导类型和 TS language service 负责文档、签名和参数提示。全局补全优先当前 VM 绑定、工具根命名空间与 Promise，过滤关键字并注明截断，避免前 40 项标准库候选淹没实际环境。
 
-`runtime/session.ts` 为每会话保留真实 vm.Context 与词法声明。没有变量代理或 del。JS const/let 重声明与 delete 规则保留；声明结果不显示，最终有意义的表达式自动显示。执行 ID 与源码绑定，重复 ID 返回相同 Promise。检查点序列化可复制的值和类型元数据，不保存闭包或重放工具。
+`runtime/session.ts` 为每会话保留真实 vm.Context 与词法声明。没有变量代理或 del。JS const/let 重声明与 delete 规则保留；不暴露 `console` 或日志接口；声明结果不显示，最终有意义的表达式自动显示。执行 ID 与源码绑定，重复 ID 返回相同 Promise。检查点序列化可复制的值和类型元数据，不保存闭包或重放工具。
 
 `runtime/isolated.ts` / `worker.ts` 把 VM 放入独立受权限限制的 Node 子进程，用 IPC 请求补全/执行/检查点，通过父进程桥调用原生工具。桥仅在执行期间工作，取消和超时终止进程并传播 abort。进程限制不等于完整系统安全沙箱，特别是未覆盖所有网络能力。
 

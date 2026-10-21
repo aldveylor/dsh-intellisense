@@ -25,7 +25,7 @@ export function complete(runtime: SessionRuntime, environment: Environment, sour
         const known = new Set(discovered.map(entry => entry.name));
         for (const name of actual) if (!known.has(name)) discovered.push({ name, kind: ts.ScriptElementKind.memberVariableElement, sortText: '15' });
     }
-    const visible = new Set([...environment.paths.map(path => path.split('.')[0]!), ...bindings.map(binding => binding.name), 'Promise', 'console', 'tools']);
+    const visible = new Set([...environment.paths.map(path => path.split('.')[0]!), ...bindings.map(binding => binding.name), 'Promise', 'tools']);
     const entries = discovered.filter(e => (!actualNames || actualNames.has(e.name)) && e.kind !== ts.ScriptElementKind.keyword && !e.name.startsWith('__dsh') && !e.name.startsWith('"') && e.name.startsWith(partial));
     entries.sort((a, b) => {
         if (!namespace) {

@@ -14,7 +14,6 @@ export class CompilationError extends Error {
 
 const globals = `
 type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
-declare const console: { log(...values: unknown[]): void };
 declare const tools: { sort(): Promise<{ revision: number; changes: unknown[] }> };
 `;
 

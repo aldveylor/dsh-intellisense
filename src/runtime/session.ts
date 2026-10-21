@@ -20,11 +20,10 @@ export class SessionRuntime {
     private roots = new Set<string>();
     private completed = new Map<string, { source: string; result: Promise<ExecutionResult> }>();
     private queue: Promise<unknown> = Promise.resolve();
-    private logs: string[] = [];
 
     constructor(private invoke: (path: string, args: unknown) => Promise<unknown>, private organize: () => Promise<unknown> = async () => { throw new Error('Organization is unavailable'); }) {
         this.context = vm.createContext(Object.create(null), { codeGeneration: { strings: false, wasm: false } });
-        Object.defineProperty(this.context, 'console', { value: Object.freeze({ log: (...values: unknown[]) => this.logs.push(values.map(v => this.format(v)).join(' ')) }) });
+        new vm.Script('delete globalThis.console').runInContext(this.context);
         Object.defineProperty(this.context, 'tools', { value: Object.freeze({ sort: () => this.organize() }) });
     }
 
@@ -103,11 +102,11 @@ export class SessionRuntime {
         if (/\b__dsh\w*/.test(source)) throw new Error('Reserved runtime identifier');
         const compiled = this.project.compile(source, this.declarations(), this.environment.declarations);
         for (const binding of compiled.bindings) {
-            if (this.roots.has(binding.name) || ['tools', 'Promise', 'console', 'globalThis'].includes(binding.name)) throw new Error(`Reserved binding: ${binding.name}`);
+            if (this.roots.has(binding.name) || ['tools', 'Promise', 'globalThis'].includes(binding.name)) throw new Error(`Reserved binding: ${binding.name}`);
             const previous = this.types.get(binding.name);
             if (previous && (previous.kind !== 'var' || binding.kind !== 'var')) throw new SyntaxError(`Identifier '${binding.name}' has already been declared`);
         }
-        this.logs = [];
+        const output: string[] = [];
         try {
             let value: unknown;
             for (const unit of compiled.units) {
@@ -117,9 +116,9 @@ export class SessionRuntime {
                     try { new vm.Script(unit.binding!, { filename: 'segment.ts' }).runInContext(this.context, { timeout: 1000 }); }
                     finally { delete this.context.__dshValue; }
                 }
-                if (unit.display && value !== undefined) this.logs.push(this.format(value));
+                if (unit.display && value !== undefined) output.push(this.format(value));
             }
-            return { output: this.logs.join('\n'), declarations: [...this.declarations(), ...compiled.bindings], sourceMap: compiled.sourceMap, sourceMaps: compiled.sourceMaps };
+            return { output: output.join('\n'), declarations: [...this.declarations(), ...compiled.bindings], sourceMap: compiled.sourceMap, sourceMaps: compiled.sourceMaps };
         } finally {
             for (const binding of compiled.bindings) {
                 try {
