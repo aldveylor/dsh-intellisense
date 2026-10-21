@@ -13,13 +13,13 @@ import { registerManagement } from './web/routes.js';
 export const name = 'dsh-ts-intellisense';
 export const inject = ['llm', 'tools', 'agents', 'systemPrompt', 'storage', storageBackendServiceKey('json'), 'subagents', 'connection'];
 /** @brief Public plugin options; execution permissions remain owned by native DSH policies. */
-export interface Config { route?: string; provider?: string; model?: string; timeoutMs?: number; maxCorrections?: number }
+export interface Config { route?: string; provider?: string; model?: string; timeoutMs?: number }
 
 /** @brief Mount an npm-installed Cordis plugin using DSH's native services. */
 export async function apply(ctx: Context, options: Config = {}): Promise<void> {
-    const config = { route: options.route ?? 'ts-repl', provider: options.provider ?? 'deepseek-official', model: options.model ?? 'deepseek-flash', timeoutMs: options.timeoutMs ?? 30_000, maxCorrections: options.maxCorrections ?? 64 };
+    const config = { route: options.route ?? 'ts-repl', provider: options.provider ?? 'deepseek-official', model: options.model ?? 'deepseek-flash', timeoutMs: options.timeoutMs ?? 30_000 };
     if (config.route === config.provider) throw new Error('The TypeScript route must differ from its upstream provider');
-    if (!Number.isSafeInteger(config.timeoutMs) || config.timeoutMs < 100 || !Number.isSafeInteger(config.maxCorrections) || config.maxCorrections < 1) throw new Error('Invalid timeout or correction limit');
+    if (!Number.isSafeInteger(config.timeoutMs) || config.timeoutMs < 100) throw new Error('Invalid timeout');
     const backend = ctx.storage.backend.get('json');
     if (!backend.kv) throw new Error('DSH json backend does not support KV storage');
     const unit = await backend.kv.open({ name: 'ts_intellisense', version: 1, tables: ['state'], hasGlobal: false, layout: 'per-record' });

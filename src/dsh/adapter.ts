@@ -12,7 +12,7 @@ import { runConversation } from '../protocol/controller.js';
 import { ExecutionTrace } from './execution_trace.js';
 
 /** @brief Plugin route and the actual upstream model provider stay separate. */
-export interface AdapterConfig { route: string; provider: string; model: string; timeoutMs: number; maxCorrections: number }
+export interface AdapterConfig { route: string; provider: string; model: string; timeoutMs: number }
 /** @brief Durable execution status prevents retries from repeating completed or uncertain side effects. */
 interface ExecutionRecord { status: 'started' | 'completed' | 'failed'; source?: string; result?: ExecutionResult; error?: string }
 
@@ -188,7 +188,7 @@ export class TypeScriptAdapter extends LlmAdapter {
                 } finally { this.executions.delete(agent.id); }
             },
             journal: async record => { journal.push(record); await this.store.save(`continuation_${identity}`, journal); },
-        }, upstream, identity, this.config.maxCorrections);
+        }, upstream, identity);
         const text = response.abandoned ? 'Input abandoned without execution.' : response.output;
         return { text, usage, index: nextIndex };
     }
