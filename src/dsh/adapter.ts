@@ -62,7 +62,7 @@ export class TypeScriptAdapter extends LlmAdapter {
         const registry = await this.registryFor(agent);
         const allowed = agent ? new Set(this.physical(agent).map(t => t.id)) : undefined;
         const roots = [...new Set(registry.effective().filter(m => m.enabled && (!allowed || allowed.has(m.id))).flatMap(m => [m.path, ...m.aliases].map(path => path.split('.')[0]!)))].sort();
-        return environmentPrompt(roots, agent ? `Session ${agent.id}. Native const/let bindings persist until this session closes. Runtime data is checkpointed; closures are process-local.` : 'New isolated session.', bindings, registry.namespaceHints(allowed), registry.namespaceVisibility(allowed));
+        return environmentPrompt(roots, agent ? `Session ${agent.id}. Native const/let bindings persist until this session closes. Runtime data is checkpointed; closures are process-local.` : 'New session.', bindings, registry.namespaceHints(allowed), registry.namespaceVisibility(allowed));
     }
 
     private key(session: string): string { return createHash('sha256').update(session).digest('hex'); }
