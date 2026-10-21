@@ -7,7 +7,7 @@ interface Request { id: number; method: 'update' | 'validate' | 'execute' | 'com
 const outstanding = new Map<number, { resolve(value: unknown): void; reject(error: Error): void }>();
 let nextCall = 0;
 let environment: Environment = { declarations: '', paths: [] };
-/** @brief Ask the parent for an independently authorized capability invocation. */
+/** @brief Ask the parent to invoke a capability through native DSH execution policies. */
 function bridge(kind: 'invoke' | 'sort', path: string, args: unknown): Promise<unknown> {
     const id = ++nextCall;
     return new Promise((resolve, reject) => {
