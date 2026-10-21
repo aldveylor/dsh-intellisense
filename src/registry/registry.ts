@@ -135,9 +135,9 @@ export class SemanticRegistry {
         await this.configure([...mappings.values()], proposal.revision);
     }
 
-    declarations(): string {
+    declarations(allowed?: Set<string>): string {
         const tree: Record<string, unknown> = Object.create(null);
-        for (const mapping of this.effective().filter(m => m.enabled)) {
+        for (const mapping of this.effective().filter(m => m.enabled && (!allowed || allowed.has(m.id)))) {
             const doc = (mapping.description ?? mapping.tool.description).replaceAll('*/', '* /');
             const signature = `/** ${doc} */\n(args: ${jsonSchemaToTs(mapping.tool.parameters)}): Promise<${jsonSchemaToTs(mapping.tool.output)}>`;
             for (const path of [mapping.path, ...mapping.aliases]) {

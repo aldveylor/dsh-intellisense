@@ -1,0 +1,14 @@
+- insert:
+    - id: ts-intellisense
+      name: dsh-ts-intellisense
+      config:
+        route: ts-repl
+        provider: deepseek-official
+        model: deepseek-flash
+        timeoutMs: 30000
+        maxContinuations: 12
+
+- id: agent-default-model
+  config:
+    provider: ts-repl
+    model: deepseek-flash
