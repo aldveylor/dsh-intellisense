@@ -5,6 +5,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent';
 import { LlmAdapter, ToolCallId, type GenerateOptions, type LlmModelInfo, type StreamChunk, type TokenUsage } from '@deepseek-ai/dsh-llm';
 import type { Store } from '../storage/store.js';
 import type { SemanticRegistry, PhysicalTool } from '../registry/registry.js';
+import { SessionRegistries } from '../registry/session_registry.js';
 import { IsolatedSession } from '../runtime/isolated.js';
 import type { SessionCheckpoint, ExecutionResult } from '../runtime/session.js';
 import { environmentPrompt } from '../protocol/prompt.js';
@@ -18,6 +19,7 @@ interface ExecutionRecord { status: 'started' | 'completed' | 'failed'; source?:
 
 /** @brief DSH adapter owning continuation requests without rewriting frozen agent-loop requests. */
 export class TypeScriptAdapter extends LlmAdapter {
+    private sessionRegistries: SessionRegistries;
     private sessions = new Map<string, Promise<IsolatedSession>>();
     private queues = new Map<string, Promise<unknown>>();
     private positions = new Map<string, { turn: number; step: number }>();
@@ -25,6 +27,7 @@ export class TypeScriptAdapter extends LlmAdapter {
 
     constructor(private ctx: Context, readonly config: AdapterConfig, private registry: SemanticRegistry, private store: Store) {
         super();
+        this.sessionRegistries = new SessionRegistries(registry, store);
         ctx.on('agent/assistant-stream', ({ agent, frame }) => {
             if (frame.type === 'start') this.positions.set(agent.id, { turn: frame.turn, step: frame.step });
             if (frame.type === 'end') this.positions.delete(agent.id);
@@ -49,11 +52,17 @@ export class TypeScriptAdapter extends LlmAdapter {
         this.registry.refresh([...tools.values()]);
     }
 
-    prompt(agent?: Agent, bindings: BindingType[] = []): string {
+    /** @brief Resolve the global template or the durable configuration owned by one agent session. */
+    async registryFor(agent?: Agent): Promise<SemanticRegistry> {
         this.refresh();
+        return agent ? this.sessionRegistries.get(agent.id) : this.registry;
+    }
+
+    async prompt(agent?: Agent, bindings: BindingType[] = []): Promise<string> {
+        const registry = await this.registryFor(agent);
         const allowed = agent ? new Set(this.physical(agent).map(t => t.id)) : undefined;
-        const roots = [...new Set(this.registry.effective().filter(m => m.enabled && (!allowed || allowed.has(m.id))).flatMap(m => [m.path, ...m.aliases].map(path => path.split('.')[0]!)))].sort();
-        return environmentPrompt(roots, agent ? `Session ${agent.id}. Native const/let bindings persist until this session closes. Runtime data is checkpointed; closures are process-local.` : 'New isolated session.', bindings, this.registry.namespaceHints(allowed), this.registry.namespaceVisibility(allowed));
+        const roots = [...new Set(registry.effective().filter(m => m.enabled && (!allowed || allowed.has(m.id))).flatMap(m => [m.path, ...m.aliases].map(path => path.split('.')[0]!)))].sort();
+        return environmentPrompt(roots, agent ? `Session ${agent.id}. Native const/let bindings persist until this session closes. Runtime data is checkpointed; closures are process-local.` : 'New isolated session.', bindings, registry.namespaceHints(allowed), registry.namespaceVisibility(allowed));
     }
 
     private key(session: string): string { return createHash('sha256').update(session).digest('hex'); }
@@ -62,8 +71,9 @@ export class TypeScriptAdapter extends LlmAdapter {
         let pending = this.sessions.get(agent.id);
         if (!pending) {
             pending = (async () => {
+                const registry = await this.registryFor(agent);
                 const runtime = new IsolatedSession(
-                    (path, args, signal) => this.registry.invoke(path, args, async (id, value) => {
+                    (path, args, signal) => registry.invoke(path, args, async (id, value) => {
                         if (this.ctx.agents.get(agent.id) !== agent || !agent.ctx.tools.get(id, agent)) throw new Error('Tool is no longer available in this session');
                         const callId = ToolCallId(`ts-${randomUUID()}`);
                         const auditKey = `dispatch_${this.key(callId)}`;
@@ -93,12 +103,12 @@ export class TypeScriptAdapter extends LlmAdapter {
         if (!options.sessionId) throw new Error('TypeScript REPL requests require a live DSH session identity');
         const agent = this.ctx.agents.get(options.sessionId);
         if (!agent) throw new Error('No live DSH agent owns this session');
-        this.refresh();
+        const registry = await this.registryFor(agent);
         const runtime = await this.session(agent);
         const visible = new Set(this.physical(agent).map(t => t.id));
-        const mappings = this.registry.effective().filter(m => visible.has(m.id) && m.enabled);
+        const mappings = registry.effective().filter(m => visible.has(m.id) && m.enabled);
         const paths = mappings.flatMap(m => [m.path, ...m.aliases]);
-        await runtime.update({ declarations: this.registry.declarations(visible), paths });
+        await runtime.update({ declarations: registry.declarations(visible), paths });
         const identity = this.key(JSON.stringify({ session: agent.id, messages: options.messages, model: options.model }));
         const executionKey = `execution_${identity}`;
         const previous = await this.store.load<ExecutionRecord>(executionKey);
@@ -112,7 +122,7 @@ export class TypeScriptAdapter extends LlmAdapter {
             ...options, provider: options.provider === this.config.route ? this.config.provider : options.provider, model: options.model || this.config.model,
             tools: [], toolHistory: undefined,
             // The adapter owns this separate internal request; the loop's input remains immutable.
-            system: this.prompt(agent, await runtime.declarations()), messages: options.messages.filter(m => m.role !== 'system'),
+            system: await this.prompt(agent, await runtime.declarations()), messages: options.messages.filter(m => m.role !== 'system'),
         };
         const logger = this.ctx.logger('ts-intellisense');
         const response = await runConversation({
@@ -155,8 +165,8 @@ export class TypeScriptAdapter extends LlmAdapter {
             },
             complete: async source => {
                 const identities = Object.fromEntries(mappings.flatMap(m => [m.path, ...m.aliases].map(path => [path, m.id])));
-                const result = await runtime.complete(source, this.registry.snapshot().usage, identities);
-                await this.registry.expose(result.candidates.map(c => c.path));
+                const result = await runtime.complete(source, registry.snapshot().usage, identities);
+                await registry.expose(result.candidates.map(c => c.path));
                 return result;
             },
             validate: source => runtime.validate(source),
@@ -223,6 +233,7 @@ export class TypeScriptAdapter extends LlmAdapter {
     async release(sessionId: string): Promise<void> {
         const runtime = await this.sessions.get(sessionId);
         runtime?.dispose(); this.sessions.delete(sessionId);
+        this.sessionRegistries.release(sessionId);
         this.positions.delete(sessionId); this.executions.delete(sessionId);
     }
 

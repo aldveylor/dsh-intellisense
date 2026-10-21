@@ -3,6 +3,7 @@ import type { Namespace, Mapping, PhysicalTool, RegistryState } from '../registr
 
 /** @brief Authenticated management metadata, shared by embedded and standalone React views. */
 interface View {
+    sessionId?: string;
     state: RegistryState;
     tools: PhysicalTool[];
     effective: Array<Mapping & { tool: PhysicalTool }>;
@@ -154,19 +155,20 @@ export function ManagementPanel({ api }: ManagementPanelProps) {
 
     /** @brief Replace drafts only after a successful snapshot load. */
     async function reload(signal?: AbortSignal): Promise<void> {
-        const snapshot = await request<View>(api, undefined, signal);
+        const url = new URL(api, document.baseURI);
+        if (sessionId) url.searchParams.set('sessionId', sessionId);
+        const snapshot = await request<View>(url.href, undefined, signal);
         setView(snapshot); setMappings(structuredClone(snapshot.state.mappings));
         setNamespaces(structuredClone(snapshot.state.namespaces ?? []));
-        setSessionId(current => snapshot.sessions.some(s => s.id === current) ? current : snapshot.sessions[0]?.id ?? '');
-        setStatus(`修订 ${snapshot.state.revision} · ${snapshot.tools.length} 个物理工具 · ${snapshot.state.mappings.length} 个已配置映射`);
+        setStatus('');
     }
 
     useEffect(() => {
         const controller = new AbortController();
-        setView(undefined); setStatus('正在加载…');
+        setView(undefined); setMappings([]); setNamespaces([]); setProposal(undefined); setStatus('正在加载…');
         void reload(controller.signal).catch(error => { if (!controller.signal.aborted) setStatus(String(error instanceof Error ? error.message : error)); });
         return () => controller.abort();
-    }, [api]);
+    }, [api, sessionId]);
 
     /** @brief Report failed actions without losing unsaved mapping edits. */
     async function action(message: string, task: () => Promise<void>): Promise<void> {
@@ -273,19 +275,19 @@ export function ManagementPanel({ api }: ManagementPanelProps) {
 
     return <div className="ts-intellisense">
         <style>{styles}</style>
-        <header><h1>TypeScript 工具注册表</h1><small>物理工具 · 语义命名空间 · DSH 原生策略</small></header>
-        <p role="status" aria-live="polite">{status}</p>
+        <header><h1>TypeScript 工具注册表</h1></header>
+        {status && <p role="status" aria-live="polite">{status}</p>}
         <div className="ts-toolbar"><div className="ts-actions">
             <button disabled={busy} onClick={() => void action('正在刷新…', reload)}>刷新</button>
             <button disabled={busy || !view} onClick={() => void action('正在保存…', async () => {
-                await request(api, { action: 'configure', revision: view!.state.revision, namespaces, mappings: mappings.map(m => ({ ...m, path: m.path.trim(), aliases: m.aliases.map(alias => alias.trim()).filter(Boolean) })) });
+                await request(api, { action: 'configure', sessionId, revision: view!.state.revision, namespaces, mappings: mappings.map(m => ({ ...m, path: m.path.trim(), aliases: m.aliases.map(alias => alias.trim()).filter(Boolean) })) });
                 await reload();
             })}>保存配置</button>
-            <select aria-label="用于整理的会话" value={sessionId} disabled={busy} onChange={e => setSessionId(e.target.value)}>
-                {!view?.sessions.length && <option value="">暂无 TypeScript 会话</option>}
+            <select aria-label="会话配置" value={sessionId} disabled={busy} onChange={e => setSessionId(e.target.value)}>
+                <option value="">全局</option>
                 {view?.sessions.map(session => <option key={session.id} value={session.id}>{session.id}</option>)}
             </select>
-            <button disabled={busy || !sessionId || !view} onClick={() => void action('维护子代理正在生成整理提案…', async () => {
+            <button disabled={busy || !view?.sessions.length} onClick={() => void action('维护子代理正在生成整理提案…', async () => {
                 setProposal(await request(api, { action: 'organize', sessionId })); setStatus('整理提案已生成，请审核后应用。');
             })}>生成整理提案</button>
             </div><div className="ts-actions"><input type="search" aria-label="搜索工具" placeholder="搜索名称、路径或描述" value={search} onChange={e => setSearch(e.target.value)} />
@@ -293,19 +295,19 @@ export function ManagementPanel({ api }: ManagementPanelProps) {
         <main><section className="ts-namespaces"><h2>命名空间树</h2>
             <small>拖入具体命名空间或其提示区域即可映射；双击映射名重命名，双击空白提示添加命名空间。</small>
             <ul className="ts-tree">{paths.filter(path => !path.includes('.')).map(path => <NamespaceNode key={path} path={path}
-                paths={paths} mappings={mappings} namespaces={namespaces} busy={busy} configure={configureNamespace} drop={mountTool} create={createNamespace} rename={renameMapping} remove={removeMapping} tools={view?.tools ?? []} />)}
+                paths={paths} mappings={mappings} namespaces={namespaces} busy={busy || !view} configure={configureNamespace} drop={mountTool} create={createNamespace} rename={renameMapping} remove={removeMapping} tools={view?.tools ?? []} />)}
                 <NamespacePlaceholder busy={busy || !view} create={createNamespace} />
             </ul>
             <small>unknown：{unknown} 个未挂载工具 · 执行权限由 DSH 原生策略判断。</small>
-        </section><section className="ts-toolbox"><h2>工具积木 <small>{tools.length} 个工具 · 红色表示未挂载</small></h2>
-            <div className="ts-blocks">{tools.map(tool => <ToolBlock key={tool.id} tool={tool} mapping={mappings.find(m => m.id === tool.id)} busy={busy} />)}</div>
+        </section><section className="ts-toolbox"><h2>工具积木 <small>{tools.length} 个工具</small></h2>
+            <div className="ts-blocks">{tools.map(tool => <ToolBlock key={tool.id} tool={tool} mapping={mappings.find(m => m.id === tool.id)} busy={busy || !view} />)}</div>
             {view && !tools.length && <p>{filter ? '没有匹配的工具。' : '当前没有可用工具。'}</p>}
         </section></main>
         {proposal && <div className="ts-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="ts-proposal-title">
             <h2 id="ts-proposal-title">整理提案</h2><pre>{JSON.stringify(proposal.proposal, null, 2)}</pre>
             <p>应用后更新命名映射；执行权限仍由 DSH 原生策略判断。</p>
             <div className="ts-actions"><button disabled={busy} onClick={() => void action('正在应用提案…', async () => {
-                await request(api, { action: 'approve', id: proposal.id }); setProposal(undefined); await reload();
+                await request(api, { action: 'approve', sessionId, id: proposal.id }); setProposal(undefined); await reload();
             })}>校验并应用</button><button disabled={busy} onClick={() => setProposal(undefined)}>取消</button></div>
         </section></div>}
     </div>;

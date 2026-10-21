@@ -36,7 +36,7 @@ export async function apply(ctx: Context, options: Config = {}): Promise<void> {
         },
         execute: async (_args, execution) => {
             if (!execution.agent) throw new Error('Namespace organization requires a live agent');
-            return organization.propose(execution.agent, execution.signal);
+            return organization.propose(execution.agent, execution.signal, await adapter.registryFor(execution.agent));
         },
     });
     const adapter = new TypeScriptAdapter(ctx, config, registry, store);
@@ -47,18 +47,24 @@ export async function apply(ctx: Context, options: Config = {}): Promise<void> {
         return next();
     });
     ctx.on('agent/created', async ({ agent }) => {
-        if (agent.options.provider === config.route) agent.ctx.tools.presentAs('native');
+        if (agent.options.provider === config.route) {
+            agent.ctx.tools.presentAs('native');
+            await adapter.registryFor(agent);
+        }
         return undefined;
     });
     ctx.on('system-prompt/assemble', async (_assembly, context, next) => {
         const assembled = await next();
         if (context.agent?.options.provider === config.route) {
             assembled.tools = [];
-            assembled.sections = [{ name: 'typescript-repl', text: adapter.prompt(context.agent), interpolate: false }];
+            assembled.sections = [{ name: 'typescript-repl', text: await adapter.prompt(context.agent), interpolate: false }];
         }
         return assembled;
     });
     ctx.on('agent/disposed', ({ agent }) => { void adapter.release(agent.id); });
+    for (const agent of ctx.agents.list()) {
+        if (agent.options.provider === config.route) await adapter.registryFor(agent);
+    }
     registerManagement(ctx, registry, adapter, organization);
     ctx.effect(() => async () => { await adapter.dispose(); await unit.close(); });
 }
