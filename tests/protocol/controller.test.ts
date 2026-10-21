@@ -172,3 +172,20 @@ test('text after a control marker is rejected and corrected within the continuat
     assert.match(records[0]!.context!, /Invalid control marker format/);
     assert.equal(result.output, 'ok');
 });
+
+
+test('repeated discovery at the same cursor resets the unexecuted buffer with retained VM context', async () => {
+    const responses = ['unknown.<|INTELLISENSE|>', '<|INTELLISENSE|>', 'console.log(Object.keys(unknown))'];
+    const requests: GenerateOptions[] = [];
+    let completions = 0;
+    const result = await runConversation({
+        generate: request => { requests.push(request); return stream(responses.shift()!); },
+        complete: async () => { completions++; return completion; },
+        execute: async (_id, source) => { assert.equal(source, 'console.log(Object.keys(unknown))'); return { output: 'members', declarations: [] }; },
+        journal: async () => {},
+    }, initial, 'repeat');
+    assert.equal(completions, 1);
+    assert.match(JSON.stringify(requests[2]!.messages), /same cursor has already been inspected/);
+    assert.match(JSON.stringify(requests[2]!.messages), /std.fs.read/);
+    assert.equal(result.output, 'members');
+});

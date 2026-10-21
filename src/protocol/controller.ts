@@ -29,6 +29,7 @@ export function continuationHistory(original: RequestMessage[], prefix: string, 
 export async function runConversation(host: ControllerHost, initial: GenerateOptions, identity: string, limit = 12): Promise<LogicalResponse> {
     let prefix = '';
     const discoveries: string[] = [];
+    let lastCompletion: string | undefined;
     let request = initial;
     for (let round = 0; round < limit; round++) {
         initial.signal?.throwIfAborted();
@@ -80,7 +81,18 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
             const result = await host.execute(identity, prefix);
             return { source: prefix, output: result.output, abandoned: false };
         }
-        if (segment.kind === 'intellisense') discoveries.push((await host.complete(prefix)).context);
+        if (segment.kind === 'intellisense') {
+            if (lastCompletion === prefix) {
+                const context = `${discoveries.join('\n\n')}\nThe same cursor has already been inspected; its current VM members are listed above. No source has executed. Discard the unfinished buffer and write a complete executable TypeScript program that answers the original request. To list namespace members without invoking tools, print Object.keys(namespace). Do not repeat the same discovery request.`;
+                await host.journal({ round, prefix, response, context });
+                prefix = '';
+                lastCompletion = undefined;
+                request = { ...initial, messages: [...initial.messages, createSystemMessage(context)], tools: [], toolHistory: undefined };
+                continue;
+            }
+            lastCompletion = prefix;
+            discoveries.push((await host.complete(prefix)).context);
+        }
         const context = [...discoveries, ...(segment.kind === 'line' ? ['Continue on the next line. The buffered source remains unexecuted.'] : [])].join('\n\n');
         if (segment.kind === 'line') prefix += '\n';
         await host.journal({ round, prefix, response, context });
