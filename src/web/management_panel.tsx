@@ -1,4 +1,4 @@
-import { useEffect, useState, type DragEvent, type ComponentType } from 'react';
+import { useEffect, useState, type DragEvent } from 'react';
 import type { Namespace, Mapping, PhysicalTool, RegistryState } from '../registry/registry.js';
 import { validatePath } from '../registry/path.js';
 import { ToolPicker } from './tool_picker/tool_picker.js';
@@ -7,7 +7,6 @@ import { namespacePaths, orderedPaths, inNamespace, renameNamespace, deleteNames
 
 /** @brief Authenticated management metadata, shared by embedded and standalone React views. */
 interface View {
-    sessionId?: string;
     state: RegistryState;
     tools: PhysicalTool[];
     effective: Array<Mapping & { tool: PhysicalTool }>;
@@ -16,19 +15,7 @@ interface View {
 }
 
 /** @brief Shared editor inputs; the mounting surface supplies its authenticated API URL. */
-export interface ManagementPanelProps { api: string; ConfigurationSelect?: ComponentType<ConfigurationSelectProps> }
-
-/** @brief Configuration selector contract shared by the host menu and standalone browser control. */
-export interface ConfigurationSelectProps {
-    value: string; disabled: boolean; sessions: Array<{ id: string }>; onChange: (value: string) => void;
-}
-
-/** @brief Standalone selection without requiring the host module loader. */
-function StandaloneConfigurationSelect({ value, disabled, sessions, onChange }: ConfigurationSelectProps) {
-    return <select aria-label="会话配置" value={value} disabled={disabled} onChange={event => onChange(event.target.value)}>
-        <option value="">全局</option>{sessions.map(session => <option key={session.id} value={session.id}>{session.id}</option>)}
-    </select>;
-}
+export interface ManagementPanelProps { api: string }
 
 /** @brief Make an authenticated same-origin request and preserve server error details. */
 async function request<T>(api: string, body?: unknown, signal?: AbortSignal): Promise<T> {
@@ -201,14 +188,13 @@ function NamespaceNode({ path, tree }: { path: string; tree: TreeProps }) {
 }
 
 /** @brief React registry editor with versioned drafts, schema inspection and explicit proposal approval. */
-export function ManagementPanel({ api, ConfigurationSelect = StandaloneConfigurationSelect }: ManagementPanelProps) {
+export function ManagementPanel({ api }: ManagementPanelProps) {
     const [view, setView] = useState<View>();
     const [mappings, setMappings] = useState<Mapping[]>([]);
     const [namespaces, setNamespaces] = useState<Namespace[]>([]);
     const [order, setOrder] = useState<string[]>([]);
     const [expanded, setExpanded] = useState<Record<string, boolean>>({});
     const [descriptionEditor, setDescriptionEditor] = useState<{ id: string; text?: string }>();
-    const [sessionId, setSessionId] = useState('');
     const [toolPicker, setToolPicker] = useState<string>();
     const [status, setStatus] = useState('正在加载…');
     const [busy, setBusy] = useState(false);
@@ -217,7 +203,6 @@ export function ManagementPanel({ api, ConfigurationSelect = StandaloneConfigura
     /** @brief Replace drafts only after a successful snapshot load. */
     async function reload(signal?: AbortSignal): Promise<void> {
         const url = new URL(api, document.baseURI);
-        if (sessionId) url.searchParams.set('sessionId', sessionId);
         const snapshot = await request<View>(url.href, undefined, signal);
         setView(snapshot); setMappings(structuredClone(snapshot.state.mappings));
         setNamespaces(structuredClone(snapshot.state.namespaces ?? []));
@@ -230,7 +215,7 @@ export function ManagementPanel({ api, ConfigurationSelect = StandaloneConfigura
         setView(undefined); setMappings([]); setNamespaces([]); setProposal(undefined); setOrder([]); setExpanded({}); setDescriptionEditor(undefined); setToolPicker(undefined); setStatus('正在加载…');
         void reload(controller.signal).catch(error => { if (!controller.signal.aborted) setStatus(String(error instanceof Error ? error.message : error)); });
         return () => controller.abort();
-    }, [api, sessionId]);
+    }, [api]);
 
     /** @brief Report failed actions without losing unsaved mapping edits. */
     async function action(message: string, task: () => Promise<void>): Promise<void> {
@@ -367,12 +352,12 @@ export function ManagementPanel({ api, ConfigurationSelect = StandaloneConfigura
         <div className="ts-toolbar"><div className="ts-actions">
             <button disabled={busy} onClick={() => void action('正在刷新…', reload)}>刷新</button>
             <button disabled={busy || !view} onClick={() => void action('正在保存…', async () => {
-                await request(api, { action: 'configure', sessionId, revision: view!.state.revision, namespaces, order: orderedPaths([...paths, ...mappings.flatMap(m => [m.path, ...m.aliases])], order), mappings: mappings.map(m => ({ ...m, path: m.path.trim(), aliases: m.aliases.map(alias => alias.trim()).filter(Boolean) })) });
+                await request(api, { action: 'configure', revision: view!.state.revision, namespaces, order: orderedPaths([...paths, ...mappings.flatMap(m => [m.path, ...m.aliases])], order), mappings: mappings.map(m => ({ ...m, path: m.path.trim(), aliases: m.aliases.map(alias => alias.trim()).filter(Boolean) })) });
                 await reload();
             })}>保存配置</button>
-            <ConfigurationSelect value={sessionId} disabled={busy} sessions={view?.sessions ?? []} onChange={setSessionId} />
+            <span>全局配置</span>
             <button disabled={busy || !view?.sessions.length} onClick={() => void action('维护子代理正在生成整理提案…', async () => {
-                setProposal(await request(api, { action: 'organize', sessionId })); setStatus('整理提案已生成，请审核后应用。');
+                setProposal(await request(api, { action: 'organize' })); setStatus('整理提案已生成，请审核后应用。');
             })}>生成整理提案</button>
         </div></div>
         <main><section className="ts-namespaces"><h2>命名空间树</h2>
@@ -409,7 +394,7 @@ export function ManagementPanel({ api, ConfigurationSelect = StandaloneConfigura
             <h2 id="ts-proposal-title">整理提案</h2><pre>{JSON.stringify(proposal.proposal, null, 2)}</pre>
             <p>应用后更新命名映射；执行权限仍由 DSH 原生策略判断。</p>
             <div className="ts-actions"><button disabled={busy} onClick={() => void action('正在应用提案…', async () => {
-                await request(api, { action: 'approve', sessionId, id: proposal.id }); setProposal(undefined); await reload();
+                await request(api, { action: 'approve', id: proposal.id }); setProposal(undefined); await reload();
             })}>校验并应用</button><button disabled={busy} onClick={() => setProposal(undefined)}>取消</button></div>
         </section></div>}
     </div>;

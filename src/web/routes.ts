@@ -3,7 +3,6 @@ import { readFile } from 'node:fs/promises';
 import type { Namespace, Mapping, SemanticRegistry } from '../registry/registry.js';
 import type { TypeScriptAdapter } from '../dsh/adapter.js';
 import type { OrganizationService } from '../dsh/organization.js';
-import { SessionId } from '@deepseek-ai/dsh-session';
 import '@deepseek-ai/dsh-client-connection';
 import { managementHtml } from './ui.js';
 
@@ -16,26 +15,18 @@ export function registerManagement(ctx: Context, globalRegistry: SemanticRegistr
         try {
             adapter.refresh();
             const sessions = ctx.agents.list().filter(a => a.options.provider === adapter.config.route);
-            /** @brief Resolve only live TypeScript sessions; the empty selector identifies global configuration. */
-            async function resolveRegistry(sessionId?: string): Promise<SemanticRegistry> {
-                if (!sessionId) return globalRegistry;
-                const agent = sessions.find(a => a.id === sessionId);
-                if (!agent) throw new Error('Select a live TypeScript session');
-                return adapter.registryFor(agent);
-            }
             if (request.method === 'GET') {
-                const sessionId = new URL(request.url).searchParams.get('sessionId') ?? '';
-                const registry = await resolveRegistry(sessionId);
-                return Response.json({ sessionId, state: registry.snapshot(), tools: registry.tools(), effective: registry.effective(), declarations: registry.declarations(), sessions: sessions.map(a => ({ id: a.id })) }, { headers });
+                const registry = globalRegistry;
+                return Response.json({ state: registry.snapshot(), tools: registry.tools(), effective: registry.effective(), declarations: registry.declarations(), sessions: sessions.map(a => ({ id: a.id })) }, { headers });
             }
             if (!request.headers.get('content-type')?.startsWith('application/json')) return Response.json({ error: 'Expected application/json' }, { status: 415, headers });
             const bodyText = await request.text();
             if (bodyText.length > 1_048_576) return Response.json({ error: 'Body exceeds 1 MiB' }, { status: 413, headers });
-            const body = JSON.parse(bodyText) as { action: string; mappings: Mapping[]; namespaces?: Namespace[]; order?: string[]; revision: number; sessionId: string; id: string };
-            const registry = await resolveRegistry(body.sessionId);
+            const body = JSON.parse(bodyText) as { action: string; mappings: Mapping[]; namespaces?: Namespace[]; order?: string[]; revision: number; id: string };
+            const registry = globalRegistry;
             if (body.action === 'configure') await registry.configure(body.mappings, body.revision, body.namespaces, body.order);
             else if (body.action === 'organize') {
-                const parent = body.sessionId ? ctx.agents.get(SessionId(body.sessionId)) : sessions[0];
+                const parent = sessions[0];
                 if (!parent || parent.options.provider !== adapter.config.route) throw new Error('Select a live TypeScript session');
                 return Response.json(await organization.propose(parent, request.signal, registry), { headers });
             } else if (body.action === 'approve') await organization.approve(body.id);

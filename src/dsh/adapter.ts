@@ -5,7 +5,6 @@ import type { Agent } from '@deepseek-ai/dsh-agent';
 import { LlmAdapter, ToolCallId, type GenerateOptions, type LlmModelInfo, type StreamChunk, type TokenUsage } from '@deepseek-ai/dsh-llm';
 import type { Store } from '../storage/store.js';
 import type { SemanticRegistry, PhysicalTool } from '../registry/registry.js';
-import { SessionRegistries } from '../registry/session_registry.js';
 import { IsolatedSession } from '../runtime/isolated.js';
 import type { SessionCheckpoint, ExecutionResult } from '../runtime/session.js';
 import { environmentPrompt } from '../protocol/prompt.js';
@@ -19,7 +18,6 @@ interface ExecutionRecord { status: 'started' | 'completed' | 'failed'; source?:
 
 /** @brief DSH adapter owning continuation requests without rewriting frozen agent-loop requests. */
 export class TypeScriptAdapter extends LlmAdapter {
-    private sessionRegistries: SessionRegistries;
     private sessions = new Map<string, Promise<IsolatedSession>>();
     private queues = new Map<string, Promise<unknown>>();
     private positions = new Map<string, { turn: number; step: number }>();
@@ -27,7 +25,6 @@ export class TypeScriptAdapter extends LlmAdapter {
 
     constructor(private ctx: Context, readonly config: AdapterConfig, private registry: SemanticRegistry, private store: Store) {
         super();
-        this.sessionRegistries = new SessionRegistries(registry, store);
         ctx.on('agent/assistant-stream', ({ agent, frame }) => {
             if (frame.type === 'start') this.positions.set(agent.id, { turn: frame.turn, step: frame.step });
             if (frame.type === 'end') this.positions.delete(agent.id);
@@ -52,10 +49,10 @@ export class TypeScriptAdapter extends LlmAdapter {
         this.registry.refresh([...tools.values()]);
     }
 
-    /** @brief Resolve the global template or the durable configuration owned by one agent session. */
+    /** @brief Resolve the shared global configuration for every agent session. */
     async registryFor(agent?: Agent): Promise<SemanticRegistry> {
         this.refresh();
-        return agent ? this.sessionRegistries.get(agent.id) : this.registry;
+        return this.registry;
     }
 
     async prompt(agent?: Agent, bindings: BindingType[] = []): Promise<string> {
@@ -233,7 +230,6 @@ export class TypeScriptAdapter extends LlmAdapter {
     async release(sessionId: string): Promise<void> {
         const runtime = await this.sessions.get(sessionId);
         runtime?.dispose(); this.sessions.delete(sessionId);
-        this.sessionRegistries.release(sessionId);
         this.positions.delete(sessionId); this.executions.delete(sessionId);
     }
 
