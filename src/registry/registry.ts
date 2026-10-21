@@ -150,7 +150,7 @@ export class SemanticRegistry {
         const tree: Record<string, unknown> = Object.create(null);
         const rootFunctions: string[] = [];
         for (const mapping of this.effective().filter(m => m.enabled && (!allowed || allowed.has(m.id)))) {
-            const doc = [mapping.tool.description, mapping.description].filter(Boolean).join('\n').replaceAll('*/', '* /');
+            const doc = mapping.tool.description.replaceAll('*/', '* /');
             const signature = `(args: ${jsonSchemaToTs(mapping.tool.parameters)}) => Promise<${jsonSchemaToTs(mapping.tool.output)}>`;
             for (const path of [mapping.path, ...mapping.aliases]) {
                 const parts = path.split('.');
@@ -176,7 +176,7 @@ export class SemanticRegistry {
             ...(this.state.namespaces ?? []).filter(n => n.alwaysVisible && paths.some(path => path.startsWith(`${n.path}.`)))
                 .map(n => `${n.path}${n.description ? ` — ${n.description}` : ''}`),
             ...visible.filter(m => m.alwaysVisible).flatMap(m => [m.path, ...m.aliases]
-                .map(path => `${path}${m.tool.description ? ` — ${m.tool.description}` : ''}`)),
+                .map(path => `${path}(args: ${jsonSchemaToTs(m.tool.parameters)}) => Promise<${jsonSchemaToTs(m.tool.output)}>\n${m.description ?? m.tool.description}`)),
         ];
     }
 
