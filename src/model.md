@@ -4,7 +4,7 @@
 
 ## 数据与调用
 
-`registry/registry.ts` 将物理工具 ID、语义路径/别名、启用、授权、固定映射和统计分开保存。物理工具从实际 DSH runtime 读取，未配置工具只出现在稳定的 unknown 路径。调用先验证映射授权和 JSON Schema，再交给 DSH execute；原生 guard/策略继续生效。配置事务串行化，持久化成功后提交内存状态，revision 防止旧页面覆盖更新。补全曝光与成功调用分别统计，使用频率和时间只在类型候选内排序。
+`registry/registry.ts` 将物理工具 ID、语义路径/别名、启用、授权、固定映射和统计分开保存。物理工具从实际 DSH runtime 读取，未配置工具只出现在 `unknown.<工具名>` 路径；非标识符字符（含 `$`）以 `$十六进制码点$` 转义，数字开头和保留名称添加 `$tool$` 前缀，避免名称碰撞。调用先验证映射授权和 JSON Schema，再交给 DSH execute；原生 guard/策略继续生效。配置事务串行化，持久化成功后提交内存状态，revision 防止旧页面覆盖更新。补全曝光与成功调用分别统计，使用频率和时间只在类型候选内排序。
 
 `storage/store.ts` 定义 Store，生产使用 DSH JSON backend 的 `ts_intellisense` KV 单元、state 表；MemoryStore 和原子 FileStore 用于独立使用。保存注册表、会话数据检查点、续写日志、请求执行状态和物理工具派发日志。已完成请求返回缓存，未确定结果拒绝重试，不重放工具来恢复变量。
 

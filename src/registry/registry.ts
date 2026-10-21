@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { jsonSchemaToTs, validateJsonSchemaValue, type JsonSchemaNode } from '@deepseek-ai/dsh-tools';
 import type { Store } from '../storage/store.js';
 
@@ -43,6 +42,12 @@ export function validatePath(path: string): void {
     }
 }
 
+/** @brief Encode physical names as readable, collision-free callable identifiers. */
+function toolName(id: string): string {
+    const name = id.replace(/[^a-zA-Z0-9_]/gu, character => `$${character.codePointAt(0)!.toString(16)}$`);
+    return !name || /^[0-9]/.test(name) || forbidden.has(name) || name.startsWith('__dsh') ? `$tool$${name}` : name;
+}
+
 /** @brief Transactional semantic registry; unconfigured identities remain under unknown. */
 export class SemanticRegistry {
     private physical = new Map<string, PhysicalTool>();
@@ -63,7 +68,7 @@ export class SemanticRegistry {
     refresh(tools: PhysicalTool[]): void {
         if (new Set(tools.map(t => t.id)).size !== tools.length) throw new Error('Duplicate physical tool identity');
         const next = new Map(tools.map(t => [t.id, structuredClone(t)]));
-        // Unconfigured names use a hash so sanitization never merges two physical identities.
+        // Identifier escaping preserves physical names without merging distinct identities.
         this.physical = next;
     }
 
@@ -74,7 +79,7 @@ export class SemanticRegistry {
     effective(): Array<Mapping & { tool: PhysicalTool }> {
         return [...this.physical.values()].map(tool => ({
             id: tool.id,
-            path: `unknown.t_${createHash('sha256').update(tool.id).digest('hex')}`,
+            path: `unknown.${toolName(tool.id)}`,
             aliases: [], enabled: true, authorized: false, pinned: false,
             ...this.state.mappings.find(m => m.id === tool.id), tool,
         }));
