@@ -24,3 +24,16 @@ export function mergeContinuation(prefix: string, continuation: string): string 
     if (line.length >= 3 && continuation.startsWith(line)) return prefix + continuation.slice(line.length);
     return prefix + continuation;
 }
+
+/** @brief Preview generated source while withholding protocol markers and optional Markdown fences. */
+export function previewSource(prefix: string, response: string): string {
+    let text = response;
+    const marker = text.indexOf('<|');
+    if (marker >= 0) text = text.slice(0, marker);
+    else if (text.endsWith('<')) text = text.slice(0, -1);
+    if (/^\s*`{1,3}(?:ts|typescript)?[ \t]*$/.test(text)) text = '';
+    else if (/^\s*```(?:ts|typescript)?[ \t]*\r?\n/.test(text)) {
+        text = text.replace(/^\s*```(?:ts|typescript)?[ \t]*\r?\n/, '').replace(/\r?\n`{1,3}\s*$/, '');
+    }
+    return mergeContinuation(prefix, text);
+}

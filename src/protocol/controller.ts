@@ -1,5 +1,5 @@
 import { createAssistantMessage, createSystemMessage, type GenerateOptions, type RequestMessage, type StreamChunk } from '@deepseek-ai/dsh-llm';
-import { mergeContinuation, processMarkers, type Segment } from './markers.js';
+import { mergeContinuation, previewSource, processMarkers, type Segment } from './markers.js';
 import type { CompletionResult } from '../typescript/completion.js';
 import type { ExecutionResult } from '../runtime/session.js';
 
@@ -7,6 +7,7 @@ import type { ExecutionResult } from '../runtime/session.js';
 export interface ControllerHost {
     generate(options: GenerateOptions): AsyncIterable<StreamChunk>;
     trace?(event: string, details: Record<string, unknown>): void;
+    source?(source: string): void;
     complete(source: string): Promise<CompletionResult>;
     validate?(source: string): Promise<string | undefined>;
     execute(id: string, source: string): Promise<ExecutionResult>;
@@ -39,7 +40,10 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
         let ended = '';
         let nativeCall = false;
         for await (const chunk of host.generate(request)) {
-            if (chunk.type === 'text-delta') response += chunk.text;
+            if (chunk.type === 'text-delta') {
+                response += chunk.text;
+                if (!nativeCall) host.source?.(previewSource(prefix, response));
+            }
             if (chunk.type === 'block-end' && chunk.block.type === 'text') ended += chunk.block.text;
             if (chunk.type === 'tool-call-delta' || (chunk.type === 'block-end' && chunk.block.type === 'tool-call')) nativeCall = true;
             if (chunk.type === 'finish') reason = chunk.reason.kind;
@@ -47,6 +51,7 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
         if (!response) response = ended;
         host.trace?.('ts.response', { round, response, reason, nativeCall });
         if (nativeCall || /<\/?\s*[|｜]+\s*DSML\b/i.test(response)) {
+            host.source?.(prefix);
             const context = 'Invalid response format: native tool calls and DSML wrappers are disabled. Output raw executable TypeScript only. To inspect a namespace, write its name followed by a dot and <|INTELLISENSE|>, then stop immediately. For example: unknown.<|INTELLISENSE|>. Use only names listed in the VM context. The rejected response has not executed.';
             await host.journal({ round, prefix, response, context });
             request = {
@@ -60,6 +65,7 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
         let segment: Segment;
         try { segment = processMarkers(response); }
         catch (error) {
+            host.source?.(prefix);
             host.trace?.('ts.parse.error', { round, response, error: error instanceof Error ? error.message : String(error) });
             const context = `${discoveries.join('\n\n')}\nInvalid control marker format: ${error instanceof Error ? error.message : String(error)}. The rejected response has not executed. Return only TypeScript up to one terminal control marker and stop immediately; never append an explanation after a marker.\nRejected response:\n${response}`;
             await host.journal({ round, prefix, response, context });
@@ -67,6 +73,7 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
             continue;
         }
         prefix = mergeContinuation(prefix, segment.source);
+        host.source?.(prefix);
         host.trace?.('ts.parse', { round, kind: segment.kind, source: prefix });
         if (segment.kind === 'break') {
             await host.journal({ round, prefix, response });
@@ -80,6 +87,7 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
                 const context = `${discoveries.join('\n\n')}\nTypeScript validation failed before execution. No code from the buffered program has executed. Replace the entire buffered program with corrected executable TypeScript only; do not include prose or Markdown fences.\nRejected source:\n${prefix}\nCompiler diagnostics:\n${error}`;
                 await host.journal({ round, prefix, response, context });
                 prefix = '';
+                host.source?.(prefix);
                 request = { ...initial, messages: [...initial.messages, createSystemMessage(context)], tools: [], toolHistory: undefined };
                 continue;
             }
@@ -98,6 +106,7 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
                 const context = `${discoveries.join('\n\n')}\nThe same cursor has already been inspected; its current VM members are listed above. No source has executed. Discard the unfinished buffer and write a complete executable TypeScript program that answers the original request. To list namespace members without invoking tools, use Object.keys(namespace) as the final executable expression. Do not repeat the same discovery request.`;
                 await host.journal({ round, prefix, response, context });
                 prefix = '';
+                host.source?.(prefix);
                 request = { ...initial, messages: [...initial.messages, createSystemMessage(context)], tools: [], toolHistory: undefined };
                 continue;
             }
@@ -109,6 +118,7 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
         const context = [...discoveries, ...(segment.kind === 'line' ? ['Continue on the next line. The buffered source remains unexecuted.'] : [])].join('\n\n');
         if (segment.kind === 'line') {
             prefix += '\n';
+            host.source?.(prefix);
         }
         await host.journal({ round, prefix, response, context });
         request = { ...initial, messages: continuationHistory(initial.messages, prefix, context, initial.provider, initial.model), tools: [], toolHistory: undefined };

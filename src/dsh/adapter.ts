@@ -122,7 +122,10 @@ export class TypeScriptAdapter extends LlmAdapter {
             system: [options.system, await this.prompt(agent, await runtime.declarations())].filter(Boolean).join('\n\n'),
         };
         const logger = this.ctx.logger('ts-intellisense');
+        const position = this.positions.get(agent.id);
+        const trace = position ? new ExecutionTrace(agent, position, options) : undefined;
         const response = await runConversation({
+            source: source => trace?.updateSource(source),
             trace: (event, details) => logger.info('%s %s', event, JSON.stringify({ session: agent.id, request: identity, ...details })),
             generate: request => {
                 const stream = this.ctx.llm.stream(request);
@@ -171,8 +174,7 @@ export class TypeScriptAdapter extends LlmAdapter {
                 if (previous?.status === 'completed') return previous.result!;
                 if (previous?.status === 'failed') throw new Error(previous.error);
                 await this.store.save<ExecutionRecord>(executionKey, { status: 'started' });
-                const position = this.positions.get(agent.id);
-                const trace = position ? new ExecutionTrace(agent, position, options, source) : undefined;
+                trace?.begin(source);
                 if (trace) this.executions.set(agent.id, trace);
                 try {
                     const result = await runtime.execute(id, source, options.signal);
@@ -188,7 +190,11 @@ export class TypeScriptAdapter extends LlmAdapter {
                 } finally { this.executions.delete(agent.id); }
             },
             journal: async record => { journal.push(record); await this.store.save(`continuation_${identity}`, journal); },
-        }, upstream, identity);
+        }, upstream, identity).catch((error: unknown) => {
+            trace?.finish(error instanceof Error ? error.message : String(error), true);
+            throw error;
+        });
+        if (response.abandoned) trace?.finish('Input abandoned without execution.');
         const text = response.abandoned ? 'Input abandoned without execution.' : response.output;
         return { text, usage, index: nextIndex };
     }

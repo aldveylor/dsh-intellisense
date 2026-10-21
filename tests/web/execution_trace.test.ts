@@ -81,6 +81,15 @@ test('REPL execution stays visible during reasoning and live settlement matches 
         } } as SessionEventLikeEntry);
         assembler.flush();
         assert.equal(snapshot().partial?.blocks[0]?.kind, 'reasoning');
+        const sourceStart = append('ts-repl/source', { turn: 1, step: 1, callId: 'ts-repl-1', offset: 0, text: 'await unknown.re' });
+        let previewNode = snapshot().eventNodes.find(node => node.kind === 'assistant');
+        assert(previewNode?.kind === 'assistant' && previewNode.blocks[0]?.kind === 'tool-call');
+        assert.equal(JSON.parse(previewNode.blocks[0].argsRaw).code, 'await unknown.re');
+        assert.equal(snapshot().partial?.blocks[0]?.kind, 'reasoning');
+        append('ts-repl/source', { turn: 1, step: 1, callId: 'ts-repl-1', offset: 16, text: 'ad({path: "a"})' });
+        previewNode = snapshot().eventNodes.find(node => node.kind === 'assistant');
+        assert(previewNode?.kind === 'assistant' && previewNode.blocks[0]?.kind === 'tool-call');
+        assert.equal(JSON.parse(previewNode.blocks[0].argsRaw).code, 'await unknown.read({path: "a"})');
         const execution = append('assistant/message', { turn: 1, step: 1, stream: [], message: {
             id: 'execution-1', role: 'assistant', source: { provider: 'mock', model: 'test' },
             content: [{ type: 'tool-call', id: 'ts-repl-1', name: 'ts_repl', arguments: '{"code":"await unknown.read({path: \'a\'})"}' }],
@@ -105,12 +114,35 @@ test('REPL execution stays visible during reasoning and live settlement matches 
         assert.equal(live.partial, null);
         const assistants = live.eventNodes.filter(node => node.kind === 'assistant');
         assert.equal(assistants.length, 2);
-        assert.equal(assistants[0]?.seq, execution.event.seq);
+        assert.equal(assistants[0]?.seq, sourceStart.event.seq);
+        assert(sourceStart.event.seq < execution.event.seq);
         assert.equal(assistants[1]?.blocks[0]?.kind, 'reasoning');
         assert.deepEqual(JSON.parse(JSON.stringify(live.callSchemas.get('child-1')?.parameters)), schema.parameters);
         const replay = native.create();
         replay.replaceWindow(durable, false); replay.activateTarget('trajectory');
         assert.deepEqual(JSON.parse(JSON.stringify(replay.snapshot('trajectory'))), JSON.parse(JSON.stringify(live)));
         assert.equal((replay.snapshot('trajectory') as TrajectorySnapshot).callSchemas.get('child-1')?.name, 'read');
+    } finally { native.close(); }
+});
+
+test('interrupted code generation replays as interrupted source without a running physical call', () => {
+    const native = nativeTrajectory();
+    try {
+        const entries = [
+            { type: 'turn/start', data: { turn: 1 } },
+            { type: 'step/start', data: { turn: 1, step: 1 } },
+            { type: 'ts-repl/source', data: { turn: 1, step: 1, callId: 'ts-repl-cancelled', offset: 0, text: 'await unknown.' } },
+            { type: 'ts-repl/source', data: { turn: 1, step: 1, callId: 'ts-repl-cancelled', offset: 14, text: '', interrupted: true } },
+            { type: 'step/end', data: { turn: 1, step: 1 } },
+            { type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } },
+        ].map((event, index) => ({ type: 'event', event: { ...event, seq: index + 1, time: index * 100 } })) as SessionEventLikeEntry[];
+        const assembler = native.create();
+        assembler.replaceWindow(entries, false); assembler.activateTarget('trajectory');
+        const snapshot = assembler.snapshot('trajectory') as TrajectorySnapshot;
+        const source = snapshot.eventNodes.find(node => node.kind === 'assistant');
+        assert(source?.kind === 'assistant');
+        assert.equal(source.interrupted, true);
+        assert.equal(snapshot.runningCalls.length, 0);
+        assert(!snapshot.eventNodes.some(node => node.kind === 'tool-result'));
     } finally { native.close(); }
 });
