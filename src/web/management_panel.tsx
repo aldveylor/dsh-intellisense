@@ -1,4 +1,4 @@
-import { useEffect, useState, type DragEvent } from 'react';
+import { useEffect, useState, type DragEvent, type ComponentType } from 'react';
 import type { Namespace, Mapping, PhysicalTool, RegistryState } from '../registry/registry.js';
 import { validatePath } from '../registry/path.js';
 import { namespacePaths, orderedPaths, inNamespace, renameNamespace, deleteNamespace, reorderTree } from './namespace_tree.js';
@@ -14,7 +14,19 @@ interface View {
 }
 
 /** @brief Shared editor inputs; the mounting surface supplies its authenticated API URL. */
-export interface ManagementPanelProps { api: string }
+export interface ManagementPanelProps { api: string; ConfigurationSelect?: ComponentType<ConfigurationSelectProps> }
+
+/** @brief Configuration selector contract shared by the host menu and standalone browser control. */
+export interface ConfigurationSelectProps {
+    value: string; disabled: boolean; sessions: Array<{ id: string }>; onChange: (value: string) => void;
+}
+
+/** @brief Standalone selection without requiring the host module loader. */
+function StandaloneConfigurationSelect({ value, disabled, sessions, onChange }: ConfigurationSelectProps) {
+    return <select aria-label="会话配置" value={value} disabled={disabled} onChange={event => onChange(event.target.value)}>
+        <option value="">全局</option>{sessions.map(session => <option key={session.id} value={session.id}>{session.id}</option>)}
+    </select>;
+}
 
 /** @brief Make an authenticated same-origin request and preserve server error details. */
 async function request<T>(api: string, body?: unknown, signal?: AbortSignal): Promise<T> {
@@ -194,7 +206,7 @@ function NamespaceNode({ path, tree }: { path: string; tree: TreeProps }) {
 }
 
 /** @brief React registry editor with versioned drafts, schema inspection and explicit proposal approval. */
-export function ManagementPanel({ api }: ManagementPanelProps) {
+export function ManagementPanel({ api, ConfigurationSelect = StandaloneConfigurationSelect }: ManagementPanelProps) {
     const [view, setView] = useState<View>();
     const [mappings, setMappings] = useState<Mapping[]>([]);
     const [namespaces, setNamespaces] = useState<Namespace[]>([]);
@@ -373,10 +385,7 @@ export function ManagementPanel({ api }: ManagementPanelProps) {
                 await request(api, { action: 'configure', sessionId, revision: view!.state.revision, namespaces, order, mappings: mappings.map(m => ({ ...m, path: m.path.trim(), aliases: m.aliases.map(alias => alias.trim()).filter(Boolean) })) });
                 await reload();
             })}>保存配置</button>
-            <select aria-label="会话配置" value={sessionId} disabled={busy} onChange={e => setSessionId(e.target.value)}>
-                <option value="">全局</option>
-                {view?.sessions.map(session => <option key={session.id} value={session.id}>{session.id}</option>)}
-            </select>
+            <ConfigurationSelect value={sessionId} disabled={busy} sessions={view?.sessions ?? []} onChange={setSessionId} />
             <button disabled={busy || !view?.sessions.length} onClick={() => void action('维护子代理正在生成整理提案…', async () => {
                 setProposal(await request(api, { action: 'organize', sessionId })); setStatus('整理提案已生成，请审核后应用。');
             })}>生成整理提案</button>
@@ -405,16 +414,16 @@ export function ManagementPanel({ api }: ManagementPanelProps) {
 const styles = `
 .ts-intellisense{--ts-border:var(--dsw-alias-border-l2,#80808047);--ts-border-focus:var(--dsw-alias-label-secondary,#c8c8c8);font:14px system-ui,sans-serif;color:var(--dsw-alias-label-primary,#dce3ed);padding:16px;width:100%;min-width:0;box-sizing:border-box;background:transparent}
 .ts-intellisense *{box-sizing:border-box}.ts-intellisense header{display:flex;align-items:center;gap:8px 24px;flex-wrap:wrap}.ts-intellisense h1{font-size:22px}.ts-intellisense h2{font-size:17px}.ts-intellisense h4{margin:12px 0 4px}
-.ts-intellisense button,.ts-intellisense input,.ts-intellisense select{font:inherit;color:inherit;background:transparent;border:1px solid var(--ts-border);border-radius:var(--dsw-radius-md,6px);padding:8px;transition:border-color .2s ease}
-.ts-intellisense button{cursor:pointer}.ts-intellisense button:hover{background:linear-gradient(110deg,#ffffff08,#ffffff14)}.ts-intellisense :disabled{opacity:.5;cursor:default}
+.ts-intellisense button:not([data-dsh-control]),.ts-intellisense input,.ts-intellisense select{font:inherit;color:inherit;background:transparent;border:1px solid var(--ts-border);border-radius:var(--dsw-radius-md,6px);padding:8px;transition:border-color .2s ease}
+.ts-intellisense button{cursor:pointer}.ts-intellisense button:not([data-dsh-control]):hover{background:linear-gradient(110deg,#ffffff08,#ffffff14)}.ts-intellisense :disabled{opacity:.5;cursor:default}
 .ts-intellisense main{width:100%;min-width:0;display:flex;flex-direction:column;gap:24px;margin-top:24px}.ts-namespaces,.ts-toolbox{background:transparent;border:1px solid var(--ts-border);border-radius:var(--dsw-radius-lg,10px);padding:16px;min-width:0;width:100%}
 .ts-intellisense pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}.ts-intellisense input[type=checkbox]{width:16px;height:16px;vertical-align:middle}
 .ts-tree,.ts-tree ul{list-style:none;padding-left:24px}.ts-tree{padding-left:0;max-height:440px;overflow:auto}.ts-tree .ts-drop-over{background:linear-gradient(110deg,var(--dsw-alias-interactive-bg-hover,#ffffff0a),transparent);border:1px dashed var(--ts-border-focus)}
 .ts-node-block{display:flex;align-items:center;gap:10px;min-width:0;padding:4px 8px 4px 0;margin:10px 0;border:1px solid var(--ts-border);border-radius:var(--dsw-radius-md,6px);transition:border-color .2s ease}.ts-node-block[draggable=true]{cursor:grab}.ts-node-block:hover,.ts-tree-tool:hover{background:linear-gradient(110deg,#ffffff0a,transparent)}.ts-intellisense .ts-disclosure{display:inline-flex;align-items:center;justify-content:center;flex:0 0 40px;align-self:stretch;min-height:36px;padding:6px;border:0;border-radius:var(--dsw-radius-md,6px)}.ts-disclosure svg{transition:transform .2s ease}.ts-disclosure[aria-expanded=true] svg{transform:rotate(90deg)}.ts-node-name{font-family:monospace;font-weight:600;overflow-wrap:anywhere;min-width:0;cursor:text}.ts-node-preview{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--dsw-alias-label-tertiary,#a5a5a5);cursor:text}.ts-node-block>input.ts-node-name{width:140px;max-width:35%}.ts-node-block>input.ts-node-preview{width:0;min-width:40px}.ts-node-actions{display:flex;align-items:center;gap:4px;margin-left:auto;flex:0 0 auto}.ts-tree-tool{display:flex;gap:10px;align-items:center;padding:8px;min-width:0;border:1px solid var(--ts-border);border-radius:var(--dsw-radius-md,6px);margin:10px 0;transition:border-color .2s ease}.ts-tree [data-drop-edge=before]{box-shadow:0 -2px 0 var(--ts-border-focus)}.ts-tree [data-drop-edge=after]{box-shadow:0 2px 0 var(--ts-border-focus)}.ts-tree-tool:focus-within{border-color:var(--ts-border-focus)}.ts-tree-tool code{cursor:text;overflow-wrap:anywhere;font-weight:600}.ts-mapping-source{color:var(--dsw-alias-label-tertiary,#a5a5a5);font-size:12px;overflow-wrap:anywhere}.ts-tree-tool>input{width:140px;max-width:100%;min-width:0}.ts-tree-tool[draggable=true]{cursor:grab}.ts-tool-preview{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--dsw-alias-label-tertiary,#a5a5a5)}.ts-intellisense .ts-remove,.ts-intellisense .ts-pin{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:26px;height:26px;padding:4px;border-color:transparent;color:var(--dsw-alias-label-tertiary,#a5a5a5)}.ts-node-actions .ts-remove,.ts-node-actions .ts-pin{margin-left:0}.ts-intellisense .ts-pin[aria-pressed=true]{color:var(--dsw-alias-label-primary,#dce3ed);border-color:transparent;background:transparent}.ts-pin[aria-pressed=true] svg{fill:currentColor}.ts-intellisense .ts-pin:hover{background:transparent}.ts-intellisense .ts-remove:hover,.ts-intellisense .ts-pin:hover{color:var(--dsw-alias-label-primary,#dce3ed)}.ts-empty{color:var(--dsw-alias-label-tertiary,#a5a5a5);padding:12px}
 .ts-blocks{display:flex;flex-wrap:wrap;align-items:flex-start;gap:16px 12px;padding:8px 0}.ts-tool{position:relative;border:1px solid var(--ts-border);border-left:1px solid var(--ts-border);border-radius:var(--dsw-radius-md,6px);background:transparent;padding:8px 10px;flex:0 0 auto;max-width:100%;min-width:0;overflow-wrap:anywhere;transition:box-shadow .15s,transform .15s,border-color .15s}.ts-tool:before{content:'';position:absolute;top:-6px;left:16px;width:26px;height:6px;border:1px solid var(--ts-border);border-bottom:0;border-radius:6px 6px 0 0;background:inherit}.ts-tool>code{display:block;margin-top:4px;font-size:11px;color:var(--dsw-alias-label-tertiary,#a5a5a5)}.ts-tool:focus::before{border-color:var(--ts-border-focus)}.ts-tool[draggable=true]{cursor:grab}.ts-tool[draggable=true]:hover{transform:translateY(-2px);box-shadow:0 5px 14px #0003}.ts-tool[draggable=true]:active{cursor:grabbing}.ts-tool.ts-unmounted{background:transparent;color:var(--dsw-alias-state-error-primary,#ed8b8b)}.ts-namespace-placeholder>span{cursor:text;display:inline-block}.ts-namespace-placeholder>span:hover{color:var(--dsw-alias-label-primary,#dce3ed)}
-.ts-intellisense [role=status]{white-space:pre-wrap;margin:16px 0;color:var(--dsw-alias-label-secondary,#bdbdbd)}.ts-intellisense small{color:var(--dsw-alias-label-tertiary,#a5a5a5)}.ts-toolbar{display:flex;flex-direction:column;gap:8px;min-width:0}.ts-toolbar input[type=search]{width:100%;min-width:0}.ts-toolbar select{min-width:0;max-width:100%;flex:1 1 160px}.ts-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.ts-intellisense [role=status]{white-space:pre-wrap;margin:16px 0;color:var(--dsw-alias-label-secondary,#bdbdbd)}.ts-intellisense small{color:var(--dsw-alias-label-tertiary,#a5a5a5)}.ts-toolbar{display:flex;flex-direction:column;gap:8px;min-width:0}.ts-toolbar input[type=search]{width:100%;min-width:0}.ts-toolbar .ts-configuration-select{flex:1 1 160px;min-width:0;max-width:100%}.ts-configuration-trigger{width:100%;min-width:0;justify-content:space-between}.ts-configuration-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ts-toolbar select{min-width:0;max-width:100%;flex:1 1 160px}.ts-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .ts-intellisense :is(input,select):focus,.ts-tree .ts-node-block:focus-within,.ts-namespaces:focus-within,.ts-toolbox:focus-within,.ts-tool:focus,.ts-tool:focus-within{border-color:var(--ts-border-focus);outline:none}
-.ts-intellisense :is(button,summary,[role=button]):focus-visible{border-color:var(--ts-border-focus);outline:var(--dsw-focus-ring-width,1px) solid var(--ts-border-focus);outline-offset:2px}
+.ts-intellisense :is(button:not([data-dsh-control]),summary,[role=button]):focus-visible{border-color:var(--ts-border-focus);outline:var(--dsw-focus-ring-width,1px) solid var(--ts-border-focus);outline-offset:2px}
 
 .ts-backdrop{position:fixed;inset:0;z-index:1000;background:#0008;display:grid;place-items:center}.ts-backdrop section{background:transparent;backdrop-filter:blur(16px);border:1px solid var(--ts-border);border-radius:var(--dsw-radius-lg,10px);padding:24px;width:min(1000px,85vw);max-height:85vh;overflow:auto}
 `;
