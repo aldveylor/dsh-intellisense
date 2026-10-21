@@ -13,8 +13,6 @@ export class CompilationError extends Error {
 }
 
 const globals = `
-declare function whenAll<T extends readonly unknown[]>(values: T): Promise<{ -readonly [K in keyof T]: Awaited<T[K]> }>;
-declare function whenAny<T>(values: Iterable<T | PromiseLike<T>>): Promise<Awaited<T>>;
 declare const console: { log(...values: unknown[]): void };
 declare const tools: { sort(): Promise<{ revision: number; changes: unknown[] }> };
 `;

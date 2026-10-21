@@ -29,7 +29,7 @@ export interface RegistryState { version: 1; revision: number; mappings: Mapping
 export interface Proposal { revision: number; changes: Array<{ id: string; path: string; aliases?: string[]; description?: string }> }
 
 const forbidden = new Set(['__proto__', 'prototype', 'constructor', '__dsh', 'then']);
-const reserved = new Set(['tools', 'whenAll', 'whenAny', 'console', 'globalThis', 'Promise', 'Object', 'Array', 'JSON', 'Math', 'String', 'Number', 'Boolean', 'Date', 'Error', 'Reflect', 'Symbol', 'Map', 'Set', 'WeakMap', 'WeakSet', 'RegExp', 'Function', 'eval', 'Intl', 'ArrayBuffer', 'Uint8Array', 'undefined', 'NaN', 'Infinity']);
+const reserved = new Set(['tools', 'console', 'globalThis', 'Promise', 'Object', 'Array', 'JSON', 'Math', 'String', 'Number', 'Boolean', 'Date', 'Error', 'Reflect', 'Symbol', 'Map', 'Set', 'WeakMap', 'WeakSet', 'RegExp', 'Function', 'eval', 'Intl', 'ArrayBuffer', 'Uint8Array', 'undefined', 'NaN', 'Infinity']);
 
 /** @brief Validate semantic paths before generating declarations or runtime objects. */
 export function validatePath(path: string): void {

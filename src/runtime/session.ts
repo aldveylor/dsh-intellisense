@@ -24,8 +24,6 @@ export class SessionRuntime {
     constructor(private invoke: (path: string, args: unknown) => Promise<unknown>, private organize: () => Promise<unknown> = async () => { throw new Error('Organization is unavailable'); }) {
         this.context = vm.createContext(Object.create(null), { codeGeneration: { strings: false, wasm: false } });
         Object.defineProperty(this.context, 'console', { value: Object.freeze({ log: (...values: unknown[]) => this.logs.push(values.map(v => this.format(v)).join(' ')) }) });
-        Object.defineProperty(this.context, 'whenAll', { value: (values: unknown[]) => Promise.all(values) });
-        Object.defineProperty(this.context, 'whenAny', { value: (values: unknown[]) => Promise.race(values) });
         Object.defineProperty(this.context, 'tools', { value: Object.freeze({ sort: () => this.organize() }) });
     }
 
@@ -71,7 +69,7 @@ export class SessionRuntime {
         if (/\b__dsh\w*/.test(source)) throw new Error('Reserved runtime identifier');
         const compiled = this.project.compile(source, this.declarations(), this.environment.declarations);
         for (const binding of compiled.bindings) {
-            if (this.roots.has(binding.name) || ['tools', 'whenAll', 'whenAny', 'console', 'globalThis'].includes(binding.name)) throw new Error(`Reserved binding: ${binding.name}`);
+            if (this.roots.has(binding.name) || ['tools', 'Promise', 'console', 'globalThis'].includes(binding.name)) throw new Error(`Reserved binding: ${binding.name}`);
             const previous = this.types.get(binding.name);
             if (previous && (previous.kind !== 'var' || binding.kind !== 'var')) throw new SyntaxError(`Identifier '${binding.name}' has already been declared`);
         }
