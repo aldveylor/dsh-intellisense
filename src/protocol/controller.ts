@@ -27,13 +27,15 @@ export function continuationHistory(original: RequestMessage[], prefix: string, 
 }
 
 /** @brief Consume full responses, then request completion or execute one complete logical program. */
-export async function runConversation(host: ControllerHost, initial: GenerateOptions, identity: string, limit = 12): Promise<LogicalResponse> {
+export async function runConversation(host: ControllerHost, initial: GenerateOptions, identity: string, maxCorrections = 12): Promise<LogicalResponse> {
     let prefix = '';
     const discoveries: string[] = [];
     let lastCompletion: string | undefined;
     let request = initial;
-    for (let round = 0; round < limit; round++) {
+    let corrections = 0;
+    for (let round = 0; ; round++) {
         initial.signal?.throwIfAborted();
+        if (corrections >= maxCorrections) throw new Error('TypeScript correction limit exceeded; buffered source was not executed');
         let response = '';
         let reason: string | undefined;
         let ended = '';
@@ -54,6 +56,7 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
                 messages: prefix ? continuationHistory(initial.messages, prefix, context, initial.provider, initial.model) : [...initial.messages, createSystemMessage(context)],
                 tools: [], toolHistory: undefined,
             };
+            corrections++;
             continue;
         }
         if (reason !== 'stop') throw new Error(`Generation did not finish normally (${reason ?? 'missing finish'}); incomplete input was not executed`);
@@ -64,6 +67,7 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
             const context = `${discoveries.join('\n\n')}\nInvalid control marker format: ${error instanceof Error ? error.message : String(error)}. The rejected response has not executed. Return only TypeScript up to one terminal control marker and stop immediately; never append an explanation after a marker.\nRejected response:\n${response}`;
             await host.journal({ round, prefix, response, context });
             request = { ...initial, messages: continuationHistory(initial.messages, prefix, context, initial.provider, initial.model), tools: [], toolHistory: undefined };
+            corrections++;
             continue;
         }
         prefix = mergeContinuation(prefix, segment.source);
@@ -79,6 +83,7 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
             if (error) {
                 const context = `${discoveries.join('\n\n')}\nTypeScript validation failed before execution. No code from the buffered program has executed. Replace the entire buffered program with corrected executable TypeScript only; do not include prose or Markdown fences.\nRejected source:\n${prefix}\nCompiler diagnostics:\n${error}`;
                 await host.journal({ round, prefix, response, context });
+                corrections++;
                 prefix = '';
                 request = { ...initial, messages: [...initial.messages, createSystemMessage(context)], tools: [], toolHistory: undefined };
                 continue;
@@ -94,6 +99,7 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
             if (lastCompletion === prefix) {
                 const context = `${discoveries.join('\n\n')}\nThe same cursor has already been inspected; its current VM members are listed above. No source has executed. Discard the unfinished buffer and write a complete executable TypeScript program that answers the original request. To list namespace members without invoking tools, use Object.keys(namespace) as the final executable expression. Do not repeat the same discovery request.`;
                 await host.journal({ round, prefix, response, context });
+                corrections++;
                 prefix = '';
                 lastCompletion = undefined;
                 request = { ...initial, messages: [...initial.messages, createSystemMessage(context)], tools: [], toolHistory: undefined };
@@ -102,12 +108,16 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
             lastCompletion = prefix;
             const completion = await host.complete(prefix);
             host.trace?.('intellisense.result', { round, source: prefix, ...completion });
+            corrections = 0;
             discoveries.push(completion.context);
+            if (discoveries.length > 3) discoveries.shift();
         }
         const context = [...discoveries, ...(segment.kind === 'line' ? ['Continue on the next line. The buffered source remains unexecuted.'] : [])].join('\n\n');
-        if (segment.kind === 'line') prefix += '\n';
+        if (segment.kind === 'line') {
+            corrections = 0;
+            prefix += '\n';
+        }
         await host.journal({ round, prefix, response, context });
         request = { ...initial, messages: continuationHistory(initial.messages, prefix, context, initial.provider, initial.model), tools: [], toolHistory: undefined };
     }
-    throw new Error('IntelliSense continuation limit exceeded; buffered source was not executed');
 }

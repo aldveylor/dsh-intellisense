@@ -90,7 +90,7 @@ test('repeated DSML output exhausts the retry limit without execution', async ()
         complete: async () => { assert.fail('invalid protocol must not request completion'); },
         execute: async () => { assert.fail('invalid protocol must not execute'); },
         journal: async () => {},
-    }, initial, 'invalid', 2), /continuation limit exceeded/);
+    }, initial, 'invalid', 2), /correction limit exceeded/);
 });
 
 
@@ -153,14 +153,14 @@ test('validation retries are bounded and runtime failures never retry executed c
         execute: async () => { executions++; throw new Error('runtime failure'); },
         journal: async () => {},
     };
-    await assert.rejects(runConversation(host, initial, 'invalid', 2), /continuation limit/);
+    await assert.rejects(runConversation(host, initial, 'invalid', 2), /correction limit/);
     assert.equal(executions, 0);
     await assert.rejects(runConversation({ ...host, validate: async () => undefined }, initial, 'runtime'), /runtime failure/);
     assert.equal(executions, 1);
 });
 
 
-test('text after a control marker is rejected and corrected within the continuation limit', async () => {
+test('text after a control marker is rejected and corrected within the correction limit', async () => {
     const responses = ['unknown.<|INTELLISENSE|> 然后查看成员', 'unknown.<|INTELLISENSE|>', 'read({})'];
     const records: { response: string; context?: string }[] = [];
     const result = await runConversation({
@@ -188,4 +188,38 @@ test('repeated discovery at the same cursor resets the unexecuted buffer with re
     assert.match(JSON.stringify(requests[2]!.messages), /same cursor has already been inspected/);
     assert.match(JSON.stringify(requests[2]!.messages), /std.fs.read/);
     assert.equal(result.output, 'members');
+});
+
+
+test('discovery keeps a task-local three-entry deque without limiting successful continuations', async () => {
+    const original = JSON.stringify(initial);
+    let calls = 0;
+    let completions = 0;
+    let executions = 0;
+    const host = {
+        generate: (request: GenerateOptions) => {
+            const context = JSON.stringify(request.messages);
+            for (let index = 0; index < completions; index++) {
+                assert.equal(context.includes(`discovery_${index}_end`), index >= completions - 3);
+            }
+            calls++;
+            return stream(calls <= 15 ? `const value_${calls} = 1;\n<|INTELLISENSE|>` : '"done"');
+        },
+        complete: async () => ({ ...completion, context: `discovery_${completions++}_end` }),
+        validate: async () => undefined,
+        execute: async () => { executions++; return { output: 'done', declarations: [] }; },
+        journal: async () => {},
+    };
+    const result = await runConversation(host, initial, 'deque', 2);
+    assert.equal(result.output, 'done');
+    assert.equal(calls, 16);
+    assert.equal(executions, 1);
+    assert.equal(JSON.stringify(initial), original);
+    await runConversation({
+        ...host,
+        generate: request => {
+            assert(!JSON.stringify(request).includes('discovery_'));
+            return stream('"next task"');
+        },
+    }, initial, 'next-task', 2);
 });

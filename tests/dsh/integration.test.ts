@@ -141,6 +141,7 @@ test('installed DSH agent loop, plugin, storage, completion, tools and web confi
         assert.equal(selectedModel.requests[0]!.model, 'selected');
         assert.deepEqual(selectedModel.requests[0]!.tools, []);
         assert(selectedModel.requests[1]!.messages.some(m => m.role === 'system' && m.content.some(b => b.type === 'text' && b.text.includes('IntelliSense:'))));
+        assert(!JSON.stringify(agent.session.deriveMessages()).includes('IntelliSense:'));
         assert.equal(agent.session.requestHeader()!.config.provider, 'mock-account');
         assert(frozenRequest && Object.isFrozen(frozenRequest));
         assert.equal(frozenRequest.provider, 'mock-account');
