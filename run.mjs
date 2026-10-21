@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const projectDir = dirname(fileURLToPath(import.meta.url));
 const workspaceDir = join(projectDir, 'build/workspace');
+const dshConfigDir = join(projectDir, 'build/.dsh');
 const patchPath = join(projectDir, 'build/run.patch.yml');
 
 process.chdir(projectDir);
@@ -20,7 +21,7 @@ writeFileSync(patchPath, patch);
 
 process.env.DSH_HOME = process.env.DSH_HOME?.trim()
     ? resolve(process.env.DSH_HOME)
-    : join(workspaceDir, '.dsh');
+    : dshConfigDir;
 process.chdir(workspaceDir);
 console.log(`Workspace: ${workspaceDir}\nDSH_HOME: ${process.env.DSH_HOME}`);
 
