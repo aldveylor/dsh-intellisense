@@ -156,7 +156,7 @@ interface TreeProps {
 /** @brief Namespace row whose children toggle only through the leading disclosure button. */
 function NamespaceNode({ path, tree }: { path: string; tree: TreeProps }) {
     const config = tree.namespaces.find(n => n.path === path);
-    const open = tree.expanded[path] ?? true;
+    const open = tree.expanded[path] ?? false;
     const children = tree.paths.filter(p => p.startsWith(`${path}.`) && p.split('.').length === path.split('.').length + 1);
     const mounted = tree.mappings.flatMap(mapping => [mapping.path, ...mapping.aliases].map(path => ({ path, mapping })))
         .filter(m => m.path.split('.').slice(0, -1).join('.') === path);
@@ -343,7 +343,7 @@ export function ManagementPanel({ api }: ManagementPanelProps) {
         pick: setToolPicker, configure: configureNamespace, drop: (event, parent) => nativeDrop(event, { path: parent, position: 'inside' }), create: createNamespace, rename: renameMapping, remove: removeMapping,
         pinTool: mapping => setMappings(current => current.map(m => m.id === mapping.id ? { ...m, alwaysVisible: !m.alwaysVisible } : m)),
         renameNamespace: (path, name) => editNamespace(path, name), deleteNamespace: path => { editNamespace(path); },
-        toggle: path => setExpanded(current => ({ ...current, [path]: !(current[path] ?? true) })), dropNode: (event) => nativeDrop(event, treeDropTarget(event.currentTarget, event.clientY)),
+        toggle: path => setExpanded(current => ({ ...current, [path]: !(current[path] ?? false) })), dropNode: (event) => nativeDrop(event, treeDropTarget(event.currentTarget, event.clientY)),
     };
 
     return <div className="ts-intellisense" ref={drag.container} onPointerDownCapture={drag.pointerDown} onDragStartCapture={drag.preventNativeDrag}>
