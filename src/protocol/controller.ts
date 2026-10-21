@@ -27,7 +27,7 @@ export function continuationHistory(original: RequestMessage[], prefix: string, 
 }
 
 /** @brief Consume full responses, then request completion or execute one complete logical program. */
-export async function runConversation(host: ControllerHost, initial: GenerateOptions, identity: string, maxCorrections = 12): Promise<LogicalResponse> {
+export async function runConversation(host: ControllerHost, initial: GenerateOptions, identity: string, maxCorrections = 64): Promise<LogicalResponse> {
     let prefix = '';
     const discoveries: string[] = [];
     let lastCompletion: string | undefined;

@@ -17,7 +17,7 @@ export interface Config { route?: string; provider?: string; model?: string; tim
 
 /** @brief Mount an npm-installed Cordis plugin using DSH's native services. */
 export async function apply(ctx: Context, options: Config = {}): Promise<void> {
-    const config = { route: options.route ?? 'ts-repl', provider: options.provider ?? 'deepseek-official', model: options.model ?? 'deepseek-flash', timeoutMs: options.timeoutMs ?? 30_000, maxCorrections: options.maxCorrections ?? 12 };
+    const config = { route: options.route ?? 'ts-repl', provider: options.provider ?? 'deepseek-official', model: options.model ?? 'deepseek-flash', timeoutMs: options.timeoutMs ?? 30_000, maxCorrections: options.maxCorrections ?? 64 };
     if (config.route === config.provider) throw new Error('The TypeScript route must differ from its upstream provider');
     if (!Number.isSafeInteger(config.timeoutMs) || config.timeoutMs < 100 || !Number.isSafeInteger(config.maxCorrections) || config.maxCorrections < 1) throw new Error('Invalid timeout or correction limit');
     const backend = ctx.storage.backend.get('json');

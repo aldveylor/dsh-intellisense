@@ -6,7 +6,7 @@
         provider: deepseek-official
         model: deepseek-flash
         timeoutMs: 30000
-        maxCorrections: 12
+        maxCorrections: 64
 
 - id: agent-default-model
   config:
