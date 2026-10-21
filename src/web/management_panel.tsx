@@ -29,15 +29,15 @@ function ToolBlock({ tool, mapping, busy, mount, update, remove }: {
     tool: PhysicalTool; mapping?: Mapping; busy: boolean; mount: () => void;
     update: (patch: Partial<Mapping>) => void; remove: () => void;
 }) {
-    return <section className={`ts-tool ${mapping?.path.trim() ? '' : 'ts-unmounted'}`}
+    return <section title={[tool.description, mapping?.description].filter(Boolean).join('\n')} className={`ts-tool ${mapping?.path.trim() ? '' : 'ts-unmounted'}`}
         draggable={!busy && !mapping?.pinned} onDragStart={event => {
             event.dataTransfer.setData('application/x-ts-tool', tool.id);
             event.dataTransfer.effectAllowed = 'copyMove';
         }}>
         <div className="ts-actions"><strong>{tool.id}</strong><small>{mapping?.path.trim() ? '已挂载' : '未挂载'}</small>
             <button disabled={busy || mapping?.pinned} onClick={mount}>挂载</button></div>
-        <p>{tool.description}</p><code>{mapping?.path || 'unknown · 拖到上方命名空间挂载'}</code>
-        <details><summary>映射配置与类型</summary>
+        <code>{mapping?.path || 'unknown'}</code>
+        <details><summary>配置 / 类型</summary><div className="ts-tool-config">
             <label>语义路径<input aria-label={`语义路径 ${tool.id}`} value={mapping?.path ?? ''} disabled={busy || mapping?.pinned}
                 onChange={e => update({ path: e.target.value })} /></label>
             <label>别名<input aria-label={`别名 ${tool.id}`} value={mapping?.aliases.join(',') ?? ''} disabled={busy || mapping?.pinned}
@@ -51,14 +51,42 @@ function ToolBlock({ tool, mapping, busy, mount, update, remove }: {
                 <button disabled={busy || !mapping || mapping.pinned} onClick={remove}>取消挂载</button></div>
             <h4>参数</h4><pre>{JSON.stringify(tool.parameters, null, 2)}</pre>
             <h4>返回值</h4><pre>{JSON.stringify(tool.output, null, 2)}</pre>
-        </details>
+        </div></details>
     </section>;
 }
 
+/** @brief Name a child namespace inline; empty names and Escape discard the pending entry. */
+function NamespacePlaceholder({ parent = '', busy, create }: {
+    parent?: string; busy: boolean; create: (path: string) => boolean;
+}) {
+    const [name, setName] = useState<string>();
+
+    /** @brief Start naming without changing the persisted namespace draft. */
+    function begin(): void {
+        if (!busy) setName('');
+    }
+
+    return <li className="ts-empty ts-namespace-placeholder">
+        {name === undefined ? <span role="button" tabIndex={busy ? -1 : 0} aria-disabled={busy}
+            title="双击添加命名空间" onDoubleClick={begin} onKeyDown={event => {
+                if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); begin(); }
+            }}>将工具积木拖到此节点</span> : <input autoFocus aria-label={`命名新命名空间 ${parent || '根节点'}`}
+            placeholder="命名空间名称" value={name} disabled={busy} onChange={event => setName(event.target.value)}
+            onBlur={() => {
+                const value = name.trim();
+                if (!value || create(parent ? `${parent}.${value}` : value)) setName(undefined);
+            }} onKeyDown={event => {
+                if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); }
+                if (event.key === 'Escape') { event.preventDefault(); setName(undefined); }
+            }} />}
+    </li>;
+}
+
 /** @brief Recursive expandable namespace node with editable metadata and drop targets. */
-function NamespaceNode({ path, paths, mappings, namespaces, busy, configure, drop }: {
+function NamespaceNode({ path, paths, mappings, namespaces, busy, configure, drop, create }: {
     path: string; paths: string[]; mappings: Mapping[]; namespaces: Namespace[]; busy: boolean;
     configure: (path: string, patch: Partial<Namespace>) => void; drop: (id: string, path: string) => void;
+    create: (path: string) => boolean;
 }) {
     const [over, setOver] = useState(false);
     const config = namespaces.find(n => n.path === path);
@@ -78,9 +106,9 @@ function NamespaceNode({ path, paths, mappings, namespaces, busy, configure, dro
                 onChange={event => configure(path, { description: event.target.value })} />
         </span></summary><ul>
         {children.map(child => <NamespaceNode key={child} path={child} paths={paths} mappings={mappings} namespaces={namespaces}
-            busy={busy} configure={configure} drop={drop} />)}
+            busy={busy} configure={configure} drop={drop} create={create} />)}
         {mounted.map(m => <li className="ts-tree-tool" key={`${m.id}:${m.path}`}><code>{m.path.split('.').at(-1)}</code><small>{m.id}</small></li>)}
-        {!children.length && !mounted.length && <li className="ts-empty">将工具积木拖到此节点</li>}
+        <NamespacePlaceholder parent={path} busy={busy} create={create} />
         </ul></details></li>;
 }
 
@@ -89,7 +117,6 @@ export function ManagementPanel({ api }: ManagementPanelProps) {
     const [view, setView] = useState<View>();
     const [mappings, setMappings] = useState<Mapping[]>([]);
     const [namespaces, setNamespaces] = useState<Namespace[]>([]);
-    const [newNamespace, setNewNamespace] = useState('');
     const [mount, setMount] = useState<{ id: string; namespace: string; name: string; alias: boolean }>();
     const [sessionId, setSessionId] = useState('');
     const [search, setSearch] = useState('');
@@ -149,6 +176,17 @@ export function ManagementPanel({ api }: ManagementPanelProps) {
         });
     }
 
+    /** @brief Commit only named namespaces that do not conflict with callable paths. */
+    function createNamespace(path: string): boolean {
+        const toolPaths = mappings.flatMap(m => [m.path, ...m.aliases]);
+        if (!/^[a-zA-Z_$][\w$]*(\.[a-zA-Z_$][\w$]*)*$/.test(path) || paths.includes(path) ||
+            toolPaths.some(p => p === path || path.startsWith(`${p}.`))) {
+            setStatus('命名空间名称无效或与现有路径冲突。'); return false;
+        }
+        configureNamespace(path, {});
+        return true;
+    }
+
     /** @brief Open the same naming flow for drops and keyboard-accessible mount buttons. */
     function beginMount(id: string, namespace: string): void {
         const tool = view?.tools.find(t => t.id === id);
@@ -177,16 +215,11 @@ export function ManagementPanel({ api }: ManagementPanelProps) {
             <input type="search" aria-label="搜索工具" placeholder="搜索名称、路径或描述" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <main><section className="ts-namespaces"><h2>命名空间树</h2>
-            <div className="ts-actions"><input aria-label="新建命名空间" placeholder="命名空间路径，如 workspace.files" value={newNamespace}
-                disabled={busy} onChange={event => setNewNamespace(event.target.value)} />
-                <button disabled={busy || !view || !newNamespace.trim()} onClick={() => {
-                    const path = newNamespace.trim();
-                    if (!/^[a-zA-Z_$][\w$]*(\.[a-zA-Z_$][\w$]*)*$/.test(path)) { setStatus('请输入有效的命名空间路径。'); return; }
-                    configureNamespace(path, {}); setNewNamespace('');
-                }}>添加命名空间</button><small>拖动下方积木到树节点，选择挂载方式和名称；修改后保存配置。</small></div>
+            <small>拖动积木到树节点挂载；双击空白提示添加命名空间，输入名称后按 Enter 或移开焦点确认。</small>
             <ul className="ts-tree">{paths.filter(path => !path.includes('.')).map(path => <NamespaceNode key={path} path={path}
-                paths={paths} mappings={mappings} namespaces={namespaces} busy={busy} configure={configureNamespace} drop={beginMount} />)}</ul>
-            {!paths.length && <p className="ts-empty">先添加命名空间，再拖入工具积木。</p>}
+                paths={paths} mappings={mappings} namespaces={namespaces} busy={busy} configure={configureNamespace} drop={beginMount} create={createNamespace} />)}
+                <NamespacePlaceholder busy={busy || !view} create={createNamespace} />
+            </ul>
             <small>unknown：{unknown} 个未挂载工具 · 执行权限由 DSH 原生策略判断。</small>
         </section><section className="ts-toolbox"><h2>工具积木 <small>{tools.length} 个工具 · 红色表示未挂载</small></h2>
             <div className="ts-blocks">{tools.map(tool => <ToolBlock key={tool.id} tool={tool} mapping={mappings.find(m => m.id === tool.id)} busy={busy}
@@ -243,7 +276,7 @@ const styles = `
 .ts-intellisense pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}.ts-intellisense input[type=checkbox]{width:16px;height:16px;vertical-align:middle}
 .ts-tree,.ts-tree ul{list-style:none;padding-left:24px}.ts-tree{padding-left:0;max-height:440px;overflow:auto}.ts-tree summary{padding:8px;border-radius:6px;cursor:pointer;border:1px solid transparent}.ts-tree summary:hover{background:var(--bg-hover,#25384b)}.ts-tree summary.ts-drop-over{background:#245340;border:1px dashed #74ddb0}
 .ts-node-name{display:inline-block;min-width:180px;font-family:monospace;font-weight:600}.ts-node-config{display:inline-flex;align-items:center;gap:20px;margin-left:20px}.ts-node-config input:not([type=checkbox]){width:320px}.ts-tree-tool{display:flex;gap:20px;align-items:center;padding:8px 24px;color:#84cfba}.ts-empty{color:var(--text-secondary,#a5b4c6);padding:12px}
-.ts-blocks{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:22px;padding:12px 0}.ts-tool{position:relative;border:1px solid #418d78;border-left:6px solid #56ba9d;border-radius:8px;background:var(--bg-primary,#142c2a);padding:18px;min-width:0;overflow-wrap:anywhere;transition:box-shadow .15s,transform .15s}.ts-tool:before{content:'';position:absolute;top:-9px;left:26px;width:40px;height:9px;border:1px solid #418d78;border-bottom:0;border-radius:6px 6px 0 0;background:inherit}.ts-tool[draggable=true]{cursor:grab}.ts-tool[draggable=true]:hover{transform:translateY(-2px);box-shadow:0 5px 14px #0003}.ts-tool[draggable=true]:active{cursor:grabbing}.ts-tool.ts-unmounted{border-color:#e47777;border-left-color:#ed7070;background:var(--bg-primary,#351e27)}.ts-tool.ts-unmounted:before{border-color:#e47777}.ts-tool.ts-unmounted>.ts-actions small{color:#ed8b8b}.ts-tool>.ts-actions button{margin-left:auto}.ts-tool p{line-height:1.6}.ts-tool details{cursor:auto}.ts-tool label,.ts-backdrop form>label{display:block;margin:12px 0}.ts-tool label>input:not([type=checkbox]),.ts-backdrop form>label>input,.ts-backdrop form>label>select{display:block;width:100%;margin-top:6px}
-.ts-intellisense [role=status]{white-space:pre-wrap;margin:16px 0;color:var(--text-secondary,#a8d4f2)}.ts-intellisense small{color:var(--text-secondary,#a5b4c6)}.ts-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.ts-intellisense details{margin:10px 0}
+.ts-blocks{display:flex;flex-wrap:wrap;align-items:flex-start;gap:16px 12px;padding:8px 0}.ts-tool{position:relative;border:1px solid #418d78;border-left:4px solid #56ba9d;border-radius:6px;background:var(--bg-primary,#142c2a);padding:8px 10px;flex:0 0 auto;max-width:100%;min-width:0;overflow-wrap:anywhere;transition:box-shadow .15s,transform .15s}.ts-tool:before{content:'';position:absolute;top:-6px;left:16px;width:26px;height:6px;border:1px solid #418d78;border-bottom:0;border-radius:6px 6px 0 0;background:inherit}.ts-tool[draggable=true]{cursor:grab}.ts-tool[draggable=true]:hover{transform:translateY(-2px);box-shadow:0 5px 14px #0003}.ts-tool[draggable=true]:active{cursor:grabbing}.ts-tool.ts-unmounted{border-color:#e47777;border-left-color:#ed7070;background:var(--bg-primary,#351e27)}.ts-tool.ts-unmounted:before{border-color:#e47777}.ts-tool.ts-unmounted>.ts-actions small{color:#ed8b8b}.ts-tool>.ts-actions{gap:8px;flex-wrap:nowrap}.ts-tool>.ts-actions button{padding:3px 6px;font-size:12px}.ts-tool>code{display:block;margin-top:5px;font-size:11px;color:var(--text-secondary,#a5b4c6)}.ts-tool details{cursor:auto;margin:5px 0 0;font-size:12px}.ts-tool details summary{cursor:pointer}.ts-tool:has(details[open]){z-index:2}.ts-tool-config{position:absolute;top:100%;left:0;z-index:3;width:min(420px,70vw);max-height:420px;overflow:auto;padding:12px 16px;background:var(--bg-primary,#18202c);border:1px solid var(--border-color,#425069);border-radius:6px;box-shadow:0 8px 20px #0006;font-size:14px;cursor:auto}.ts-namespace-placeholder>span{cursor:text;display:inline-block}.ts-namespace-placeholder>span:hover{color:var(--text-primary,#dce3ed)}.ts-tool label,.ts-backdrop form>label{display:block;margin:12px 0}.ts-tool label>input:not([type=checkbox]),.ts-backdrop form>label>input,.ts-backdrop form>label>select{display:block;width:100%;margin-top:6px}
+.ts-intellisense [role=status]{white-space:pre-wrap;margin:16px 0;color:var(--text-secondary,#a8d4f2)}.ts-intellisense small{color:var(--text-secondary,#a5b4c6)}.ts-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.ts-tree details{margin:10px 0}
 .ts-backdrop{position:fixed;inset:0;z-index:1000;background:#0008;display:grid;place-items:center}.ts-backdrop section{background:var(--bg-primary,#18202c);border:1px solid var(--border-color,#425069);border-radius:10px;padding:24px;width:min(1000px,85vw);max-height:85vh;overflow:auto}
 `;
