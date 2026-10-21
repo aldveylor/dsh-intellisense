@@ -17,7 +17,7 @@ npm ci
 
 在登录后的同一浏览器访问 `/api/ts-intellisense`，配置工具路径和授权。路径示例 `std.fs.read`。未配置工具使用稳定的 `unknown.t_<hash>` 路径，默认不可执行；创建映射不自动授权。新建会话选择 `ts-repl` 路由，启动补丁也将其设为默认提供方。授权设置与 DSH 本身的工具策略、guard 都必须允许调用。
 
-`./run.sh --help` 查看原生 Web 启动参数。脚本生成 `build/run.patch.yml`，使用本地编译插件的绝对路径；不需要全局安装 DSH。默认使用 DSH 自己的数据目录；可通过 `DSH_HOME` 指定独立目录。
+`./run.sh --help` 查看原生 Web 启动参数。脚本自动创建并使用本项目的 `build/workspace` 作为 workspace，生成 `build/run.patch.yml` 并通过绝对路径自动加载本项目编译的插件；不需要全局安装 DSH。默认使用 DSH 自己的数据目录；可通过 `DSH_HOME` 指定独立目录。
 
 ## 使用
 
