@@ -1,6 +1,7 @@
 import { useEffect, useState, type DragEvent, type ComponentType } from 'react';
 import type { Namespace, Mapping, PhysicalTool, RegistryState } from '../registry/registry.js';
 import { validatePath } from '../registry/path.js';
+import { ToolPicker } from './tool_picker/tool_picker.js';
 import { useTreeDrag, treeDropTarget } from './tree_drag.js';
 import { namespacePaths, orderedPaths, inNamespace, renameNamespace, deleteNamespace, dropTree, type TreeDragSource, type TreeDropTarget } from './namespace_tree.js';
 
@@ -38,18 +39,6 @@ async function request<T>(api: string, body?: unknown, signal?: AbortSignal): Pr
     const data = await response.json() as T & { error?: string };
     if (!response.ok) throw new Error(data.error ?? `HTTP ${response.status}`);
     return data;
-}
-
-/** @brief Compact physical tool block; dropping it creates or moves its mapping directly. */
-function ToolBlock({ tool, mapping, busy }: { tool: PhysicalTool; mapping?: Mapping; busy: boolean }) {
-    return <section title={tool.description}
-        data-tool-id={tool.id} className={`ts-tool ${mapping?.path.trim() ? '' : 'ts-unmounted'}`} tabIndex={busy || mapping?.pinned ? -1 : 0} draggable={!busy && !mapping?.pinned}
-        onDragStart={event => {
-            event.dataTransfer.setData('application/x-ts-tool', tool.id);
-            event.dataTransfer.effectAllowed = 'move';
-        }}>
-        <strong>{tool.id}</strong><code>{mapping?.path || '未挂载'}</code>
-    </section>;
 }
 
 /** @brief A double-click text editor that keeps its draft local until explicit commit or blur. */
@@ -123,8 +112,8 @@ function MappedTool({ mapping, path, description, tree }: { mapping: Mapping; pa
 }
 
 /** @brief Name a child namespace inline; empty names and Escape discard the pending entry. */
-function NamespacePlaceholder({ parent = '', busy, create, drop }: {
-    parent?: string; busy: boolean; create: (path: string) => boolean;
+function NamespacePlaceholder({ parent = '', busy, create, drop, pick }: {
+    parent?: string; busy: boolean; create: (path: string) => boolean; pick: (parent: string) => void;
     drop?: (event: DragEvent<HTMLElement>, parent: string) => void;
 }) {
     const [name, setName] = useState<string>();
@@ -147,7 +136,7 @@ function NamespacePlaceholder({ parent = '', busy, create, drop }: {
         {name === undefined ? <span role="button" tabIndex={busy ? -1 : 0} aria-disabled={busy}
             title="双击添加命名空间" onDoubleClick={begin} onKeyDown={event => {
                 if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); begin(); }
-            }}>{parent ? '将工具积木拖到此节点' : '拖到根节点挂载命令，双击添加命名空间'}</span> : <input autoFocus aria-label={`命名新命名空间 ${parent || '根节点'}`}
+            }}>{parent ? '添加工具，双击创建命名空间' : '添加根命令，双击创建命名空间'}</span> : <input autoFocus aria-label={`命名新命名空间 ${parent || '根节点'}`}
             placeholder="命名空间名称" value={name} disabled={busy} onChange={event => setName(event.target.value)}
             onBlur={() => {
                 const value = name.trim();
@@ -157,6 +146,10 @@ function NamespacePlaceholder({ parent = '', busy, create, drop }: {
                 if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); }
                 if (event.key === 'Escape') { event.preventDefault(); setName(undefined); }
             }} />}
+        <button className="ts-add-tool" type="button" aria-label={`添加工具到 ${parent || '根节点'}`} title="选择工具积木" disabled={busy}
+            onClick={() => pick(parent)} onDoubleClick={event => event.stopPropagation()}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+        </button>
     </li>;
 }
 
@@ -166,7 +159,7 @@ interface TreeProps {
     order: string[]; expanded: Record<string, boolean>;
     configure: (path: string, patch: Partial<Namespace>) => void;
     drop: (event: DragEvent<HTMLElement>, parent: string) => void;
-    create: (path: string) => boolean; rename: (path: string, name: string) => boolean;
+    pick: (parent: string) => void; create: (path: string) => boolean; rename: (path: string, name: string) => boolean;
     editDescription: (id: string) => void; remove: (path: string) => void; pinTool: (mapping: Mapping) => void;
     renameNamespace: (path: string, name: string) => boolean; deleteNamespace: (path: string) => void;
     toggle: (path: string) => void; dropNode: (event: DragEvent<HTMLElement>, path: string, namespace: boolean) => void;
@@ -203,7 +196,7 @@ function NamespaceNode({ path, tree }: { path: string; tree: TreeProps }) {
             const command = mounted.find(m => m.path === node);
             return command ? <MappedTool key={node} path={node} mapping={command.mapping} tree={tree}
                 description={tree.tools.find(t => t.id === command.mapping.id)?.description} /> : <NamespaceNode key={node} path={node} tree={tree} />;
-        })}<NamespacePlaceholder parent={path} busy={tree.busy} create={tree.create} drop={tree.drop} /></ul>}
+        })}<NamespacePlaceholder parent={path} busy={tree.busy} create={tree.create} drop={tree.drop} pick={tree.pick} /></ul>}
     </li>;
 }
 
@@ -216,7 +209,7 @@ export function ManagementPanel({ api, ConfigurationSelect = StandaloneConfigura
     const [expanded, setExpanded] = useState<Record<string, boolean>>({});
     const [descriptionEditor, setDescriptionEditor] = useState<{ id: string; text?: string }>();
     const [sessionId, setSessionId] = useState('');
-    const [search, setSearch] = useState('');
+    const [toolPicker, setToolPicker] = useState<string>();
     const [status, setStatus] = useState('正在加载…');
     const [busy, setBusy] = useState(false);
     const [proposal, setProposal] = useState<{ id: string; proposal: unknown }>();
@@ -234,7 +227,7 @@ export function ManagementPanel({ api, ConfigurationSelect = StandaloneConfigura
 
     useEffect(() => {
         const controller = new AbortController();
-        setView(undefined); setMappings([]); setNamespaces([]); setProposal(undefined); setOrder([]); setExpanded({}); setDescriptionEditor(undefined); setStatus('正在加载…');
+        setView(undefined); setMappings([]); setNamespaces([]); setProposal(undefined); setOrder([]); setExpanded({}); setDescriptionEditor(undefined); setToolPicker(undefined); setStatus('正在加载…');
         void reload(controller.signal).catch(error => { if (!controller.signal.aborted) setStatus(String(error instanceof Error ? error.message : error)); });
         return () => controller.abort();
     }, [api, sessionId]);
@@ -256,11 +249,6 @@ export function ManagementPanel({ api, ConfigurationSelect = StandaloneConfigura
         });
     }
 
-    const filter = search.trim().toLowerCase();
-    const tools = view?.tools.filter(tool => {
-        const mapping = mappings.find(m => m.id === tool.id);
-        return `${tool.id} ${mapping?.path ?? ''} ${mapping?.aliases.join(' ') ?? ''} ${tool.description} ${mapping?.description ?? ''}`.toLowerCase().includes(filter);
-    }) ?? [];
     const paths = namespacePaths({ mappings, namespaces });
     const unknown = view?.tools.filter(tool => !mappings.some(m => m.id === tool.id && m.path.trim())).length ?? 0;
 
@@ -351,7 +339,7 @@ export function ManagementPanel({ api, ConfigurationSelect = StandaloneConfigura
                 setExpanded(current => Object.fromEntries(Object.entries(current).map(([path, open]) => [inNamespace(path, source.path!) ? destination + path.slice(source.path!.length) : path, open])));
             }
             setMappings(next.mappings); setNamespaces(next.namespaces); setOrder(next.order);
-            setStatus('已更新拖放位置，请保存配置。');
+            setStatus('已更新工具位置，请保存配置。');
         } catch (error) { setStatus(error instanceof Error ? error.message : String(error)); }
     }
 
@@ -366,7 +354,7 @@ export function ManagementPanel({ api, ConfigurationSelect = StandaloneConfigura
     const tree: TreeProps = {
         paths, mappings, namespaces, order, expanded, tools: view?.tools ?? [], busy: busy || !view,
         editDescription: id => { if (!busy) setDescriptionEditor({ id, text: mappings.find(m => m.id === id)?.description }); },
-        configure: configureNamespace, drop: (event, parent) => nativeDrop(event, { path: parent, position: 'inside' }), create: createNamespace, rename: renameMapping, remove: removeMapping,
+        pick: setToolPicker, configure: configureNamespace, drop: (event, parent) => nativeDrop(event, { path: parent, position: 'inside' }), create: createNamespace, rename: renameMapping, remove: removeMapping,
         pinTool: mapping => setMappings(current => current.map(m => m.id === mapping.id ? { ...m, alwaysVisible: !m.alwaysVisible } : m)),
         renameNamespace: (path, name) => editNamespace(path, name), deleteNamespace: path => { editNamespace(path); },
         toggle: path => setExpanded(current => ({ ...current, [path]: !(current[path] ?? true) })), dropNode: (event) => nativeDrop(event, treeDropTarget(event.currentTarget, event.clientY)),
@@ -386,22 +374,23 @@ export function ManagementPanel({ api, ConfigurationSelect = StandaloneConfigura
             <button disabled={busy || !view?.sessions.length} onClick={() => void action('维护子代理正在生成整理提案…', async () => {
                 setProposal(await request(api, { action: 'organize', sessionId })); setStatus('整理提案已生成，请审核后应用。');
             })}>生成整理提案</button>
-            </div><div className="ts-actions"><input type="search" aria-label="搜索工具" placeholder="搜索名称、路径或描述" value={search} onChange={e => setSearch(e.target.value)} />
         </div></div>
         <main><section className="ts-namespaces"><h2>命名空间树</h2>
-            <small>箭头控制展开；双击名称或注释编辑，同级块可拖动排序，拖到命名空间内可映射工具。</small>
+            <small>箭头控制展开；双击名称或注释编辑，同级块可拖动排序，点击加号添加工具。</small>
             <ul className="ts-tree">{orderedPaths([...paths.filter(path => !path.includes('.')), ...mappings.flatMap(m => [m.path, ...m.aliases]).filter(path => !path.includes('.'))], order).map(path => {
                 const command = mappings.find(m => m.path === path || m.aliases.includes(path));
                 return command ? <MappedTool key={path} path={path} mapping={command} tree={tree}
                     description={view?.tools.find(tool => tool.id === command.id)?.description} /> : <NamespaceNode key={path} path={path} tree={tree} />;
             })}
-                <NamespacePlaceholder busy={busy || !view} create={createNamespace} drop={(event, parent) => nativeDrop(event, { path: parent, position: 'inside' })} />
+                <NamespacePlaceholder busy={busy || !view} create={createNamespace} pick={setToolPicker} drop={(event, parent) => nativeDrop(event, { path: parent, position: 'inside' })} />
             </ul>
-            <small>unknown：{unknown} 个未挂载工具 · 执行权限由 DSH 原生策略判断。</small>
-        </section><section className="ts-toolbox"><h2>工具积木 <small>{tools.length} 个工具</small></h2>
-            <div className="ts-blocks">{tools.map(tool => <ToolBlock key={tool.id} tool={tool} mapping={mappings.find(m => m.id === tool.id)} busy={busy || !view} />)}</div>
-            {view && !tools.length && <p>{filter ? '没有匹配的工具。' : '当前没有可用工具。'}</p>}
+            <small>unknown：{unknown} 个未挂载工具</small>
         </section></main>
+        {toolPicker !== undefined && view && <ToolPicker parent={toolPicker} tools={view.tools} mappings={mappings} busy={busy}
+            close={() => setToolPicker(undefined)} select={tool => {
+                applyDrop({ namespace: false, id: tool.id }, { path: toolPicker, position: 'inside' });
+                setToolPicker(undefined);
+            }} />}
         {descriptionEditor && <div className="ts-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="ts-description-title">
             <form onSubmit={event => {
                 event.preventDefault();
@@ -431,14 +420,15 @@ const styles = `
 .ts-intellisense *{box-sizing:border-box}.ts-intellisense header{display:flex;align-items:center;gap:8px 24px;flex-wrap:wrap}.ts-intellisense h1{font-size:22px}.ts-intellisense h2{font-size:17px}.ts-intellisense h4{margin:12px 0 4px}
 .ts-intellisense button:not([data-dsh-control]),.ts-intellisense input,.ts-intellisense select,.ts-intellisense textarea{font:inherit;color:inherit;background:transparent;border:1px solid var(--ts-border);border-radius:var(--dsw-radius-md,6px);padding:8px;transition:border-color .2s ease}
 .ts-intellisense button{cursor:pointer}.ts-intellisense button:not([data-dsh-control]):hover{background:linear-gradient(110deg,#ffffff08,#ffffff14)}.ts-intellisense :disabled{opacity:.5;cursor:default}
-.ts-intellisense main{width:100%;min-width:0;display:flex;flex-direction:column;gap:24px;margin-top:24px}.ts-namespaces,.ts-toolbox{background:transparent;border:1px solid var(--ts-border);border-radius:var(--dsw-radius-lg,10px);padding:16px;min-width:0;width:100%}
+.ts-intellisense main{width:100%;min-width:0;display:flex;flex-direction:column;gap:24px;margin-top:24px}.ts-namespaces{background:transparent;border:1px solid var(--ts-border);border-radius:var(--dsw-radius-lg,10px);padding:16px;min-width:0;width:100%}
 .ts-intellisense pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}.ts-intellisense input[type=checkbox]{width:16px;height:16px;vertical-align:middle}
 .ts-tree,.ts-tree ul{list-style:none;padding-left:24px}.ts-tree{padding-left:0;max-height:440px;overflow:auto}.ts-tree .ts-drop-over{background:linear-gradient(110deg,var(--dsw-alias-interactive-bg-hover,#ffffff0a),transparent);border:1px dashed var(--ts-border-focus)}
 .ts-node-block{display:flex;align-items:center;gap:10px;min-width:0;padding:4px 8px 4px 0;margin:10px 0;border:1px solid var(--ts-border);border-radius:var(--dsw-radius-md,6px);transition:border-color .2s ease}.ts-node-block[draggable=true]{cursor:grab}.ts-node-block:hover,.ts-tree-tool:hover{background:linear-gradient(110deg,#ffffff0a,transparent)}.ts-intellisense .ts-disclosure{display:inline-flex;align-items:center;justify-content:center;flex:0 0 40px;align-self:stretch;min-height:36px;padding:6px;border:0;border-radius:var(--dsw-radius-md,6px)}.ts-disclosure svg{transition:transform .2s ease}.ts-disclosure[aria-expanded=true] svg{transform:rotate(90deg)}.ts-node-name{font-family:monospace;font-weight:600;overflow-wrap:anywhere;min-width:0;cursor:text}.ts-node-preview{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--dsw-alias-label-tertiary,#a5a5a5);cursor:text}.ts-node-block>input.ts-node-name{width:140px;max-width:35%}.ts-node-block>input.ts-node-preview{width:0;min-width:40px}.ts-node-actions{display:flex;align-items:center;gap:4px;margin-left:auto;flex:0 0 auto}.ts-tree-tool{display:flex;gap:10px;align-items:center;padding:8px;min-width:0;border:1px solid var(--ts-border);border-radius:var(--dsw-radius-md,6px);margin:10px 0;transition:border-color .2s ease}.ts-dragging{user-select:none}.ts-drag-preview{position:fixed;top:0;left:0;z-index:10000;pointer-events:none;padding:8px 12px;border:1px solid var(--ts-border-focus);border-radius:6px;background:var(--dsw-alias-bg-base,#202020);opacity:.9}.ts-tree [data-drop-edge=inside]{background:var(--dsw-alias-interactive-bg-hover,#ffffff16);outline:1px dashed var(--ts-border-focus)}.ts-tree [data-drop-edge=before]{box-shadow:0 -2px 0 var(--ts-border-focus)}.ts-tree [data-drop-edge=after]{box-shadow:0 2px 0 var(--ts-border-focus)}.ts-tree-tool:focus-within{border-color:var(--ts-border-focus)}.ts-tree-tool code{cursor:text;overflow-wrap:anywhere;font-weight:600}.ts-mapping-source{color:var(--dsw-alias-label-tertiary,#a5a5a5);font-size:12px;overflow-wrap:anywhere}.ts-tree-tool>input{width:140px;max-width:100%;min-width:0}.ts-tree-tool[draggable=true]{cursor:grab}.ts-tool-preview{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--dsw-alias-label-tertiary,#a5a5a5)}.ts-intellisense .ts-remove,.ts-intellisense .ts-pin{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:26px;height:26px;padding:4px;border-color:transparent;color:var(--dsw-alias-label-tertiary,#a5a5a5)}.ts-node-actions .ts-remove,.ts-node-actions .ts-pin{margin-left:0}.ts-intellisense .ts-pin[aria-pressed=true]{color:var(--dsw-alias-label-primary,#dce3ed);border-color:transparent;background:transparent}.ts-pin[data-filled=true] svg{fill:currentColor}.ts-intellisense .ts-pin:hover{background:transparent}.ts-intellisense .ts-remove:hover,.ts-intellisense .ts-pin:hover{color:var(--dsw-alias-label-primary,#dce3ed)}.ts-empty{color:var(--dsw-alias-label-tertiary,#a5a5a5);padding:12px}
-.ts-blocks{display:flex;flex-wrap:wrap;align-items:flex-start;gap:16px 12px;padding:8px 0}.ts-tool{position:relative;border:1px solid var(--ts-border);border-left:1px solid var(--ts-border);border-radius:var(--dsw-radius-md,6px);background:transparent;padding:8px 10px;flex:0 0 auto;max-width:100%;min-width:0;overflow-wrap:anywhere;transition:box-shadow .15s,transform .15s,border-color .15s}.ts-tool:before{content:'';position:absolute;top:-6px;left:16px;width:26px;height:6px;border:1px solid var(--ts-border);border-bottom:0;border-radius:6px 6px 0 0;background:inherit}.ts-tool>code{display:block;margin-top:4px;font-size:11px;color:var(--dsw-alias-label-tertiary,#a5a5a5)}.ts-tool:focus::before{border-color:var(--ts-border-focus)}.ts-tool[draggable=true]{cursor:grab}.ts-tool[draggable=true]:hover{transform:translateY(-2px);box-shadow:0 5px 14px #0003}.ts-tool[draggable=true]:active{cursor:grabbing}.ts-tool.ts-unmounted{background:transparent;color:var(--dsw-alias-state-error-primary,#ed8b8b)}.ts-namespace-placeholder>span{cursor:text;display:inline-block}.ts-namespace-placeholder>span:hover{color:var(--dsw-alias-label-primary,#dce3ed)}
+.ts-blocks{display:flex;flex-wrap:wrap;align-items:flex-start;gap:16px 12px;padding:8px 0}.ts-tool{position:relative;border:1px solid var(--ts-border);border-left:1px solid var(--ts-border);border-radius:var(--dsw-radius-md,6px);background:transparent;padding:8px 10px;flex:0 0 auto;max-width:100%;min-width:0;overflow-wrap:anywhere;transition:box-shadow .15s,transform .15s,border-color .15s}.ts-tool:before{content:'';position:absolute;top:-6px;left:16px;width:26px;height:6px;border:1px solid var(--ts-border);border-bottom:0;border-radius:6px 6px 0 0;background:inherit}.ts-tool>code{display:block;margin-top:4px;font-size:11px;color:var(--dsw-alias-label-tertiary,#a5a5a5)}.ts-tool:focus::before{border-color:var(--ts-border-focus)}.ts-tool:not(:disabled){cursor:pointer}.ts-tool:not(:disabled):hover{transform:translateY(-2px);box-shadow:0 5px 14px #0003}.ts-intellisense .ts-tool.ts-unmounted{background:transparent;color:var(--dsw-alias-state-error-primary,#ed8b8b)}.ts-namespace-placeholder{display:flex;align-items:center;gap:10px;border:1px dashed var(--ts-border);border-radius:var(--dsw-radius-md,6px);margin:10px 0;min-height:44px}.ts-namespace-placeholder:focus-within,.ts-namespace-placeholder:hover{border-color:var(--ts-border-focus)}.ts-namespace-placeholder>span{cursor:text;display:inline-block}.ts-intellisense .ts-add-tool{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;padding:3px;flex:0 0 auto;border-color:transparent}.ts-namespace-placeholder>span:hover{color:var(--dsw-alias-label-primary,#dce3ed)}
 .ts-intellisense [role=status]{white-space:pre-wrap;margin:16px 0;color:var(--dsw-alias-label-secondary,#bdbdbd)}.ts-intellisense small{color:var(--dsw-alias-label-tertiary,#a5a5a5)}.ts-toolbar{display:flex;flex-direction:column;gap:8px;min-width:0}.ts-toolbar input[type=search]{width:100%;min-width:0}.ts-toolbar .ts-configuration-select{flex:1 1 160px;min-width:0;max-width:100%}.ts-configuration-trigger{width:100%;min-width:0;justify-content:space-between}.ts-configuration-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ts-toolbar select{min-width:0;max-width:100%;flex:1 1 160px}.ts-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.ts-intellisense :is(input,select):focus,.ts-tree .ts-node-block:focus-within,.ts-namespaces:focus-within,.ts-toolbox:focus-within,.ts-tool:focus,.ts-tool:focus-within{border-color:var(--ts-border-focus);outline:none}
+.ts-intellisense :is(input,select):focus,.ts-tree .ts-node-block:focus-within,.ts-namespaces:focus-within,.ts-tool:focus,.ts-tool:focus-within{border-color:var(--ts-border-focus);outline:none}
 .ts-intellisense :is(button:not([data-dsh-control]),summary,[role=button]):focus-visible{border-color:var(--ts-border-focus);outline:var(--dsw-focus-ring-width,1px) solid var(--ts-border-focus);outline-offset:2px}
 
-.ts-backdrop textarea{width:100%;resize:vertical;margin:8px 0 16px;min-height:140px}.ts-backdrop{position:fixed;inset:0;z-index:1000;background:#0008;display:grid;place-items:center}.ts-backdrop section{background:transparent;backdrop-filter:blur(16px);border:1px solid var(--ts-border);border-radius:var(--dsw-radius-lg,10px);padding:24px;width:min(1000px,85vw);max-height:85vh;overflow:auto}
+.ts-backdrop textarea{width:100%;resize:vertical;margin:8px 0 16px;min-height:140px}.ts-backdrop{position:fixed;inset:0;z-index:1000;background:#0008;display:grid;place-items:center}.ts-backdrop section,.ts-tool-picker{background:transparent;backdrop-filter:blur(16px);border:1px solid var(--ts-border);border-radius:var(--dsw-radius-lg,10px);padding:24px;width:min(1000px,85vw);max-height:85vh;overflow:auto}
+.ts-tool-picker{color:inherit}.ts-tool-picker::backdrop{background:#0008}.ts-tool-picker header{justify-content:space-between}.ts-tool-picker input[type=search]{width:100%;margin:8px 0 16px}.ts-tool-picker .ts-tool{text-align:left}.ts-tool-picker>small{display:block;margin-bottom:16px}
 `;
