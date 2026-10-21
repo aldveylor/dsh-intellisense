@@ -158,3 +158,17 @@ test('validation retries are bounded and runtime failures never retry executed c
     await assert.rejects(runConversation({ ...host, validate: async () => undefined }, initial, 'runtime'), /runtime failure/);
     assert.equal(executions, 1);
 });
+
+
+test('text after a control marker is rejected and corrected within the continuation limit', async () => {
+    const responses = ['unknown.<|INTELLISENSE|> 然后查看成员', 'unknown.<|INTELLISENSE|>', 'read({})'];
+    const records: { response: string; context?: string }[] = [];
+    const result = await runConversation({
+        generate: () => stream(responses.shift()!),
+        complete: async source => { assert.equal(source, 'unknown.'); return completion; },
+        execute: async (_id, source) => { assert.equal(source, 'unknown.read({})'); return { output: 'ok', declarations: [] }; },
+        journal: async record => { records.push(record); },
+    }, initial, 'marker-repair');
+    assert.match(records[0]!.context!, /Invalid control marker format/);
+    assert.equal(result.output, 'ok');
+});

@@ -1,5 +1,5 @@
 import { createAssistantMessage, createSystemMessage, type GenerateOptions, type RequestMessage, type StreamChunk } from '@deepseek-ai/dsh-llm';
-import { mergeContinuation, processMarkers } from './markers.js';
+import { mergeContinuation, processMarkers, type Segment } from './markers.js';
 import type { CompletionResult } from '../typescript/completion.js';
 import type { ExecutionResult } from '../runtime/session.js';
 
@@ -54,7 +54,14 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
             continue;
         }
         if (reason !== 'stop') throw new Error(`Generation did not finish normally (${reason ?? 'missing finish'}); incomplete input was not executed`);
-        const segment = processMarkers(response);
+        let segment: Segment;
+        try { segment = processMarkers(response); }
+        catch (error) {
+            const context = `${discoveries.join('\n\n')}\nInvalid control marker format: ${error instanceof Error ? error.message : String(error)}. The rejected response has not executed. Return only TypeScript up to one terminal control marker and stop immediately; never append an explanation after a marker.\nRejected response:\n${response}`;
+            await host.journal({ round, prefix, response, context });
+            request = { ...initial, messages: continuationHistory(initial.messages, prefix, context, initial.provider, initial.model), tools: [], toolHistory: undefined };
+            continue;
+        }
         prefix = mergeContinuation(prefix, segment.source);
         if (segment.kind === 'break') {
             await host.journal({ round, prefix, response });
