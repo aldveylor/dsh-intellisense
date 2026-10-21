@@ -1,6 +1,7 @@
 import { useEffect, useState, type DragEvent } from 'react';
 import type { Namespace, Mapping, PhysicalTool, RegistryState } from '../registry/registry.js';
 import { validatePath } from '../registry/path.js';
+import { vmCommands } from '../runtime/builtins.js';
 import { ToolPicker } from './tool_picker/tool_picker.js';
 import { useTreeDrag, treeDropTarget } from './tree_drag.js';
 import { namespacePaths, orderedPaths, inNamespace, renameNamespace, deleteNamespace, dropTree, type TreeDragSource, type TreeDropTarget } from './namespace_tree.js';
@@ -370,6 +371,11 @@ export function ManagementPanel({ api }: ManagementPanelProps) {
             })}
                 <NamespacePlaceholder busy={busy || !view} create={createNamespace} pick={setToolPicker} drop={(event, parent) => nativeDrop(event, { path: parent, position: 'inside' })} />
             </ul>
+            <ul className="ts-tree" aria-label="固定 VM 内置指令">{vmCommands.map(command => <li key={command.path} className="ts-tree-tool" data-vm-builtin={command.path}>
+                <code title={command.signature}>{command.path}</code>
+                <span className="ts-tool-preview">{command.description}</span>
+                <small>内置 · 只读</small>
+            </li>)}</ul>
             <small>unknown：{unknown} 个未挂载工具</small>
         </section></main>
         {toolPicker !== undefined && view && <ToolPicker parent={toolPicker} tools={view.tools} mappings={mappings} busy={busy}
