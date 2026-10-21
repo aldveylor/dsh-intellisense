@@ -2,12 +2,15 @@ import { createAssistantMessage, createSystemMessage, type GenerateOptions, type
 import { mergeContinuation, previewSource, processMarkers, type Segment } from './markers.js';
 import type { CompletionResult } from '../typescript/completion.js';
 import type { ExecutionResult } from '../runtime/session.js';
+import type { IntellisenseRecord } from './execution_trace.js';
 
 /** @brief Host capabilities used by the independently testable continuation controller. */
 export interface ControllerHost {
     generate(options: GenerateOptions): AsyncIterable<StreamChunk>;
     trace?(event: string, details: Record<string, unknown>): void;
     source?(source: string): void;
+    code?(round: number, code: string): void;
+    intellisense?(record: IntellisenseRecord): void;
     complete(source: string): Promise<CompletionResult>;
     validate?(source: string): Promise<string | undefined>;
     execute(id: string, source: string): Promise<ExecutionResult>;
@@ -31,7 +34,7 @@ export function continuationHistory(original: RequestMessage[], prefix: string, 
 export async function runConversation(host: ControllerHost, initial: GenerateOptions, identity: string): Promise<LogicalResponse> {
     let prefix = '';
     const discoveries: string[] = [];
-    const completionPositions = new Map<string, number>();
+    const completionPositions = new Map<string, { count: number; result?: CompletionResult }>();
     let request = initial;
     for (let round = 0; ; round++) {
         initial.signal?.throwIfAborted();
@@ -42,6 +45,7 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
         for await (const chunk of host.generate(request)) {
             if (chunk.type === 'text-delta') {
                 response += chunk.text;
+                host.code?.(round, response);
                 if (!nativeCall) host.source?.(previewSource(prefix, response));
             }
             if (chunk.type === 'block-end' && chunk.block.type === 'text') ended += chunk.block.text;
@@ -49,6 +53,7 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
             if (chunk.type === 'finish') reason = chunk.reason.kind;
         }
         if (!response) response = ended;
+        host.code?.(round, response);
         host.trace?.('ts.response', { round, response, reason, nativeCall });
         if (nativeCall || /<\/?\s*[|｜]+\s*DSML\b/i.test(response)) {
             host.source?.(prefix);
@@ -98,11 +103,18 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
             return { source: prefix, output: result.output, abandoned: false };
         }
         if (segment.kind === 'intellisense') {
-            const occurrences = (completionPositions.get(prefix) ?? 0) + 1;
-            completionPositions.set(prefix, occurrences);
+            const position = completionPositions.get(prefix) ?? { count: 0 };
+            const occurrences = ++position.count;
+            completionPositions.set(prefix, position);
+            host.intellisense?.({ phase: 'request', round, source: prefix });
             host.trace?.('intellisense.request', { round, source: prefix, occurrences });
-            if (occurrences >= 3) throw new Error('IntelliSense repeated the same position three times; buffered source was not executed');
+            if (occurrences >= 3) {
+                const error = 'IntelliSense repeated the same position three times; buffered source was not executed';
+                host.intellisense?.({ phase: 'result', round, source: prefix, error });
+                throw new Error(error);
+            }
             if (occurrences > 1) {
+                host.intellisense?.({ phase: 'result', round, source: prefix, result: position.result, reused: true });
                 const context = `${discoveries.join('\n\n')}\nThe same cursor has already been inspected; its current VM members are listed above. No source has executed. Discard the unfinished buffer and write a complete executable TypeScript program that answers the original request. To list namespace members without invoking tools, use Object.keys(namespace) as the final executable expression. Do not repeat the same discovery request.`;
                 await host.journal({ round, prefix, response, context });
                 prefix = '';
@@ -110,7 +122,14 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
                 request = { ...initial, messages: [...initial.messages, createSystemMessage(context)], tools: [], toolHistory: undefined };
                 continue;
             }
-            const completion = await host.complete(prefix);
+            let completion: CompletionResult;
+            try { completion = await host.complete(prefix); }
+            catch (error) {
+                host.intellisense?.({ phase: 'result', round, source: prefix, error: error instanceof Error ? error.message : String(error) });
+                throw error;
+            }
+            position.result = completion;
+            host.intellisense?.({ phase: 'result', round, source: prefix, result: completion });
             host.trace?.('intellisense.result', { round, source: prefix, ...completion });
             discoveries.push(completion.context);
             if (discoveries.length > 3) discoveries.shift();

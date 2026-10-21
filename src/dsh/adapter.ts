@@ -125,7 +125,8 @@ export class TypeScriptAdapter extends LlmAdapter {
         const position = this.positions.get(agent.id);
         const trace = position ? new ExecutionTrace(agent, position, options) : undefined;
         const response = await runConversation({
-            source: source => trace?.updateSource(source),
+            code: (round, code) => trace?.updateCode(round, code),
+            intellisense: record => trace?.intellisense(record),
             trace: (event, details) => logger.info('%s %s', event, JSON.stringify({ session: agent.id, request: identity, ...details })),
             generate: request => {
                 const stream = this.ctx.llm.stream(request);
@@ -174,7 +175,7 @@ export class TypeScriptAdapter extends LlmAdapter {
                 if (previous?.status === 'completed') return previous.result!;
                 if (previous?.status === 'failed') throw new Error(previous.error);
                 await this.store.save<ExecutionRecord>(executionKey, { status: 'started' });
-                trace?.begin(source);
+                trace?.begin();
                 if (trace) this.executions.set(agent.id, trace);
                 try {
                     const result = await runtime.execute(id, source, options.signal);

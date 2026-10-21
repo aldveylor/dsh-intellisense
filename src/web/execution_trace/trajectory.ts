@@ -4,7 +4,7 @@ import type { TrajectoryConversationViewNode } from '@deepseek-ai/dsh-client-ui-
 import type {} from '../../protocol/execution_trace.js';
 
 /** @brief Generated code is presentation state until its separate validated execution begins. */
-interface ReplTrajectoryState { source: string; interrupted: boolean }
+interface ReplTrajectoryState { codes: string[]; interrupted: boolean }
 
 /** @brief Own REPL call records without settling the native assistant's ongoing reasoning stream. */
 export const replTrajectory: ConversationNodeDefinitionInput<ReplTrajectoryState> = {
@@ -20,13 +20,13 @@ export const replTrajectory: ConversationNodeDefinitionInput<ReplTrajectoryState
             return execution?.type === 'tool-call' ? { id: String(execution.id), role: 'start', exclusive: true } : null;
         },
     },
-    start: (_context, match) => sourceState({ source: '', interrupted: false }, match.event),
+    start: (_context, match) => sourceState({ codes: [], interrupted: false }, match.event),
     update: (context, match) => sourceState(context.state, match.event),
     buildViewNode: context => {
         const start = context.start;
         const event = start?.event;
         if (!start || !context.state || (event?.type !== 'assistant/message' && event?.type !== 'ts-repl/source')) return null;
-        const blocks = [{ kind: 'tool-call' as const, callId: context.id, name: 'ts_repl', argsRaw: JSON.stringify({ code: context.state.source }) }];
+        const blocks = [{ kind: 'tool-call' as const, callId: context.id, name: 'ts_repl', argsRaw: JSON.stringify({ codes: context.state.codes }) }];
         return {
             key: context.key, kind: context.kind, id: context.id, target: 'trajectory',
             anchorSeq: event.seq, location: start.location,
@@ -41,13 +41,14 @@ export const replTrajectory: ConversationNodeDefinitionInput<ReplTrajectoryState
 
 /** @brief Apply the same code edits during live delivery and durable history replay. */
 function sourceState(state: ReplTrajectoryState, event: ConversationMatch['event']): ReplTrajectoryState {
-    if (event.type === 'ts-repl/source') return {
-        source: state.source.slice(0, event.data.offset) + event.data.text,
-        interrupted: event.data.interrupted === true,
-    };
+    if (event.type === 'ts-repl/source') {
+        const codes = [...state.codes];
+        codes[event.data.index] = (codes[event.data.index] ?? '').slice(0, event.data.offset) + event.data.text;
+        return { codes, interrupted: event.data.interrupted === true };
+    }
     if (event.type === 'assistant/message') {
         const execution = event.data.message.content.find(block => block.type === 'tool-call' && block.name === 'ts_repl');
-        if (execution?.type === 'tool-call') return { source: JSON.parse(execution.arguments).code, interrupted: false };
+        if (execution?.type === 'tool-call') return { codes: JSON.parse(execution.arguments).codes, interrupted: false };
     }
     return state;
 }
