@@ -18,8 +18,15 @@ export function complete(runtime: SessionRuntime, environment: Environment, sour
     const prefix = /((?:[\w$]+\.)*)([\w$]*)$/.exec(source);
     const namespace = prefix?.[1] ?? '';
     const partial = prefix?.[2] ?? '';
+    const actual = prefix && (namespace || source.trim() === partial) ? runtime.members(namespace.replace(/\.$/, '')) : undefined;
+    const actualNames = actual ? new Set(actual) : undefined;
+    const discovered = [...(result?.entries ?? [])];
+    if (actual) {
+        const known = new Set(discovered.map(entry => entry.name));
+        for (const name of actual) if (!known.has(name)) discovered.push({ name, kind: ts.ScriptElementKind.memberVariableElement, sortText: '15' });
+    }
     const visible = new Set([...environment.paths.map(path => path.split('.')[0]!), ...bindings.map(binding => binding.name), 'Promise', 'console', 'tools']);
-    const entries = (result?.entries ?? []).filter(e => e.kind !== ts.ScriptElementKind.keyword && !e.name.startsWith('__dsh') && !e.name.startsWith('"') && e.name.startsWith(partial));
+    const entries = discovered.filter(e => (!actualNames || actualNames.has(e.name)) && e.kind !== ts.ScriptElementKind.keyword && !e.name.startsWith('__dsh') && !e.name.startsWith('"') && e.name.startsWith(partial));
     entries.sort((a, b) => {
         if (!namespace) {
             const priority = Number(visible.has(b.name)) - Number(visible.has(a.name));
@@ -35,7 +42,7 @@ export function complete(runtime: SessionRuntime, environment: Environment, sour
         const detail = service.getCompletionEntryDetails(project.input, source.length, entry.name, {}, entry.source, {}, entry.data);
         return {
             name: entry.name, path: namespace + entry.name, kind: entry.kind,
-            signature: ts.displayPartsToString(detail?.displayParts),
+            signature: ts.displayPartsToString(detail?.displayParts) || `${entry.name} (runtime member)`,
             documentation: ts.displayPartsToString(detail?.documentation),
         };
     });

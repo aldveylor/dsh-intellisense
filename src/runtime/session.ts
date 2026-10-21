@@ -1,5 +1,6 @@
 import vm from 'node:vm';
 import { inspect } from 'node:util';
+import { isProxy } from 'node:util/types';
 import { serialize, deserialize } from 'node:v8';
 import { TypeScriptProject, type BindingType } from '../typescript/project.js';
 
@@ -51,6 +52,32 @@ export class SessionRuntime {
     }
 
     declarations(): BindingType[] { return [...this.types.values()]; }
+
+    /** @brief Read actual VM names without invoking property getters or proxy traps. */
+    members(path: string): string[] | undefined {
+        if (!path) {
+            const global = new vm.Script('globalThis').runInContext(this.context, { timeout: 1000 }) as object;
+            return [...new Set([...Object.getOwnPropertyNames(global), ...this.types.keys()])];
+        }
+        if (!/^[a-zA-Z_$][\w$]*(?:\.[a-zA-Z_$][\w$]*)*$/.test(path)) return undefined;
+        const [root, ...parts] = path.split('.');
+        let value: unknown;
+        try { value = new vm.Script(root!).runInContext(this.context, { timeout: 1000 }); }
+        catch { return undefined; }
+        for (const part of parts) {
+            if (value === null || (typeof value !== 'object' && typeof value !== 'function') || isProxy(value)) return undefined;
+            const descriptor = Object.getOwnPropertyDescriptor(value, part);
+            if (!descriptor || !('value' in descriptor)) return undefined;
+            value = descriptor.value;
+        }
+        if (value === null || (typeof value !== 'object' && typeof value !== 'function') || isProxy(value)) return undefined;
+        const names = new Set<string>();
+        for (let node: object | null = value; node && !isProxy(node); node = Object.getPrototypeOf(node) as object | null) {
+            for (const name of Object.getOwnPropertyNames(node)) names.add(name);
+        }
+        return [...names];
+    }
+
 
     /** @brief Compile a proposed segment without executing or recording an execution identity. */
     validate(source: string): string | undefined {

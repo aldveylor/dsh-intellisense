@@ -110,3 +110,20 @@ test('validation rejects prose without executing earlier statements or poisoning
         assert.equal((await runtime.execute('corrected', 'count += 1; count')).output, '1');
     } finally { runtime.dispose(); }
 });
+
+
+test('completion reads current VM members after additions and deletions without invoking getters', async () => {
+    const runtime = make();
+    const env = { declarations: '', paths: [] };
+    try {
+        await runtime.execute('seed', 'let getterCalls = 0; const item: { old?: number } = { old: 1 };');
+        await runtime.execute('mutate', 'delete item.old; (item as any).added = 2; Object.defineProperty(item, "lazy", { get() { getterCalls++; return 3; } });');
+        const names = complete(runtime, env, 'item.').candidates.map(c => c.name);
+        assert(names.includes('added'));
+        assert(names.includes('lazy'));
+        assert(!names.includes('old'));
+        assert.equal((await runtime.execute('calls', 'getterCalls')).output, '0');
+        await runtime.execute('global', '(globalThis as any).runtimeAdded = 1');
+        assert(complete(runtime, env, 'runtimeAd').candidates.some(c => c.name === 'runtimeAdded'));
+    } finally { runtime.dispose(); }
+});

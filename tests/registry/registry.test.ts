@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { SessionRuntime } from '../../src/runtime/session.js';
+import { complete } from '../../src/typescript/completion.js';
 import { MemoryStore, type Store } from '../../src/storage/store.js';
 import { SemanticRegistry, type Mapping } from '../../src/registry/registry.js';
 
@@ -76,4 +78,21 @@ test('namespace hints retain call history and respect visibility and enabled map
     assert.deepEqual(loaded.namespaceHints(new Set(['write-file'])), { frequent: ['std.fs.write'], recent: ['std.fs.write'] });
     await loaded.configure([mapping({ enabled: false }), mapping({ id: 'write-file', path: 'std.fs.write', enabled: false })], 1);
     assert.deepEqual(loaded.namespaceHints(), { frequent: [], recent: [] });
+});
+
+
+test('generated callable properties expose every VM tool with valid argument and return types', async () => {
+    const registry = new SemanticRegistry(new MemoryStore());
+    registry.refresh([...physical, { ...physical[0]!, id: 'write-file' }]);
+    await registry.configure([mapping(), mapping({ id: 'write-file', path: 'std.fs.write' })], 0);
+    const runtime = new SessionRuntime(async () => 'ok');
+    const env = { declarations: registry.declarations(), paths: registry.effective().map(m => m.path) };
+    try {
+        runtime.update(env);
+        const result = complete(runtime, env, 'std.fs.');
+        assert.deepEqual(result.candidates.map(c => c.name).sort(), ['read', 'write']);
+        assert(result.candidates.every(c => c.signature.includes('Promise<string>')));
+        assert.equal(runtime.validate('const text = await std.fs.write({path: "x"}); text.toUpperCase()'), undefined);
+        assert.match(runtime.validate('await std.fs.read({path: 42})')!, /TS2322/);
+    } finally { runtime.dispose(); }
 });

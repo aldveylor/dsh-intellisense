@@ -13,6 +13,7 @@ export class CompilationError extends Error {
 }
 
 const globals = `
+type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 declare const console: { log(...values: unknown[]): void };
 declare const tools: { sort(): Promise<{ revision: number; changes: unknown[] }> };
 `;
@@ -64,7 +65,7 @@ export class TypeScriptProject {
 
     compile(source: string, bindings: BindingType[], declarations: string): { units: ExecutionUnit[]; bindings: BindingType[]; sourceMap: string; sourceMaps: string[] } {
         this.prepare(source, bindings, declarations);
-        const diagnostics = [...this.service.getSyntacticDiagnostics(this.input), ...this.service.getSemanticDiagnostics(this.input)];
+        const diagnostics = [...this.service.getSyntacticDiagnostics(this.ambient), ...this.service.getSyntacticDiagnostics(this.input), ...this.service.getSemanticDiagnostics(this.input)];
         if (diagnostics.length) throw new CompilationError(diagnostics);
         const program = this.service.getProgram()!;
         const file = program.getSourceFile(this.input)!;
