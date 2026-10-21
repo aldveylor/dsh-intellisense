@@ -18,7 +18,7 @@
 
 `typescript/completion.ts` 只分析不完整输入，不执行它。完整成员候选直接查询当前 VM 的 globalThis、词法绑定和对象属性，实际运行时成员决定可见名称；未执行源码内的局部符号仍通过 TS 分析。查询不调用 getter 或 Proxy trap。真实环境声明、会话推导类型和 TS language service 负责文档、签名和参数提示；JSDoc 挂在工具属性上，命名空间或名称前缀查询仅列出名称及 DSH 原生说明，不展开候选工具参数；完整可调用名称同时给出该工具的签名及参数字段说明，其同前缀候选仍不展开参数。调用左括号后的查询仅提供选中调用的参数提示，不列同前缀工具。参数与返回值字段说明保留在环境类型的 JSDoc 中，由 Language Service 根据调用位置、参数对象或返回值成员光标按需解析，不附完整 schema。映射备注不覆盖原始说明。全局补全优先当前 VM 绑定、工具根命名空间与 Promise，过滤关键字并注明截断，避免前 40 项标准库候选淹没实际环境。
 
-`runtime/session.ts` 为每会话保留真实 vm.Context 与词法声明。没有变量代理或 del。JS const/let 重声明与 delete 规则保留；不暴露 `console` 或日志接口；声明结果不显示，最终有意义的表达式自动显示。执行 ID 与源码绑定，重复 ID 返回相同 Promise。检查点序列化可复制的值和类型元数据，不保存闭包或重放工具。
+`runtime/builtins.ts` 统一定义全局固定的 `vm.print(...values)` 与 `vm.restart(preserve?: readonly string[])` 声明和 UI 元数据；`vm` 是保留根，不能配置为工具路径、替换或删除。`runtime/session.ts` 为每会话保留真实 vm.Context 与词法声明。没有变量代理或 del。JS const/let 重声明与 delete 规则保留；不暴露 `console`；不可修改的 `vm` 对象由运行时回调提供。`vm.print` 格式化并收集当前段输出，返回给 agent 继续分析，不直接输出到对话。运行时异常返回 error 和当前已初始化的绑定，保留 Context 及既有副作用。`vm.restart()` 立即终止当前段并建立新 Context；可通过变量名数组保留指定变量的可复制值及其原有 const/let/var 类型，支持保留同段刚创建的变量。重置前完成所有变量校验与序列化，未知、未初始化或包含函数的变量转移失败时保留原 Context。固定回调和工具配置始终保留。声明结果不显示，无打印、错误或重启时，最终有意义的表达式作为用户回复。执行 ID 与源码绑定，重复 ID 返回相同 Promise。检查点序列化可复制的值和类型元数据，不保存闭包或重放工具。
 
 `runtime/isolated.ts` / `worker.ts` 把 VM 放入独立受权限限制的 Node 子进程，用 IPC 请求补全/执行/检查点，通过父进程桥调用原生工具。桥仅在执行期间工作，取消和超时终止进程并传播 abort。进程限制不等于完整系统安全沙箱，特别是未覆盖所有网络能力。
 

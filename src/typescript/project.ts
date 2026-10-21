@@ -1,5 +1,6 @@
 import ts from 'typescript';
 import { resolve } from 'node:path';
+import { vmDeclaration } from '../runtime/builtins.js';
 
 /** @brief Persisted binding type with REPL mutability and initialization metadata. */
 export interface BindingType { name: string; kind: 'const' | 'let' | 'var'; type: string }
@@ -14,6 +15,7 @@ export class CompilationError extends Error {
 
 const globals = `
 type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+${vmDeclaration}
 `;
 
 /** @brief Incremental virtual project shared by compilation and completion. */

@@ -2,6 +2,7 @@ import ts from 'typescript';
 import type { SessionRuntime } from '../runtime/session.js';
 import type { Environment } from '../runtime/session.js';
 import type { Usage } from '../registry/registry.js';
+import { vmCommands } from '../runtime/builtins.js';
 
 /** @brief A real TypeScript language-service completion, including callable signature. */
 export interface Candidate { name: string; path: string; kind: string; signature: string; documentation: string }
@@ -12,6 +13,7 @@ export interface CompletionResult { candidates: Candidate[]; signatures: string[
 export function complete(runtime: SessionRuntime, environment: Environment, source: string, usage: Record<string, Usage> = {}, identities: Record<string, string> = {}): CompletionResult {
     const project = runtime.project;
     const bindings = runtime.declarations();
+    const callablePaths = [...environment.paths, ...vmCommands.map(command => command.path)];
     project.prepare(source, bindings, environment.declarations);
     const service = project.languageService();
     const result = service.getCompletionsAtPosition(project.input, source.length, { includeCompletionsWithInsertText: true });
@@ -25,7 +27,7 @@ export function complete(runtime: SessionRuntime, environment: Environment, sour
         const known = new Set(discovered.map(entry => entry.name));
         for (const name of actual) if (!known.has(name)) discovered.push({ name, kind: ts.ScriptElementKind.memberVariableElement, sortText: '15' });
     }
-    const visible = new Set([...environment.paths.map(path => path.split('.')[0]!), ...bindings.map(binding => binding.name), 'Promise', 'tools']);
+    const visible = new Set([...environment.paths.map(path => path.split('.')[0]!), ...bindings.map(binding => binding.name), 'vm', 'Promise', 'tools']);
     const callOpening = /\(\s*$/.test(source);
     const entries = callOpening ? [] : discovered.filter(e => (!actualNames || actualNames.has(e.name)) && e.kind !== ts.ScriptElementKind.keyword && !e.name.startsWith('__dsh') && !e.name.startsWith('"') && e.name.startsWith(partial));
     entries.sort((a, b) => {
@@ -42,7 +44,7 @@ export function complete(runtime: SessionRuntime, environment: Environment, sour
     const candidates = entries.slice(0, 40).map(entry => {
         const detail = service.getCompletionEntryDetails(project.input, source.length, entry.name, {}, entry.source, {}, entry.data);
         const path = namespace + entry.name;
-        const toolPath = environment.paths.some(tool => tool === path || tool.startsWith(`${path}.`));
+        const toolPath = callablePaths.some(tool => tool === path || tool.startsWith(`${path}.`));
         return {
             name: entry.name, path, kind: entry.kind,
             signature: toolPath && entry.name !== partial ? entry.name : ts.displayPartsToString(detail?.displayParts) || `${entry.name} (runtime member)`,

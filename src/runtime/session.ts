@@ -5,11 +5,17 @@ import { serialize, deserialize } from 'node:v8';
 import { TypeScriptProject, type BindingType } from '../typescript/project.js';
 
 /** @brief Completed result and visible REPL output, with source mapping information. */
-export interface ExecutionResult { output: string; declarations: BindingType[]; sourceMap?: string; sourceMaps?: string[] }
+export interface ExecutionResult { output: string; declarations: BindingType[]; prints?: string[]; error?: string; restarted?: boolean; sourceMap?: string; sourceMaps?: string[] }
 /** @brief Explicit durable data checkpoint; executable closures are never replayed. */
 export interface SessionCheckpoint { version: 1; data: string; types: BindingType[]; omitted: string[] }
 /** @brief Tool binding surface supplied separately from the invocation capability. */
 export interface Environment { declarations: string; paths: string[] }
+
+/** @brief A fixed restart callback unwinds the active program before the context is replaced. */
+class RestartSignal extends Error {}
+
+/** @brief Per-program output and an optional fully validated context-transfer checkpoint. */
+interface RuntimeFeedback { prints: string[]; bindings: BindingType[]; restart?: SessionCheckpoint }
 
 /** @brief Persistent TS REPL; this VM is a semantic boundary, not a hostile-code sandbox. */
 export class SessionRuntime {
@@ -20,13 +26,40 @@ export class SessionRuntime {
     private roots = new Set<string>();
     private completed = new Map<string, { source: string; result: Promise<ExecutionResult> }>();
     private queue: Promise<unknown> = Promise.resolve();
+    private feedback?: RuntimeFeedback;
 
     constructor(private invoke: (path: string, args: unknown) => Promise<unknown>) {
-        this.context = vm.createContext(Object.create(null), { codeGeneration: { strings: false, wasm: false } });
-        new vm.Script('delete globalThis.console').runInContext(this.context);
+        this.context = this.createContext();
+    }
+
+    /** @brief Install immutable VM-owned callbacks independently of the configurable tool registry. */
+    private createContext(): vm.Context {
+        const context = vm.createContext(Object.create(null), { codeGeneration: { strings: false, wasm: false } });
+        new vm.Script('delete globalThis.console').runInContext(context);
+        Object.defineProperty(context, 'vm', { value: Object.freeze({
+            print: (...values: unknown[]): void => {
+                if (!this.feedback) throw new Error('vm.print requires an active execution');
+                this.feedback.prints.push(values.map(value => this.format(value)).join(' '));
+            },
+            restart: (preserve: readonly string[] = []): never => {
+                if (!this.feedback) throw new Error('vm.restart requires an active execution');
+                if (!Array.isArray(preserve) || preserve.some(name => typeof name !== 'string')) throw new Error('vm.restart expects an array of variable names');
+                const bindings = new Map(this.feedback.bindings.map(binding => [binding.name, binding]));
+                const types = [...new Set(preserve)].map(name => {
+                    const binding = bindings.get(name);
+                    if (!binding) throw new Error(`Cannot preserve unknown VM binding: ${name}`);
+                    return binding;
+                });
+                const entries = types.map(binding => [binding.name, new vm.Script(binding.name).runInContext(this.context, { timeout: 1000 })]);
+                this.feedback.restart = { version: 1, data: serialize(entries).toString('base64'), types, omitted: [] };
+                throw new RestartSignal();
+            },
+        }) });
+        return context;
     }
 
     update(environment: Environment): void {
+        if (environment.paths.some(path => path === 'vm' || path.startsWith('vm.'))) throw new Error('The vm namespace is reserved for fixed built-in callbacks');
         this.environment = environment;
         for (const root of this.roots) delete this.context[root];
         this.roots.clear();
@@ -101,11 +134,14 @@ export class SessionRuntime {
         if (/\b__dsh\w*/.test(source)) throw new Error('Reserved runtime identifier');
         const compiled = this.project.compile(source, this.declarations(), this.environment.declarations);
         for (const binding of compiled.bindings) {
-            if (this.roots.has(binding.name) || ['tools', 'Promise', 'globalThis'].includes(binding.name)) throw new Error(`Reserved binding: ${binding.name}`);
+            if (this.roots.has(binding.name) || ['vm', 'tools', 'Promise', 'globalThis'].includes(binding.name)) throw new Error(`Reserved binding: ${binding.name}`);
             const previous = this.types.get(binding.name);
             if (previous && (previous.kind !== 'var' || binding.kind !== 'var')) throw new SyntaxError(`Identifier '${binding.name}' has already been declared`);
         }
         const output: string[] = [];
+        const feedback: RuntimeFeedback = { prints: [], bindings: [...this.declarations(), ...compiled.bindings] };
+        this.feedback = feedback;
+        let failure: string | undefined;
         try {
             let value: unknown;
             for (const unit of compiled.units) {
@@ -117,15 +153,29 @@ export class SessionRuntime {
                 }
                 if (unit.display && value !== undefined) output.push(this.format(value));
             }
-            return { output: output.join('\n'), declarations: [...this.declarations(), ...compiled.bindings], sourceMap: compiled.sourceMap, sourceMaps: compiled.sourceMaps };
+        } catch (error) {
+            if (!(error instanceof RestartSignal)) failure = error instanceof Error || (error && typeof error === 'object' && 'message' in error) ? String(error.message) : String(error);
         } finally {
+            this.feedback = undefined;
             for (const binding of compiled.bindings) {
                 try {
                     new vm.Script(binding.name).runInContext(this.context, { timeout: 1000 });
                     this.types.set(binding.name, binding);
                 } catch { /* Uninitialized native lexical bindings are intentionally not advertised. */ }
             }
+            if (feedback.restart) {
+                this.types.clear();
+                this.roots.clear();
+                this.context = this.createContext();
+                this.update(this.environment);
+                this.restore(feedback.restart);
+            }
         }
+        return {
+            output: failure || feedback.restart ? '' : output.join('\n'), declarations: this.declarations(),
+            ...(feedback.prints.length ? { prints: feedback.prints } : {}), ...(failure ? { error: failure } : {}),
+            ...(feedback.restart ? { restarted: true } : {}), sourceMap: compiled.sourceMap, sourceMaps: compiled.sourceMaps,
+        };
     }
 
     private format(value: unknown): string {
