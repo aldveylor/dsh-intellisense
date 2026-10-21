@@ -19,7 +19,7 @@ export function continuationHistory(original: RequestMessage[], prefix: string, 
     return [
         ...original,
         createSystemMessage(`${context}\nContinue the unfinished TypeScript at the exact interruption point. Emit only the suffix, without repeating source. The following assistant prefix has not executed.`),
-        createAssistantMessage({ content: [{ type: 'text', text: prefix }], source: { kind: 'model', provider, model } }),
+        createAssistantMessage({ content: [{ type: 'text', text: prefix }], source: { provider, model } }),
     ];
 }
 
@@ -36,7 +36,7 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
             if (chunk.type === 'text-delta') response += chunk.text;
             if (chunk.type === 'block-end' && chunk.block.type === 'text') ended += chunk.block.text;
             if (chunk.type === 'tool-call-delta' || (chunk.type === 'block-end' && chunk.block.type === 'tool-call')) throw new Error('Native model tool calls are disabled in TypeScript mode');
-            if (chunk.type === 'finish') reason = chunk.reason;
+            if (chunk.type === 'finish') reason = chunk.reason.kind;
         }
         if (!response) response = ended;
         if (reason !== 'stop') throw new Error(`Generation did not finish normally (${reason ?? 'missing finish'}); incomplete input was not executed`);

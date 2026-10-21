@@ -9,14 +9,11 @@ export interface ExecutionResult { output: string; declarations: BindingType[]; 
 export interface SessionCheckpoint { version: 1; data: string; types: BindingType[]; omitted: string[] }
 /** @brief Tool binding surface supplied separately from the invocation capability. */
 export interface Environment { declarations: string; paths: string[] }
-/** @brief Stored lexical slot implementing const writes and temporal dead zones. */
-interface Slot { kind: BindingType['kind']; initialized: boolean; value: unknown }
 
 /** @brief Persistent TS REPL; this VM is a semantic boundary, not a hostile-code sandbox. */
 export class SessionRuntime {
     readonly project = new TypeScriptProject();
     private context: vm.Context;
-    private slots = new Map<string, Slot>();
     private types = new Map<string, BindingType>();
     private environment: Environment = { declarations: '', paths: [] };
     private roots = new Set<string>();
@@ -25,35 +22,7 @@ export class SessionRuntime {
     private logs: string[] = [];
 
     constructor(private invoke: (path: string, args: unknown) => Promise<unknown>, private organize: () => Promise<unknown> = async () => { throw new Error('Organization is unavailable'); }) {
-        const scope = new Proxy(Object.create(null) as Record<string, unknown>, {
-            get: (_target, name) => {
-                const slot = this.slots.get(String(name));
-                if (!slot) throw new ReferenceError(`${String(name)} is not defined`);
-                if (!slot.initialized) throw new ReferenceError(`Cannot access '${String(name)}' before initialization`);
-                return slot.value;
-            },
-            set: (_target, name, value) => {
-                const slot = this.slots.get(String(name));
-                if (!slot?.initialized) throw new ReferenceError(`${String(name)} is not initialized`);
-                if (slot.kind === 'const') throw new TypeError(`Assignment to constant variable: ${String(name)}`);
-                slot.value = value;
-                return true;
-            },
-        });
         this.context = vm.createContext(Object.create(null), { codeGeneration: { strings: false, wasm: false } });
-        const bridge = Object.freeze({
-            scope,
-            define: (name: string, kind: BindingType['kind']) => {
-                if (this.slots.has(name)) throw new SyntaxError(`Binding already exists: ${name}`);
-                this.slots.set(name, { kind, initialized: kind === 'var', value: undefined });
-            },
-            initialize: (name: string, value: unknown) => {
-                const slot = this.slots.get(name)!;
-                slot.value = value;
-                slot.initialized = true;
-            },
-        });
-        Object.defineProperty(this.context, '__dsh', { value: bridge });
         Object.defineProperty(this.context, 'console', { value: Object.freeze({ log: (...values: unknown[]) => this.logs.push(values.map(v => this.format(v)).join(' ')) }) });
         Object.defineProperty(this.context, 'whenAll', { value: (values: unknown[]) => Promise.all(values) });
         Object.defineProperty(this.context, 'whenAny', { value: (values: unknown[]) => Promise.race(values) });
@@ -77,7 +46,7 @@ export class SessionRuntime {
         };
         freeze(tree);
         for (const [root, value] of Object.entries(tree)) {
-            if (this.slots.has(root)) throw new Error(`Namespace collides with session binding: ${root}`);
+            if (this.types.has(root)) throw new Error(`Namespace collides with session binding: ${root}`);
             Object.defineProperty(this.context, root, { value, configurable: true });
             this.roots.add(root);
         }
@@ -100,24 +69,30 @@ export class SessionRuntime {
     private async run(source: string): Promise<ExecutionResult> {
         if (source.includes('<|')) throw new Error('Protocol markers cannot be executed');
         if (/\b__dsh\w*/.test(source)) throw new Error('Reserved runtime identifier');
-        const deletion = /^\s*del\s+([a-zA-Z_$][\w$]*)\s*;?\s*$/.exec(source);
-        if (deletion) {
-            if (!this.slots.delete(deletion[1]!)) throw new ReferenceError(`Unknown binding: ${deletion[1]}`);
-            this.types.delete(deletion[1]!);
-            return { output: '', declarations: this.declarations() };
-        }
         const compiled = this.project.compile(source, this.declarations(), this.environment.declarations);
         for (const binding of compiled.bindings) {
             if (this.roots.has(binding.name) || ['tools', 'whenAll', 'whenAny', 'console', 'globalThis'].includes(binding.name)) throw new Error(`Reserved binding: ${binding.name}`);
         }
         this.logs = [];
         try {
-            const script = new vm.Script(`(async () => {\n"use strict";\n${compiled.javascript}\n})()`, { filename: 'segment.ts' });
-            const value = await script.runInContext(this.context, { timeout: 1000 });
-            if (value !== undefined) this.logs.push(this.format(value));
+            let value: unknown;
+            for (const unit of compiled.units) {
+                value = await new vm.Script(unit.javascript, { filename: 'segment.ts' }).runInContext(this.context, { timeout: 1000 });
+                if (unit.mode === 'binding') {
+                    Object.defineProperty(this.context, '__dshValue', { value, configurable: true });
+                    try { new vm.Script(unit.binding!, { filename: 'segment.ts' }).runInContext(this.context, { timeout: 1000 }); }
+                    finally { delete this.context.__dshValue; }
+                }
+                if (unit.display && value !== undefined) this.logs.push(this.format(value));
+            }
             return { output: this.logs.join('\n'), declarations: [...this.declarations(), ...compiled.bindings], sourceMap: compiled.sourceMap };
         } finally {
-            for (const binding of compiled.bindings) if (this.slots.has(binding.name)) this.types.set(binding.name, binding);
+            for (const binding of compiled.bindings) {
+                try {
+                    new vm.Script(binding.name).runInContext(this.context, { timeout: 1000 });
+                    this.types.set(binding.name, binding);
+                } catch { /* Uninitialized native lexical bindings are intentionally not advertised. */ }
+            }
         }
     }
 
@@ -127,20 +102,28 @@ export class SessionRuntime {
     }
 
     checkpoint(): SessionCheckpoint {
-        const entries: Array<[string, Slot]> = [];
+        const entries: Array<[string, unknown]> = [];
         const omitted: string[] = [];
-        for (const [name, slot] of this.slots) {
-            try { serialize(slot); entries.push([name, slot]); }
-            catch { omitted.push(name); }
+        for (const binding of this.types.values()) {
+            try {
+                const value: unknown = new vm.Script(binding.name).runInContext(this.context, { timeout: 1000 });
+                serialize(value); entries.push([binding.name, value]);
+            } catch { omitted.push(binding.name); }
         }
         return { version: 1, data: serialize(entries).toString('base64'), types: this.declarations().filter(b => !omitted.includes(b.name)), omitted };
     }
 
     restore(checkpoint: SessionCheckpoint): void {
-        if (checkpoint.version !== 1 || this.slots.size) throw new Error('Invalid checkpoint or session already initialized');
-        this.slots = new Map(deserialize(Buffer.from(checkpoint.data, 'base64')) as Array<[string, Slot]>);
-        this.types = new Map(checkpoint.types.map(t => [t.name, t]));
+        if (checkpoint.version !== 1 || this.types.size) throw new Error('Invalid checkpoint or session already initialized');
+        const entries = new Map(deserialize(Buffer.from(checkpoint.data, 'base64')) as Array<[string, unknown]>);
+        for (const binding of checkpoint.types) {
+            if (!/^[a-zA-Z_$][\w$]*$/.test(binding.name) || !['const', 'let', 'var'].includes(binding.kind)) throw new Error('Invalid checkpoint binding');
+            Object.defineProperty(this.context, '__dshValue', { value: entries.get(binding.name), configurable: true });
+            try { new vm.Script(`${binding.kind} ${binding.name} = __dshValue`).runInContext(this.context); }
+            finally { delete this.context.__dshValue; }
+            this.types.set(binding.name, binding);
+        }
     }
 
-    dispose(): void { this.project.dispose(); this.slots.clear(); this.completed.clear(); }
+    dispose(): void { this.project.dispose(); this.types.clear(); this.completed.clear(); }
 }
