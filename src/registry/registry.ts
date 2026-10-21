@@ -19,10 +19,13 @@ export interface Mapping {
     pinned: boolean;
 }
 
+/** @brief Persisted namespace documentation and unconditional prompt visibility. */
+export interface Namespace { path: string; alwaysVisible: boolean; description: string }
+
 /** @brief Successful physical invocations, independent of completion exposure. */
 export interface Usage { calls: number; lastUsed: number; exposures: number }
 /** @brief Versioned complete registry state, committed atomically. */
-export interface RegistryState { version: 1; revision: number; mappings: Mapping[]; usage: Record<string, Usage> }
+export interface RegistryState { version: 1; revision: number; mappings: Mapping[]; namespaces?: Namespace[]; usage: Record<string, Usage> }
 /** @brief Structured maintenance proposal; execution policy remains owned by DSH. */
 export interface Proposal { revision: number; changes: Array<{ id: string; path: string; aliases?: string[]; description?: string }> }
 
@@ -60,6 +63,7 @@ export class SemanticRegistry {
         if (saved) {
             if (saved.version !== 1 || !Number.isSafeInteger(saved.revision) || !Array.isArray(saved.mappings) || !saved.usage) throw new Error('Invalid registry snapshot');
             this.validateMappings(saved.mappings);
+            this.validateNamespaces(saved.namespaces ?? [], saved.mappings);
             this.state = saved;
         }
     }
@@ -99,17 +103,32 @@ export class SemanticRegistry {
         }
     }
 
+    /** @brief Validate namespace metadata against callable paths and reserved names. */
+    private validateNamespaces(namespaces: Namespace[], mappings: Mapping[]): void {
+        if (!Array.isArray(namespaces)) throw new Error('Invalid namespaces');
+        const seen = new Set<string>();
+        for (const entry of namespaces) {
+            if (!entry || typeof entry.path !== 'string' || typeof entry.alwaysVisible !== 'boolean' || typeof entry.description !== 'string' || seen.has(entry.path)) throw new Error('Invalid namespace');
+            validatePath(`${entry.path}.namespace_check`);
+            if (entry.path.split('.')[0] === 'unknown') throw new Error('unknown is reserved for unconfigured tools');
+            if (mappings.flatMap(m => [m.path, ...m.aliases]).some(path => entry.path === path || entry.path.startsWith(`${path}.`))) throw new Error(`Namespace collision: ${entry.path}`);
+            seen.add(entry.path);
+        }
+    }
+
     private transaction(operation: () => Promise<void>): Promise<void> {
         const result = this.writeChain.then(operation);
         this.writeChain = result.catch(() => {});
         return result;
     }
 
-    async configure(mappings: Mapping[], revision: number): Promise<void> {
+    async configure(mappings: Mapping[], revision: number, namespaces?: Namespace[]): Promise<void> {
         const detached = structuredClone(mappings);
         await this.transaction(async () => {
             if (revision !== this.state.revision) throw new Error('Registry revision conflict; reload before saving');
             this.validateMappings(detached);
+            const metadata = structuredClone(namespaces ?? this.state.namespaces ?? []);
+            this.validateNamespaces(metadata, detached);
             for (const m of detached) {
                 if (!this.physical.has(m.id) && !this.state.mappings.some(old => old.id === m.id)) throw new Error(`Unknown physical identity: ${m.id}`);
                 const old = this.state.mappings.find(o => o.id === m.id);
@@ -118,7 +137,7 @@ export class SemanticRegistry {
             for (const old of this.state.mappings) {
                 if (old.pinned && !detached.some(m => m.id === old.id)) throw new Error(`Pinned mapping: ${old.id}`);
             }
-            const next = { ...this.state, revision: this.state.revision + 1, mappings: detached };
+            const next = { ...this.state, revision: this.state.revision + 1, mappings: detached, namespaces: metadata };
             await this.store.save('registry', next);
             this.state = next;
         });
@@ -152,8 +171,19 @@ export class SemanticRegistry {
                 node[parts.at(-1)!] = `/** ${doc} */\n${JSON.stringify(parts.at(-1)!)}: ${signature};`;
             }
         }
-        const render = (node: Record<string, unknown>): string => `{\n${Object.entries(node).map(([k, v]) => typeof v === 'string' ? v : `${JSON.stringify(k)}: ${render(v as Record<string, unknown>)};`).join('\n')} }`;
-        return Object.entries(tree).map(([key, value]) => `declare const ${key}: ${render(value as Record<string, unknown>)};`).join('\n');
+        const doc = (path: string): string => {
+            const description = this.state.namespaces?.find(n => n.path === path)?.description;
+            return description ? `/** ${description.replaceAll('*/', '* /')} */\n` : '';
+        };
+        const render = (node: Record<string, unknown>, path: string): string => `{\n${Object.entries(node).map(([k, v]) => typeof v === 'string' ? v : `${doc(`${path}.${k}`)}${JSON.stringify(k)}: ${render(v as Record<string, unknown>, `${path}.${k}`)};`).join('\n')} }`;
+        return Object.entries(tree).map(([key, value]) => `${doc(key)}declare const ${key}: ${render(value as Record<string, unknown>, key)};`).join('\n');
+    }
+
+    /** @brief Include configured namespace hints only when an agent can access a descendant. */
+    namespaceVisibility(allowed?: Set<string>): string[] {
+        const paths = this.effective().filter(m => m.enabled && (!allowed || allowed.has(m.id))).flatMap(m => [m.path, ...m.aliases]);
+        return (this.state.namespaces ?? []).filter(n => n.alwaysVisible && paths.some(path => path.startsWith(`${n.path}.`)))
+            .map(n => `${n.path}${n.description ? ` — ${n.description}` : ''}`);
     }
 
     roots(): string[] { return [...new Set(this.effective().filter(m => m.enabled).flatMap(m => [m.path, ...m.aliases].map(p => p.split('.')[0]!)))].sort(); }

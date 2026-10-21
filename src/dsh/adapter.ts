@@ -54,7 +54,7 @@ export class TypeScriptAdapter extends LlmAdapter {
         this.refresh();
         const allowed = agent ? new Set(this.physical(agent).map(t => t.id)) : undefined;
         const roots = [...new Set(this.registry.effective().filter(m => m.enabled && (!allowed || allowed.has(m.id))).flatMap(m => [m.path, ...m.aliases].map(path => path.split('.')[0]!)))].sort();
-        return environmentPrompt(roots, agent ? `Session ${agent.id}. Native const/let bindings persist until this session closes. Runtime data is checkpointed; closures are process-local.` : 'New isolated session.', bindings, this.registry.namespaceHints(allowed));
+        return environmentPrompt(roots, agent ? `Session ${agent.id}. Native const/let bindings persist until this session closes. Runtime data is checkpointed; closures are process-local.` : 'New isolated session.', bindings, this.registry.namespaceHints(allowed), this.registry.namespaceVisibility(allowed));
     }
 
     private key(session: string): string { return createHash('sha256').update(session).digest('hex'); }

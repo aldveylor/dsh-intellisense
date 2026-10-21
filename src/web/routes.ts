@@ -1,6 +1,6 @@
 import type { Context } from '@deepseek-ai/cordis';
 import { readFile } from 'node:fs/promises';
-import type { Mapping, SemanticRegistry } from '../registry/registry.js';
+import type { Namespace, Mapping, SemanticRegistry } from '../registry/registry.js';
 import type { TypeScriptAdapter } from '../dsh/adapter.js';
 import type { OrganizationService } from '../dsh/organization.js';
 import { SessionId } from '@deepseek-ai/dsh-session';
@@ -19,8 +19,8 @@ export function registerManagement(ctx: Context, registry: SemanticRegistry, ada
             if (!request.headers.get('content-type')?.startsWith('application/json')) return Response.json({ error: 'Expected application/json' }, { status: 415, headers });
             const bodyText = await request.text();
             if (bodyText.length > 1_048_576) return Response.json({ error: 'Body exceeds 1 MiB' }, { status: 413, headers });
-            const body = JSON.parse(bodyText) as { action: string; mappings: Mapping[]; revision: number; sessionId: string; id: string };
-            if (body.action === 'configure') await registry.configure(body.mappings, body.revision);
+            const body = JSON.parse(bodyText) as { action: string; mappings: Mapping[]; namespaces?: Namespace[]; revision: number; sessionId: string; id: string };
+            if (body.action === 'configure') await registry.configure(body.mappings, body.revision, body.namespaces);
             else if (body.action === 'organize') {
                 const parent = ctx.agents.get(SessionId(body.sessionId));
                 if (!parent || parent.options.provider !== adapter.config.route) throw new Error('Select a live TypeScript session');
