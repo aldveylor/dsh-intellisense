@@ -29,6 +29,7 @@ test('namespace and partial names omit parameters while exact names and opening 
         assert(!namespace.context.includes('path: string'));
         assert(!namespace.context.includes('count: number'));
         assert.deepEqual(namespace.signatures, []);
+        assert.deepEqual(complete(runtime, environment, 'Promise.resolve(std.fs.').signatures, []);
         const partial = complete(runtime, environment, 'std.fs.rea');
         assert(!partial.context.includes('path: string'));
         const selected = complete(runtime, environment, 'std.fs.read');

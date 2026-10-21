@@ -51,7 +51,8 @@ export function complete(runtime: SessionRuntime, environment: Environment, sour
             documentation: ts.displayPartsToString(detail?.documentation),
         };
     });
-    let help = service.getSignatureHelpItems(project.input, source.length, undefined);
+    // A member lookup belongs to its own cursor, not to an enclosing call's argument hints.
+    let help = namespace ? undefined : service.getSignatureHelpItems(project.input, source.length, undefined);
     // A complete callable name requests its signature as if its opening parenthesis were present.
     const exact = partial && entries.some(entry => entry.name === partial);
     const signatureSource = !help && exact ? `${source}(` : source;
