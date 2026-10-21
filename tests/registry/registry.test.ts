@@ -55,3 +55,25 @@ test('same-revision concurrent updates have exactly one commit', async () => {
     const outcomes = await Promise.allSettled([registry.configure([mapping()], 0), registry.configure([mapping({ path: 'other.read' })], 0)]);
     assert.equal(outcomes.filter(o => o.status === 'fulfilled').length, 1);
 });
+
+
+test('namespace hints retain call history and respect visibility and enabled mappings', async () => {
+    const store = new MemoryStore();
+    const registry = new SemanticRegistry(store);
+    const tools = [...physical, { ...physical[0]!, id: 'write-file' }];
+    registry.refresh(tools);
+    await registry.configure([mapping({ authorized: true, aliases: ['files.read'] }), mapping({ id: 'write-file', path: 'std.fs.write', authorized: true })], 0);
+    await registry.invoke('files.read', { path: 'a' }, async () => 'ok');
+    await registry.invoke('std.fs.read', { path: 'a' }, async () => 'ok');
+    await registry.invoke('std.fs.write', { path: 'b' }, async () => 'ok');
+    const saved = await store.load<import('../../src/registry/registry.js').RegistryState>('registry');
+    saved!.usage['write-file']!.lastUsed = saved!.usage['read-file']!.lastUsed + 1;
+    await store.save('registry', saved);
+    const loaded = new SemanticRegistry(store); await loaded.load(); loaded.refresh(tools);
+    assert.equal(loaded.namespaceHints().frequent[0], 'std.fs.read');
+    assert.equal(loaded.namespaceHints().recent[0], 'std.fs.write');
+    assert(loaded.namespaceHints().frequent.includes('files.read'));
+    assert.deepEqual(loaded.namespaceHints(new Set(['write-file'])), { frequent: ['std.fs.write'], recent: ['std.fs.write'] });
+    await loaded.configure([mapping({ enabled: false }), mapping({ id: 'write-file', path: 'std.fs.write', enabled: false })], 1);
+    assert.deepEqual(loaded.namespaceHints(), { frequent: [], recent: [] });
+});

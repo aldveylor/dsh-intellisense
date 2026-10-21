@@ -1,3 +1,4 @@
+import type { BindingType } from '../typescript/project.js';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
@@ -40,9 +41,11 @@ export class TypeScriptAdapter extends LlmAdapter {
         this.registry.refresh([...tools.values()]);
     }
 
-    prompt(agent?: Agent): string {
+    prompt(agent?: Agent, bindings: BindingType[] = []): string {
         this.refresh();
-        return environmentPrompt(this.registry.roots(), agent ? `Session ${agent.id}. Native const/let bindings persist until this session closes. Runtime data is checkpointed; closures are process-local.` : 'New isolated session.');
+        const allowed = agent ? new Set(this.physical(agent).map(t => t.id)) : undefined;
+        const roots = [...new Set(this.registry.effective().filter(m => m.enabled && (!allowed || allowed.has(m.id))).flatMap(m => [m.path, ...m.aliases].map(path => path.split('.')[0]!)))].sort();
+        return environmentPrompt(roots, agent ? `Session ${agent.id}. Native const/let bindings persist until this session closes. Runtime data is checkpointed; closures are process-local.` : 'New isolated session.', bindings, this.registry.namespaceHints(allowed));
     }
 
     private key(session: string): string { return createHash('sha256').update(session).digest('hex'); }
@@ -97,7 +100,7 @@ export class TypeScriptAdapter extends LlmAdapter {
             ...options, provider: this.config.provider, model: options.model || this.config.model,
             tools: [], toolHistory: undefined,
             // The adapter owns this separate internal request; the loop's input remains immutable.
-            system: this.prompt(agent), messages: options.messages.filter(m => m.role !== 'system'),
+            system: this.prompt(agent, await runtime.declarations()), messages: options.messages.filter(m => m.role !== 'system'),
         };
         const response = await runConversation({
             generate: request => {

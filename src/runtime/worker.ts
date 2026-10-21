@@ -3,7 +3,7 @@ import { complete } from '../typescript/completion.js';
 import type { Usage } from '../registry/registry.js';
 
 /** @brief Typed process messages carry data, never host runtime objects or credentials. */
-interface Request { id: number; method: 'update' | 'execute' | 'complete' | 'checkpoint' | 'restore'; args: unknown[] }
+interface Request { id: number; method: 'update' | 'execute' | 'complete' | 'declarations' | 'checkpoint' | 'restore'; args: unknown[] }
 const outstanding = new Map<number, { resolve(value: unknown): void; reject(error: Error): void }>();
 let nextCall = 0;
 let environment: Environment = { declarations: '', paths: [] };
@@ -31,6 +31,7 @@ process.on('message', (message: Request | { type: 'bridge-result'; id: number; v
                 case 'update': environment = message.args[0] as Environment; runtime.update(environment); value = null; break;
                 case 'execute': value = await runtime.execute(message.args[0] as string, message.args[1] as string); break;
                 case 'complete': value = complete(runtime, environment, message.args[0] as string, message.args[1] as Record<string, Usage>, message.args[2] as Record<string, string>); break;
+                case 'declarations': value = runtime.declarations(); break;
                 case 'checkpoint': value = runtime.checkpoint(); break;
                 case 'restore': runtime.restore(message.args[0] as SessionCheckpoint); value = null; break;
             }

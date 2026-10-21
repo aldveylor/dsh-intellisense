@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 import type { Environment, ExecutionResult, SessionCheckpoint } from './session.js';
 import type { CompletionResult } from '../typescript/completion.js';
+import type { BindingType } from '../typescript/project.js';
 import type { Usage } from '../registry/registry.js';
 
 /** @brief A separate permission-restricted Node process owns one persistent REPL and language service. */
@@ -90,6 +91,7 @@ export class IsolatedSession {
     }
 
     complete(source: string, usage: Record<string, Usage>, identities: Record<string, string>): Promise<CompletionResult> { return this.request('complete', [source, usage, identities]); }
+    declarations(): Promise<BindingType[]> { return this.request('declarations', []); }
     checkpoint(): Promise<SessionCheckpoint> { return this.request('checkpoint', []); }
     restore(checkpoint: SessionCheckpoint): Promise<void> { return this.request('restore', [checkpoint]); }
 

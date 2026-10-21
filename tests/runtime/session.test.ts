@@ -68,3 +68,16 @@ test('checkpoints restore data without reexecuting tools or closures', async () 
     assert.equal((await restored.execute('2', 'data.value')).output, '7');
     runtime.dispose(); restored.dispose();
 });
+
+
+test('native Promise supports execution and completion without legacy helpers', async () => {
+    const runtime = make();
+    const env = { declarations: '', paths: [] };
+    try {
+        assert.equal((await runtime.execute('promise', 'await Promise.all([Promise.resolve(2), 3])')).output, '[ 2, 3 ]');
+        const names = complete(runtime, env, 'Promise.').candidates.map(c => c.name);
+        for (const name of ['all', 'race', 'allSettled', 'any']) assert(names.includes(name));
+        await assert.rejects(runtime.execute('old', 'whenAll([1])'), /Cannot find name/);
+        await assert.rejects(runtime.execute('shadow', 'const Promise = 1'), /Reserved binding/);
+    } finally { runtime.dispose(); }
+});

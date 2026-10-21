@@ -154,6 +154,17 @@ export class SemanticRegistry {
 
     roots(): string[] { return [...new Set(this.effective().filter(m => m.enabled).flatMap(m => [m.path, ...m.aliases].map(p => p.split('.')[0]!)))].sort(); }
 
+    /** @brief Reuse durable successful-call statistics for visible namespace discovery. */
+    namespaceHints(allowed?: Set<string>, limit = 8): { frequent: string[]; recent: string[] } {
+        const used = this.effective().filter(m => m.enabled && (!allowed || allowed.has(m.id)) && (this.state.usage[m.id]?.calls ?? 0) > 0);
+        const calls = (id: string): Usage => this.state.usage[id]!;
+        const paths = (mappings: Mapping[]): string[] => [...new Set(mappings.flatMap(m => [m.path, ...m.aliases]))].slice(0, limit);
+        return {
+            frequent: paths([...used].sort((a, b) => calls(b.id).calls - calls(a.id).calls || calls(b.id).lastUsed - calls(a.id).lastUsed || a.path.localeCompare(b.path))),
+            recent: paths([...used].sort((a, b) => calls(b.id).lastUsed - calls(a.id).lastUsed || a.path.localeCompare(b.path))),
+        };
+    }
+
     async invoke(path: string, args: unknown, dispatch: (id: string, args: unknown) => Promise<unknown>): Promise<unknown> {
         const mapping = this.effective().find(m => m.path === path || m.aliases.includes(path));
         if (!mapping?.enabled || !mapping.authorized) throw new Error(`Execution denied: ${path}`);

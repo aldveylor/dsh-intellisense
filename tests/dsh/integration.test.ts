@@ -60,12 +60,17 @@ test('installed DSH agent loop, plugin, storage, completion, tools and web confi
         assert.equal(errors.length, 0, String(errors[0])); assert.equal(invocations, 1);
         assert.equal(model.requests.length, 2);
         assert.deepEqual(model.requests[0]!.tools, []);
+        assert.match(model.requests[0]!.system!, /<!> Promise/);
+        assert.doesNotMatch(model.requests[0]!.system!, /whenAll|whenAny/);
         assert.equal(model.requests[1]!.messages.filter(m => m.role === 'user').length, 1);
         const messages = agent.session.deriveMessages();
         const assistant = messages.filter(m => m.role === 'assistant').at(-1)!;
         assert(assistant.content.some(b => b.type === 'text' && b.text.includes('contents') && !b.text.includes('<|INTELLISENSE|>')));
         await send('remember count'); await send('increment');
         assert.equal(errors.length, 0, String(errors[0]));
+        assert.match(model.requests.at(-1)!.system!, /<!> const count: 7/);
+        assert.match(model.requests.at(-1)!.system!, /Frequently used namespaces \/ tool paths:\n<!> std\.fs\.read/);
+        assert.match(model.requests.at(-1)!.system!, /Recently used namespaces \/ tool paths:\n<!> std\.fs\.read/);
         assert(agent.session.deriveMessages().at(-1)!.content.some(b => b.type === 'text' && b.text.includes('// 8')));
         state = await (await stateRoute.fetch(new Request('http://localhost/api/ts-intellisense-state'))).json();
         assert.equal(state.state.usage.read.calls, 1);
