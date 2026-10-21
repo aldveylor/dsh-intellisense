@@ -4,7 +4,7 @@ const reserved = new Set(['tools', 'console', 'globalThis', 'Promise', 'Object',
 /** @brief Validate semantic paths before generating declarations or runtime objects. */
 export function validatePath(path: string): void {
     const parts = path.split('.');
-    if (parts.length < 2 || parts.some(p => !/^[a-zA-Z_$][\w$]*$/.test(p) || forbidden.has(p) || p.startsWith('__dsh')) || reserved.has(parts[0]!)) {
+    if (parts.length < 1 || parts.some(p => !/^[a-zA-Z_$][\w$]*$/.test(p) || forbidden.has(p) || p.startsWith('__dsh')) || reserved.has(parts[0]!)) {
         throw new Error(`Invalid or reserved namespace path: ${path}`);
     }
     // Ask TypeScript's type renderer to quote property names; root keywords are excluded below.

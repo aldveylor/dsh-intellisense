@@ -9,7 +9,7 @@ export function namespacePaths(draft: Pick<TreeDraft, 'mappings' | 'namespaces'>
     return [...new Set([
         ...draft.namespaces.map(n => n.path),
         ...draft.mappings.flatMap(m => [m.path, ...m.aliases].map(path => path.split('.').slice(0, -1).join('.'))),
-    ].flatMap(path => path.split('.').map((_, i, parts) => parts.slice(0, i + 1).join('.'))).filter(Boolean))].sort();
+    ].flatMap(path => path.split('.').map((_, i, parts) => parts.slice(0, i + 1).join('.'))).filter(Boolean))];
 }
 
 /** @brief Match a namespace and its complete subtree without matching similarly named siblings. */
@@ -17,8 +17,8 @@ export function inNamespace(path: string, namespace: string): boolean { return p
 
 /** @brief Preserve mixed namespace/command ordering, appending newly created nodes. */
 export function orderedPaths(paths: string[], order: string[]): string[] {
-    const rank = new Map(order.map((path, i) => [path, i]));
-    return [...paths].sort((a, b) => (rank.get(a) ?? Infinity) - (rank.get(b) ?? Infinity) || a.localeCompare(b));
+    const rank = new Map([...new Set([...order, ...paths])].map((path, i) => [path, i]));
+    return [...paths].sort((a, b) => rank.get(a)! - rank.get(b)!);
 }
 
 /** @brief Rename one namespace, migrating descendants, command paths, metadata and display order together. */

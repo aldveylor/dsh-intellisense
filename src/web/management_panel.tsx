@@ -134,18 +134,17 @@ function NamespacePlaceholder({ parent = '', busy, create, drop }: {
 
     return <li className={`ts-empty ts-namespace-placeholder ${over ? 'ts-drop-over' : ''}`}
         onDragOver={event => {
-            if (parent && !busy && event.dataTransfer.types.includes('application/x-ts-tool')) {
+            if (!busy && event.dataTransfer.types.includes('application/x-ts-tool')) {
                 event.preventDefault(); event.stopPropagation(); setOver(true);
             }
         }} onDragLeave={() => setOver(false)} onDrop={event => {
-            if (!parent) return;
             event.preventDefault(); event.stopPropagation(); setOver(false);
             if (!busy) drop?.(event.dataTransfer.getData('application/x-ts-tool'), parent, event.dataTransfer.getData('application/x-ts-mapping'));
         }}>
         {name === undefined ? <span role="button" tabIndex={busy ? -1 : 0} aria-disabled={busy}
             title="双击添加命名空间" onDoubleClick={begin} onKeyDown={event => {
                 if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); begin(); }
-            }}>{parent ? '将工具积木拖到此节点' : '双击添加根命名空间'}</span> : <input autoFocus aria-label={`命名新命名空间 ${parent || '根节点'}`}
+            }}>{parent ? '将工具积木拖到此节点' : '拖到根节点挂载命令，双击添加命名空间'}</span> : <input autoFocus aria-label={`命名新命名空间 ${parent || '根节点'}`}
             placeholder="命名空间名称" value={name} disabled={busy} onChange={event => setName(event.target.value)}
             onBlur={() => {
                 const value = name.trim();
@@ -225,7 +224,7 @@ export function ManagementPanel({ api, ConfigurationSelect = StandaloneConfigura
         const snapshot = await request<View>(url.href, undefined, signal);
         setView(snapshot); setMappings(structuredClone(snapshot.state.mappings));
         setNamespaces(structuredClone(snapshot.state.namespaces ?? []));
-        setOrder(structuredClone(snapshot.state.order ?? []));
+        setOrder(orderedPaths([...namespacePaths({ mappings: snapshot.state.mappings, namespaces: snapshot.state.namespaces ?? [] }), ...snapshot.state.mappings.flatMap(m => [m.path, ...m.aliases])], snapshot.state.order ?? []));
         setStatus('');
     }
 
@@ -265,7 +264,7 @@ export function ManagementPanel({ api, ConfigurationSelect = StandaloneConfigura
     function configureNamespace(path: string, patch: Partial<Namespace>): void {
         setNamespaces(current => {
             const next = { path, alwaysVisible: false, description: '', ...current.find(n => n.path === path), ...patch };
-            return [...current.filter(n => n.path !== path), next];
+            return current.some(n => n.path === path) ? current.map(n => n.path === path ? next : n) : [...current, next];
         });
     }
 
@@ -300,17 +299,20 @@ export function ManagementPanel({ api, ConfigurationSelect = StandaloneConfigura
     function mountTool(id: string, namespace: string, source?: string): void {
         const tool = view?.tools.find(t => t.id === id);
         const mapping = mappings.find(m => m.id === id);
-        if (busy || !tool || mapping?.pinned || !paths.includes(namespace)) return;
+        if (busy || !tool || mapping?.pinned || (namespace !== '' && !paths.includes(namespace))) return;
         if (source && source !== mapping?.path && !mapping?.aliases.includes(source)) return;
         const previous = source || mapping?.path;
         const name = previous?.split('.').at(-1) || view?.effective.find(m => m.id === id)?.path.split('.').at(-1) ||
             tool.id.replace(/[^a-zA-Z0-9_$]/g, '_').replace(/^(?=\d)/, '_');
-        let path = `${namespace}.${name}`;
+        const prefix = namespace ? `${namespace}.` : '';
+        let path = `${prefix}${name}`;
         if (path === previous) return;
-        for (let suffix = 2; occupied(path, previous); suffix++) path = `${namespace}.${name}_${suffix}`;
-        configureNamespace(namespace, {});
+        for (let suffix = 2; occupied(path, previous); suffix++) path = `${prefix}${name}_${suffix}`;
+        try { validatePath(path); } catch (error) { setStatus(String(error)); return; }
+        if (namespace) configureNamespace(namespace, {});
         if (previous) {
-            configureNamespace(previous.split('.').slice(0, -1).join('.'), {});
+            const parent = previous.split('.').slice(0, -1).join('.');
+            if (parent) configureNamespace(parent, {});
             replacePath(previous, path);
         } else { update(tool, { path }); setOrder(current => [...current, path]); }
         setStatus('已更新映射，请保存配置。');
@@ -320,7 +322,8 @@ export function ManagementPanel({ api, ConfigurationSelect = StandaloneConfigura
     function renameMapping(source: string, name: string): boolean {
         const mapping = mappings.find(m => m.path === source || m.aliases.includes(source));
         if (busy || !mapping || mapping.pinned) return false;
-        const path = `${source.split('.').slice(0, -1).join('.')}.${name}`;
+        const path = [...source.split('.').slice(0, -1), name].join('.');
+        try { validatePath(path); } catch (error) { setStatus(String(error)); return false; }
         if (!/^[a-zA-Z_$][\w$]*$/.test(name) || ['__proto__', 'prototype', 'constructor', 'then'].includes(name) || name.startsWith('__dsh') || occupied(path, source)) {
             setStatus('映射名称无效或与现有路径冲突。'); return false;
         }
@@ -332,7 +335,8 @@ export function ManagementPanel({ api, ConfigurationSelect = StandaloneConfigura
     function removeMapping(path: string): void {
         const mapping = mappings.find(m => m.path === path || m.aliases.includes(path));
         if (busy || !mapping || mapping.pinned) return;
-        configureNamespace(path.split('.').slice(0, -1).join('.'), {});
+        const parent = path.split('.').slice(0, -1).join('.');
+        if (parent) configureNamespace(parent, {});
         const remaining = [mapping.path, ...mapping.aliases].filter(p => p !== path);
         setMappings(current => current.flatMap(m => m.id !== mapping.id ? [m] : remaining.length ? [{ ...m, path: remaining[0]!, aliases: remaining.slice(1) }] : []));
         setStatus('已移除映射，请保存配置。');
@@ -382,7 +386,7 @@ export function ManagementPanel({ api, ConfigurationSelect = StandaloneConfigura
         <div className="ts-toolbar"><div className="ts-actions">
             <button disabled={busy} onClick={() => void action('正在刷新…', reload)}>刷新</button>
             <button disabled={busy || !view} onClick={() => void action('正在保存…', async () => {
-                await request(api, { action: 'configure', sessionId, revision: view!.state.revision, namespaces, order, mappings: mappings.map(m => ({ ...m, path: m.path.trim(), aliases: m.aliases.map(alias => alias.trim()).filter(Boolean) })) });
+                await request(api, { action: 'configure', sessionId, revision: view!.state.revision, namespaces, order: orderedPaths([...paths, ...mappings.flatMap(m => [m.path, ...m.aliases])], order), mappings: mappings.map(m => ({ ...m, path: m.path.trim(), aliases: m.aliases.map(alias => alias.trim()).filter(Boolean) })) });
                 await reload();
             })}>保存配置</button>
             <ConfigurationSelect value={sessionId} disabled={busy} sessions={view?.sessions ?? []} onChange={setSessionId} />
@@ -393,8 +397,12 @@ export function ManagementPanel({ api, ConfigurationSelect = StandaloneConfigura
         </div></div>
         <main><section className="ts-namespaces"><h2>命名空间树</h2>
             <small>箭头控制展开；双击名称或注释编辑，同级块可拖动排序，拖到命名空间内可映射工具。</small>
-            <ul className="ts-tree">{orderedPaths(paths.filter(path => !path.includes('.')), order).map(path => <NamespaceNode key={path} path={path} tree={tree} />)}
-                <NamespacePlaceholder busy={busy || !view} create={createNamespace} />
+            <ul className="ts-tree">{orderedPaths([...paths.filter(path => !path.includes('.')), ...mappings.flatMap(m => [m.path, ...m.aliases]).filter(path => !path.includes('.'))], order).map(path => {
+                const command = mappings.find(m => m.path === path || m.aliases.includes(path));
+                return command ? <MappedTool key={path} path={path} mapping={command} tree={tree}
+                    description={view?.tools.find(tool => tool.id === command.id)?.description} /> : <NamespaceNode key={path} path={path} tree={tree} />;
+            })}
+                <NamespacePlaceholder busy={busy || !view} create={createNamespace} drop={mountTool} />
             </ul>
             <small>unknown：{unknown} 个未挂载工具 · 执行权限由 DSH 原生策略判断。</small>
         </section><section className="ts-toolbox"><h2>工具积木 <small>{tools.length} 个工具</small></h2>

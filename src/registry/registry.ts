@@ -78,7 +78,7 @@ export class SemanticRegistry {
             ids.add(m.id);
             for (const path of [m.path, ...m.aliases]) {
                 validatePath(path);
-                if (path.startsWith('unknown.')) throw new Error('unknown is reserved for unconfigured tools');
+                if (path === 'unknown' || path.startsWith('unknown.')) throw new Error('unknown is reserved for unconfigured tools');
                 if (paths.some(p => p === path || p.startsWith(`${path}.`) || path.startsWith(`${p}.`))) throw new Error(`Namespace collision: ${path}`);
                 paths.push(path);
             }
@@ -123,7 +123,7 @@ export class SemanticRegistry {
             if (!Array.isArray(requestedOrder) || requestedOrder.some(path => typeof path !== 'string')) throw new Error('Invalid tree order');
             const known = new Set([...metadata.map(n => n.path), ...detached.flatMap(m => [m.path, ...m.aliases])]
                 .flatMap(path => path.split('.').map((_, i, parts) => parts.slice(0, i + 1).join('.'))));
-            const treeOrder = [...new Set(requestedOrder)].filter(path => known.has(path));
+            const treeOrder = [...new Set([...requestedOrder, ...known])].filter(path => known.has(path));
             const next = { ...this.state, revision: this.state.revision + 1, mappings: detached, namespaces: metadata, order: treeOrder };
             await this.store.save('registry', next);
             this.state = next;
@@ -148,11 +148,13 @@ export class SemanticRegistry {
 
     declarations(allowed?: Set<string>): string {
         const tree: Record<string, unknown> = Object.create(null);
+        const rootFunctions: string[] = [];
         for (const mapping of this.effective().filter(m => m.enabled && (!allowed || allowed.has(m.id)))) {
             const doc = [mapping.tool.description, mapping.description].filter(Boolean).join('\n').replaceAll('*/', '* /');
             const signature = `(args: ${jsonSchemaToTs(mapping.tool.parameters)}) => Promise<${jsonSchemaToTs(mapping.tool.output)}>`;
             for (const path of [mapping.path, ...mapping.aliases]) {
                 const parts = path.split('.');
+                if (parts.length === 1) { rootFunctions.push(`/** ${doc} */\ndeclare const ${path}: ${signature};`); continue; }
                 let node = tree;
                 for (const part of parts.slice(0, -1)) node = (node[part] ??= Object.create(null)) as Record<string, unknown>;
                 node[parts.at(-1)!] = `/** ${doc} */\n${JSON.stringify(parts.at(-1)!)}: ${signature};`;
@@ -163,7 +165,7 @@ export class SemanticRegistry {
             return description ? `/** ${description.replaceAll('*/', '* /')} */\n` : '';
         };
         const render = (node: Record<string, unknown>, path: string): string => `{\n${Object.entries(node).map(([k, v]) => typeof v === 'string' ? v : `${doc(`${path}.${k}`)}${JSON.stringify(k)}: ${render(v as Record<string, unknown>, `${path}.${k}`)};`).join('\n')} }`;
-        return Object.entries(tree).map(([key, value]) => `${doc(key)}declare const ${key}: ${render(value as Record<string, unknown>, key)};`).join('\n');
+        return [...rootFunctions, ...Object.entries(tree).map(([key, value]) => `${doc(key)}declare const ${key}: ${render(value as Record<string, unknown>, key)};`)].join('\n');
     }
 
     /** @brief Include configured namespace hints only when an agent can access a descendant. */
