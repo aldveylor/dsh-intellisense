@@ -10,6 +10,7 @@ import type { SessionCheckpoint, ExecutionResult } from '../runtime/session.js';
 import { environmentPrompt } from '../protocol/prompt.js';
 import { runConversation } from '../protocol/controller.js';
 import type { OrganizationService } from './organization.js';
+import { ExecutionTrace } from './execution_trace.js';
 
 /** @brief Plugin route and the actual upstream model provider stay separate. */
 export interface AdapterConfig { route: string; provider: string; model: string; timeoutMs: number; maxContinuations: number }
@@ -20,8 +21,16 @@ interface ExecutionRecord { status: 'started' | 'completed' | 'failed'; source?:
 export class TypeScriptAdapter extends LlmAdapter {
     private sessions = new Map<string, Promise<IsolatedSession>>();
     private queues = new Map<string, Promise<unknown>>();
+    private positions = new Map<string, { turn: number; step: number }>();
+    private executions = new Map<string, ExecutionTrace>();
 
-    constructor(private ctx: Context, readonly config: AdapterConfig, private registry: SemanticRegistry, private store: Store, private organization: OrganizationService) { super(); }
+    constructor(private ctx: Context, readonly config: AdapterConfig, private registry: SemanticRegistry, private store: Store, private organization: OrganizationService) {
+        super();
+        ctx.on('agent/assistant-stream', ({ agent, frame }) => {
+            if (frame.type === 'start') this.positions.set(agent.id, { turn: frame.turn, step: frame.step });
+            if (frame.type === 'end') this.positions.delete(agent.id);
+        });
+    }
 
     override providerInfo(provider: string): { id: string; name: string } { return { id: provider, name: 'TypeScript REPL' }; }
 
@@ -60,7 +69,10 @@ export class TypeScriptAdapter extends LlmAdapter {
                         const callId = ToolCallId(`ts-${randomUUID()}`);
                         const auditKey = `dispatch_${this.key(callId)}`;
                         await this.store.save(auditKey, { status: 'started', session: agent.id, callId, physicalId: id, arguments: value });
+                        const trace = this.executions.get(agent.id);
+                        trace?.start(callId, id, value);
                         const result = await agent.ctx.tools.execute({ callId, name: id, arguments: value, agent, signal: signal ?? new AbortController().signal });
+                        trace?.finishCall(callId, id, value, result);
                         await this.store.save(auditKey, { status: 'completed', session: agent.id, callId, physicalId: id, arguments: value, result });
                         if (result.isError) throw new Error(result.error.message);
                         for (const context of result.additionalContexts ?? []) agent.inject(context);
@@ -78,7 +90,7 @@ export class TypeScriptAdapter extends LlmAdapter {
         return pending;
     }
 
-    private async run(options: GenerateOptions): Promise<{ text: string; usage: TokenUsage }> {
+    private async run(options: GenerateOptions, emit: (chunk: StreamChunk) => void): Promise<{ text: string; usage: TokenUsage; index: number }> {
         if (!options.sessionId) throw new Error('TypeScript REPL requests require a live DSH session identity');
         const agent = this.ctx.agents.get(options.sessionId);
         if (!agent) throw new Error('No live DSH agent owns this session');
@@ -91,11 +103,12 @@ export class TypeScriptAdapter extends LlmAdapter {
         const identity = this.key(JSON.stringify({ session: agent.id, messages: options.messages, model: options.model }));
         const executionKey = `execution_${identity}`;
         const previous = await this.store.load<ExecutionRecord>(executionKey);
-        if (previous?.status === 'completed') return { text: previous.result!.output, usage: { inputTokens: 0, outputTokens: 0 } };
+        if (previous?.status === 'completed') return { text: previous.result!.output, usage: { inputTokens: 0, outputTokens: 0 }, index: 0 };
         if (previous?.status === 'failed') throw new Error(previous.error);
         if (previous?.status === 'started') throw new Error('A prior execution has an uncertain outcome and will not be repeated');
         const usage: TokenUsage = { inputTokens: 0, outputTokens: 0 };
         const journal: unknown[] = [];
+        let nextIndex = 0;
         const upstream: GenerateOptions = {
             ...options, provider: options.provider === this.config.route ? this.config.provider : options.provider, model: options.model || this.config.model,
             tools: [], toolHistory: undefined,
@@ -108,12 +121,36 @@ export class TypeScriptAdapter extends LlmAdapter {
             generate: request => {
                 const stream = this.ctx.llm.stream(request);
                 return (async function* () {
-                    for await (const chunk of stream) {
+                    const reasoning = new Map<number, { index: number; text: string }>();
+                    /** @brief Give each continuation's reasoning blocks unique outer stream indices. */
+                    const open = (index: number) => {
+                        let block = reasoning.get(index);
+                        if (!block) {
+                            block = { index: nextIndex++, text: '' };
+                            reasoning.set(index, block);
+                            emit({ type: 'block-start', index: block.index, blockType: 'reasoning' });
+                        }
+                        return block;
+                    };
+                    try { for await (const chunk of stream) {
+                        if (chunk.type === 'block-start' && chunk.blockType === 'reasoning') open(chunk.index);
+                        if (chunk.type === 'reasoning-delta') {
+                            const block = open(chunk.index);
+                            block.text += chunk.text;
+                            emit({ ...chunk, index: block.index });
+                        }
+                        if (chunk.type === 'block-end' && chunk.block.type === 'reasoning') {
+                            const block = open(chunk.index);
+                            emit({ ...chunk, index: block.index });
+                            reasoning.delete(chunk.index);
+                        }
                         if (chunk.type === 'usage') {
                             usage.inputTokens += chunk.usage.inputTokens; usage.outputTokens += chunk.usage.outputTokens;
                             for (const key of ['cacheReadTokens', 'cacheWriteTokens', 'reasoningTokens'] as const) if (chunk.usage[key] !== undefined) usage[key] = (usage[key] ?? 0) + chunk.usage[key]!;
                         }
                         yield chunk;
+                    } } finally {
+                        for (const block of reasoning.values()) emit({ type: 'block-end', index: block.index, block: { type: 'reasoning', text: block.text } });
                     }
                 })();
             },
@@ -128,21 +165,26 @@ export class TypeScriptAdapter extends LlmAdapter {
                 if (previous?.status === 'completed') return previous.result!;
                 if (previous?.status === 'failed') throw new Error(previous.error);
                 await this.store.save<ExecutionRecord>(executionKey, { status: 'started' });
+                const position = this.positions.get(agent.id);
+                const trace = position ? new ExecutionTrace(agent, position, options, source) : undefined;
+                if (trace) this.executions.set(agent.id, trace);
                 try {
                     const result = await runtime.execute(id, source, options.signal);
+                    trace?.finish(result.output);
                     const checkpoint = await runtime.checkpoint();
                     await this.store.save(`session_${this.key(agent.id)}`, checkpoint);
                     await this.store.save<ExecutionRecord>(executionKey, { status: 'completed', source, result });
                     return result;
                 } catch (error) {
+                    trace?.finish(error instanceof Error ? error.message : String(error), true);
                     await this.store.save<ExecutionRecord>(executionKey, { status: 'failed', error: error instanceof Error ? error.message : String(error) });
                     throw error;
-                }
+                } finally { this.executions.delete(agent.id); }
             },
             journal: async record => { journal.push(record); await this.store.save(`continuation_${identity}`, journal); },
         }, upstream, identity, this.config.maxContinuations);
         const text = response.abandoned ? 'Input abandoned without execution.' : response.output;
-        return { text, usage };
+        return { text, usage, index: nextIndex };
     }
 
     override async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
@@ -152,24 +194,37 @@ export class TypeScriptAdapter extends LlmAdapter {
         }
         const key = options.sessionId ?? 'missing';
         const prior = this.queues.get(key) ?? Promise.resolve();
-        const run = prior.catch(() => {}).then(() => this.run(options));
+        const chunks: StreamChunk[] = [];
+        let wake: (() => void) | undefined;
+        let settled = false;
+        const run = prior.catch(() => {}).then(() => this.run(options, chunk => { chunks.push(chunk); wake?.(); }));
+        const settlement = run.then(() => { settled = true; wake?.(); }, () => { settled = true; wake?.(); });
         this.queues.set(key, run);
         try {
-            const { text, usage } = await run;
-            yield { type: 'block-start', index: 0, blockType: 'text' };
-            yield { type: 'text-delta', index: 0, text };
-            yield { type: 'block-end', index: 0, block: { type: 'text', text } };
+            while (!settled || chunks.length) {
+                if (chunks.length) yield* chunks.splice(0);
+                else await new Promise<void>(resolve => { wake = resolve; });
+            }
+            await settlement;
+            const { text, usage, index } = await run;
+            yield { type: 'block-start', index, blockType: 'text' };
+            yield { type: 'text-delta', index, text };
+            yield { type: 'block-end', index, block: { type: 'text', text } };
             yield { type: 'usage', usage };
             yield { type: 'finish', reason: { kind: 'stop' } };
         } catch (error) {
             this.ctx.logger('ts-intellisense').error('ts.request.error %s', JSON.stringify({ session: key, request: this.key(JSON.stringify({ session: key, messages: options.messages, model: options.model })), error: error instanceof Error ? error.stack ?? error.message : String(error) }));
             throw error;
-        } finally { if (this.queues.get(key) === run) this.queues.delete(key); }
+        } finally {
+            await settlement;
+            if (this.queues.get(key) === run) this.queues.delete(key);
+        }
     }
 
     async release(sessionId: string): Promise<void> {
         const runtime = await this.sessions.get(sessionId);
         runtime?.dispose(); this.sessions.delete(sessionId);
+        this.positions.delete(sessionId); this.executions.delete(sessionId);
     }
 
     async dispose(): Promise<void> { await Promise.all([...this.sessions.keys()].map(id => this.release(id))); }
