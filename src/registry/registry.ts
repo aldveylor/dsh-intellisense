@@ -144,15 +144,15 @@ export class SemanticRegistry {
         const tree: Record<string, unknown> = Object.create(null);
         for (const mapping of this.effective().filter(m => m.enabled && (!allowed || allowed.has(m.id)))) {
             const doc = (mapping.description ?? mapping.tool.description).replaceAll('*/', '* /');
-            const signature = `/** ${doc} */\n(args: ${jsonSchemaToTs(mapping.tool.parameters)}) => Promise<${jsonSchemaToTs(mapping.tool.output)}>`;
+            const signature = `(args: ${jsonSchemaToTs(mapping.tool.parameters)}) => Promise<${jsonSchemaToTs(mapping.tool.output)}>`;
             for (const path of [mapping.path, ...mapping.aliases]) {
                 const parts = path.split('.');
                 let node = tree;
                 for (const part of parts.slice(0, -1)) node = (node[part] ??= Object.create(null)) as Record<string, unknown>;
-                node[parts.at(-1)!] = signature;
+                node[parts.at(-1)!] = `/** ${doc} */\n${JSON.stringify(parts.at(-1)!)}: ${signature};`;
             }
         }
-        const render = (node: Record<string, unknown>): string => `{ ${Object.entries(node).map(([k, v]) => typeof v === 'string' ? `${JSON.stringify(k)}: ${v};` : `${JSON.stringify(k)}: ${render(v as Record<string, unknown>)};`).join('\n')} }`;
+        const render = (node: Record<string, unknown>): string => `{ ${Object.entries(node).map(([k, v]) => typeof v === 'string' ? v : `${JSON.stringify(k)}: ${render(v as Record<string, unknown>)};`).join('\n')} }`;
         return Object.entries(tree).map(([key, value]) => `declare const ${key}: ${render(value as Record<string, unknown>)};`).join('\n');
     }
 

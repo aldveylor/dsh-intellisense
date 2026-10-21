@@ -47,6 +47,10 @@ export function complete(runtime: SessionRuntime, environment: Environment, sour
         };
     });
     const help = service.getSignatureHelpItems(project.input, source.length, undefined);
-    const signatures = help?.items.map(item => ts.displayPartsToString(item.prefixDisplayParts) + item.parameters.map(p => ts.displayPartsToString(p.displayParts)).join(ts.displayPartsToString(item.separatorDisplayParts)) + ts.displayPartsToString(item.suffixDisplayParts)) ?? [];
+    const signatures = help?.items.map(item => [
+        ts.displayPartsToString(item.prefixDisplayParts) + item.parameters.map(p => ts.displayPartsToString(p.displayParts)).join(ts.displayPartsToString(item.separatorDisplayParts)) + ts.displayPartsToString(item.suffixDisplayParts),
+        ts.displayPartsToString(item.documentation),
+        ...item.parameters.map(p => { const doc = ts.displayPartsToString(p.documentation); return doc ? `${p.name}: ${doc}` : ''; }),
+    ].filter(Boolean).join('\n')) ?? [];
     return { candidates, signatures, context: `IntelliSense:\nUse these names and signatures to continue the buffered executable TypeScript. Completion does not execute the code; finish the program so it can be parsed, compiled and executed. Return the desired result as the final expression.\nCursor source: ${JSON.stringify(source)}\n${actual ? `Names queried directly from the current VM context (${actual.length} members).\n` : ''}${entries.length > 40 ? `Showing 40 of ${entries.length} matching candidates; omitted names are not evidence of absence. Request a namespace followed by a dot for its members.\n` : ''}\n${candidates.map(c => `<!> ${c.path} ${c.signature}${c.documentation ? ` — ${c.documentation}` : ''}`).join('\n')}${signatures.length ? '\nArgument hints:\n' + signatures.join('\n') : ''}` };
 }

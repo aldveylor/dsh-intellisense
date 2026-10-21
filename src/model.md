@@ -8,13 +8,13 @@
 
 `storage/store.ts` 定义 Store，生产使用 DSH JSON backend 的 `ts_intellisense` KV 单元、state 表；MemoryStore 和原子 FileStore 用于独立使用。保存注册表、会话数据检查点、续写日志、请求执行状态和物理工具派发日志。已完成请求返回缓存，未确定结果拒绝重试，不重放工具来恢复变量。
 
-`dsh/adapter.ts` 通过受支持的 LlmAdapter 维护独立上游请求和续写历史，不修改 AgentLoop 冻结请求。`index.ts` 通过官方 `llm/stream` waterfall 和 `isAgentLoopRequest` 识别 TS 会话的主循环请求，即使 UI 模型选择将 provider 切至原生路由，也交给 REPL 控制器并保留选中的上游 provider/model；内部续写、标题/压缩请求和普通会话不经过该接管。每会话串行生成与执行。`physical()` 根据 agent 作用域读取实际 schema；每次执行前刷新 namespace 和声明。上游 tools 数组为空；最终向原生 loop 返回 VM 执行结果，不回显生成源码；完成请求缓存同样返回执行结果。工具 additionalContexts 仍经原生 agent.inject 注入。
+`dsh/adapter.ts` 通过受支持的 LlmAdapter 维护独立上游请求和续写历史，不修改 AgentLoop 冻结请求。`index.ts` 通过官方 `llm/stream` waterfall 和 `isAgentLoopRequest` 识别 TS 会话的主循环请求，即使 UI 模型选择将 provider 切至原生路由，也交给 REPL 控制器并保留选中的上游 provider/model；内部续写、标题/压缩请求和普通会话不经过该接管。每会话串行生成与执行。`physical()` 根据 agent 作用域读取实际 schema（通过原生 schemas/get 取得描述、参数和返回值）；每次执行前刷新 namespace 和声明。上游 tools 数组为空；最终向原生 loop 返回 VM 执行结果，不回显生成源码；完成请求缓存同样返回执行结果。工具 additionalContexts 仍经原生 agent.inject 注入。
 
 ## 编译与执行
 
 `typescript/project.ts` 管理虚拟 TS 源文件、环境声明与标准库，使用官方 Language Service 做全段语法/语义检查，再用 transpileModule 编译，不使用 AST 解释器。普通段整体执行；含顶层 await 的段按语句生成执行单元。await 初始化值通过临时全局属性传递，随后以真实 const/let/var 声明建立 VM 顶层绑定；临时属性立即删除。记录各单元 source map。跨 await 单元的提升/TDZ 与完整模块存在差别；独立类型声明不跨段保留。
 
-`typescript/completion.ts` 只分析不完整输入，不执行它。完整成员候选直接查询当前 VM 的 globalThis、词法绑定和对象属性，实际运行时成员决定可见名称；未执行源码内的局部符号仍通过 TS 分析。查询不调用 getter 或 Proxy trap。真实环境声明、会话推导类型和 TS language service 负责文档、签名和参数提示。全局补全优先当前 VM 绑定、工具根命名空间与 Promise，过滤关键字并注明截断，避免前 40 项标准库候选淹没实际环境。
+`typescript/completion.ts` 只分析不完整输入，不执行它。完整成员候选直接查询当前 VM 的 globalThis、词法绑定和对象属性，实际运行时成员决定可见名称；未执行源码内的局部符号仍通过 TS 分析。查询不调用 getter 或 Proxy trap。真实环境声明、会话推导类型和 TS language service 负责文档、签名和参数提示；JSDoc 挂在工具属性上，补全候选另附 DSH 原生工具描述及完整参数/返回值 schema，保留字段说明与约束，映射备注不覆盖原始说明。全局补全优先当前 VM 绑定、工具根命名空间与 Promise，过滤关键字并注明截断，避免前 40 项标准库候选淹没实际环境。
 
 `runtime/session.ts` 为每会话保留真实 vm.Context 与词法声明。没有变量代理或 del。JS const/let 重声明与 delete 规则保留；不暴露 `console` 或日志接口；声明结果不显示，最终有意义的表达式自动显示。执行 ID 与源码绑定，重复 ID 返回相同 Promise。检查点序列化可复制的值和类型元数据，不保存闭包或重放工具。
 
