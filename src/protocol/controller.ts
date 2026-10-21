@@ -16,6 +16,7 @@ export interface LogicalResponse { source: string; output: string; abandoned: bo
 
 /** @brief Reconstruct internal history with system context before the unfinished assistant prefix. */
 export function continuationHistory(original: RequestMessage[], prefix: string, context: string, provider: string, model: string): RequestMessage[] {
+    if (!prefix) return [...original, createSystemMessage(`${context}\nWrite executable TypeScript using the completion context. No source has been buffered or executed.`)];
     return [
         ...original,
         createSystemMessage(`${context}\nContinue the unfinished TypeScript at the exact interruption point. Emit only the suffix, without repeating source. The following assistant prefix has not executed.`),

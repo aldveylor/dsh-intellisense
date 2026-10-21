@@ -92,3 +92,34 @@ test('repeated DSML output exhausts the retry limit without execution', async ()
         journal: async () => {},
     }, initial, 'invalid', 2), /continuation limit exceeded/);
 });
+
+
+test('session v4 bare marker chunks request completion without an empty assistant prefix', async () => {
+    const requests: GenerateOptions[] = [];
+    let completions = 0;
+    let executions = 0;
+    const result = await runConversation({
+        generate: request => {
+            requests.push(request);
+            if (requests.length > 1) return stream('Object.keys(unknown)');
+            return (async function* (): AsyncIterable<StreamChunk> {
+                yield { type: 'block-start', index: 0, blockType: 'text' };
+                // Exact token chunks from build/session.v4.jsonl assistant/message seq 21.
+                for (const text of ['<', '|', 'INT', 'ELL', 'IS', 'ENSE', '|', '>']) yield { type: 'text-delta', index: 0, text };
+                yield { type: 'block-end', index: 0, block: { type: 'text', text: '<|INTELLISENSE|>' } };
+                yield { type: 'finish', reason: { kind: 'stop' } };
+            })();
+        },
+        complete: async source => { assert.equal(source, ''); completions++; return completion; },
+        execute: async (_id, source) => { assert.equal(source, 'Object.keys(unknown)'); executions++; return { output: 'names', declarations: [] }; },
+        journal: async () => {},
+    }, initial, 'session-v4');
+    assert.equal(completions, 1);
+    assert.equal(executions, 1);
+    assert.equal(requests.length, 2);
+    assert.equal(requests[1]!.messages.at(-1)!.role, 'system');
+    assert.equal(requests[1]!.messages.filter(m => m.role === 'user').length, 1);
+    assert(!requests[1]!.messages.some(m => m.role === 'assistant' && m.content.some(b => b.type === 'text' && !b.text)));
+    assert.equal(result.output, 'names');
+    assert(!result.source.includes('<|INTELLISENSE|>'));
+});
