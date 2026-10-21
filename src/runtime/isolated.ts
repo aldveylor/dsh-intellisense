@@ -13,6 +13,9 @@ export class IsolatedSession {
     private pending = new Map<number, { resolve(value: unknown): void; reject(error: Error): void; timer: NodeJS.Timeout }>();
     private dead = false;
     private signal: AbortSignal | undefined;
+    private executing = false;
+    private executionAbort: AbortController | undefined;
+    private bridgeWork = new Set<Promise<void>>();
     private completed = new Map<string, { source: string; promise: Promise<ExecutionResult> }>();
 
     constructor(private invoke: (path: string, args: unknown, signal?: AbortSignal) => Promise<unknown>, private organize: (signal?: AbortSignal) => Promise<unknown>, private timeoutMs = 30_000) {
@@ -25,7 +28,10 @@ export class IsolatedSession {
         });
         this.child.on('error', error => this.fail(error));
         this.child.on('exit', (code, signal) => this.fail(new Error(`REPL process exited (${code ?? signal}); in-flight source must not be retried automatically`)));
-        this.child.on('message', message => { void this.receive(message); });
+        this.child.on('message', message => {
+            const work = this.receive(message); this.bridgeWork.add(work);
+            void work.finally(() => this.bridgeWork.delete(work));
+        });
         this.child.stderr?.resume();
     }
 
@@ -38,6 +44,7 @@ export class IsolatedSession {
             if (message.error) pending.reject(new Error(message.error)); else pending.resolve(message.value);
         } else if (message.type === 'invoke' || message.type === 'sort') {
             try {
+                if (!this.executing) throw new Error('No active execution owns this capability request');
                 this.signal?.throwIfAborted();
                 if ((JSON.stringify(message.args) ?? '').length > 1_048_576) throw new Error('Tool argument size limit exceeded');
                 const value = message.type === 'sort' ? await this.organize(this.signal) : await this.invoke(message.path, message.args, this.signal);
@@ -70,11 +77,16 @@ export class IsolatedSession {
 
     private async executeOnce(id: string, source: string, signal?: AbortSignal): Promise<ExecutionResult> {
         signal?.throwIfAborted();
-        this.signal = signal;
+        this.executionAbort = new AbortController();
+        this.signal = this.executionAbort.signal;
+        this.executing = true;
         const abort = (): void => this.fail(new Error('REPL execution cancelled; process terminated'));
         signal?.addEventListener('abort', abort, { once: true });
-        try { return await this.request('execute', [id, source]); }
-        finally { signal?.removeEventListener('abort', abort); this.signal = undefined; }
+        try {
+            const result = await this.request<ExecutionResult>('execute', [id, source]);
+            while (this.bridgeWork.size) await Promise.allSettled([...this.bridgeWork]);
+            return result;
+        } finally { signal?.removeEventListener('abort', abort); this.executing = false; this.signal = undefined; this.executionAbort = undefined; }
     }
 
     complete(source: string, usage: Record<string, Usage>, identities: Record<string, string>): Promise<CompletionResult> { return this.request('complete', [source, usage, identities]); }
@@ -84,6 +96,7 @@ export class IsolatedSession {
     private fail(error: Error): void {
         if (this.dead) return;
         this.dead = true;
+        this.executionAbort?.abort(error);
         this.child.kill('SIGKILL');
         for (const pending of this.pending.values()) { clearTimeout(pending.timer); pending.reject(error); }
         this.pending.clear();

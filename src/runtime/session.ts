@@ -4,7 +4,7 @@ import { serialize, deserialize } from 'node:v8';
 import { TypeScriptProject, type BindingType } from '../typescript/project.js';
 
 /** @brief Completed result and visible REPL output, with source mapping information. */
-export interface ExecutionResult { output: string; declarations: BindingType[]; sourceMap?: string }
+export interface ExecutionResult { output: string; declarations: BindingType[]; sourceMap?: string; sourceMaps?: string[] }
 /** @brief Explicit durable data checkpoint; executable closures are never replayed. */
 export interface SessionCheckpoint { version: 1; data: string; types: BindingType[]; omitted: string[] }
 /** @brief Tool binding surface supplied separately from the invocation capability. */
@@ -72,6 +72,8 @@ export class SessionRuntime {
         const compiled = this.project.compile(source, this.declarations(), this.environment.declarations);
         for (const binding of compiled.bindings) {
             if (this.roots.has(binding.name) || ['tools', 'whenAll', 'whenAny', 'console', 'globalThis'].includes(binding.name)) throw new Error(`Reserved binding: ${binding.name}`);
+            const previous = this.types.get(binding.name);
+            if (previous && (previous.kind !== 'var' || binding.kind !== 'var')) throw new SyntaxError(`Identifier '${binding.name}' has already been declared`);
         }
         this.logs = [];
         try {
@@ -85,7 +87,7 @@ export class SessionRuntime {
                 }
                 if (unit.display && value !== undefined) this.logs.push(this.format(value));
             }
-            return { output: this.logs.join('\n'), declarations: [...this.declarations(), ...compiled.bindings], sourceMap: compiled.sourceMap };
+            return { output: this.logs.join('\n'), declarations: [...this.declarations(), ...compiled.bindings], sourceMap: compiled.sourceMap, sourceMaps: compiled.sourceMaps };
         } finally {
             for (const binding of compiled.bindings) {
                 try {

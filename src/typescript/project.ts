@@ -64,7 +64,7 @@ export class TypeScriptProject {
 
     dispose(): void { this.service.dispose(); }
 
-    compile(source: string, bindings: BindingType[], declarations: string): { units: ExecutionUnit[]; bindings: BindingType[]; sourceMap: string } {
+    compile(source: string, bindings: BindingType[], declarations: string): { units: ExecutionUnit[]; bindings: BindingType[]; sourceMap: string; sourceMaps: string[] } {
         this.prepare(source, bindings, declarations);
         const diagnostics = [...this.service.getSyntacticDiagnostics(this.input), ...this.service.getSemanticDiagnostics(this.input)];
         if (diagnostics.length) throw new CompilationError(diagnostics);
@@ -89,6 +89,7 @@ export class TypeScriptProject {
         }
         const printer = ts.createPrinter();
         let sourceMap = '';
+        const sourceMaps: string[] = [];
         const transpile = (text: string): string => {
             const output = ts.transpileModule(text, {
                 compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None, sourceMap: true, inlineSources: true },
@@ -96,6 +97,7 @@ export class TypeScriptProject {
             });
             if (output.diagnostics?.length) throw new CompilationError(output.diagnostics);
             sourceMap = output.sourceMapText ?? '';
+            sourceMaps.push(sourceMap);
             return output.outputText.replace(/^\/\/# sourceMappingURL=.*$/m, '');
         };
         const containsAwait = (node: ts.Node): boolean => {
@@ -141,7 +143,7 @@ export class TypeScriptProject {
                 }
             }
         }
-        return { units, bindings: newTypes, sourceMap };
+        return { units, bindings: newTypes, sourceMap, sourceMaps };
     }
 }
 
