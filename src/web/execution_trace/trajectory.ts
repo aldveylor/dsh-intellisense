@@ -2,7 +2,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import type { ConversationNodeDefinitionInput } from '@deepseek-ai/dsh-client-ui-conversation/client';
 import type { TrajectoryConversationViewNode } from '@deepseek-ai/dsh-client-ui-trajectory/client';
 
-/** @brief Preserve REPL call ownership after the native step settles its final assistant reply. */
+/** @brief Own REPL call records without settling the native assistant's ongoing reasoning stream. */
 export const replTrajectory: ConversationNodeDefinitionInput<null> = {
     kind: 'ts-repl-execution',
     target: 'trajectory',
@@ -10,7 +10,7 @@ export const replTrajectory: ConversationNodeDefinitionInput<null> = {
         'assistant/message': event => {
             if (event.type !== 'assistant/message') return null;
             const execution = event.data.message.content.some(block => block.type === 'tool-call' && block.name === 'ts_repl' && String(block.id).startsWith('ts-repl-'));
-            return { id: `${event.data.turn}:${event.data.step}`, role: execution ? 'start' : 'update' };
+            return execution ? { id: String(event.data.message.id), role: 'start', exclusive: true } : null;
         },
     },
     start: () => null,
@@ -18,8 +18,7 @@ export const replTrajectory: ConversationNodeDefinitionInput<null> = {
     buildViewNode: context => {
         const start = context.start;
         const event = start?.event;
-        // Before final settlement the native step already displays this call.
-        if (!start || event?.type !== 'assistant/message' || context.matches.at(-1)?.event.seq === event.seq) return null;
+        if (!start || event?.type !== 'assistant/message') return null;
         const blocks = event.data.message.content.flatMap(block => block.type === 'tool-call' ? [{
             kind: 'tool-call' as const, callId: String(block.id), name: block.name, argsRaw: block.arguments,
         }] : []);

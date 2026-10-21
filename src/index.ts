@@ -57,7 +57,8 @@ export async function apply(ctx: Context, options: Config = {}): Promise<void> {
     ctx.on('system-prompt/assemble', async (_assembly, context, next) => {
         const assembled = await next();
         if (context.agent?.options.provider === config.route) {
-            assembled.tools = [];
+            // Native request headers retain callable tool schemas for trajectory inspection.
+            // The adapter removes tools from the actual upstream request.
             assembled.sections = assembled.sections.filter(section => !section.name.startsWith('tool:') && !section.name.startsWith('tools:'));
         }
         return assembled;
