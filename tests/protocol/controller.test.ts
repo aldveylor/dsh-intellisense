@@ -123,3 +123,38 @@ test('session v4 bare marker chunks request completion without an empty assistan
     assert.equal(result.output, 'names');
     assert(!result.source.includes('<|INTELLISENSE|>'));
 });
+
+
+test('validation repairs prose and fences before execution while retaining discovery context', async () => {
+    const responses = ['<|INTELLISENSE|>', 'unknown 不存在。\n\n```ts\nObject.keys(unknown)\n```', 'Object.keys(unknown)'];
+    const requests: GenerateOptions[] = [];
+    const validated: string[] = [];
+    const executed: string[] = [];
+    const response = await runConversation({
+        generate: request => { requests.push(request); return stream(responses.shift()!); },
+        complete: async () => completion,
+        validate: async source => { validated.push(source); return source.startsWith('unknown 不存在') ? 'error TS1434: Unexpected keyword or identifier.' : undefined; },
+        execute: async (_id, source) => { executed.push(source); return { output: 'members', declarations: [] }; },
+        journal: async () => {},
+    }, initial, 'repair');
+    assert.equal(validated.length, 2);
+    assert(validated[0]!.endsWith('```'));
+    assert.deepEqual(executed, ['Object.keys(unknown)']);
+    assert.match(JSON.stringify(requests[2]!.messages), /TypeScript validation failed/);
+    assert.match(JSON.stringify(requests[2]!.messages), /std.fs.read/);
+    assert.equal(response.output, 'members');
+});
+
+test('validation retries are bounded and runtime failures never retry executed code', async () => {
+    let executions = 0;
+    const host = {
+        generate: () => stream('bad prose'), complete: async () => completion,
+        validate: async () => 'error TS1434',
+        execute: async () => { executions++; throw new Error('runtime failure'); },
+        journal: async () => {},
+    };
+    await assert.rejects(runConversation(host, initial, 'invalid', 2), /continuation limit/);
+    assert.equal(executions, 0);
+    await assert.rejects(runConversation({ ...host, validate: async () => undefined }, initial, 'runtime'), /runtime failure/);
+    assert.equal(executions, 1);
+});

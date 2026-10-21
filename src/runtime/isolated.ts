@@ -91,6 +91,7 @@ export class IsolatedSession {
     }
 
     complete(source: string, usage: Record<string, Usage>, identities: Record<string, string>): Promise<CompletionResult> { return this.request('complete', [source, usage, identities]); }
+    validate(source: string): Promise<string | undefined> { return this.request('validate', [source]); }
     declarations(): Promise<BindingType[]> { return this.request('declarations', []); }
     checkpoint(): Promise<SessionCheckpoint> { return this.request('checkpoint', []); }
     restore(checkpoint: SessionCheckpoint): Promise<void> { return this.request('restore', [checkpoint]); }

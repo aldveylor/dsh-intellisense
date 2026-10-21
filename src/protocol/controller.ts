@@ -7,6 +7,7 @@ import type { ExecutionResult } from '../runtime/session.js';
 export interface ControllerHost {
     generate(options: GenerateOptions): AsyncIterable<StreamChunk>;
     complete(source: string): Promise<CompletionResult>;
+    validate?(source: string): Promise<string | undefined>;
     execute(id: string, source: string): Promise<ExecutionResult>;
     journal(record: { round: number; prefix: string; response: string; context?: string }): Promise<void>;
 }
@@ -27,6 +28,7 @@ export function continuationHistory(original: RequestMessage[], prefix: string, 
 /** @brief Consume full responses, then request completion or execute one complete logical program. */
 export async function runConversation(host: ControllerHost, initial: GenerateOptions, identity: string, limit = 12): Promise<LogicalResponse> {
     let prefix = '';
+    const discoveries: string[] = [];
     let request = initial;
     for (let round = 0; round < limit; round++) {
         initial.signal?.throwIfAborted();
@@ -59,11 +61,20 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
             return { source: prefix, output: '', abandoned: true };
         }
         if (segment.kind === 'code') {
+            const error = await host.validate?.(prefix);
+            if (error) {
+                const context = `${discoveries.join('\n\n')}\nTypeScript validation failed before execution. No code from the buffered program has executed. Replace the entire buffered program with corrected executable TypeScript only; do not include prose or Markdown fences.\nRejected source:\n${prefix}\nCompiler diagnostics:\n${error}`;
+                await host.journal({ round, prefix, response, context });
+                prefix = '';
+                request = { ...initial, messages: [...initial.messages, createSystemMessage(context)], tools: [], toolHistory: undefined };
+                continue;
+            }
             await host.journal({ round, prefix, response });
             const result = await host.execute(identity, prefix);
             return { source: prefix, output: result.output, abandoned: false };
         }
-        const context = segment.kind === 'intellisense' ? (await host.complete(prefix)).context : 'Continue on the next line. The buffered source remains unexecuted.';
+        if (segment.kind === 'intellisense') discoveries.push((await host.complete(prefix)).context);
+        const context = [...discoveries, ...(segment.kind === 'line' ? ['Continue on the next line. The buffered source remains unexecuted.'] : [])].join('\n\n');
         if (segment.kind === 'line') prefix += '\n';
         await host.journal({ round, prefix, response, context });
         request = { ...initial, messages: continuationHistory(initial.messages, prefix, context, initial.provider, initial.model), tools: [], toolHistory: undefined };

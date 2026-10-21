@@ -96,3 +96,17 @@ test('empty completion prioritizes VM roots and bindings before standard library
         assert(complete(runtime, env, 'unknown.').candidates.some(c => c.path === 'unknown.read'));
     } finally { runtime.dispose(); }
 });
+
+
+test('validation rejects prose without executing earlier statements or poisoning execution IDs', async () => {
+    const runtime = make();
+    try {
+        await runtime.execute('seed', 'let count = 0');
+        const error = runtime.validate('count++; unknown 命名空间不存在。');
+        assert.match(error!, /error TS/);
+        assert(!error!.includes('\u001b'));
+        assert.equal((await runtime.execute('value', 'count')).output, '0');
+        assert.equal(runtime.validate('count += 1; count'), undefined);
+        assert.equal((await runtime.execute('corrected', 'count += 1; count')).output, '1');
+    } finally { runtime.dispose(); }
+});

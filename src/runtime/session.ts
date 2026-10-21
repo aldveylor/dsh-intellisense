@@ -52,6 +52,13 @@ export class SessionRuntime {
 
     declarations(): BindingType[] { return [...this.types.values()]; }
 
+    /** @brief Compile a proposed segment without executing or recording an execution identity. */
+    validate(source: string): string | undefined {
+        try { this.project.compile(source, this.declarations(), this.environment.declarations); }
+        catch (error) { return (error instanceof Error ? error.message : String(error)).slice(0, 16_384); }
+        return undefined;
+    }
+
     execute(id: string, source: string): Promise<ExecutionResult> {
         const old = this.completed.get(id);
         if (old) {

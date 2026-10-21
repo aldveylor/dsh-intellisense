@@ -6,7 +6,7 @@ export interface BindingType { name: string; kind: 'const' | 'let' | 'var'; type
 /** @brief Compiler diagnostics retain source positions for actionable feedback. */
 export class CompilationError extends Error {
     constructor(readonly diagnostics: readonly ts.Diagnostic[]) {
-        super(ts.formatDiagnosticsWithColorAndContext(diagnostics, {
+        super(ts.formatDiagnostics(diagnostics, {
             getCanonicalFileName: f => f, getCurrentDirectory: () => process.cwd(), getNewLine: () => '\n',
         }));
     }

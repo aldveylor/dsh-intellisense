@@ -5,7 +5,8 @@ export interface Segment { kind: 'code' | 'intellisense' | 'line' | 'break'; sou
 
 /** @brief Parse a voluntarily completed response without interrupting model streaming. */
 export function processMarkers(response: string): Segment {
-    const text = response.replace(/^\s*```(?:ts|typescript)?\s*\n/, '').replace(/\n```\s*$/, '');
+    const fenced = /^\s*```(?:ts|typescript)?[ \t]*\r?\n([\s\S]*?)\r?\n```\s*$/.exec(response);
+    const text = fenced?.[1] ?? response;
     const matches = [...text.matchAll(/<\|[^|]+\|>/g)];
     if (!matches.length) return { kind: 'code', source: text };
     if (matches.length !== 1) throw new Error('Emit exactly one terminal control marker');

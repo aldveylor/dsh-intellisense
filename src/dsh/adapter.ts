@@ -121,6 +121,7 @@ export class TypeScriptAdapter extends LlmAdapter {
                 await this.registry.expose(result.candidates.map(c => c.path));
                 return result;
             },
+            validate: source => runtime.validate(source),
             execute: async (id, source) => {
                 if (previous?.status === 'completed') return previous.result!;
                 if (previous?.status === 'failed') throw new Error(previous.error);
