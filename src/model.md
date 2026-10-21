@@ -26,4 +26,4 @@
 
 `dsh/organization.ts` 使用原生 spawn 子代理和结构化输出 schema。提前保留 childId 并安装执行 guard，仅允许结构化输出工具。提案先在内存快照验证，等待 UI 批准后以 revision 校验并事务提交；不能修改 DSH 原生执行策略。
 
-`web/routes.ts` 使用原生 Connection fetch 注册认证路由。`ui.ts` 提供页面，`client.ts` 实现命名空间树、schema 检查、编辑、会话选择、组织提案与明确批准。使用 textContent 输出不可信元数据。状态修改同步更新注册表，下一次补全/执行刷新运行时声明和命名空间，提示词变更通过原生事件通知。
+`web/routes.ts` 使用原生 Connection fetch 注册认证路由。`web/management_panel.tsx` 使用 React 实现命名空间树、schema 检查、版本化配置草稿、搜索、会话选择、组织提案与明确批准；不可信工具元数据作为 React 文本渲染。`web/client.ts` 通过原生 settings.plugins.tab 插槽挂载到“设置 → 插件 → TypeScript 工具”，由 package.json 的 dsh.client 声明和 ./client 导出被宿主发现。`web/ui.ts` 与 `web/standalone.tsx` 保留独立认证页面并复用同一组件。`scripts/build_client.mjs` 构建共享宿主 React 的原生懒加载模块及内含 React 的独立页面脚本，npm build 与 run.mjs 均执行前端打包。状态修改同步更新注册表，下一次补全/执行刷新运行时声明和命名空间，提示词变更通过原生事件通知。

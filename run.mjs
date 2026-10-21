@@ -12,7 +12,7 @@ process.chdir(projectDir);
 if (!existsSync('node_modules/@deepseek-ai/dsh/lib/profile-boot.js') || !existsSync('node_modules/typescript/bin/tsc')) {
     execFileSync('npm', ['ci', '--prefix', projectDir], { stdio: 'inherit' });
 }
-execFileSync(process.execPath, ['node_modules/typescript/bin/tsc', '-p', 'tsconfig.json'], { stdio: 'inherit' });
+execFileSync('npm', ['run', 'build'], { stdio: 'inherit' });
 
 mkdirSync(workspaceDir, { recursive: true });
 const patch = readFileSync('cordis.patch.yml', 'utf8')
