@@ -32,13 +32,24 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
         let response = '';
         let reason: string | undefined;
         let ended = '';
+        let nativeCall = false;
         for await (const chunk of host.generate(request)) {
             if (chunk.type === 'text-delta') response += chunk.text;
             if (chunk.type === 'block-end' && chunk.block.type === 'text') ended += chunk.block.text;
-            if (chunk.type === 'tool-call-delta' || (chunk.type === 'block-end' && chunk.block.type === 'tool-call')) throw new Error('Native model tool calls are disabled in TypeScript mode');
+            if (chunk.type === 'tool-call-delta' || (chunk.type === 'block-end' && chunk.block.type === 'tool-call')) nativeCall = true;
             if (chunk.type === 'finish') reason = chunk.reason.kind;
         }
         if (!response) response = ended;
+        if (nativeCall || /<\/?\s*[|｜]+\s*DSML\b/i.test(response)) {
+            const context = 'Invalid response format: native tool calls and DSML wrappers are disabled. Output raw executable TypeScript only. To inspect a namespace, write its name followed by a dot and <|INTELLISENSE|>, then stop immediately. For example: unknown.<|INTELLISENSE|>. Use only names listed in the VM context. The rejected response has not executed.';
+            await host.journal({ round, prefix, response, context });
+            request = {
+                ...initial,
+                messages: prefix ? continuationHistory(initial.messages, prefix, context, initial.provider, initial.model) : [...initial.messages, createSystemMessage(context)],
+                tools: [], toolHistory: undefined,
+            };
+            continue;
+        }
         if (reason !== 'stop') throw new Error(`Generation did not finish normally (${reason ?? 'missing finish'}); incomplete input was not executed`);
         const segment = processMarkers(response);
         prefix = mergeContinuation(prefix, segment.source);

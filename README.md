@@ -28,7 +28,7 @@ const file = await std.fs.read({ path: "notes.txt" });
 console.log(file);
 ```
 
-实际工具名称、参数和返回值来自当前 DSH 注册表；上例需要先配置对应工具。模型通过 `await std.fs.<|INTELLISENSE|>` 请求真实补全，主动结束本次生成；插件在完整响应结束后加入内部 system 补全上下文和原始 assistant 前缀，再请求续写。不会添加伪造用户消息，也不会中断正在生成的流。`<|LINE_BREAK|>` 累积输入并换行，`<|BREAK|>` 放弃输入；不执行不完整源码。
+实际工具名称、参数和返回值来自当前 DSH 注册表；上例需要先配置对应工具。模型通过 `await std.fs.<|INTELLISENSE|>` 请求真实补全，主动结束本次生成；插件在完整响应结束后加入内部 system 补全上下文和原始 assistant 前缀，再请求续写。不会添加伪造用户消息，也不会中断正在生成的流。`<|LINE_BREAK|>` 累积输入并换行，`<|BREAK|>` 放弃输入；不执行不完整源码。若模型误输出 DSML 包装或原生工具调用，插件拒绝该响应，并在续写次数上限内要求改用 TypeScript，保留此前未执行的前缀。
 
 每个会话有独立 VM，直接使用 VM 顶层词法变量：`const`、`let`、函数和闭包在后续段可访问。最后一个表达式的结果自动显示，Promise 自动等待。变量使用 JS 原生规则，没有 `del` 命令或绑定代理；`delete object.optionalProperty` 使用正常 TypeScript 检查和 JS 行为，不能删除词法绑定后重新声明。不要把 `const` / `let` 当成 `globalThis` 的属性。
 
