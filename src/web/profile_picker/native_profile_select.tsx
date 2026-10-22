@@ -17,7 +17,7 @@ function NativeProfileItem({ value, label, selected, disabled, removable, onChan
         if (name && name !== value) onRename(name);
     }
 
-    return <div className="ts-profile-item">
+    return <div className="ts-profile-item" data-selected={selected}>
         {draft === undefined ? <button type="button" className="ts-profile-option" aria-pressed={selected} aria-disabled={disabled}
             onClick={() => { if (!disabled) onChange(); }} onDoubleClick={() => setDraft(value)}>
             <span className="ts-profile-check" aria-hidden="true">{selected ? '✓' : ''}</span><span>{label}</span>
@@ -29,7 +29,11 @@ function NativeProfileItem({ value, label, selected, disabled, removable, onChan
                 if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setDraft(undefined); }
             }} />}
         <button type="button" className="ts-profile-delete" aria-label={`${t('delete_profile')} ${value}`} title={t('delete_profile')}
-            disabled={disabled || !removable} onClick={onRemove}>×</button>
+            disabled={disabled || !removable} onClick={onRemove}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                <path d="m6 6 12 12M18 6 6 18" />
+            </svg>
+        </button>
     </div>;
 }
 
