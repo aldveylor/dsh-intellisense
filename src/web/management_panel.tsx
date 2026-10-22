@@ -1,10 +1,10 @@
 import { useEffect, useState, type DragEvent } from 'react';
 import type { Namespace, Mapping, PhysicalTool, RegistryState } from '../registry/registry.js';
-import { validatePath } from '../registry/path.js';
+import { toolName, validatePath } from '../registry/path.js';
 import { vmCommands } from '../runtime/builtins.js';
 import { ToolPicker } from './tool_picker/tool_picker.js';
 import { useTreeDrag, treeDropTarget } from './tree_drag.js';
-import { namespacePaths, orderedPaths, inNamespace, renameNamespace, deleteNamespace, dropTree, type TreeDragSource, type TreeDropTarget } from './namespace_tree.js';
+import { isFixedNamespace, namespacePaths, orderedPaths, inNamespace, renameNamespace, deleteNamespace, dropTree, type TreeDragSource, type TreeDropTarget } from './namespace_tree.js';
 
 /** @brief Authenticated management metadata, shared by embedded and standalone React views. */
 interface View {
@@ -69,6 +69,7 @@ function RemoveButton({ label, busy, remove }: { label: string; busy: boolean; r
 
 /** @brief Mark a node as a drag target without intercepting ordinary text editing. */
 function acceptTreeDrag(event: DragEvent<HTMLElement>, busy: boolean): void {
+    if (event.currentTarget.dataset.dropDisabled === 'true') { event.stopPropagation(); return; }
     if (!busy && event.dataTransfer.types.some(type => ['application/x-ts-tool', 'application/x-ts-namespace'].includes(type))) {
         event.preventDefault(); event.stopPropagation();
         event.currentTarget.dataset.dropEdge = treeDropTarget(event.currentTarget, event.clientY).position;
@@ -154,24 +155,39 @@ interface TreeProps {
     toggle: (path: string) => void; dropNode: (event: DragEvent<HTMLElement>, path: string, namespace: boolean) => void;
 }
 
+/** @brief An unconfigured tool can leave unknown but cannot be edited or receive incoming drops. */
+function UnknownTool({ tool, tree }: { tool: PhysicalTool; tree: TreeProps }) {
+    const path = `unknown.${toolName(tool.id)}`;
+    return <li className="ts-tree-tool" data-tree-path={path} data-tool-id={tool.id} data-drop-disabled="true" draggable={!tree.busy}
+        onDragStart={event => {
+            event.stopPropagation(); event.dataTransfer.setData('application/x-ts-tool', tool.id);
+            event.dataTransfer.setData('application/x-ts-mapping', path); event.dataTransfer.effectAllowed = 'move';
+        }} onDragOver={event => event.stopPropagation()} onDrop={event => { event.preventDefault(); event.stopPropagation(); }}>
+        <code>{toolName(tool.id)}</code><span className="ts-mapping-source">→ {tool.id}</span>
+        <span className="ts-tool-preview" title={tool.description}>{tool.description}</span>
+    </li>;
+}
+
 /** @brief Namespace row whose children toggle only through the leading disclosure button. */
 function NamespaceNode({ path, tree }: { path: string; tree: TreeProps }) {
     const config = tree.namespaces.find(n => n.path === path);
+    const fixed = isFixedNamespace(path);
     const open = tree.expanded[path] ?? false;
     const children = tree.paths.filter(p => p.startsWith(`${path}.`) && p.split('.').length === path.split('.').length + 1);
     const mounted = tree.mappings.flatMap(mapping => [mapping.path, ...mapping.aliases].map(path => ({ path, mapping })))
         .filter(m => m.path.split('.').slice(0, -1).join('.') === path);
     const nodes = orderedPaths([...children, ...mounted.map(m => m.path)], tree.order);
     return <li data-tree-path={path}>
-        <div className="ts-node-block" data-namespace-path={path} draggable={!tree.busy} onDragStart={event => {
+        <div className={`ts-node-block${fixed ? ' ts-fixed-node' : ''}`} data-namespace-path={path} data-drop-disabled={fixed || undefined} draggable={!tree.busy && !fixed} onDragStart={event => {
+            if (fixed) { event.preventDefault(); return; }
             if ((event.target as HTMLElement).tagName === 'INPUT') { event.preventDefault(); return; }
             event.stopPropagation(); event.dataTransfer.setData('application/x-ts-namespace', path); event.dataTransfer.effectAllowed = 'move';
-        }} onDragOver={event => acceptTreeDrag(event, tree.busy)} onDragLeave={event => { event.currentTarget.removeAttribute('data-drop-edge'); }} onDrop={event => tree.dropNode(event, path, true)}>
+        }} onDragOver={event => acceptTreeDrag(event, tree.busy || fixed)} onDragLeave={event => { event.currentTarget.removeAttribute('data-drop-edge'); }} onDrop={event => tree.dropNode(event, path, true)}>
             <button className="ts-disclosure" type="button" aria-label={`展开或收起 ${path}`} aria-expanded={open} disabled={tree.busy}
                 onClick={() => tree.toggle(path)}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
             </button>
-            <EditableText className="ts-node-name" value={path.split('.').at(-1)!} label={`命名空间名称 ${path}`} busy={tree.busy}
+            {fixed ? <><span className="ts-node-name">{path}</span><span className="ts-node-preview">{path === 'vm' ? '固定 VM 内置指令' : '未挂载工具，仅可拖出'}</span></> : <><EditableText className="ts-node-name" value={path.split('.').at(-1)!} label={`命名空间名称 ${path}`} busy={tree.busy}
                 commit={name => tree.renameNamespace(path, name)} />
             <EditableText className="ts-node-preview" value={config?.description ?? ''} label={`命名空间注释 ${path}`} busy={tree.busy} empty
                 commit={description => { tree.configure(path, { description }); return true; }} />
@@ -179,13 +195,19 @@ function NamespaceNode({ path, tree }: { path: string; tree: TreeProps }) {
                 <PinButton label={`一直显示 ${path}`} active={config?.alwaysVisible ?? false} busy={tree.busy}
                     toggle={() => tree.configure(path, { alwaysVisible: !config?.alwaysVisible })} />
                 <RemoveButton label={`删除命名空间 ${path}`} busy={tree.busy} remove={() => tree.deleteNamespace(path)} />
-            </span>
+            </span></>}
         </div>
-        {open && <ul>{nodes.map(node => {
+        {open && <ul>{path === 'vm' ? vmCommands.map(command => <li key={command.path} className="ts-tree-tool ts-fixed-node"
+            data-tree-path={command.path} data-vm-builtin={command.path} data-drop-disabled="true"
+            onDragOver={event => event.stopPropagation()} onDrop={event => { event.preventDefault(); event.stopPropagation(); }}>
+            <code title={command.signature}>{command.path.split('.').at(-1)}</code>
+            <span className="ts-tool-preview">{command.description}</span>
+        </li>) : path === 'unknown' ? tree.tools.filter(tool => !tree.mappings.some(mapping => mapping.id === tool.id && mapping.path.trim()))
+            .map(tool => <UnknownTool key={tool.id} tool={tool} tree={tree} />) : nodes.map(node => {
             const command = mounted.find(m => m.path === node);
             return command ? <MappedTool key={node} path={node} mapping={command.mapping} tree={tree}
                 description={tree.tools.find(t => t.id === command.mapping.id)?.description} /> : <NamespaceNode key={node} path={node} tree={tree} />;
-        })}<NamespacePlaceholder parent={path} busy={tree.busy} create={tree.create} drop={tree.drop} pick={tree.pick} /></ul>}
+        })}{!fixed && <NamespacePlaceholder parent={path} busy={tree.busy} create={tree.create} drop={tree.drop} pick={tree.pick} />}</ul>}
     </li>;
 }
 
@@ -236,11 +258,12 @@ export function ManagementPanel({ api }: ManagementPanelProps) {
         });
     }
 
-    const paths = namespacePaths({ mappings, namespaces });
+    const paths = [...new Set(['vm', 'unknown', ...namespacePaths({ mappings, namespaces })])];
     const unknown = view?.tools.filter(tool => !mappings.some(m => m.id === tool.id && m.path.trim())).length ?? 0;
 
     /** @brief Keep inferred and explicitly created namespaces in the same draft metadata model. */
     function configureNamespace(path: string, patch: Partial<Namespace>): void {
+        if (isFixedNamespace(path)) return;
         setNamespaces(current => {
             const next = { path, alwaysVisible: false, description: '', ...current.find(n => n.path === path), ...patch };
             return current.some(n => n.path === path) ? current.map(n => n.path === path ? next : n) : [...current, next];
@@ -249,6 +272,7 @@ export function ManagementPanel({ api }: ManagementPanelProps) {
 
     /** @brief Commit only named namespaces that do not conflict with callable paths. */
     function createNamespace(path: string): boolean {
+        if (isFixedNamespace(path)) { setStatus('固定命名空间不可修改。'); return false; }
         const toolPaths = mappings.flatMap(m => [m.path, ...m.aliases]);
         if (!/^[a-zA-Z_$][\w$]*(\.[a-zA-Z_$][\w$]*)*$/.test(path) || paths.includes(path) ||
             toolPaths.some(p => p === path || path.startsWith(`${p}.`))) {
@@ -333,6 +357,7 @@ export function ManagementPanel({ api }: ManagementPanelProps) {
     /** @brief Keep HTML drag compatibility while using the same center/edge resolution as pointer dragging. */
     function nativeDrop(event: DragEvent<HTMLElement>, target: TreeDropTarget): void {
         event.preventDefault(); event.stopPropagation(); event.currentTarget.removeAttribute('data-drop-edge');
+        if (event.currentTarget.dataset.dropDisabled === 'true') return;
         const namespace = event.dataTransfer.getData('application/x-ts-namespace');
         applyDrop({ namespace: !!namespace, path: namespace || event.dataTransfer.getData('application/x-ts-mapping') || undefined, id: event.dataTransfer.getData('application/x-ts-tool') || undefined }, target);
     }
@@ -371,11 +396,6 @@ export function ManagementPanel({ api }: ManagementPanelProps) {
             })}
                 <NamespacePlaceholder busy={busy || !view} create={createNamespace} pick={setToolPicker} drop={(event, parent) => nativeDrop(event, { path: parent, position: 'inside' })} />
             </ul>
-            <ul className="ts-tree" aria-label="固定 VM 内置指令">{vmCommands.map(command => <li key={command.path} className="ts-tree-tool" data-vm-builtin={command.path}>
-                <code title={command.signature}>{command.path}</code>
-                <span className="ts-tool-preview">{command.description}</span>
-                <small>内置 · 只读</small>
-            </li>)}</ul>
             <small>unknown：{unknown} 个未挂载工具</small>
         </section></main>
         {toolPicker !== undefined && view && <ToolPicker parent={toolPicker} tools={view.tools} mappings={mappings} busy={busy}
@@ -408,6 +428,7 @@ export function ManagementPanel({ api }: ManagementPanelProps) {
 }
 
 const styles = `
+.ts-intellisense .ts-fixed-node{color:var(--dsw-alias-label-tertiary,#a5a5a5)}.ts-fixed-node .ts-node-name,.ts-fixed-node code{cursor:default}.ts-fixed-node .ts-node-preview,.ts-fixed-node .ts-tool-preview{color:inherit}
 .ts-intellisense{--ts-border:var(--dsw-alias-border-l2,#80808047);--ts-border-focus:var(--dsw-alias-label-secondary,#c8c8c8);font:14px system-ui,sans-serif;color:var(--dsw-alias-label-primary,#dce3ed);padding:16px;width:100%;min-width:0;box-sizing:border-box;background:transparent}
 .ts-intellisense *{box-sizing:border-box}.ts-intellisense header{display:flex;align-items:center;gap:8px 24px;flex-wrap:wrap}.ts-intellisense h1{font-size:22px}.ts-intellisense h2{font-size:17px}.ts-intellisense h4{margin:12px 0 4px}
 .ts-intellisense button:not([data-dsh-control]),.ts-intellisense input,.ts-intellisense select,.ts-intellisense textarea{font:inherit;color:inherit;background:transparent;border:1px solid var(--ts-border);border-radius:var(--dsw-radius-md,6px);padding:8px;transition:border-color .2s ease}

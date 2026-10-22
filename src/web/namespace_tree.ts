@@ -4,6 +4,9 @@ import type { Mapping, Namespace } from '../registry/registry.js';
 /** @brief The editable tree configuration independent of physical tool identities. */
 export interface TreeDraft { mappings: Mapping[]; namespaces: Namespace[]; order: string[] }
 
+/** @brief Fixed namespaces are display-only and cannot receive configurable tree nodes. */
+export function isFixedNamespace(path: string): boolean { return ['vm', 'unknown'].includes(path.split('.')[0]!); }
+
 /** @brief List explicit and inferred namespace paths. */
 export function namespacePaths(draft: Pick<TreeDraft, 'mappings' | 'namespaces'>): string[] {
     return [...new Set([
@@ -30,9 +33,9 @@ export function renameNamespace(draft: TreeDraft, source: string, name: string):
 
 /** @brief Move a complete namespace subtree to an explicitly resolved destination. */
 function relocateNamespace(draft: TreeDraft, source: string, target: string): TreeDraft {
+    if (isFixedNamespace(source) || isFixedNamespace(target)) throw new Error('固定命名空间不可修改。');
     validatePath(`${target}.namespace_check`);
     if (target !== source && inNamespace(target, source)) throw new Error('不能拖入自身或子命名空间。');
-    if (target === 'unknown') throw new Error('unknown 是保留命名空间。');
     if (source === target) return draft;
     const paths = namespacePaths(draft);
     if (!paths.includes(source)) throw new Error('命名空间不存在。');
@@ -50,6 +53,7 @@ function relocateNamespace(draft: TreeDraft, source: string, target: string): Tr
 
 /** @brief Delete a subtree's namespace metadata and mappings, keeping physical tools and outside mappings. */
 export function deleteNamespace(draft: TreeDraft, source: string): TreeDraft {
+    if (isFixedNamespace(source)) throw new Error('固定命名空间不可修改。');
     if (draft.mappings.some(m => m.pinned && [m.path, ...m.aliases].some(p => inNamespace(p, source)))) throw new Error('命名空间包含锁定映射。');
     return {
         namespaces: draft.namespaces.filter(n => !inNamespace(n.path, source)),
@@ -64,6 +68,7 @@ export function deleteNamespace(draft: TreeDraft, source: string): TreeDraft {
 /** @brief Reorder sibling commands and namespaces without changing their semantic paths. */
 export function reorderTree(draft: TreeDraft, source: string, target: string, after: boolean): string[] {
     const parent = (path: string): string => path.split('.').slice(0, -1).join('.');
+    if (isFixedNamespace(source) || isFixedNamespace(parent(target))) throw new Error('固定命名空间不可修改。');
     const paths = [...namespacePaths(draft), ...draft.mappings.flatMap(m => [m.path, ...m.aliases])];
     if (source === target || parent(source) !== parent(target) || !paths.includes(source) || !paths.includes(target)) return draft.order;
     const order = orderedPaths(paths, draft.order).filter(path => path !== source);
@@ -79,17 +84,19 @@ export interface TreeDropTarget { path: string; position: 'inside' | 'before' | 
 /** @brief Move or mount any tree node atomically, including cross-namespace insertion beside commands. */
 export function dropTree(draft: TreeDraft, source: TreeDragSource, target: TreeDropTarget, defaultName = 'command'): TreeDraft {
     const parent = target.position === 'inside' ? target.path : target.path.split('.').slice(0, -1).join('.');
+    if (isFixedNamespace(parent)) throw new Error('不能拖入固定命名空间。');
+    if ((source.namespace && source.path && isFixedNamespace(source.path)) || source.path?.split('.')[0] === 'vm') throw new Error('固定命名空间及 VM 命令不可移动。');
     const namespaces = namespacePaths(draft);
     if (parent && !namespaces.includes(parent)) throw new Error('目标命名空间不存在。');
     if (target.position !== 'inside' && ![...namespaces, ...draft.mappings.flatMap(m => [m.path, ...m.aliases])].includes(target.path)) throw new Error('目标节点不存在。');
     const mapping = draft.mappings.find(m => m.id === source.id);
-    const previous = source.path || (source.namespace ? undefined : mapping?.path);
+    const previous = !mapping && source.path?.startsWith('unknown.') ? undefined : source.path || (source.namespace ? undefined : mapping?.path);
     if (!source.namespace && mapping?.pinned) throw new Error('映射路径已锁定。');
     if (previous === target.path && target.position !== 'inside') return draft;
     if (source.namespace && (!previous || !namespaces.includes(previous))) throw new Error('源命名空间不存在。');
     if (source.namespace && previous && (parent === previous || inNamespace(parent, previous))) throw new Error('不能拖入自身或子命名空间。');
-    if (!source.namespace && (!source.id || (source.path && !mapping?.aliases.includes(source.path) && source.path !== mapping?.path))) throw new Error('源工具映射不存在。');
-    const name = previous?.split('.').at(-1) || defaultName;
+    if (!source.namespace && (!source.id || (previous && !mapping?.aliases.includes(previous) && previous !== mapping?.path))) throw new Error('源工具映射不存在。');
+    const name = previous?.split('.').at(-1) || source.path?.split('.').at(-1) || defaultName;
     const prefix = parent ? `${parent}.` : '';
     let path = `${prefix}${name}`;
     const occupied = (path: string): boolean => [...namespaces, ...draft.mappings.flatMap(m => [m.path, ...m.aliases])]
@@ -106,7 +113,7 @@ export function dropTree(draft: TreeDraft, source: TreeDragSource, target: TreeD
         next = { ...draft, mappings: mapping ? draft.mappings.map(m => m.id === source.id ? entry : m) : [...draft.mappings, entry], namespaces: [...draft.namespaces] };
     }
     const oldParent = previous?.split('.').slice(0, -1).join('.');
-    for (const keep of [parent, oldParent]) if (keep && !next.namespaces.some(n => n.path === keep)) next.namespaces.push({ path: keep, alwaysVisible: false, description: '' });
+    for (const keep of [parent, oldParent]) if (keep && !isFixedNamespace(keep) && !next.namespaces.some(n => n.path === keep)) next.namespaces.push({ path: keep, alwaysVisible: false, description: '' });
     const move = (p: string): string => previous && (source.namespace ? inNamespace(p, previous) : p === previous) ? path + p.slice(previous.length) : p;
     const all = orderedPaths([...namespacePaths(next), ...next.mappings.flatMap(m => [m.path, ...m.aliases])], draft.order.map(move));
     const moving = all.filter(p => source.namespace ? inNamespace(p, path) : p === path);

@@ -27,7 +27,7 @@ export function useTreeDrag(drop: (source: TreeDragSource, target: TreeDropTarge
         function locate(): void {
             target?.removeAttribute('data-drop-edge');
             const hit = document.elementFromPoint(x, y)?.closest<HTMLElement>('.ts-node-block,.ts-tree-tool,.ts-namespace-placeholder');
-            target = hit && container.current?.contains(hit) ? hit : undefined;
+            target = hit && hit.dataset.dropDisabled !== 'true' && container.current?.contains(hit) ? hit : undefined;
             if (target) target.dataset.dropEdge = treeDropTarget(target, y).position;
         }
 
