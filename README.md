@@ -49,7 +49,7 @@ VM 不暴露 `console`。使用全局固定的 `vm.print(...values)` 将工具�
 
 - 固定 DSH `0.2.1-rc.2` 和 TypeScript `5.9.3`。虚拟 Language Service 提供类型诊断、变量/成员补全和参数提示，`transpileModule` 生成 JS 与 source map。源码树、环境声明和会话符号独立更新。
 - 通过 `llm/stream` 中间件直接接管原请求选中的任意模型，在插件拥有的上游请求中管理续写历史，原生 AgentLoop 实时接收上游思考流及最终执行结果；“轨迹”以 `ts_repl` 的 `codes: string[]` 参数实时展示每次生成的原始代码段（含控制标记），保留续写及纠错过程，并成对保存每次 INTELLISENSE 查询和完整结果；VM_EXECUTE 子记录保存各段执行结果、打印、异常及当前绑定，通过校验后才执行；思考过程继续流式显示，对话仅显示最终执行结果。轨迹同时记录真实子工具的参数、结果、错误及展示信息，并通过原生请求目录保留子工具 schema。上游请求不向模型暴露原生工具 schema；工具实际调用仍通过 `agent.ctx.tools.execute`，保留原生参数验证、策略和 guard。
-- 原生 API 包括 `agent/created`、`system-prompt/assemble`、`ctx.agents.get/list`、`ctx.llm.registerAdapter/stream/listModels`、`ctx.storage.backend.get('json').kv.open`、`ctx.subagents.startActivation`、`ctx.connection.fetch.register` 和 `ctx.effect`。管理接口使用原生 Connection 认证、Host/Origin 和 owner-peer 检查。
+- 原生 API 包括 `agent/created`、`system-prompt/assemble`、`ctx.agents.get/list`、`ctx.llm.stream`、`ctx.storage.backend.get('json').kv.open`、`ctx.subagents.startActivation`、`ctx.connection.fetch.register` 和 `ctx.effect`。管理接口使用原生 Connection 认证、Host/Origin 和 owner-peer 检查。
 - 普通段编译为原生 `vm.Script`，保留该段内的提升和 TDZ。顶层 await 使用分阶段执行：等待初始化值后创建真实顶层声明，或等待异步表达式。**跨 await 阶段的提升和 TDZ 不等同完整 ECMAScript 模块**；含 await 的块不支持提升 `var`，可使用 async IIFE。跨段保留运行时值与推导类型，独立的 interface/type 声明不会作为完整源码模块持续保留；不支持 import/namespace。这不是完整 Node.js/ts-node 环境。
 - 每会话一个受 Node Permission Model 限制的子进程，限制内存、同步 VM 时间和异步执行时间；禁用普通 VM 字符串动态代码生成。`node:vm` 本身不是安全边界，注入的宿主函数可能提供宿主 realm 的间接入口。子进程权限拒绝任意文件读取、写入、启动子进程等能力；**不提供操作系统级隔离，也不限制所有网络访问**。运行对抗性不可信代码时应额外使用非特权容器或系统沙箱。
 - 数据检查点使用 V8 序列化；可序列化值在重启后恢复，函数、闭包等不可序列化绑定会被省略，不通过重放源码恢复。运行中的 Promise 和完整 VM 堆不持久化。

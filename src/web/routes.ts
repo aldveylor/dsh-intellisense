@@ -14,7 +14,7 @@ export function registerManagement(ctx: Context, globalRegistry: SemanticRegistr
     ctx.connection.fetch.register({ path: '/api/ts-intellisense-state', methods: ['GET', 'POST'], requestBody: 'buffered', fetch: async request => {
         try {
             adapter.refresh();
-            const sessions = ctx.agents.list().filter(a => a.options.provider === adapter.config.route);
+            const sessions = ctx.agents.list().filter(a => a.session.header.origin !== 'subagent');
             if (request.method === 'GET') {
                 const registry = globalRegistry;
                 return Response.json({ state: registry.snapshot(), tools: registry.tools(), effective: registry.effective(), declarations: registry.declarations(), sessions: sessions.map(a => ({ id: a.id })) }, { headers });
@@ -28,7 +28,7 @@ export function registerManagement(ctx: Context, globalRegistry: SemanticRegistr
             else if (body.action === 'profile') await registry.manageProfile(body.operation!, body.name!, body.revision, body.newName);
             else if (body.action === 'organize') {
                 const parent = sessions[0];
-                if (!parent || parent.options.provider !== adapter.config.route) throw new Error('Select a live TypeScript session');
+                if (!parent) throw new Error('Select a live conversation');
                 return Response.json(await organization.propose(parent, request.signal, registry), { headers });
             } else if (body.action === 'approve') await organization.approve(body.id);
             else throw new Error('Unknown action');
