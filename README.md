@@ -15,9 +15,9 @@ node run.mjs --no-open --port 3000
 node run.mjs --plugin /absolute/path/to/plugin
 ```
 
-脚本构建插件并启动 **DSH Web 服务**。首次启动按 DSH 引导配置上游模型的 API 凭据；普通对话自动进入 REPL，使用界面选择的模型通道（provider）和具体模型（model）；切换模型后继续使用当前会话 VM。显式选择 `ts-repl` 路由时，其上游默认为 `deepseek-official` / `deepseek-flash`，可在 `cordis.patch.yml` 修改。Web 登录 token 与模型 API key 是两种凭据：打开终端输出的带 token 登录链接，取得浏览器会话后再使用页面。不要分享该链接。管理界面继承 DSH 的认证，直接未登录访问会返回 401。
+脚本构建插件并启动 **DSH Web 服务**。首次启动按 DSH 引导配置上游模型的 API 凭据；普通对话自动进入 REPL，使用界面选择的模型通道（provider）和具体模型（model）；切换模型后继续使用当前会话 VM。插件不注册模型路由，也不配置固定上游，直接使用原请求选中的任意模型。Web 登录 token 与模型 API key 是两种凭据：打开终端输出的带 token 登录链接，取得浏览器会话后再使用页面。不要分享该链接。管理界面继承 DSH 的认证，直接未登录访问会返回 401。
 
-登录后打开 **插件 → dsh-ts-intellisense → 配置**，配置工具路径；也可在同一浏览器访问 `/api/ts-intellisense`。所有会话共享全局工具配置；失效工具保留映射并显示红色，不进入 AI 提示、补全或执行环境。两个入口共用 React 管理界面，支持搜索、schema 查看、配置草稿与整理提案审核。路径示例 `std.fs.read`。未配置工具使用工具原名对应的 `unknown.tool_name` 路径（非标识符字符以 `$十六进制码点$` 转义，数字开头和保留名称添加 `$tool$` 前缀），保留下划线，不自动拆分分类。未配置工具可直接调用，执行权限交给 DSH 原生策略判断。无需选择 `ts-repl`；插件保留原生默认模型设置，并自动接管普通会话，包括加载前已存在的会话。标题、压缩等辅助请求及原生子代理沿用自身流程。调用仍须通过 DSH 本身的工具策略和 guard。
+登录后打开 **插件 → dsh-ts-intellisense → 配置**，配置工具路径；也可在同一浏览器访问 `/api/ts-intellisense`。所有会话共享全局工具配置；失效工具保留映射并显示红色，不进入 AI 提示、补全或执行环境。两个入口共用 React 管理界面，支持搜索、schema 查看、配置草稿与整理提案审核。路径示例 `std.fs.read`。未配置工具使用工具原名对应的 `unknown.tool_name` 路径（非标识符字符以 `$十六进制码点$` 转义，数字开头和保留名称添加 `$tool$` 前缀），保留下划线，不自动拆分分类。未配置工具可直接调用，执行权限交给 DSH 原生策略判断。插件保留原生默认模型设置，并自动接管普通会话，包括加载前已存在的会话。标题、压缩等辅助请求及原生子代理沿用自身流程。调用仍须通过 DSH 本身的工具策略和 guard。
 
 `node run.mjs --help` 查看原生 Web 启动参数，`./run.sh` 为同一入口的包装。Node.js 入口直接调用 DSH 启动 API，自动构建本项目，并将其以本地目录链接登记到 Web profile 的依赖和 `dsh.profile.bundles` 中，通过原生 bundle 机制加载，支持插件管理页及配置插槽。`--plugin <目录>` 可额外指定已构建且声明 `dsh.bundle.patch` 的本地插件，参数可重复；相对路径以启动命令的当前目录为准，登记结果持久保存在 profile 中。进程目录及注册的 Web 工作区均为本项目的 `build/workspace`，默认配置和数据目录为 `build/.dsh`；可通过 `DSH_HOME` 显式覆盖。默认首次运行需要在此独立配置中设置模型凭据。
 
@@ -48,7 +48,7 @@ VM 不暴露 `console`。使用全局固定的 `vm.print(...values)` 将工具�
 ## 实现与边界
 
 - 固定 DSH `0.2.1-rc.2` 和 TypeScript `5.9.3`。虚拟 Language Service 提供类型诊断、变量/成员补全和参数提示，`transpileModule` 生成 JS 与 source map。源码树、环境声明和会话符号独立更新。
-- `LlmAdapter` 注册 `ts-repl` 路由，在插件拥有的上游请求中管理续写历史，原生 AgentLoop 实时接收上游思考流及最终执行结果；“轨迹”以 `ts_repl` 的 `codes: string[]` 参数实时展示每次生成的原始代码段（含控制标记），保留续写及纠错过程，并成对保存每次 INTELLISENSE 查询和完整结果；VM_EXECUTE 子记录保存各段执行结果、打印、异常及当前绑定，通过校验后才执行；思考过程继续流式显示，对话仅显示最终执行结果。轨迹同时记录真实子工具的参数、结果、错误及展示信息，并通过原生请求目录保留子工具 schema。该路由不向模型暴露原生工具 schema；工具实际调用仍通过 `agent.ctx.tools.execute`，保留原生参数验证、策略和 guard。
+- 通过 `llm/stream` 中间件直接接管原请求选中的任意模型，在插件拥有的上游请求中管理续写历史，原生 AgentLoop 实时接收上游思考流及最终执行结果；“轨迹”以 `ts_repl` 的 `codes: string[]` 参数实时展示每次生成的原始代码段（含控制标记），保留续写及纠错过程，并成对保存每次 INTELLISENSE 查询和完整结果；VM_EXECUTE 子记录保存各段执行结果、打印、异常及当前绑定，通过校验后才执行；思考过程继续流式显示，对话仅显示最终执行结果。轨迹同时记录真实子工具的参数、结果、错误及展示信息，并通过原生请求目录保留子工具 schema。上游请求不向模型暴露原生工具 schema；工具实际调用仍通过 `agent.ctx.tools.execute`，保留原生参数验证、策略和 guard。
 - 原生 API 包括 `agent/created`、`system-prompt/assemble`、`ctx.agents.get/list`、`ctx.llm.registerAdapter/stream/listModels`、`ctx.storage.backend.get('json').kv.open`、`ctx.subagents.startActivation`、`ctx.connection.fetch.register` 和 `ctx.effect`。管理接口使用原生 Connection 认证、Host/Origin 和 owner-peer 检查。
 - 普通段编译为原生 `vm.Script`，保留该段内的提升和 TDZ。顶层 await 使用分阶段执行：等待初始化值后创建真实顶层声明，或等待异步表达式。**跨 await 阶段的提升和 TDZ 不等同完整 ECMAScript 模块**；含 await 的块不支持提升 `var`，可使用 async IIFE。跨段保留运行时值与推导类型，独立的 interface/type 声明不会作为完整源码模块持续保留；不支持 import/namespace。这不是完整 Node.js/ts-node 环境。
 - 每会话一个受 Node Permission Model 限制的子进程，限制内存、同步 VM 时间和异步执行时间；禁用普通 VM 字符串动态代码生成。`node:vm` 本身不是安全边界，注入的宿主函数可能提供宿主 realm 的间接入口。子进程权限拒绝任意文件读取、写入、启动子进程等能力；**不提供操作系统级隔离，也不限制所有网络访问**。运行对抗性不可信代码时应额外使用非特权容器或系统沙箱。

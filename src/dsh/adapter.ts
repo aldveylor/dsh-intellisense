@@ -2,7 +2,7 @@ import type { BindingType } from '../typescript/project.js';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
-import { LlmAdapter, ToolCallId, type GenerateOptions, type LlmModelInfo, type StreamChunk, type TokenUsage } from '@deepseek-ai/dsh-llm';
+import { ToolCallId, type GenerateOptions, type StreamChunk, type TokenUsage } from '@deepseek-ai/dsh-llm';
 import type { Store } from '../storage/store.js';
 import type { SemanticRegistry, PhysicalTool } from '../registry/registry.js';
 import { IsolatedSession } from '../runtime/isolated.js';
@@ -11,31 +11,23 @@ import { environmentPrompt } from '../protocol/prompt.js';
 import { runConversation } from '../protocol/controller.js';
 import { ExecutionTrace } from './execution_trace.js';
 
-/** @brief Plugin route and the actual upstream model provider stay separate. */
-export interface AdapterConfig { route: string; provider: string; model: string; timeoutMs: number }
+/** @brief Execution limits are independent of the upstream model selection. */
+export interface AdapterConfig { timeoutMs: number }
 /** @brief Durable execution status prevents retries from repeating completed or uncertain side effects. */
 interface ExecutionRecord { status: 'started' | 'completed' | 'failed'; source?: string; result?: ExecutionResult; error?: string }
 
 /** @brief DSH adapter owning continuation requests without rewriting frozen agent-loop requests. */
-export class TypeScriptAdapter extends LlmAdapter {
+export class TypeScriptAdapter {
     private sessions = new Map<string, Promise<IsolatedSession>>();
     private queues = new Map<string, Promise<unknown>>();
     private positions = new Map<string, { turn: number; step: number }>();
     private executions = new Map<string, ExecutionTrace>();
 
     constructor(private ctx: Context, readonly config: AdapterConfig, private registry: SemanticRegistry, private store: Store) {
-        super();
         ctx.on('agent/assistant-stream', ({ agent, frame }) => {
             if (frame.type === 'start') this.positions.set(agent.id, { turn: frame.turn, step: frame.step });
             if (frame.type === 'end') this.positions.delete(agent.id);
         });
-    }
-
-    override providerInfo(provider: string): { id: string; name: string } { return { id: provider, name: 'TypeScript REPL' }; }
-
-    override async listModels(provider: string): Promise<LlmModelInfo[]> {
-        const models = await this.ctx.llm.listModels(this.config.provider);
-        return models.map(m => ({ ...m, provider, description: `Persistent TypeScript environment via ${this.config.provider}` }));
     }
 
     physical(agent?: Agent): PhysicalTool[] {
@@ -116,7 +108,7 @@ export class TypeScriptAdapter extends LlmAdapter {
         const journal: unknown[] = [];
         let nextIndex = 0;
         const upstream: GenerateOptions = {
-            ...options, provider: options.provider === this.config.route ? this.config.provider : options.provider, model: options.model || this.config.model,
+            ...options,
             tools: [], toolHistory: undefined,
             // Inject after native assembly so complete personas and mode policies remain intact.
             system: [options.system, await this.prompt(agent, await runtime.declarations())].filter(Boolean).join('\n\n'),
@@ -206,11 +198,7 @@ export class TypeScriptAdapter extends LlmAdapter {
         return { text, usage, index: nextIndex };
     }
 
-    override async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
-        if (options.purpose) {
-            yield* this.ctx.llm.stream({ ...options, provider: this.config.provider });
-            return;
-        }
+    async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
         const key = options.sessionId ?? 'missing';
         const prior = this.queues.get(key) ?? Promise.resolve();
         const chunks: StreamChunk[] = [];

@@ -51,10 +51,10 @@ test('REPL replaces tool guidance while preserving personas, mode changes and sy
         const model = new PromptModel();
         ctx.llm.registerAdapter(['mock'], model);
         const existing = await ctx.agentLoop.create(SessionId('existing-prompt'), { provider: 'mock', model: 'test' });
-        await ctx.plugin(plugin, { provider: 'mock', model: 'test' });
+        await ctx.plugin(plugin);
         const errors: unknown[] = [];
         ctx.on('agent/error', ({ error }) => { errors.push(error); });
-        const agent = await ctx.agentLoop.create(SessionId('prompt-injection'), { provider: 'ts-repl', model: 'test' });
+        const agent = await ctx.agentLoop.create(SessionId('prompt-injection'), { provider: 'mock', model: 'test' });
         /** @brief Exercise the real loop and inspect its admitted upstream request. */
         const send = async (text: string) => {
             agent.followup(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }));
@@ -77,9 +77,10 @@ test('REPL replaces tool guidance while preserving personas, mode changes and sy
         assert.match(systemText(complete), /Complete minimal persona/);
         assert.equal(systemText(complete).match(/persistent TypeScript REPL/g)?.length, 1);
         const history = createSystemMessage('Admitted system history.');
-        for await (const _chunk of ctx.llm.stream({ provider: 'ts-repl', model: 'test', sessionId: agent.id, system: 'Direct system prompt.', messages: [history] })) { /* Drain execution. */ }
+        for await (const _chunk of ctx.llm.stream({ provider: 'mock', model: 'test', sessionId: agent.id, system: 'Direct system prompt.', messages: [history] })) { /* Drain execution. */ }
         const direct = model.requests.at(-1)!;
-        assert.match(direct.system!, /Direct system prompt/);
+        assert.equal(direct.system, 'Direct system prompt.');
+        assert.doesNotMatch(systemText(direct), /persistent TypeScript REPL/);
         assert(direct.messages.includes(history));
         const native = await ctx.agentLoop.create(SessionId('native-prompt'), { provider: 'mock', model: 'test' });
         model.response = 'const remembered = 7; remembered';

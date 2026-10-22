@@ -2,7 +2,4 @@
     - id: ts-intellisense
       name: dsh-ts-intellisense
       config:
-        route: ts-repl
-        provider: deepseek-official
-        model: deepseek-flash
         timeoutMs: 30000
