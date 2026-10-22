@@ -1,3 +1,4 @@
+import { useTranslation } from './locale/locale.js';
 import styles from './management_panel.css';
 import { useEffect, useState, type ComponentType, type DragEvent } from 'react';
 import type { Namespace, Mapping, PhysicalTool, RegistryState } from '../registry/registry.js';
@@ -35,11 +36,12 @@ async function request<T>(api: string, body?: unknown, signal?: AbortSignal): Pr
 function EditableText({ value, label, className, busy, empty = false, commit }: {
     value: string; label: string; className: string; busy: boolean; empty?: boolean; commit: (value: string) => boolean;
 }) {
+    const t = useTranslation();
     const [draft, setDraft] = useState<string>();
     return draft === undefined ? <span className={className} title={value || label} role="button" tabIndex={busy ? -1 : 0}
         onDoubleClick={() => { if (!busy) setDraft(value); }} onKeyDown={event => {
             if (!busy && event.key === 'Enter') { event.preventDefault(); setDraft(value); }
-        }}>{value || '双击添加注释'}</span> : <input className={className} aria-label={label} autoFocus value={draft} disabled={busy}
+        }}>{value || t('add_comment')}</span> : <input className={className} aria-label={label} autoFocus value={draft} disabled={busy}
             onChange={event => setDraft(event.target.value)} onBlur={() => {
                 const next = draft.trim();
                 if ((!empty && !next) || next === value || commit(next)) setDraft(undefined);
@@ -52,8 +54,9 @@ function EditableText({ value, label, className, busy, empty = false, commit }: 
 
 /** @brief Shared always-visible pin control for namespace and command prompt exposure. */
 function PinButton({ label, active, busy, locked = false, toggle }: { label: string; active: boolean; busy: boolean; locked?: boolean; toggle: () => void }) {
+    const t = useTranslation();
     return <button className="ts-pin" type="button" aria-label={label} aria-pressed={active} data-filled={active}
-        title={locked ? '内置指令始终固定显示' : active ? '取消固定显示' : '固定显示'} disabled={busy || locked} onClick={toggle}>
+        title={locked ? t('builtin_pinned') : active ? t('unpin') : t('pin')} disabled={busy || locked} onClick={toggle}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" aria-hidden="true">
             <path d="m16 9 3-3-5-5-3 3v4l-5 5 5 5 5-5zM9 15l-5 5" />
         </svg>
@@ -82,13 +85,15 @@ function acceptTreeDrag(event: DragEvent<HTMLElement>, busy: boolean): void {
 function CommandNode({ mapping, path, description, tree, fixed = false, command }: {
     mapping?: Mapping; path: string; description?: string; tree: TreeProps; fixed?: boolean; command?: ProvidedCommand;
 }) {
+    const t = useTranslation();
+    if (fixed && command) description = t(command.path === 'vm.print' ? 'vm_print' : 'vm_restart');
     const id = mapping?.id ?? command?.id;
     const readOnly = fixed || !!command;
     const invalid = !!mapping && !tree.tools.some(tool => tool.id === id);
     const draggable = !tree.busy && (command ? command.draggable : !fixed && !mapping?.pinned);
     return <li className={`ts-tree-tool${fixed ? ' ts-fixed-node' : ''}${invalid ? ' ts-tool-invalid' : ''}`}
         data-tool-status={invalid ? 'invalid' : 'available'} data-tree-path={path} data-tool-id={id} data-drop-disabled={readOnly || undefined}
-        title={invalid ? '工具已失效，保留映射但不向 AI 提供' : description} draggable={draggable}
+        title={invalid ? t('invalid_tool') : description} draggable={draggable}
         onDragStart={event => {
             if (!draggable || (event.target as HTMLElement).tagName === 'INPUT') { event.preventDefault(); return; }
             event.stopPropagation(); event.dataTransfer.setData('application/x-ts-tool', id!);
@@ -97,17 +102,17 @@ function CommandNode({ mapping, path, description, tree, fixed = false, command 
         onDragLeave={event => event.currentTarget.removeAttribute('data-drop-edge')}
         onDrop={event => { if (readOnly) { event.preventDefault(); event.stopPropagation(); } else tree.dropNode(event, path, false); }}>
         {readOnly ? <code title={`${command?.signature ?? path}\n${description ?? ''}`}>{path.split('.').at(-1)}</code> :
-            <EditableText className="ts-node-name" value={path.split('.').at(-1)!} label={`映射名称 ${path}`} busy={tree.busy || !!mapping?.pinned}
+            <EditableText className="ts-node-name" value={path.split('.').at(-1)!} label={t('mapping_name', { path })} busy={tree.busy || !!mapping?.pinned}
                 commit={name => tree.rename(path, name)} />}
-        {id && <span className="ts-mapping-source"><span aria-hidden="true">→ </span>{id}{invalid && <span role="status"> · 已失效</span>}</span>}
+        {id && <span className="ts-mapping-source"><span aria-hidden="true">→ </span>{id}{invalid && <span role="status"> · {t('unavailable')}</span>}</span>}
         <span className="ts-tool-preview" title={description} role={readOnly ? undefined : 'button'} tabIndex={readOnly ? undefined : tree.busy ? -1 : 0}
             onDoubleClick={() => { if (!readOnly && id) tree.editDescription(id); }} onKeyDown={event => {
                 if (!readOnly && id && event.key === 'Enter') { event.preventDefault(); tree.editDescription(id); }
-            }}>{mapping?.description ?? description ?? '双击编辑提示注释'}</span>
+            }}>{mapping?.description ?? description ?? t('edit_comment')}</span>
         <span className="ts-node-actions">
-            <PinButton label={`一直显示命令 ${path}`} active={command?.alwaysVisible ?? mapping?.alwaysVisible ?? false} locked={fixed} busy={tree.busy}
+            <PinButton label={t('pin_command', { path })} active={command?.alwaysVisible ?? mapping?.alwaysVisible ?? false} locked={fixed} busy={tree.busy}
                 toggle={() => { if (mapping) tree.pinTool(mapping); else if (id) tree.pinUnknown(id); }} />
-            {!readOnly && <RemoveButton label={`移除映射 ${path}`} busy={tree.busy || !!mapping?.pinned} remove={() => tree.remove(path)} />}
+            {!readOnly && <RemoveButton label={t('remove_mapping', { path })} busy={tree.busy || !!mapping?.pinned} remove={() => tree.remove(path)} />}
         </span>
     </li>;
 }
@@ -117,6 +122,7 @@ function NamespacePlaceholder({ parent = '', busy, create, drop, pick }: {
     parent?: string; busy: boolean; create: (path: string) => boolean; pick: (parent: string) => void;
     drop?: (event: DragEvent<HTMLElement>, parent: string) => void;
 }) {
+    const t = useTranslation();
     const [name, setName] = useState<string>();
     const [over, setOver] = useState(false);
 
@@ -135,10 +141,10 @@ function NamespacePlaceholder({ parent = '', busy, create, drop, pick }: {
             if (!busy) drop?.(event, parent);
         }}>
         {name === undefined ? <span role="button" tabIndex={busy ? -1 : 0} aria-disabled={busy}
-            title="双击添加命名空间" onDoubleClick={begin} onKeyDown={event => {
+            title={t('add_namespace')} onDoubleClick={begin} onKeyDown={event => {
                 if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); begin(); }
-            }}>{parent ? '添加工具，双击创建命名空间' : '添加根命令，双击创建命名空间'}</span> : <input autoFocus aria-label={`命名新命名空间 ${parent || '根节点'}`}
-            placeholder="命名空间名称" value={name} disabled={busy} onChange={event => setName(event.target.value)}
+            }}>{parent ? t('add_tools_hint') : t('add_root_hint')}</span> : <input autoFocus aria-label={t('name_namespace', { path: parent || t('root') })}
+            placeholder={t('namespace_name')} value={name} disabled={busy} onChange={event => setName(event.target.value)}
             onBlur={() => {
                 const value = name.trim();
                 if (!value || create(parent ? `${parent}.${value}` : value)) setName(undefined);
@@ -147,7 +153,7 @@ function NamespacePlaceholder({ parent = '', busy, create, drop, pick }: {
                 if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); }
                 if (event.key === 'Escape') { event.preventDefault(); setName(undefined); }
             }} />}
-        <button className="ts-add-tool" type="button" aria-label={`添加工具到 ${parent || '根节点'}`} title="选择工具积木" disabled={busy}
+        <button className="ts-add-tool" type="button" aria-label={t('add_tools_to', { path: parent || t('root') })} title={t('choose_tools')} disabled={busy}
             onClick={() => pick(parent)} onDoubleClick={event => event.stopPropagation()}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
         </button>
@@ -169,6 +175,7 @@ interface TreeProps {
 
 /** @brief Namespace row whose children toggle only through the leading disclosure button. */
 function NamespaceNode({ path, tree, fixed = false, provided }: { path: string; tree: TreeProps; fixed?: boolean; provided?: ProvidedNamespace }) {
+    const t = useTranslation();
     const config = tree.namespaces.find(n => n.path === path);
     const open = tree.expanded[path] ?? false;
     const children = tree.paths.filter(p => p.startsWith(`${path}.`) && p.split('.').length === path.split('.').length + 1);
@@ -183,19 +190,19 @@ function NamespaceNode({ path, tree, fixed = false, provided }: { path: string; 
             if ((event.target as HTMLElement).tagName === 'INPUT') { event.preventDefault(); return; }
             event.stopPropagation(); event.dataTransfer.setData('application/x-ts-namespace', path); event.dataTransfer.effectAllowed = 'move';
         }} onDragOver={event => acceptTreeDrag(event, tree.busy || fixed)} onDragLeave={event => { event.currentTarget.removeAttribute('data-drop-edge'); }} onDrop={event => tree.dropNode(event, path, true)}>
-            <button className="ts-disclosure" type="button" aria-label={`展开或收起 ${path}`} aria-expanded={open} disabled={tree.busy}
+            <button className="ts-disclosure" type="button" aria-label={t('toggle_namespace', { path })} aria-expanded={open} disabled={tree.busy}
                 onClick={() => tree.toggle(path)}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
             </button>
-            {fixed ? <span className="ts-node-name">{path}</span> : <EditableText className="ts-node-name" value={path.split('.').at(-1)!} label={`命名空间名称 ${path}`} busy={tree.busy}
+            {fixed ? <span className="ts-node-name">{path}</span> : <EditableText className="ts-node-name" value={path.split('.').at(-1)!} label={t('namespace_path_name', { path })} busy={tree.busy}
                 commit={name => tree.renameNamespace(path, name)} />}
-            <small className="ts-node-count" aria-label={`${path} 命令数`}>{count}</small>
-            {fixed ? <span className="ts-node-preview">{provided?.description}</span> : <><EditableText className="ts-node-preview" value={config?.description ?? ''} label={`命名空间注释 ${path}`} busy={tree.busy} empty
+            <small className="ts-node-count" aria-label={t('command_count', { path })}>{count}</small>
+            {fixed ? <span className="ts-node-preview">{provided ? t(provided.path === 'vm' ? 'vm_description' : 'unknown_description') : undefined}</span> : <><EditableText className="ts-node-preview" value={config?.description ?? ''} label={t('namespace_comment', { path })} busy={tree.busy} empty
                 commit={description => { tree.configure(path, { description }); return true; }} />
             <span className="ts-node-actions">
-                <PinButton label={`一直显示 ${path}`} active={config?.alwaysVisible ?? false} busy={tree.busy}
+                <PinButton label={t('pin_namespace', { path })} active={config?.alwaysVisible ?? false} busy={tree.busy}
                     toggle={() => tree.configure(path, { alwaysVisible: !config?.alwaysVisible })} />
-                <RemoveButton label={`删除命名空间 ${path}`} busy={tree.busy} remove={() => tree.deleteNamespace(path)} />
+                <RemoveButton label={t('delete_namespace', { path })} busy={tree.busy} remove={() => tree.deleteNamespace(path)} />
             </span></>}
         </div>
         {open && <ul>{provided ? provided.commands.map(command => <CommandNode key={command.path} path={command.path} description={command.description} command={command} fixed={command.fixed} tree={tree} />) : nodes.map(node => {
@@ -208,6 +215,7 @@ function NamespaceNode({ path, tree, fixed = false, provided }: { path: string; 
 
 /** @brief React registry editor with versioned drafts, schema inspection and explicit proposal approval. */
 export function ManagementPanel({ api, ProfileSelect }: ManagementPanelProps) {
+    const t = useTranslation();
     const [view, setView] = useState<View>();
     const [mappings, setMappings] = useState<Mapping[]>([]);
     const [namespaces, setNamespaces] = useState<Namespace[]>([]);
@@ -216,7 +224,7 @@ export function ManagementPanel({ api, ProfileSelect }: ManagementPanelProps) {
     const [unknownVisible, setUnknownVisible] = useState<string[]>([]);
     const [descriptionEditor, setDescriptionEditor] = useState<{ id: string; text?: string }>();
     const [toolPicker, setToolPicker] = useState<string>();
-    const [status, setStatus] = useState('正在加载…');
+    const [status, setStatus] = useState('loading');
     const [busy, setBusy] = useState(false);
     const [proposal, setProposal] = useState<{ id: string; proposal: unknown }>();
 
@@ -233,7 +241,7 @@ export function ManagementPanel({ api, ProfileSelect }: ManagementPanelProps) {
 
     useEffect(() => {
         const controller = new AbortController();
-        setView(undefined); setMappings([]); setNamespaces([]); setUnknownVisible([]); setProposal(undefined); setOrder([]); setExpanded({}); setDescriptionEditor(undefined); setToolPicker(undefined); setStatus('正在加载…');
+        setView(undefined); setMappings([]); setNamespaces([]); setUnknownVisible([]); setProposal(undefined); setOrder([]); setExpanded({}); setDescriptionEditor(undefined); setToolPicker(undefined); setStatus('loading');
         void reload(controller.signal).catch(error => { if (!controller.signal.aborted) setStatus(String(error instanceof Error ? error.message : error)); });
         return () => controller.abort();
     }, [api]);
@@ -263,7 +271,7 @@ export function ManagementPanel({ api, ProfileSelect }: ManagementPanelProps) {
     /** @brief Apply named configuration operations and replace the editor with the selected configuration. */
     function manageProfile(operation: 'create' | 'select' | 'rename' | 'delete', name: string, newName?: string): void {
         if (!view || (operation === 'select' && name === view.state.profile)) return;
-        void action('正在更新 Profile…', async () => {
+        void action('updating_profile', async () => {
             await request(api, { action: 'profile', operation, name, newName, revision: view.state.revision });
             setProposal(undefined); setToolPicker(undefined); setDescriptionEditor(undefined); setExpanded({});
             await reload();
@@ -281,11 +289,11 @@ export function ManagementPanel({ api, ProfileSelect }: ManagementPanelProps) {
 
     /** @brief Commit only named namespaces that do not conflict with callable paths. */
     function createNamespace(path: string): boolean {
-        if (isFixedNamespace(path)) { setStatus('固定命名空间不可修改。'); return false; }
+        if (isFixedNamespace(path)) { setStatus('fixed_namespace'); return false; }
         const toolPaths = mappings.flatMap(m => [m.path, ...m.aliases]);
         if (!/^[a-zA-Z_$][\w$]*(\.[a-zA-Z_$][\w$]*)*$/.test(path) || paths.includes(path) ||
             toolPaths.some(p => p === path || path.startsWith(`${p}.`))) {
-            setStatus('命名空间名称无效或与现有路径冲突。'); return false;
+            setStatus('invalid_namespace'); return false;
         }
         try { validatePath(`${path}.namespace_check`); } catch (error) { setStatus(String(error)); return false; }
         configureNamespace(path, {}); setOrder(current => [...current, path]);
@@ -314,7 +322,7 @@ export function ManagementPanel({ api, ProfileSelect }: ManagementPanelProps) {
         const path = [...source.split('.').slice(0, -1), name].join('.');
         try { validatePath(path); } catch (error) { setStatus(String(error)); return false; }
         if (!/^[a-zA-Z_$][\w$]*$/.test(name) || ['__proto__', 'prototype', 'constructor', 'then'].includes(name) || name.startsWith('__dsh') || occupied(path, source)) {
-            setStatus('映射名称无效或与现有路径冲突。'); return false;
+            setStatus('invalid_mapping'); return false;
         }
         replacePath(source, path); setStatus('');
         return true;
@@ -389,23 +397,23 @@ export function ManagementPanel({ api, ProfileSelect }: ManagementPanelProps) {
 
     return <div className="ts-intellisense" ref={drag.container} onPointerDownCapture={drag.pointerDown} onDragStartCapture={drag.preventNativeDrag}>
         <style>{styles}</style>
-        <header><h1>TypeScript 工具注册表</h1></header>
-        {status && <p role="status" aria-live="polite">{status}</p>}
+        <header><h1>{t('title')}</h1></header>
+        {status && <p role="status" aria-live="polite">{t(status)}</p>}
         <div className="ts-toolbar"><div className="ts-actions">
-            <button disabled={busy} onClick={() => void action('正在刷新…', reload)}>刷新</button>
-            <button disabled={busy || !view} onClick={() => void action('正在保存…', async () => {
+            <button disabled={busy} onClick={() => void action('refreshing', reload)}>{t('refresh')}</button>
+            <button disabled={busy || !view} onClick={() => void action('saving', async () => {
                 await request(api, { action: 'configure', revision: view!.state.revision, namespaces, unknownVisible, order: orderedPaths([...paths, ...mappings.flatMap(m => [m.path, ...m.aliases])], order), mappings: mappings.map(m => ({ ...m, path: m.path.trim(), aliases: m.aliases.map(alias => alias.trim()).filter(Boolean) })) });
                 await reload();
-            })}>保存配置</button>
+            })}>{t('save')}</button>
             <ProfilePicker name={view?.state.profile ?? 'Default'} profiles={view?.state.profiles ?? ['Default']} dirty={dirty} busy={busy || !view} Select={ProfileSelect}
                 select={name => manageProfile('select', name)} create={name => manageProfile('create', name)}
                 rename={name => manageProfile('rename', view?.state.profile ?? 'Default', name)} remove={() => manageProfile('delete', view?.state.profile ?? 'Default')} />
-            <button disabled={busy || !view?.sessions.length} onClick={() => void action('维护子代理正在生成整理提案…', async () => {
-                setProposal(await request(api, { action: 'organize' })); setStatus('整理提案已生成，请审核后应用。');
-            })}>生成整理提案</button>
+            <button disabled={busy || !view?.sessions.length} onClick={() => void action('organizing', async () => {
+                setProposal(await request(api, { action: 'organize' })); setStatus('proposal_ready');
+            })}>{t('generate_proposal')}</button>
         </div></div>
-        <main><section className="ts-namespaces"><h2>命名空间树</h2>
-            <small>箭头控制展开；双击名称或注释编辑，同级块可拖动排序，点击加号添加工具。</small>
+        <main><section className="ts-namespaces"><h2>{t('namespace_tree')}</h2>
+            <small>{t('tree_hint')}</small>
             <ul className="ts-tree">{orderedPaths([...paths.filter(path => !path.includes('.')), ...mappings.flatMap(m => [m.path, ...m.aliases]).filter(path => !path.includes('.'))], order).map(path => {
                 const command = mappings.find(m => m.path === path || m.aliases.includes(path));
                 return command ? <CommandNode key={path} path={path} mapping={command} tree={tree}
@@ -425,20 +433,20 @@ export function ManagementPanel({ api, ProfileSelect }: ManagementPanelProps) {
                 setMappings(current => current.map(m => m.id === descriptionEditor.id ? { ...m, description: descriptionEditor.text } : m));
                 setDescriptionEditor(undefined); setStatus('');
             }}>
-                <h2 id="ts-description-title">命令提示注释 · {descriptionEditor.id}</h2>
-                <textarea aria-label="命令提示注释" autoFocus rows={8} value={descriptionEditor.text ?? view?.tools.find(t => t.id === descriptionEditor.id)?.description ?? ''}
+                <h2 id="ts-description-title">{t('prompt_comment')} · {descriptionEditor.id}</h2>
+                <textarea aria-label={t('prompt_comment')} autoFocus rows={8} value={descriptionEditor.text ?? view?.tools.find(t => t.id === descriptionEditor.id)?.description ?? ''}
                     onChange={event => setDescriptionEditor({ ...descriptionEditor, text: event.target.value })} />
-                <div className="ts-actions"><button type="submit">应用</button>
-                    <button type="button" onClick={() => setDescriptionEditor({ id: descriptionEditor.id })}>重置</button>
-                    <button type="button" onClick={() => setDescriptionEditor(undefined)}>取消</button></div>
+                <div className="ts-actions"><button type="submit">{t('apply')}</button>
+                    <button type="button" onClick={() => setDescriptionEditor({ id: descriptionEditor.id })}>{t('reset')}</button>
+                    <button type="button" onClick={() => setDescriptionEditor(undefined)}>{t('cancel')}</button></div>
             </form>
         </section></div>}
         {proposal && <div className="ts-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="ts-proposal-title">
-            <h2 id="ts-proposal-title">整理提案</h2><pre>{JSON.stringify(proposal.proposal, null, 2)}</pre>
-            <p>应用后更新命名映射；执行权限仍由 DSH 原生策略判断。</p>
-            <div className="ts-actions"><button disabled={busy} onClick={() => void action('正在应用提案…', async () => {
+            <h2 id="ts-proposal-title">{t('proposal')}</h2><pre>{JSON.stringify(proposal.proposal, null, 2)}</pre>
+            <p>{t('proposal_hint')}</p>
+            <div className="ts-actions"><button disabled={busy} onClick={() => void action('applying_proposal', async () => {
                 await request(api, { action: 'approve', id: proposal.id }); setProposal(undefined); await reload();
-            })}>校验并应用</button><button disabled={busy} onClick={() => setProposal(undefined)}>取消</button></div>
+            })}>{t('validate_apply')}</button><button disabled={busy} onClick={() => setProposal(undefined)}>{t('cancel')}</button></div>
         </section></div>}
     </div>;
 }

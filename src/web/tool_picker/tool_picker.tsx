@@ -1,3 +1,4 @@
+import { useTranslation } from '../locale/locale.js';
 import { useEffect, useRef, useState } from 'react';
 import type { Mapping, PhysicalTool } from '../../registry/registry.js';
 
@@ -6,6 +7,7 @@ export function ToolPicker({ parent, tools, mappings, busy, select, close }: {
     parent: string; tools: PhysicalTool[]; mappings: Mapping[]; busy: boolean;
     select: (tool: PhysicalTool) => void; close: () => void;
 }) {
+    const t = useTranslation();
     const dialog = useRef<HTMLDialogElement>(null);
     const [search, setSearch] = useState('');
     const filter = search.trim().toLowerCase();
@@ -22,19 +24,19 @@ export function ToolPicker({ parent, tools, mappings, busy, select, close }: {
             const rect = event.currentTarget.getBoundingClientRect();
             if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) close();
         }}>
-        <header><h2 id="ts-tool-picker-title">添加工具 · {parent || '根节点'}</h2>
-            <button type="button" aria-label="关闭工具选择" onClick={close}>关闭</button>
+        <header><h2 id="ts-tool-picker-title">{t('add_tools')} · {parent || t('root')}</h2>
+            <button type="button" aria-label={t('close_picker')} onClick={close}>{t('close')}</button>
         </header>
-        <input type="search" autoFocus aria-label="搜索工具" placeholder="搜索名称、路径或描述" value={search} onChange={event => setSearch(event.target.value)} />
-        <small>单击积木添加到当前节点 · {matches.length} 个工具</small>
+        <input type="search" autoFocus aria-label={t('search_tools')} placeholder={t('search_hint')} value={search} onChange={event => setSearch(event.target.value)} />
+        <small>{t('tool_count', { count: matches.length })}</small>
         <div className="ts-blocks">{matches.map(tool => {
             const mapping = mappings.find(m => m.id === tool.id);
             return <button key={tool.id} type="button" title={tool.description} data-tool-id={tool.id}
                 className={`ts-tool ${mapping?.path.trim() ? '' : 'ts-unmounted'}`} disabled={busy || mapping?.pinned}
                 onClick={() => select(tool)}>
-                <strong>{tool.id}</strong><code>{mapping?.path || '未挂载'}</code>
+                <strong>{tool.id}</strong><code>{mapping?.path || t('unmounted')}</code>
             </button>;
         })}</div>
-        {!matches.length && <p>{filter ? '没有匹配的工具。' : '当前没有可用工具。'}</p>}
+        {!matches.length && <p>{filter ? t('no_matches') : t('no_tools')}</p>}
     </dialog>;
 }
