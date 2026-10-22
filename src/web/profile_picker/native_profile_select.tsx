@@ -68,7 +68,12 @@ export function NativeProfileSelect({ value, options, disabled, onChange, onCrea
         }
     }}>
         <button type="button" ref={trigger} aria-label={t('profile')} aria-expanded={open} aria-controls={panelId} disabled={disabled}
-            onClick={() => setOpen(current => !current)}>{options.find(option => option.value === value)?.label ?? value} ▾</button>
+            onClick={() => setOpen(current => !current)}>
+            <span className="ts-profile-label">{options.find(option => option.value === value)?.label ?? value}</span>
+            <svg className="ts-profile-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="m6 9 6 6 6-6" />
+            </svg>
+        </button>
         {open && <div id={panelId} className="ts-profile-dropdown" role="group" aria-label={t('profile')}>
             <div className="ts-profile-options">{options.map(option => <NativeProfileSelect.Item key={option.value} {...option}
                 selected={option.value === value} disabled={disabled} removable={options.length > 1} onChange={() => onChange(option.value)}
