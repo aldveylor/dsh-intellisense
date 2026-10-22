@@ -1,3 +1,5 @@
 # Profile picker
 
-`profile_picker.tsx` renders named configuration selection, inline create/rename forms, deletion, and the current draft marker. The host supplies `NativeProfileSelect` using DSH Menu; standalone pages use the portable select fallback. Configuration persistence remains in the registry and management API.
+`profile_picker.tsx` renders named configuration selection, the draft marker, and adjacent Save / Save as actions. Save as atomically stores the current draft in a new active profile while preserving the previous saved configuration. Standalone pages retain portable selection and inline management forms.
+
+`native_profile_select.tsx` implements an independent anchored dropdown styled with host menu theme variables, without the host Menu dependency. `NativeProfileSelect.Item` renders a selection button and a borderless delete button; double-clicking the name opens inline renaming (Enter or blur commits, Escape cancels). Selection leaves the dropdown open. The bottom input creates an empty profile on Enter. The panel supports arrow navigation, outside dismissal and Escape; composition does not submit names. Persistence remains in the registry and management API.
