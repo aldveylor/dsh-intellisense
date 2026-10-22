@@ -17,7 +17,7 @@ test('profiles isolate all configuration fields and persist create, select, rena
     await registry.manageProfile('select', 'Default', 3);
     assert.deepEqual(registry.snapshot().mappings, [mapping]);
     assert.deepEqual(registry.snapshot().unknownVisible, ['other']);
-    assert.deepEqual(registry.snapshot().order, ['files']);
+    assert.deepEqual(registry.snapshot().order, ['files', 'files.read']);
     await registry.manageProfile('rename', 'Work', 4, 'Office');
     const restored = new SemanticRegistry(store); await restored.load();
     assert.deepEqual(restored.snapshot().profiles, ['Default', 'Office']);
