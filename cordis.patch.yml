@@ -6,8 +6,3 @@
         provider: deepseek-official
         model: deepseek-flash
         timeoutMs: 30000
-
-- id: agent-default-model
-  config:
-    provider: ts-repl
-    model: deepseek-flash

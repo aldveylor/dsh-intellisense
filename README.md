@@ -15,9 +15,9 @@ node run.mjs --no-open --port 3000
 node run.mjs --plugin /absolute/path/to/plugin
 ```
 
-脚本构建插件并启动 **DSH Web 服务**。首次启动按 DSH 引导配置上游模型的 API 凭据；默认上游为 `deepseek-official` / `deepseek-flash`，可在 `cordis.patch.yml` 修改。Web 登录 token 与模型 API key 是两种凭据：打开终端输出的带 token 登录链接，取得浏览器会话后再使用页面。不要分享该链接。管理界面继承 DSH 的认证，直接未登录访问会返回 401。
+脚本构建插件并启动 **DSH Web 服务**。首次启动按 DSH 引导配置上游模型的 API 凭据；普通对话自动进入 REPL，使用界面选择的模型通道（provider）和具体模型（model）；切换模型后继续使用当前会话 VM。显式选择 `ts-repl` 路由时，其上游默认为 `deepseek-official` / `deepseek-flash`，可在 `cordis.patch.yml` 修改。Web 登录 token 与模型 API key 是两种凭据：打开终端输出的带 token 登录链接，取得浏览器会话后再使用页面。不要分享该链接。管理界面继承 DSH 的认证，直接未登录访问会返回 401。
 
-登录后打开 **插件 → dsh-ts-intellisense → 配置**，配置工具路径；也可在同一浏览器访问 `/api/ts-intellisense`。所有会话共享全局工具配置；失效工具保留映射并显示红色，不进入 AI 提示、补全或执行环境。两个入口共用 React 管理界面，支持搜索、schema 查看、配置草稿与整理提案审核。路径示例 `std.fs.read`。未配置工具使用工具原名对应的 `unknown.tool_name` 路径（非标识符字符以 `$十六进制码点$` 转义，数字开头和保留名称添加 `$tool$` 前缀），保留下划线，不自动拆分分类。未配置工具可直接调用，执行权限交给 DSH 原生策略判断。新建会话选择 `ts-repl` 路由，启动补丁也将其设为默认提供方。调用仍须通过 DSH 本身的工具策略和 guard。
+登录后打开 **插件 → dsh-ts-intellisense → 配置**，配置工具路径；也可在同一浏览器访问 `/api/ts-intellisense`。所有会话共享全局工具配置；失效工具保留映射并显示红色，不进入 AI 提示、补全或执行环境。两个入口共用 React 管理界面，支持搜索、schema 查看、配置草稿与整理提案审核。路径示例 `std.fs.read`。未配置工具使用工具原名对应的 `unknown.tool_name` 路径（非标识符字符以 `$十六进制码点$` 转义，数字开头和保留名称添加 `$tool$` 前缀），保留下划线，不自动拆分分类。未配置工具可直接调用，执行权限交给 DSH 原生策略判断。无需选择 `ts-repl`；插件保留原生默认模型设置，并自动接管普通会话，包括加载前已存在的会话。标题、压缩等辅助请求及原生子代理沿用自身流程。调用仍须通过 DSH 本身的工具策略和 guard。
 
 `node run.mjs --help` 查看原生 Web 启动参数，`./run.sh` 为同一入口的包装。Node.js 入口直接调用 DSH 启动 API，自动构建本项目，并将其以本地目录链接登记到 Web profile 的依赖和 `dsh.profile.bundles` 中，通过原生 bundle 机制加载，支持插件管理页及配置插槽。`--plugin <目录>` 可额外指定已构建且声明 `dsh.bundle.patch` 的本地插件，参数可重复；相对路径以启动命令的当前目录为准，登记结果持久保存在 profile 中。进程目录及注册的 Web 工作区均为本项目的 `build/workspace`，默认配置和数据目录为 `build/.dsh`；可通过 `DSH_HOME` 显式覆盖。默认首次运行需要在此独立配置中设置模型凭据。
 

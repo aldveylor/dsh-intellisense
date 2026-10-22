@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { Context } from '@deepseek-ai/cordis';
 import LlmRuntime, { LlmAdapter, createSystemMessage, createUserMessage, type GenerateOptions, type StreamChunk } from '@deepseek-ai/dsh-llm';
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session';
-import AgentRegistry from '@deepseek-ai/dsh-agent';
+import AgentRegistry, { installModelSelection } from '@deepseek-ai/dsh-agent';
 import AgentLoop from '@deepseek-ai/dsh-agent-loop';
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt';
 import ToolRuntime from '@deepseek-ai/dsh-tools';
@@ -18,12 +18,13 @@ import * as plugin from '../../src/index.js';
 /** @brief Capture actual upstream requests while returning executable conversational answers. */
 class PromptModel extends LlmAdapter {
     requests: GenerateOptions[] = [];
+    response = '"answer"';
 
     override async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
         this.requests.push(options);
         yield { type: 'block-start', index: 0, blockType: 'text' };
-        yield { type: 'text-delta', index: 0, text: '"answer"' };
-        yield { type: 'block-end', index: 0, block: { type: 'text', text: '"answer"' } };
+        yield { type: 'text-delta', index: 0, text: this.response };
+        yield { type: 'block-end', index: 0, block: { type: 'text', text: this.response } };
         yield { type: 'finish', reason: { kind: 'stop' } };
     }
 }
@@ -49,6 +50,7 @@ test('REPL replaces tool guidance while preserving personas, mode changes and sy
         ctx.systemPrompt.section({ name: 'tools:sdk', order: 5000, text: 'Legacy SDK guidance.' });
         const model = new PromptModel();
         ctx.llm.registerAdapter(['mock'], model);
+        const existing = await ctx.agentLoop.create(SessionId('existing-prompt'), { provider: 'mock', model: 'test' });
         await ctx.plugin(plugin, { provider: 'mock', model: 'test' });
         const errors: unknown[] = [];
         ctx.on('agent/error', ({ error }) => { errors.push(error); });
@@ -80,12 +82,49 @@ test('REPL replaces tool guidance while preserving personas, mode changes and sy
         assert.match(direct.system!, /Direct system prompt/);
         assert(direct.messages.includes(history));
         const native = await ctx.agentLoop.create(SessionId('native-prompt'), { provider: 'mock', model: 'test' });
+        model.response = 'const remembered = 7; remembered';
         native.followup(createUserMessage({ content: [{ type: 'text', text: 'native reply' }], source: { kind: 'user' } }));
         await native.whenIdle();
         assert.deepEqual(errors, []);
         const nativeText = systemText(model.requests.at(-1)!);
-        assert.match(nativeText, /Legacy read guidance/);
-        assert.match(nativeText, /Legacy SDK guidance/);
-        assert.doesNotMatch(nativeText, /persistent TypeScript REPL/);
+        assert.doesNotMatch(nativeText, /Legacy read guidance|Legacy SDK guidance/);
+        assert.match(nativeText, /persistent TypeScript REPL/);
+        assert.equal(model.requests.at(-1)!.provider, 'mock');
+        assert.equal(model.requests.at(-1)!.model, 'test');
+        assert.deepEqual(model.requests.at(-1)!.tools, []);
+        const selected = new PromptModel();
+        selected.response = 'remembered + 1';
+        ctx.llm.registerAdapter(['selected-account'], selected);
+        installModelSelection(native.ctx, { assembled: undefined, current: { provider: 'selected-account', model: 'selected-model', reasoningEffort: undefined } });
+        native.followup(createUserMessage({ content: [{ type: 'text', text: 'switch route' }], source: { kind: 'user' } }));
+        await native.whenIdle();
+        assert.deepEqual(errors, []);
+        assert.equal(selected.requests.length, 1);
+        assert.equal(selected.requests[0]!.provider, 'selected-account');
+        assert.equal(selected.requests[0]!.model, 'selected-model');
+        assert.deepEqual(selected.requests[0]!.tools, []);
+        assert.match(systemText(selected.requests[0]!), /const remembered: 7/);
+        assert(native.session.deriveMessages().at(-1)!.content.some(block => block.type === 'text' && block.text === '8'));
+        selected.response = 'session title';
+        let title = '';
+        for await (const chunk of ctx.llm.stream({ provider: 'selected-account', model: 'selected-model', sessionId: native.id, purpose: 'session-title', messages: [] })) {
+            if (chunk.type === 'text-delta') title += chunk.text;
+        }
+        assert.equal(title, 'session title');
+        assert.doesNotMatch(systemText(selected.requests.at(-1)!), /persistent TypeScript REPL/);
+        model.response = '"answer"';
+        existing.followup(createUserMessage({ content: [{ type: 'text', text: 'existing reply' }], source: { kind: 'user' } }));
+        await existing.whenIdle();
+        assert.deepEqual(errors, []);
+        assert.match(systemText(model.requests.at(-1)!), /persistent TypeScript REPL/);
+        const child = await ctx.agents.create({ sessionId: SessionId('native-child'), parentAgent: native, meta: { origin: 'subagent' }, agentOptions: { provider: 'mock', model: 'test' } });
+        child.agent.followup(createUserMessage({ content: [{ type: 'text', text: 'structured child' }], source: { kind: 'user' } }));
+        await child.agent.whenIdle();
+        assert.deepEqual(errors, []);
+        const childText = systemText(model.requests.at(-1)!);
+        assert.match(childText, /Legacy read guidance/);
+        assert.match(childText, /Legacy SDK guidance/);
+        assert.doesNotMatch(childText, /persistent TypeScript REPL/);
+        await child.dispose();
     } finally { await ctx.fiber.dispose(); await rm(directory, { recursive: true, force: true }); }
 });

@@ -1,4 +1,5 @@
 import type { Context } from '@deepseek-ai/cordis';
+import type { Agent } from '@deepseek-ai/dsh-agent';
 import { isAgentLoopRequest } from '@deepseek-ai/dsh-llm';
 import { storageBackendServiceKey } from '@deepseek-ai/dsh-storage';
 import '@deepseek-ai/dsh-system-prompt';
@@ -41,13 +42,15 @@ export async function apply(ctx: Context, options: Config = {}): Promise<void> {
     });
     const adapter = new TypeScriptAdapter(ctx, config, registry, store);
     ctx.llm.registerAdapter([config.route], adapter);
+    /** @brief Ordinary conversations use REPL; native subagents retain their own protocols. */
+    const usesRepl = (agent: Agent): boolean => agent.session.header.origin !== 'subagent' || agent.options.provider === config.route;
     ctx.on('llm/stream', (request, next) => {
         const agent = request.sessionId ? ctx.agents.get(request.sessionId) : undefined;
-        if (isAgentLoopRequest(request) && !request.purpose && request.provider !== config.route && agent?.options.provider === config.route) return adapter.stream(request);
+        if (isAgentLoopRequest(request) && !request.purpose && request.provider !== config.route && agent && usesRepl(agent)) return adapter.stream(request);
         return next();
     });
     ctx.on('agent/created', async ({ agent }) => {
-        if (agent.options.provider === config.route) {
+        if (usesRepl(agent)) {
             // REPL dispatches physical tools directly through the native execution pipeline.
             agent.ctx.tools.presentAs('native');
             await adapter.registryFor(agent);
@@ -56,7 +59,7 @@ export async function apply(ctx: Context, options: Config = {}): Promise<void> {
     });
     ctx.on('system-prompt/assemble', async (_assembly, context, next) => {
         const assembled = await next();
-        if (context.agent?.options.provider === config.route) {
+        if (context.agent && usesRepl(context.agent)) {
             // Native request headers retain callable tool schemas for trajectory inspection.
             // The adapter removes tools from the actual upstream request.
             assembled.sections = assembled.sections.filter(section => !section.name.startsWith('tool:') && !section.name.startsWith('tools:'));
@@ -65,7 +68,10 @@ export async function apply(ctx: Context, options: Config = {}): Promise<void> {
     });
     ctx.on('agent/disposed', ({ agent }) => { void adapter.release(agent.id); });
     for (const agent of ctx.agents.list()) {
-        if (agent.options.provider === config.route) await adapter.registryFor(agent);
+        if (usesRepl(agent)) {
+            agent.ctx.tools.presentAs('native');
+            await adapter.registryFor(agent);
+        }
     }
     registerManagement(ctx, registry, adapter, organization);
     ctx.effect(() => async () => { await adapter.dispose(); await unit.close(); });
