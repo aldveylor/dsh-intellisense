@@ -1,0 +1,37 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { SemanticRegistry } from '../../src/registry/registry.js';
+import { ProfileSessions } from '../../src/registry/profiles.js';
+import { MemoryStore } from '../../src/storage/store.js';
+
+test('session smart references survive overwrite, deletion and resume without changing siblings', async () => {
+    const store = new MemoryStore();
+    const catalog = new SemanticRegistry(store);
+    await catalog.load();
+    const tools = [{ id: 'read', description: 'Read', parameters: { type: 'object' }, output: { type: 'string' } }];
+    catalog.refresh(tools);
+    const mapping = { id: 'read', path: 'fs.read', enabled: true, pinned: false, aliases: [] };
+    await catalog.configure([mapping], 0);
+    const profiles = new ProfileSessions(catalog, store);
+    const first = await profiles.forSession('first');
+    const second = await profiles.forSession('second');
+    first.refresh(tools); second.refresh(tools);
+    await first.configure([{ ...mapping, path: 'docs.read' }], 0);
+    assert.equal(second.effective()[0]!.path, 'fs.read');
+    await profiles.commit('first', 'Default');
+    assert.equal(second.effective()[0]!.path, 'fs.read');
+    const third = await profiles.forSession('third'); third.refresh(tools);
+    assert.equal(third.effective()[0]!.path, 'docs.read');
+    await catalog.manageProfile('create', 'Empty', catalog.snapshot().revision);
+    await catalog.manageProfile('delete', 'Default', catalog.snapshot().revision);
+    assert.deepEqual(catalog.snapshot().profiles, ['Empty']);
+    profiles.release('second');
+    const resumed = await new ProfileSessions(catalog, store).forSession('second'); resumed.refresh(tools);
+    assert.equal(resumed.effective()[0]!.path, 'fs.read');
+    await profiles.load('first', 'Empty');
+    assert.equal(first.effective()[0]!.path, 'unknown.read');
+    assert.equal(third.effective()[0]!.path, 'docs.read');
+    await resumed.invoke('fs.read', {}, async () => 'value');
+    assert.equal(catalog.snapshot().usage.read!.calls, 1);
+    assert.deepEqual(catalog.snapshot().profiles, ['Empty']);
+});

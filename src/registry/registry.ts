@@ -28,9 +28,9 @@ export interface Namespace { path: string; alwaysVisible: boolean; description: 
 /** @brief Successful physical invocations, independent of completion exposure. */
 export interface Usage { calls: number; lastUsed: number; exposures: number }
 /** @brief Versioned complete registry state, committed atomically. */
-export interface RegistryState { version: 1; revision: number; mappings: Mapping[]; namespaces?: Namespace[]; order?: string[]; unknownVisible?: string[]; profile?: string; profiles?: string[]; usage: Record<string, Usage> }
+export interface RegistryState { version: 1; revision: number; mappings: Mapping[]; namespaces?: Namespace[]; order?: string[]; unknownVisible?: string[]; toolComments?: Record<string, string>; profile?: string; profiles?: string[]; usage: Record<string, Usage> }
 /** @brief A named configuration contains no runtime state or usage counters. */
-interface RegistryConfiguration { mappings: Mapping[]; namespaces: Namespace[]; order: string[]; unknownVisible: string[] }
+export interface RegistryConfiguration { mappings: Mapping[]; namespaces: Namespace[]; order: string[]; unknownVisible: string[]; toolComments?: Record<string, string> }
 /** @brief Only inactive configurations are archived, so the active configuration has one source of truth. */
 interface StoredRegistryState extends RegistryState { inactiveProfiles?: Record<string, RegistryConfiguration> }
 /** @brief Structured maintenance proposal; execution policy remains owned by DSH. */
@@ -42,7 +42,7 @@ export class SemanticRegistry {
     private state: StoredRegistryState = { version: 1, revision: 0, mappings: [], usage: {}, profile: 'Default', inactiveProfiles: {} };
     private writeChain: Promise<unknown> = Promise.resolve();
 
-    constructor(private store: Store) {}
+    constructor(private store: Store, private usageOwner?: SemanticRegistry) {}
 
     async load(): Promise<void> {
         const saved = await this.store.load<StoredRegistryState>('registry');
@@ -73,12 +73,54 @@ export class SemanticRegistry {
     snapshot(): RegistryState {
         const { inactiveProfiles, ...state } = structuredClone(this.state);
         const profile = state.profile ?? 'Default';
-        return { ...state, profile, profiles: [profile, ...Object.keys(inactiveProfiles ?? {})].sort((a, b) => a.localeCompare(b)) };
+        return { ...state, usage: this.usageOwner?.snapshot().usage ?? state.usage, profile, profiles: [profile, ...Object.keys(inactiveProfiles ?? {})].sort((a, b) => a.localeCompare(b)) };
     }
 
     /** @brief Extract only the configurable fields when archiving an active profile. */
-    private configuration(): RegistryConfiguration {
-        return structuredClone({ mappings: this.state.mappings, namespaces: this.state.namespaces ?? [], order: this.state.order ?? [], unknownVisible: this.state.unknownVisible ?? [] });
+    configuration(name = this.state.profile ?? 'Default'): RegistryConfiguration {
+        if (name !== (this.state.profile ?? 'Default')) {
+            const configuration = this.state.inactiveProfiles?.[name];
+            if (!configuration) throw new Error('Profile does not exist');
+            return structuredClone(configuration);
+        }
+        return structuredClone({ mappings: this.state.mappings, namespaces: this.state.namespaces ?? [], order: this.state.order ?? [], unknownVisible: this.state.unknownVisible ?? [], toolComments: this.state.toolComments ?? {} });
+    }
+
+    /** @brief Replace one reference's working configuration without modifying other holders. */
+    async replaceConfiguration(configuration: RegistryConfiguration, profile: string): Promise<void> {
+        const detached = structuredClone(configuration);
+        await this.transaction(async () => {
+            this.validateProfileName(profile);
+            this.validateMappings(detached.mappings);
+            this.validateNamespaces(detached.namespaces, detached.mappings);
+            this.validateUnknownVisibility(detached.unknownVisible);
+            this.validateComments(detached.toolComments ?? {});
+            const next = { ...this.state, ...detached, toolComments: detached.toolComments ?? {}, profile, revision: this.state.revision + 1 };
+            await this.store.save('registry', next);
+            this.state = next;
+        });
+    }
+
+    /** @brief Publish a new named version; existing session references retain their own snapshots. */
+    async saveProfile(name: string, configuration: RegistryConfiguration): Promise<void> {
+        const detached = structuredClone(configuration);
+        await this.transaction(async () => {
+            this.validateProfileName(name);
+            this.validateMappings(detached.mappings);
+            this.validateNamespaces(detached.namespaces, detached.mappings);
+            this.validateUnknownVisibility(detached.unknownVisible);
+            this.validateComments(detached.toolComments ?? {});
+            const next = { ...this.state, revision: this.state.revision + 1 };
+            if (name === (this.state.profile ?? 'Default')) Object.assign(next, detached, { toolComments: detached.toolComments ?? {} });
+            else next.inactiveProfiles = { ...this.state.inactiveProfiles, [name]: detached };
+            await this.store.save('registry', next);
+            this.state = next;
+        });
+    }
+
+    /** @brief Tool-level comments also apply to tools that have no mounted path. */
+    private validateComments(comments: Record<string, string>): void {
+        if (!comments || typeof comments !== 'object' || Array.isArray(comments) || Object.values(comments).some(value => typeof value !== 'string')) throw new Error('Invalid tool comments');
     }
 
     /** @brief Keep names usable as both dictionary keys and menu labels. */
@@ -98,7 +140,7 @@ export class SemanticRegistry {
             if (action === 'create') {
                 if (exists(name)) throw new Error('Profile name already exists');
                 archive[active] = this.configuration();
-                next = { ...next, profile: name, mappings: [], namespaces: [], order: [], unknownVisible: [] };
+                next = { ...next, profile: name, mappings: [], namespaces: [], order: [], unknownVisible: [], toolComments: {} };
             } else {
                 if (!exists(name)) throw new Error('Profile does not exist');
                 if (action === 'rename') {
@@ -111,12 +153,12 @@ export class SemanticRegistry {
                     if (name === active) return;
                     const configuration = archive[name]!;
                     delete archive[name]; archive[active] = this.configuration();
-                    next = { ...next, ...configuration, profile: name };
+                    next = { ...next, ...configuration, toolComments: configuration.toolComments ?? {}, profile: name };
                 } else if (action === 'delete') {
                     if (!Object.keys(archive).length) throw new Error('At least one profile is required');
                     if (name === active) {
                         const fallback = Object.keys(archive)[0]!;
-                        next = { ...next, ...archive[fallback]!, profile: fallback }; delete archive[fallback];
+                        next = { ...next, ...archive[fallback]!, toolComments: archive[fallback]!.toolComments ?? {}, profile: fallback }; delete archive[fallback];
                     } else delete archive[name];
                 } else throw new Error('Invalid profile action');
             }
@@ -135,7 +177,7 @@ export class SemanticRegistry {
                 path: `unknown.${toolName(tool.id)}`,
                 aliases: [], enabled: true, pinned: false,
                 alwaysVisible: mapping?.alwaysVisible ?? (!mapping && (this.state.unknownVisible ?? []).includes(tool.id)),
-                ...mapping, tool,
+                ...mapping, description: this.state.toolComments?.[tool.id] ?? mapping?.description, tool,
             };
         });
     }
@@ -180,7 +222,7 @@ export class SemanticRegistry {
     }
 
     /** @brief Save a configuration, optionally archiving the active profile and selecting a new named copy. */
-    async configure(mappings: Mapping[], revision: number, namespaces?: Namespace[], order?: string[], unknownVisible?: string[], profile?: string): Promise<void> {
+    async configure(mappings: Mapping[], revision: number, namespaces?: Namespace[], order?: string[], unknownVisible?: string[], profile?: string, toolComments?: Record<string, string>): Promise<void> {
         const detached = structuredClone(mappings);
         await this.transaction(async () => {
             if (revision !== this.state.revision) throw new Error('Registry revision conflict; reload before saving');
@@ -189,6 +231,8 @@ export class SemanticRegistry {
                 if (profile === (this.state.profile ?? 'Default') || Object.hasOwn(this.state.inactiveProfiles ?? {}, profile)) throw new Error('Profile name already exists');
             }
             this.validateMappings(detached);
+            const comments = structuredClone(toolComments ?? this.state.toolComments ?? {});
+            this.validateComments(comments);
             const selected = structuredClone(unknownVisible ?? this.state.unknownVisible ?? []);
             this.validateUnknownVisibility(selected);
             for (const mapping of detached) {
@@ -212,7 +256,7 @@ export class SemanticRegistry {
             const known = new Set([...metadata.map(n => n.path), ...detached.flatMap(m => [m.path, ...m.aliases])]
                 .flatMap(path => path.split('.').map((_, i, parts) => parts.slice(0, i + 1).join('.'))));
             const treeOrder = [...new Set([...requestedOrder, ...known])].filter(path => known.has(path));
-            const next = { ...this.state, revision: this.state.revision + 1, mappings: detached, namespaces: metadata, order: treeOrder,
+            const next = { ...this.state, revision: this.state.revision + 1, mappings: detached, namespaces: metadata, order: treeOrder, toolComments: comments,
                 unknownVisible: [...new Set(selected)].filter(id => !detached.some(mapping => mapping.id === id)),
             };
             if (profile !== undefined) {
@@ -278,8 +322,9 @@ export class SemanticRegistry {
 
     /** @brief Reuse durable successful-call statistics for visible namespace discovery. */
     namespaceHints(allowed?: Set<string>, limit = 8): { frequent: string[]; recent: string[] } {
-        const used = this.effective().filter(m => m.enabled && (!allowed || allowed.has(m.id)) && (this.state.usage[m.id]?.calls ?? 0) > 0);
-        const calls = (id: string): Usage => this.state.usage[id]!;
+        const usage = this.snapshot().usage;
+        const used = this.effective().filter(m => m.enabled && (!allowed || allowed.has(m.id)) && (usage[m.id]?.calls ?? 0) > 0);
+        const calls = (id: string): Usage => usage[id]!;
         const paths = (mappings: Mapping[]): string[] => [...new Set(mappings.flatMap(m => [m.path, ...m.aliases]))].slice(0, limit);
         return {
             frequent: paths([...used].sort((a, b) => calls(b.id).calls - calls(a.id).calls || calls(b.id).lastUsed - calls(a.id).lastUsed || a.path.localeCompare(b.path))),
@@ -293,20 +338,31 @@ export class SemanticRegistry {
         const errors = validateJsonSchemaValue(mapping.tool.parameters as JsonSchemaNode, args);
         if (errors.length) throw new Error(`Invalid arguments: ${errors.join('; ')}`);
         const value = await dispatch(mapping.id, args);
-        await this.transaction(async () => {
-            const next = this.snapshot();
-            const usage = (Object.hasOwn(next.usage, mapping.id) ? next.usage[mapping.id] : undefined) ?? { calls: 0, lastUsed: 0, exposures: 0 };
-            Object.defineProperty(next.usage, mapping.id, { value: { ...usage, calls: usage.calls + 1, lastUsed: Date.now() }, enumerable: true, configurable: true, writable: true });
-            await this.store.save('registry', next);
-            this.state = next;
-        });
+        await (this.usageOwner ?? this).recordInvocation(mapping.id);
         return value;
     }
 
-    async expose(paths: string[]): Promise<void> {
+    /** @brief Store global usage independently of immutable configuration versions. */
+    private async recordInvocation(id: string): Promise<void> {
         await this.transaction(async () => {
-            const next = this.snapshot();
-            for (const id of new Set(this.effective().filter(m => paths.includes(m.path) || m.aliases.some(a => paths.includes(a))).map(m => m.id))) {
+            const next = structuredClone(this.state);
+            const usage = (Object.hasOwn(next.usage, id) ? next.usage[id] : undefined) ?? { calls: 0, lastUsed: 0, exposures: 0 };
+            Object.defineProperty(next.usage, id, { value: { ...usage, calls: usage.calls + 1, lastUsed: Date.now() }, enumerable: true, configurable: true, writable: true });
+            await this.store.save('registry', next);
+            this.state = next;
+        });
+    }
+
+    async expose(paths: string[]): Promise<void> {
+        const ids = [...new Set(this.effective().filter(m => paths.includes(m.path) || m.aliases.some(a => paths.includes(a))).map(m => m.id))];
+        await (this.usageOwner ?? this).recordExposures(ids);
+    }
+
+    /** @brief Attribute exposure by physical identity across session-local configurations. */
+    private async recordExposures(ids: string[]): Promise<void> {
+        await this.transaction(async () => {
+            const next = structuredClone(this.state);
+            for (const id of ids) {
                 const usage = (Object.hasOwn(next.usage, id) ? next.usage[id] : undefined) ?? { calls: 0, lastUsed: 0, exposures: 0 };
                 Object.defineProperty(next.usage, id, { value: { ...usage, exposures: usage.exposures + 1 }, enumerable: true, configurable: true, writable: true });
             }
