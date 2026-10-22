@@ -40,7 +40,8 @@ function NativeProfileItem({ value, label, selected, disabled, removable, onChan
 /** @brief Independent anchored profile dropdown that keeps selection and editing inside the open panel. */
 export function NativeProfileSelect({ value, options, disabled, onChange, onCreate, onRename, onRemove }: ProfileSelectProps) {
     const t = useTranslation();
-    const [open, setOpen] = useState(false);
+    const [phase, setPhase] = useState<'closed' | 'open' | 'closing'>('closed');
+    const open = phase === 'open';
     const [draft, setDraft] = useState('');
     const root = useRef<HTMLDivElement>(null);
     const trigger = useRef<HTMLButtonElement>(null);
@@ -50,7 +51,7 @@ export function NativeProfileSelect({ value, options, disabled, onChange, onCrea
         if (!open) return;
         /** @brief Dismiss the dropdown when a pointer or keyboard focus leaves the control. */
         function outside(event: Event): void {
-            if (!root.current?.contains(event.target as Node)) setOpen(false);
+            if (!root.current?.contains(event.target as Node)) setPhase('closing');
         }
         document.addEventListener('pointerdown', outside);
         document.addEventListener('focusin', outside);
@@ -58,23 +59,26 @@ export function NativeProfileSelect({ value, options, disabled, onChange, onCrea
     }, [open]);
 
     return <div className="ts-profile-select" ref={root} onKeyDown={event => {
-        if (event.key === 'Escape' && !event.nativeEvent.isComposing) { event.preventDefault(); setOpen(false); trigger.current?.focus(); }
+        if (event.key === 'Escape' && !event.nativeEvent.isComposing) { event.preventDefault(); setPhase('closing'); trigger.current?.focus(); }
         if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && !(event.target instanceof HTMLInputElement)) {
             event.preventDefault();
-            if (!open) { setOpen(true); return; }
+            if (!open) { setPhase('open'); return; }
             const items = Array.from(root.current?.querySelectorAll<HTMLButtonElement>('.ts-profile-option') ?? []);
             const index = items.indexOf(document.activeElement as HTMLButtonElement);
             items[(index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
         }
     }}>
         <button type="button" ref={trigger} aria-label={t('profile')} aria-expanded={open} aria-controls={panelId} disabled={disabled}
-            onClick={() => setOpen(current => !current)}>
+            onClick={() => setPhase(current => current === 'open' ? 'closing' : 'open')}>
             <span className="ts-profile-label">{options.find(option => option.value === value)?.label ?? value}</span>
             <svg className="ts-profile-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="m6 9 6 6 6-6" />
             </svg>
         </button>
-        {open && <div id={panelId} className="ts-profile-dropdown" role="group" aria-label={t('profile')}>
+        {phase !== 'closed' && <div id={panelId} className="ts-profile-dropdown" data-phase={phase} role="group" aria-label={t('profile')}
+            aria-hidden={!open} ref={element => { if (element) element.inert = !open; }} onAnimationEnd={event => {
+                if (event.target === event.currentTarget && phase === 'closing') setPhase('closed');
+            }}>
             <div className="ts-profile-options">{options.map(option => <NativeProfileSelect.Item key={option.value} {...option}
                 selected={option.value === value} disabled={disabled} removable={options.length > 1} onChange={() => onChange(option.value)}
                 onRename={name => onRename(option.value, name)} onRemove={() => onRemove(option.value)} />)}</div>
