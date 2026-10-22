@@ -28,24 +28,37 @@ export interface Namespace { path: string; alwaysVisible: boolean; description: 
 /** @brief Successful physical invocations, independent of completion exposure. */
 export interface Usage { calls: number; lastUsed: number; exposures: number }
 /** @brief Versioned complete registry state, committed atomically. */
-export interface RegistryState { version: 1; revision: number; mappings: Mapping[]; namespaces?: Namespace[]; order?: string[]; usage: Record<string, Usage> }
+export interface RegistryState { version: 1; revision: number; mappings: Mapping[]; namespaces?: Namespace[]; order?: string[]; unknownVisible?: string[]; profile?: string; profiles?: string[]; usage: Record<string, Usage> }
+/** @brief A named configuration contains no runtime state or usage counters. */
+interface RegistryConfiguration { mappings: Mapping[]; namespaces: Namespace[]; order: string[]; unknownVisible: string[] }
+/** @brief Only inactive configurations are archived, so the active configuration has one source of truth. */
+interface StoredRegistryState extends RegistryState { inactiveProfiles?: Record<string, RegistryConfiguration> }
 /** @brief Structured maintenance proposal; execution policy remains owned by DSH. */
 export interface Proposal { revision: number; changes: Array<{ id: string; path: string; aliases?: string[]; description?: string }> }
 
 /** @brief Transactional semantic registry; unconfigured identities remain under unknown. */
 export class SemanticRegistry {
     private physical = new Map<string, PhysicalTool>();
-    private state: RegistryState = { version: 1, revision: 0, mappings: [], usage: {} };
+    private state: StoredRegistryState = { version: 1, revision: 0, mappings: [], usage: {}, profile: 'Default', inactiveProfiles: {} };
     private writeChain: Promise<unknown> = Promise.resolve();
 
     constructor(private store: Store) {}
 
     async load(): Promise<void> {
-        const saved = await this.store.load<RegistryState>('registry');
+        const saved = await this.store.load<StoredRegistryState>('registry');
         if (saved) {
             if (saved.version !== 1 || !Number.isSafeInteger(saved.revision) || !Array.isArray(saved.mappings) || !saved.usage) throw new Error('Invalid registry snapshot');
+            this.validateProfileName(saved.profile ?? 'Default');
             this.validateMappings(saved.mappings);
             this.validateNamespaces(saved.namespaces ?? [], saved.mappings);
+            this.validateUnknownVisibility(saved.unknownVisible ?? []);
+            for (const [name, configuration] of Object.entries(saved.inactiveProfiles ?? {})) {
+                this.validateProfileName(name);
+                if (name === (saved.profile ?? 'Default')) throw new Error('Duplicate active profile');
+                this.validateMappings(configuration.mappings);
+                this.validateNamespaces(configuration.namespaces, configuration.mappings);
+                this.validateUnknownVisibility(configuration.unknownVisible);
+            }
             this.state = saved;
         }
     }
@@ -57,17 +70,74 @@ export class SemanticRegistry {
         this.physical = next;
     }
 
-    snapshot(): RegistryState { return structuredClone(this.state); }
+    snapshot(): RegistryState {
+        const { inactiveProfiles, ...state } = structuredClone(this.state);
+        const profile = state.profile ?? 'Default';
+        return { ...state, profile, profiles: [profile, ...Object.keys(inactiveProfiles ?? {})].sort((a, b) => a.localeCompare(b)) };
+    }
+
+    /** @brief Extract only the configurable fields when archiving an active profile. */
+    private configuration(): RegistryConfiguration {
+        return structuredClone({ mappings: this.state.mappings, namespaces: this.state.namespaces ?? [], order: this.state.order ?? [], unknownVisible: this.state.unknownVisible ?? [] });
+    }
+
+    /** @brief Keep names usable as both dictionary keys and menu labels. */
+    private validateProfileName(name: string): void {
+        if (typeof name !== 'string' || !name.trim() || name !== name.trim() || name.length > 80 || ['__proto__', 'constructor', 'prototype'].includes(name)) throw new Error('Invalid profile name');
+    }
+
+    /** @brief Atomically manage named configurations under the same global revision as ordinary saves. */
+    async manageProfile(action: 'create' | 'select' | 'rename' | 'delete', name: string, revision: number, newName?: string): Promise<void> {
+        await this.transaction(async () => {
+            if (revision !== this.state.revision) throw new Error('Registry revision conflict; reload before saving');
+            this.validateProfileName(name);
+            const active = this.state.profile ?? 'Default';
+            const archive = structuredClone(this.state.inactiveProfiles ?? {});
+            const exists = (name: string): boolean => name === active || Object.hasOwn(archive, name);
+            let next = { ...this.state, revision: revision + 1, inactiveProfiles: archive };
+            if (action === 'create') {
+                if (exists(name)) throw new Error('Profile name already exists');
+                archive[active] = this.configuration();
+                next = { ...next, profile: name, mappings: [], namespaces: [], order: [], unknownVisible: [] };
+            } else {
+                if (!exists(name)) throw new Error('Profile does not exist');
+                if (action === 'rename') {
+                    this.validateProfileName(newName!);
+                    if (newName === name) return;
+                    if (exists(newName!)) throw new Error('Profile name already exists');
+                    if (name === active) next.profile = newName!;
+                    else { archive[newName!] = archive[name]!; delete archive[name]; }
+                } else if (action === 'select') {
+                    if (name === active) return;
+                    const configuration = archive[name]!;
+                    delete archive[name]; archive[active] = this.configuration();
+                    next = { ...next, ...configuration, profile: name };
+                } else if (action === 'delete') {
+                    if (!Object.keys(archive).length) throw new Error('At least one profile is required');
+                    if (name === active) {
+                        const fallback = Object.keys(archive)[0]!;
+                        next = { ...next, ...archive[fallback]!, profile: fallback }; delete archive[fallback];
+                    } else delete archive[name];
+                } else throw new Error('Invalid profile action');
+            }
+            await this.store.save('registry', next);
+            this.state = next;
+        });
+    }
 
     tools(): PhysicalTool[] { return structuredClone([...this.physical.values()]); }
 
     effective(): Array<Mapping & { tool: PhysicalTool }> {
-        return [...this.physical.values()].map(tool => ({
-            id: tool.id,
-            path: `unknown.${toolName(tool.id)}`,
-            aliases: [], enabled: true, pinned: false,
-            ...this.state.mappings.find(m => m.id === tool.id), tool,
-        }));
+        return [...this.physical.values()].map(tool => {
+            const mapping = this.state.mappings.find(m => m.id === tool.id);
+            return {
+                id: tool.id,
+                path: `unknown.${toolName(tool.id)}`,
+                aliases: [], enabled: true, pinned: false,
+                alwaysVisible: mapping?.alwaysVisible ?? (!mapping && (this.state.unknownVisible ?? []).includes(tool.id)),
+                ...mapping, tool,
+            };
+        });
     }
 
     private validateMappings(mappings: Mapping[]): void {
@@ -104,11 +174,24 @@ export class SemanticRegistry {
         return result;
     }
 
-    async configure(mappings: Mapping[], revision: number, namespaces?: Namespace[], order?: string[]): Promise<void> {
+    /** @brief Unmapped visibility is a tool preference, never an editable unknown path. */
+    private validateUnknownVisibility(ids: string[]): void {
+        if (!Array.isArray(ids) || ids.some(id => typeof id !== 'string' || !id)) throw new Error('Invalid unknown tool visibility');
+    }
+
+    async configure(mappings: Mapping[], revision: number, namespaces?: Namespace[], order?: string[], unknownVisible?: string[]): Promise<void> {
         const detached = structuredClone(mappings);
         await this.transaction(async () => {
             if (revision !== this.state.revision) throw new Error('Registry revision conflict; reload before saving');
             this.validateMappings(detached);
+            const selected = structuredClone(unknownVisible ?? this.state.unknownVisible ?? []);
+            this.validateUnknownVisibility(selected);
+            for (const mapping of detached) {
+                if (!this.state.mappings.some(old => old.id === mapping.id) && selected.includes(mapping.id) && mapping.alwaysVisible === undefined) mapping.alwaysVisible = true;
+            }
+            if (unknownVisible === undefined) for (const old of this.state.mappings) {
+                if (old.alwaysVisible && !detached.some(mapping => mapping.id === old.id)) selected.push(old.id);
+            }
             const metadata = structuredClone(namespaces ?? this.state.namespaces ?? []);
             this.validateNamespaces(metadata, detached);
             for (const m of detached) {
@@ -124,7 +207,9 @@ export class SemanticRegistry {
             const known = new Set([...metadata.map(n => n.path), ...detached.flatMap(m => [m.path, ...m.aliases])]
                 .flatMap(path => path.split('.').map((_, i, parts) => parts.slice(0, i + 1).join('.'))));
             const treeOrder = [...new Set([...requestedOrder, ...known])].filter(path => known.has(path));
-            const next = { ...this.state, revision: this.state.revision + 1, mappings: detached, namespaces: metadata, order: treeOrder };
+            const next = { ...this.state, revision: this.state.revision + 1, mappings: detached, namespaces: metadata, order: treeOrder,
+                unknownVisible: [...new Set(selected)].filter(id => !detached.some(mapping => mapping.id === id)),
+            };
             await this.store.save('registry', next);
             this.state = next;
         });
