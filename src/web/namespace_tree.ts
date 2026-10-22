@@ -1,3 +1,4 @@
+import { providedNamespace } from './tree_provider.js';
 import { validatePath } from '../registry/path.js';
 import type { Mapping, Namespace } from '../registry/registry.js';
 
@@ -5,7 +6,7 @@ import type { Mapping, Namespace } from '../registry/registry.js';
 export interface TreeDraft { mappings: Mapping[]; namespaces: Namespace[]; order: string[] }
 
 /** @brief Fixed namespaces are display-only and cannot receive configurable tree nodes. */
-export function isFixedNamespace(path: string): boolean { return ['vm', 'unknown'].includes(path.split('.')[0]!); }
+export function isFixedNamespace(path: string): boolean { return providedNamespace(path)?.fixed ?? false; }
 
 /** @brief List explicit and inferred namespace paths. */
 export function namespacePaths(draft: Pick<TreeDraft, 'mappings' | 'namespaces'>): string[] {
@@ -85,12 +86,12 @@ export interface TreeDropTarget { path: string; position: 'inside' | 'before' | 
 export function dropTree(draft: TreeDraft, source: TreeDragSource, target: TreeDropTarget, defaultName = 'command'): TreeDraft {
     const parent = target.position === 'inside' ? target.path : target.path.split('.').slice(0, -1).join('.');
     if (isFixedNamespace(parent)) throw new Error('不能拖入固定命名空间。');
-    if ((source.namespace && source.path && isFixedNamespace(source.path)) || source.path?.split('.')[0] === 'vm') throw new Error('固定命名空间及 VM 命令不可移动。');
+    if ((source.namespace && source.path && isFixedNamespace(source.path)) || (source.path && providedNamespace(source.path)?.commands.some(command => command.path === source.path && !command.draggable))) throw new Error('固定命名空间及 VM 命令不可移动。');
     const namespaces = namespacePaths(draft);
     if (parent && !namespaces.includes(parent)) throw new Error('目标命名空间不存在。');
     if (target.position !== 'inside' && ![...namespaces, ...draft.mappings.flatMap(m => [m.path, ...m.aliases])].includes(target.path)) throw new Error('目标节点不存在。');
     const mapping = draft.mappings.find(m => m.id === source.id);
-    const previous = !mapping && source.path?.startsWith('unknown.') ? undefined : source.path || (source.namespace ? undefined : mapping?.path);
+    const previous = !mapping && source.path && providedNamespace(source.path) ? undefined : source.path || (source.namespace ? undefined : mapping?.path);
     if (!source.namespace && mapping?.pinned) throw new Error('映射路径已锁定。');
     if (previous === target.path && target.position !== 'inside') return draft;
     if (source.namespace && (!previous || !namespaces.includes(previous))) throw new Error('源命名空间不存在。');
