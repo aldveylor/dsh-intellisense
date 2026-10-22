@@ -179,10 +179,15 @@ export class SemanticRegistry {
         if (!Array.isArray(ids) || ids.some(id => typeof id !== 'string' || !id)) throw new Error('Invalid unknown tool visibility');
     }
 
-    async configure(mappings: Mapping[], revision: number, namespaces?: Namespace[], order?: string[], unknownVisible?: string[]): Promise<void> {
+    /** @brief Save a configuration, optionally archiving the active profile and selecting a new named copy. */
+    async configure(mappings: Mapping[], revision: number, namespaces?: Namespace[], order?: string[], unknownVisible?: string[], profile?: string): Promise<void> {
         const detached = structuredClone(mappings);
         await this.transaction(async () => {
             if (revision !== this.state.revision) throw new Error('Registry revision conflict; reload before saving');
+            if (profile !== undefined) {
+                this.validateProfileName(profile);
+                if (profile === (this.state.profile ?? 'Default') || Object.hasOwn(this.state.inactiveProfiles ?? {}, profile)) throw new Error('Profile name already exists');
+            }
             this.validateMappings(detached);
             const selected = structuredClone(unknownVisible ?? this.state.unknownVisible ?? []);
             this.validateUnknownVisibility(selected);
@@ -210,6 +215,10 @@ export class SemanticRegistry {
             const next = { ...this.state, revision: this.state.revision + 1, mappings: detached, namespaces: metadata, order: treeOrder,
                 unknownVisible: [...new Set(selected)].filter(id => !detached.some(mapping => mapping.id === id)),
             };
+            if (profile !== undefined) {
+                next.inactiveProfiles = { ...this.state.inactiveProfiles, [this.state.profile ?? 'Default']: this.configuration() };
+                next.profile = profile;
+            }
             await this.store.save('registry', next);
             this.state = next;
         });
