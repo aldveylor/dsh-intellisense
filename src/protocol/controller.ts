@@ -58,7 +58,7 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
         host.trace?.('ts.response', { round, response, reason, nativeCall });
         if (nativeCall || /<\/?\s*[|｜]+\s*DSML\b/i.test(response)) {
             host.source?.(prefix);
-            const context = 'Invalid response format: native tool calls and DSML wrappers are disabled. Output raw executable TypeScript only. To inspect a namespace, write its name followed by a dot and <|INTELLISENSE|>, then stop immediately. For example: unknown.<|INTELLISENSE|>. Use only names listed in the VM context. The rejected response has not executed.';
+            const context = 'Invalid response format: native tool calls and DSML wrappers are disabled. Output raw executable TypeScript only. To inspect a namespace, write its name followed by a dot and <|INTELLISENSE|>, then stop immediately. Use an available VM root followed by .<|INTELLISENSE|>. Use only names listed in the VM context. The rejected response has not executed.';
             await host.journal({ round, prefix, response, context });
             request = {
                 ...initial,
