@@ -53,5 +53,5 @@ export function namespaceDirectory(hints: readonly (string | NamespaceHint)[]): 
     }
     visit(root, '    ');
     lines.push('}');
-    return `## 命名空间\n\nCurrent partial namespace structure:\n\nRequire IntelliSense to view the namespace tree and the details of each command.\n\n\x60\x60\x60ts:namespace\n${lines.join('\n')}\n\x60\x60\x60`;
+    return `## Namespaces\n\nCurrent partial namespace structure:\n\nRequire IntelliSense to view the namespace tree and the details of each command.\n\n\x60\x60\x60ts:namespace\n${lines.join('\n')}\n\x60\x60\x60`;
 }

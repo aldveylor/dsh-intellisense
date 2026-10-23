@@ -205,8 +205,9 @@ test('A13: hostile completion stays escaped data and full original info is audit
     const payload = JSON.stringify(system);
     assert(!JSON.stringify(f.requests[1]!.messages.at(-1)).includes('intellisense-data'));
     assert(!payload.includes(marker));
-    assert(!payload.includes('```'));
-    assert(payload.includes('&lt;/intellisense-data&gt;'));
+    assert(payload.includes('~~~ts'));
+    assert(payload.includes('</intellisense-data>'));
+    assert(!payload.includes('&lt;'));
     const event = f.events[0]!.data;
     assert('info' in event && event.info === hostile);
 });
@@ -263,7 +264,7 @@ test('abort between downstream chunks emits no subsequent delta and releases ups
     assert(f.requests[0]!.signal?.aborted);
 });
 
-test('completion data is bounded after escaping and supports a custom marker', async () => {
+test('completion data is bounded after decoding and supports a custom marker', async () => {
     const custom = '<|COMPLETE|>';
     const f = fixture(['```js:exec\nstd.' + custom, 'fs;\n```'], { marker: custom, maxInfoChars: 32 }, {
         complete: async () => ({ kind: 'vm', text: custom + '`'.repeat(1000) }),
@@ -272,7 +273,8 @@ test('completion data is bounded after escaping and supports a custom marker', a
     const event = f.events[0]!.data;
     assert('injected' in event);
     assert(!event.injected.includes(custom));
-    assert(!event.injected.includes('`'));
+    assert(event.injected.includes('`'.repeat(32)));
+    assert(!event.injected.includes('`'.repeat(33)));
     assert(event.injected.length < 150);
     assert(event.info.length > 1000);
 });
@@ -428,4 +430,20 @@ test('BREAK abandons a raw DSML call without repairing it into an executable pro
     assert(!JSON.stringify(chunks).includes('abandoned call'));
     assert(JSON.stringify(f.events).includes('abandoned call'));
     assert.deepEqual(chunks.at(-1), { type: 'finish', reason: { kind: 'stop' } });
+});
+
+test('regenerated system prompt replaces request projection without changing initial history', async () => {
+    const base = { ...initial, system: 'Base deployment prompt', messages: [] };
+    const updates: string[] = [];
+    const f = fixture(['```js:exec\nstd.cwd' + marker, '();\n```'], {}, {
+        promptUpdated: async text => { updates.push(text); return 'Fresh assembled persona\nFresh project rules\n' + text; },
+    });
+    await f.run(base);
+    assert.equal(base.system, 'Base deployment prompt');
+    assert.equal(f.requests[1]!.system, undefined);
+    const systems = f.requests[1]!.messages.filter(message => message.role === 'system');
+    assert.equal(systems.length, 1);
+    assert(JSON.stringify(systems[0]).includes('Fresh project rules'));
+    assert(!JSON.stringify(systems[0]).includes('Base deployment prompt'));
+    assert.equal(updates.length, 1);
 });

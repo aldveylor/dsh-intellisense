@@ -63,15 +63,16 @@ export function continuation(options: GenerateOptions, prefix: string, info: str
     };
 }
 
-/** @brief Supply completion data as system content, retaining all previous signatures in this request. */
-export function withIntellisense(options: GenerateOptions, text: string, segment: number): GenerateOptions {
-    const index = options.messages.reduce((last, message, index) => message.role === 'system' ? index + 1 : last, 0);
+/** @brief Use the fully regenerated prompt for this request while retaining immutable logged history. */
+export function withIntellisense(options: GenerateOptions, text: string, segment: number, regenerated?: string): GenerateOptions {
+    const previous = [options.system, ...options.messages.filter(message => message.role === 'system').map(message => message.content.map(block => block.type === 'text' ? block.text : '').join('\n'))].filter(Boolean).join('\n\n');
+    const prompt = regenerated ?? [previous, text].filter(Boolean).join('\n\n');
     return {
         ...options,
+        system: undefined,
         messages: [
-            ...options.messages.slice(0, index),
-            { role: 'system', id: MessageId(`text-exec-intellisense-${segment}`), source: { kind: 'system-prompt' }, content: [{ type: 'text', text }] },
-            ...options.messages.slice(index),
+            { role: 'system', id: MessageId(`text-exec-prompt-${segment}`), source: { kind: 'system-prompt' }, content: [{ type: 'text', text: prompt }] },
+            ...options.messages.filter(message => message.role !== 'system'),
         ],
     };
 }

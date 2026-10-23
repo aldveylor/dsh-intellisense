@@ -18,7 +18,7 @@ test('protocol guidance demonstrates terminal completion and follows user langua
 
 test('namespace item groups and deduplicates actual enabled commands without inventing signatures', () => {
     const tree = namespaceDirectory(['std.fs.write', 'vm.restart', 'std.fs.read', 'std.fs.read']);
-    assert(tree.includes('## 命名空间'));
+    assert(tree.includes('## Namespaces'));
     assert(tree.includes('namespace global {'));
     assert(tree.includes('namespace std {'));
     assert(tree.includes('read: Function;'));

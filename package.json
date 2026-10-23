@@ -55,9 +55,10 @@
   "license": "MIT",
   "dependencies": {
     "@deepseek-ai/dsh": "0.2.1-rc.2",
+    "entities": "8.1.0",
     "typescript": "5.9.3",
-    "zod": "4.6.7",
-    "yaml": "2.9.1"
+    "yaml": "2.9.1",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-client-ui-primitives": "0.2.1-rc.2",
@@ -78,6 +79,7 @@
   "peerDependencies": {
     "@deepseek-ai/cordis": "4.0.5",
     "@deepseek-ai/dsh-agent": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-agent-preset-registry": "0.2.1-rc.2",
     "@deepseek-ai/dsh-client-connection": "0.2.1-rc.2",
     "@deepseek-ai/dsh-client-locale": "0.2.1-rc.2",
     "@deepseek-ai/dsh-client-ui-primitives": "0.2.1-rc.2",
@@ -86,7 +88,6 @@
     "@deepseek-ai/dsh-storage": "0.2.1-rc.2",
     "@deepseek-ai/dsh-subagent": "0.2.1-rc.2",
     "@deepseek-ai/dsh-system-prompt": "0.2.1-rc.2",
-    "@deepseek-ai/dsh-tools": "0.2.1-rc.2",
-    "@deepseek-ai/dsh-agent-preset-registry": "0.2.1-rc.2"
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.2"
   }
 }

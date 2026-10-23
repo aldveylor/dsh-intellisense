@@ -1,4 +1,6 @@
 import { appendPluginRecord } from '@deepseek-ai/dsh-session';
+import { renderPrompt } from '@deepseek-ai/dsh-system-prompt';
+import { assembleContextFor } from '@deepseek-ai/dsh-agent';
 import { createSystemMessage } from '@deepseek-ai/dsh-llm';
 import type { Position, SenseEvent, RewriteEvent } from '../protocol/events.js';
 import type { ProtocolHost } from '../protocol/adapter.js';
@@ -73,8 +75,12 @@ export class NamespaceComponent {
     /** @brief Share discovery and durable system-prompt updates across native and PTC transports. */
     protocolHost(agent: Agent, position: Position, epoch: () => number): ProtocolHost {
         return {
-            promptUpdated: async text => {
+            promptUpdated: async (_text, signal) => {
+                const assembly = await this.ctx.systemPrompt.assemble(assembleContextFor(agent, signal));
+                signal.throwIfAborted();
+                const text = renderPrompt(assembly);
                 agent.session.append('system/message', { ...position, message: createSystemMessage(text) }, { surfaceOp: 'append' });
+                return text;
             },
             complete: async query => this.ctx.get('intellisense')?.complete(query, await this.entries(agent)),
             audit: async (type, event) => {
