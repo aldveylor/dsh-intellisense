@@ -23,3 +23,5 @@ Profile 可同时保存来自多个预设的映射；当前模型作用域未挂
 固定提示按命令等级生成：0 不输出，1 输出 Function 占位和 Profile 简略注释，2 输出完整签名与 @brief、@param、@returns 文档。详细工具文档沿用 IntelliSense 声明投影，参数别名与返回值解包规则相同；无参数命令不生成虚构 @param。tools.intellisense 强制固定等级 2，移除 setFixed 操作。
 
 `tool_commands.ts` 仅注册 Profile load/save/annotation/commands。save 支持显式名称或当前会话名称，验证递归树与物理命令身份，发布目录并替换当前会话配置；load 无名称只返回草稿，有名称切换会话版本。`namespace_runtime.ts` 将 annotation 和原始命令列表作为数据传给 VM init，不安装同名函数。
+
+consoleMounted 为随 Profile 保存的命名空间挂载开关，默认 false。管理面板保留 console 节点及挂载按钮；未挂载时不展示其命令，不参与 IntelliSense 和固定提示。运行时原生 console 始终可用，PTC 初始 prompt 明确提示可使用运行时提供的原生 Node.js 变量。

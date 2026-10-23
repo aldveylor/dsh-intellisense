@@ -1,5 +1,7 @@
 /** @brief Chinese interface dictionary. */
 export const zh = {
+    "mount_console": "挂载 console",
+    "unmount_console": "不挂载 console",
     "protocol_error": "协议执行失败",
     "intellisense_trace": "IntelliSense 补全调用",
     "intellisense_query": "查询代码",

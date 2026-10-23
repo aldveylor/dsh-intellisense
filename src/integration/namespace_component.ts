@@ -100,6 +100,7 @@ export class NamespaceComponent {
         }
         for (const item of state.namespaces ?? []) if (item.alwaysVisible && entries.some(entry => entry.path.startsWith(item.path + '.'))) hints.push({ ...item, namespace: true });
         for (const item of (this.isPtc(agent) ? builtinCommands : builtinCommands.filter(command => command.path.startsWith('tools.')))) {
+            if (item.path.startsWith('console.') && !state.consoleMounted) continue;
             const level = item.path === discoveryCommand.path ? 2 : (state.builtinVisible ?? defaultBuiltinVisible)[item.path] ?? 0;
             if (level) hints.push({ ...item, ...(level === 2 ? { declaration: builtinDeclaration(item) } : {}) });
         }
