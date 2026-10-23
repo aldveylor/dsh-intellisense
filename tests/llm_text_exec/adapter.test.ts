@@ -245,7 +245,7 @@ test('each possible opening/closing fence split is buffered and assembler accept
 test('empty completion still continues; invalid config and unsupported stop options fail explicitly', async () => {
     const f = fixture(['```js:exec\nstd.' + marker, 'fs;\n```'], {}, { complete: async () => undefined });
     assert.equal(codeOf(await f.run()), 'std.fs;');
-    assert(JSON.stringify(f.requests[1]).includes('无补充信息'));
+    assert(JSON.stringify(f.requests[1]).includes('No additional information.'));
     assert.throws(() => fixture([], { maxSegments: 0 }));
     await assert.rejects(f.run({ ...initial, stop: [marker] }), /unsupported/);
 });
