@@ -30,7 +30,7 @@ UI 不再显示 unknown 块。树上方显示当前可用但未挂载的工具�
 
 ## 构建和部署
 
-`run.mjs` 与 `scripts/local_plugin.mjs` 将本包登记为原生 bundle；cordis.patch.yml 注册插件和 Text PTC preset，并设为默认选择。`presets/text_ptc/` 保存模式元数据、Agent 能力清单及工具别名。`scripts/build_client.mjs` 构建共享宿主 React 的客户端、独立页面及运行时 worker bundle。生成产物位于 dist/build，不提交 Git。新运行时需要 Linux、Python3、libseccomp 和 Node >=24，加载时实测隔离条件，无法满足则失败。
+`run.mjs` 与 `scripts/local_plugin.mjs` 将本包登记为原生 bundle；cordis.patch.yml 注册插件和 Text PTC preset，并设为默认选择。`presets/text_ptc/` 保存模式元数据、Agent 能力清单及工具别名。`scripts/build.mjs` 先清理 dist，防止移除的模块残留在发布包；随后编译生产源码，并调用 `scripts/build_client.mjs` 构建共享宿主 React 的客户端、独立页面及运行时 worker bundle。生成产物位于 dist/build，不提交 Git。新运行时需要 Linux、Python3、libseccomp 和 Node >=24，加载时实测隔离条件，无法满足则失败。
 
 ## 验证
 
