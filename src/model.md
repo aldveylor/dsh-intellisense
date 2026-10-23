@@ -34,7 +34,7 @@ UI 不再显示 unknown 块。树上方显示当前可用但未挂载的工具�
 
 ## 构建和部署
 
-`run.mjs` 与 scripts/local_plugin.mjs 将本包登记为原生 bundle；cordis.patch.yml 注册插件和两个模式，默认 intellisense-ptc。presets/intellisense_ptc 与 presets/intellisense 保存各自模式元数据和 Agent 能力清单；共享 YAML 别名位于 presets/intellisense_ptc/aliases.yml。两个模式分别通过 presentation 配置选择 ptc/native 呈现，并据此生成初始 prompt。
+`run.mjs` 与 scripts/local_plugin.mjs 将本包登记为原生 bundle；本地注册按真实目录移除同目录的旧包名 link 依赖及 bundle，并去重 bundle 列表，避免包重命名后重复加载。cordis.patch.yml 注册插件和两个模式，默认 intellisense-ptc。presets/intellisense_ptc 与 presets/intellisense 保存各自模式元数据和 Agent 能力清单；共享 YAML 别名位于 presets/intellisense_ptc/aliases.yml。两个模式分别通过 presentation 配置选择 ptc/native 呈现，并据此生成初始 prompt。
 
 构建清理 dist 并编译生产源码、管理客户端及 worker。dist/build 生成物不提交。受限运行时需要 Linux、Python3、libseccomp 和 Node >=24，加载时实测隔离条件。
 
