@@ -6,6 +6,7 @@ export interface Position { turn: number; step: number }
 
 /** @brief All nondeterministic completion data needed to reconstruct a continuation request. */
 export interface SenseEvent extends Position {
+    marker: string;
     segment: number;
     sessionId: GenerateOptions['sessionId'];
     prefix: string;

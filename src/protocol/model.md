@@ -10,7 +10,7 @@
 
 `adapter.ts` 接收 inner.stream、请求独立的 turn/step 和 ProtocolHost。主循环保留流式 prose/reasoning，源码不外发。各段 usage 累计后仅发一次，正常结束生成完整 exec block 生命周期和 tool-calls finish，由原生 loop 执行，适配器自身不执行程序。内层非 stop、未闭合围栏重复修复、重复补全或超限转为 error finish。不支持 stop 选项，因为提供方会吞掉终止标记。取消传给上游与查询，并在每次向消费者 yield 前检查；取消后不再生成 chunk。
 
-`events.ts` 通过 SessionEventMap 合并声明 exec/intellisense 与 exec/rewrite。ProtocolHost.audit 必须在对应输出或下一次请求前完成持久化，记录完整原始生成段、完整补全信息、实际净化注入数据、查询上下文和耗时、丢弃前缀长度、代码哈希与丢弃内容。请求生命周期拥有 signal，完成/中断后统一 abort 清理。
+`events.ts` 通过 SessionEventMap 合并声明 exec/intellisense 与 exec/rewrite。ProtocolHost.audit 必须在对应输出或下一次请求前完成持久化，记录完整原始生成段、完整补全信息、实际净化注入数据、实际配置的补全 marker、查询上下文和耗时、丢弃前缀长度、代码哈希与丢弃内容。请求生命周期拥有 signal，完成/中断后统一 abort 清理。
 
 执行语义已由用户明确：每次严格 AsyncFunction 的普通声明局部有效；显式 globalThis 状态才在同一存活进程内保留，重建后丢失。Agent 文本通道为 stdin/stdout，运行时控制/工具/补全为 IPC，console 结果不能污染 Agent stdout。
 

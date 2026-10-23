@@ -1,5 +1,8 @@
 /** @brief American English interface dictionary. */
 export const enUs = {
+    "intellisense_trace": "IntelliSense completion request",
+    "intellisense_query": "Query code",
+    "intellisense_result": "Completion result",
     "add_comment": "Double-click to add a comment",
     "builtin_pinned": "Built-in commands are always pinned",
     "unpin": "Unpin",

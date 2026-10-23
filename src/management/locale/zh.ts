@@ -1,5 +1,8 @@
 /** @brief Chinese interface dictionary. */
 export const zh = {
+    "intellisense_trace": "IntelliSense 补全调用",
+    "intellisense_query": "查询代码",
+    "intellisense_result": "补全结果",
     "add_comment": "双击添加注释",
     "builtin_pinned": "内置指令始终固定显示",
     "unpin": "取消固定显示",
