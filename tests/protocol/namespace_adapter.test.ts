@@ -7,13 +7,13 @@ import type { AuditEvents } from '../../src/protocol/events.js';
 const marker = '<|INTELLISENSE|>';
 
 /** @brief Script native provider output including a real structured tool call. */
-async function* response(parts: string[], call = false, normal = true): AsyncIterable<StreamChunk> {
+async function* response(parts: string[], call = false, normal = true, args = '{}'): AsyncIterable<StreamChunk> {
     yield { type: 'block-start', index: 0, blockType: 'text' };
     for (const text of parts) yield { type: 'text-delta', index: 0, text };
     yield { type: 'block-end', index: 0, block: { type: 'text', text: parts.join('') } };
     if (call) {
         yield { type: 'block-start', index: 1, blockType: 'tool-call' };
-        yield { type: 'block-end', index: 1, block: { type: 'tool-call', id: ToolCallId('native-call'), name: 'read_file', arguments: '{}' } };
+        yield { type: 'block-end', index: 1, block: { type: 'tool-call', id: ToolCallId('native-call'), name: 'read_file', arguments: args } };
     }
     yield { type: 'usage', usage: { inputTokens: 2, outputTokens: 1 } };
     yield { type: 'finish', reason: { kind: normal ? call ? 'tool-calls' : 'stop' : 'max-tokens' } };
@@ -68,4 +68,13 @@ test('abnormal native output never dispatches tools', async () => {
     assert(!result.some(chunk => chunk.type === 'block-end' && chunk.block.type === 'tool-call'));
     assert.equal(result.at(-1)?.type, 'finish');
     assert(JSON.stringify(result.at(-1)).includes('error'));
+});
+
+test('BREAK inside decoded DSML arguments vetoes dispatch and retains the rejected call for audit', async () => {
+    const f = fixture([() => response(['Reading'], true, true, '{"path":"a<|BREAK|abandoned DSML|>"}')]);
+    const result = await f.run();
+    assert(!result.some(chunk => chunk.type === 'block-end' && chunk.block.type === 'tool-call'));
+    assert.deepEqual(result.at(-1), { type: 'finish', reason: { kind: 'stop' } });
+    assert(JSON.stringify(f.audit).includes('abandoned DSML'));
+    assert(JSON.stringify(f.audit).includes('read_file'));
 });

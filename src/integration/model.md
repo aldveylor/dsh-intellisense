@@ -2,7 +2,7 @@
 
 `src/index.ts` 装配 Text PTC 模式。普通 AgentLoop 主请求交给 TextExecAdapter；标题、压缩和原生子代理不走该接管。原生循环拥有 exec 执行，适配器仅合成工具块，避免重复执行。
 
-`adapter.ts` 注册宿主 exec 工具，并从 agent/request 获取真实 turn/step。每次请求保留原人设、技能、项目指令和模式策略；原工具协议分区由 assemble waterfall 移除，将末尾 js:exec/ts:exec 协议及“命名空间”只读树写入系统提示词装配，清空模型请求的原生工具 schema，使初始系统提示词记录与实际输入一致，明确所有工具（含提问和展示）通过运行时命名空间调用，禁止输出原生工具调用或 DSML 标记。提示提供可直接照写的完整 js:exec 示例，区分普通代码展示与实际执行，要求取得执行结果后再回答；内部推演使用 reasoning 通道，正文只保留面向用户的简要说明和答案。系统提示词包含明确的未闭合围栏补全示例，首次使用尚未获得签名的命令必须输出配置 marker 并立即停止，另说明 LINEBREAK/BREAK；用户可见说明与回答跟随用户语言或其明确指定的语言，不因英文协议或工具元数据切换语言。系统指令、只读命名空间树和经过转义的运行时状态全文记录为 exec/context；补全与生成原文分别记录 exec/intellisense 与 exec/rewrite，以便重建实际请求。
+`adapter.ts` 注册宿主 exec 工具，并从 agent/request 获取真实 turn/step。每次请求保留原人设、技能、项目指令和模式策略；原工具协议分区由 assemble waterfall 移除，将末尾 js:exec/ts:exec 协议及“命名空间”只读树写入系统提示词装配，清空模型请求的原生工具 schema，使初始系统提示词记录与实际输入一致，明确所有工具（含提问和展示）通过运行时命名空间调用，禁止输出原生工具调用或 DSML 标记。提示提供可直接照写的完整 js:exec 示例，区分普通代码展示与实际执行，要求取得执行结果后再回答；内部推演使用 reasoning 通道，正文只保留面向用户的简要说明和答案。系统提示词包含明确的未闭合围栏补全示例，首次使用尚未获得签名的命令必须输出配置 marker 并立即停止，另说明 LINEBREAK/BREAK；用户可见说明与回答跟随用户语言或其明确指定的语言，不因英文协议或工具元数据切换语言。系统指令、只读命名空间树和经过转义的运行时状态全文记录为 plugin:ts_intellisense/context；补全与生成原文分别记录 plugin:ts_intellisense/intellisense 与 plugin:ts_intellisense/rewrite，以便重建实际请求。
 
 `namespace.ts` 由实际 agent scope 的工具 schema、session Profile 及 YAML 别名生成 manifest。tools 命名空间暂时禁用：manifest 排除 tools 路径及 tools_* 管理工具，包括指向管理工具的别名；未挂载工具仅在存在有效自定义别名时可调用。补全不再返回 tools 内置签名，管理界面保留禁用的 tools 树及命令。别名参数重命名、schema 校验和权限检查均在宿主。子调用通过 tools.execute，传入 parent execution token/rootCallId，成对记录原生 PTC dispatch 事件，并向父执行传递 additionalContexts。拒绝在 VM 内表现为 rejected Promise。
 

@@ -54,8 +54,8 @@ export class NamespaceAdapter extends LlmAdapter {
                 total = addUsage(total, assembler.usage);
                 const blocks = assembler.blocks();
                 const text = blocks.filter(block => block.type === 'text').map(block => block.text).join('');
-                originals.push(text);
-                const veto = blocks.some(block => (block.type === 'text' || block.type === 'reasoning') && /<\|BREAK(?:\|[\s\S]*?)?\|>/.test(block.text));
+                originals.push(JSON.stringify(blocks));
+                const veto = blocks.some(block => /<\|BREAK(?:\|[\s\S]*?)?\|>/.test(block.type === 'tool-call' ? block.arguments : block.type === 'text' || block.type === 'reasoning' ? block.text : ''));
                 if (!finished || !['stop', 'tool-calls'].includes(assembler.finish.kind)) throw new LlmError('Namespace output did not finish normally', 'INVALID_FINISH');
                 if (!veto && text.trimEnd().endsWith(this.config.marker)) {
                     const prefix = text.trimEnd().slice(0, -this.config.marker.length);
@@ -75,7 +75,7 @@ export class NamespaceAdapter extends LlmAdapter {
                     }];
                     continue;
                 }
-                await this.host.audit('exec/rewrite', { ...this.position, original: originals, code: '', hash: createHash('sha256').update('').digest('hex'), discardedTail: '', discardedBlocks: veto ? [text] : [], reason: veto ? 'abandoned' : 'prose' });
+                await this.host.audit('exec/rewrite', { ...this.position, original: originals, code: '', hash: createHash('sha256').update('').digest('hex'), discardedTail: '', discardedBlocks: veto ? [JSON.stringify(blocks)] : [], reason: veto ? 'abandoned' : 'prose' });
                 let index = 0;
                 let hasCalls = false;
                 for (const original of blocks) {
