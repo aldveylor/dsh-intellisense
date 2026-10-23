@@ -191,6 +191,17 @@ test('discovery can exceed the segment budget and resets repeated paths after sw
     assert(JSON.stringify(chunks).includes('The namespace tree is complete.'));
 });
 
+test('BREAK after discovery delivers the answer with or without a closing fence', async () => {
+    for (const closing of ['', '\n```']) {
+        const f = fixture(['```js:exec\nstd.fs.' + marker, `<|BREAK|>${closing}\nHere is the namespace tree.`]);
+        const chunks = await f.run();
+        assertStream(chunks, 'stop');
+        assert.equal(codeOf(chunks), undefined);
+        const answer = chunks.filter(chunk => chunk.type === 'text-delta').map(chunk => chunk.text).join('');
+        assert.equal(answer.trim(), 'Here is the namespace tree.');
+    }
+});
+
 test('A8: abort while a query is pending cancels both dependencies and emits nothing further', async () => {
     const controller = new AbortController();
     let received: AbortSignal | undefined;

@@ -10,7 +10,7 @@ export function execBlocks(text: string): ExecBlock[] {
     while ((match = opening.exec(text))) {
         const start = opening.lastIndex;
         closing.lastIndex = start;
-        const controls = [...text.slice(start).matchAll(/<\|(?:LINEBREAK|BREAK)(?:\|[\s\S]*?)?\|>/g)].map(token => ({ text: token[0], start: start + token.index!, end: start + token.index! + token[0].length }));
+        const controls = [...text.slice(start).matchAll(/<\|(?:LINEBREAK|BREAK)(?:\|(?!>)[\s\S]*?)?\|>/g)].map(token => ({ text: token[0], start: start + token.index!, end: start + token.index! + token[0].length }));
         let close = closing.exec(text);
         while (close && controls.some(control => control.start <= close!.index && close!.index < control.end)) close = closing.exec(text);
         const abandoned = controls.find(control => control.text.startsWith('<|BREAK') && (!close || control.start < close.index));
@@ -25,7 +25,7 @@ export function execBlocks(text: string): ExecBlock[] {
 
 /** @brief Strip compatibility control tokens, preserving only LINEBREAK's newline effect. */
 export function cleanControls(text: string, marker: string): string {
-    return text.split(marker).join('').replace(/<\|LINEBREAK(?:\|[\s\S]*?)?\|>/g, '\n').replace(/<\|BREAK(?:\|[\s\S]*?)?\|>/g, '');
+    return text.split(marker).join('').replace(/<\|LINEBREAK(?:\|(?!>)[\s\S]*?)?\|>/g, '\n').replace(/<\|BREAK(?:\|(?!>)[\s\S]*?)?\|>/g, '');
 }
 
 /** @brief Escape untrusted data so it cannot close wrappers, emit markers or introduce fences. */

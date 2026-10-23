@@ -57,7 +57,7 @@ export class NamespaceAdapter extends LlmAdapter {
                 const blocks = assembler.blocks();
                 const text = blocks.filter(block => block.type === 'text').map(block => block.text).join('');
                 originals.push(JSON.stringify(blocks));
-                const veto = blocks.some(block => /<\|BREAK(?:\|[\s\S]*?)?\|>/.test(block.type === 'tool-call' ? block.arguments : block.type === 'text' || block.type === 'reasoning' ? block.text : ''));
+                const veto = blocks.some(block => /<\|BREAK(?:\|(?!>)[\s\S]*?)?\|>/.test(block.type === 'tool-call' ? block.arguments : block.type === 'text' || block.type === 'reasoning' ? block.text : ''));
                 if (!finished || !['stop', 'tool-calls'].includes(assembler.finish.kind)) throw new LlmError('Namespace output did not finish normally', 'INVALID_FINISH');
                 if (!veto && text.trimEnd().endsWith(this.config.marker)) {
                     const prefix = text.trimEnd().slice(0, -this.config.marker.length);

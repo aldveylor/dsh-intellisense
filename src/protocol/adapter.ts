@@ -148,7 +148,7 @@ export class TextExecAdapter extends LlmAdapter {
                 } else buffered = response;
                 if (buffered.length > this.config.maxBufferedChars) throw new LlmError('Text execution output exceeds configured buffer', 'OUTPUT_LIMIT');
                 if (finish?.kind !== 'stop') throw new LlmError(`Upstream did not stop normally (${finish?.kind ?? 'missing finish'})`, 'INVALID_FINISH');
-                if (nativeCallStart(buffered) !== undefined && /<\|BREAK(?:\|[\s\S]*?)?\|>/.test(buffered)) {
+                if (nativeCallStart(buffered) !== undefined && /<\|BREAK(?:\|(?!>)[\s\S]*?)?\|>/.test(buffered)) {
                     buffered = stripNativeCalls(buffered);
                 }
                 if (nativeCallStart(buffered) !== undefined) {
@@ -203,7 +203,7 @@ export class TextExecAdapter extends LlmAdapter {
                         continue;
                     }
                     if (!last.closed) {
-                        if (/<\|LINEBREAK(?:\|[\s\S]*?)?\|>\s*$/.test(last.code)) {
+                        if (/<\|LINEBREAK(?:\|(?!>)[\s\S]*?)?\|>\s*$/.test(last.code)) {
                             buffered = cleanControls(buffered, this.config.marker);
                             request = { ...continuation(initial, buffered, 'Continue on the next line.', segment), signal };
                             continuations++;
@@ -225,6 +225,10 @@ export class TextExecAdapter extends LlmAdapter {
                 if (streamProse) {
                     const end = blocks[0]?.start ?? buffered.length;
                     yield* checked(prose.push(buffered.slice(proseOffset, end)), signal);
+                }
+                if (!selected && blocks.length) {
+                    const answer = buffered.slice(blocks.at(-1)!.end).replace(/^\s*```[ \t]*(?:\r?\n|$)/, '');
+                    yield* checked(prose.push(answer), signal);
                 }
                 yield* checked(prose.end(), signal);
                 if (selected) {
