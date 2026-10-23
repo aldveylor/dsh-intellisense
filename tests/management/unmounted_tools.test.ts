@@ -135,7 +135,7 @@ test('built-in namespace and command descriptions stay English in a Chinese inte
     } finally { dom.window.close(); }
 });
 
-test('built-in pins are editable, standard Node commands default off and preferences survive Profile changes', async () => {
+test('enabled built-in pins remain editable, tools pins are disabled and preferences survive Profile changes', async () => {
     const registry = new SemanticRegistry(new MemoryStore());
     registry.refresh([]);
     const console = new VirtualConsole();
@@ -157,10 +157,14 @@ test('built-in pins are editable, standard Node commands default off and prefere
         window.eval(await readFile(new URL('../../dist/management/standalone.js', import.meta.url), 'utf8'));
         const { document } = window;
         await until(() => !!document.querySelector('[data-unmounted-count]'));
-        for (const path of ['console', 'vm']) document.querySelector<HTMLButtonElement>(`[data-namespace-path="${path}"] .ts-disclosure`)!.click();
+        for (const path of ['console', 'vm', 'tools']) document.querySelector<HTMLButtonElement>(`[data-namespace-path="${path}"] .ts-disclosure`)!.click();
         const pin = (path: string) => document.querySelector<HTMLButtonElement>(`[data-tree-path="${path}"] .ts-pin`)!;
         await until(() => !!pin('console.log') && !!pin('vm.restart'));
         assert(!pin('console.log').disabled); assert(!pin('vm.restart').disabled);
+        await until(() => !!pin('tools.mount'));
+        assert(pin('tools.mount').disabled);
+        assert.equal(pin('tools.mount').getAttribute('aria-pressed'), 'false');
+        assert.equal(document.querySelector('[data-tree-path="tools.mount"]')?.getAttribute('aria-disabled'), 'true');
         assert.equal(pin('console.log').getAttribute('aria-pressed'), 'false');
         assert.equal(pin('vm.restart').getAttribute('aria-pressed'), 'true');
         pin('console.log').click(); pin('vm.restart').click();
@@ -169,7 +173,7 @@ test('built-in pins are editable, standard Node commands default off and prefere
         button('Save').click();
         await until(() => !!registry.snapshot().builtinVisible?.includes('console.log') && !button('Save').disabled);
         assert(!registry.snapshot().builtinVisible?.includes('vm.restart'));
-        assert(registry.snapshot().builtinVisible?.includes('tools.mount'));
+        assert(!registry.snapshot().builtinVisible?.includes('tools.mount'));
         button('Refresh').click();
         await until(() => !button('Refresh').disabled && pin('console.log').getAttribute('aria-pressed') === 'true');
         assert.equal(pin('vm.restart').getAttribute('aria-pressed'), 'false');

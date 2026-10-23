@@ -78,7 +78,7 @@ export class TextPtcAdapter {
         if (!agent) throw new Error('No live agent owns this request');
         const position = this.positions.get(agent.id);
         if (!position) throw new Error('Text PTC requires a recorded turn and step');
-        const instructions = options.system ?? '';
+        const instructions = [options.system, ...options.messages.filter(message => message.role === 'system').map(message => message.content.map(block => block.type === 'text' ? block.text : '').join('\n'))].filter(Boolean).join('\n\n');
         agent.session.append('exec/context', { ...position, instructions, provider: options.provider, model: options.model, epoch: this.runtime.epoch(agent.id) });
         const upstream: GenerateOptions = { ...options, tools: [], toolHistory: undefined };
         const adapter = new TextExecAdapter({ stream: request => this.ctx.llm.stream(request) }, {

@@ -26,6 +26,13 @@ test('disabled tools paths are omitted while YAML aliases validate mapped argume
     assert.throws(() => manifest(registry(), Aliases.parse([{ path: 'console.read', tool: 'read_file' }])), /Reserved/);
 });
 
+test('tools management cannot be re-enabled through a custom YAML alias', () => {
+    const catalog = registry();
+    catalog.refresh([...catalog.tools(), { id: 'tools_mount', description: 'Mount', parameters: { type: 'object' }, output: {} }]);
+    const entries = manifest(catalog, Aliases.parse([{ path: 'custom.mount', tool: 'tools_mount' }, { path: 'tools.read', tool: 'read_file' }]));
+    assert.deepEqual(entries, []);
+});
+
 test('detailed completion uses valid TypeScript/Doxygen declarations and preserves namespace command comments', async () => {
     const entries = manifest(registry(), Aliases.parse([{ path: 'std.fs.read', tool: 'read_file' }]));
     const text = declaration(entries.find(entry => entry.path === 'std.fs.read')!);

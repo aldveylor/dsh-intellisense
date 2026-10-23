@@ -32,6 +32,11 @@ class ScriptedModel extends LlmAdapter {
     }
 }
 
+/** @brief Read the actual loop-owned system-role prompt rather than the one-shot compatibility field. */
+function systemOf(request: GenerateOptions): string {
+    return request.messages.filter(message => message.role === 'system').map(message => message.content.map(block => block.type === 'text' ? block.text : '').join('\n')).join('\n');
+}
+
 test('new mode executes through the native loop, audits guarded children and projects results; unload removes route and exec', { timeout: 20_000 }, async () => {
     const directory = await mkdtemp(join(tmpdir(), 'text-ptc-'));
     const ctx = new Context();
@@ -65,10 +70,10 @@ test('new mode executes through the native loop, audits guarded children and pro
         const parent = executions.find(execution => execution.name === 'exec')!;
         const child = executions.find(execution => execution.name === 'read_file')!;
         assert(parent && child); assert.equal(child.parent, parent.token); assert.equal(child.rootCallId, parent.callId);
-        assert(!model.requests[0]!.system?.includes('persistent TypeScript REPL'));
-        assert(!model.requests[0]!.system?.includes('console.log —'));
-        assert(model.requests[0]!.system?.includes('vm.restart —'));
-        assert(model.requests[0]!.system?.includes('strict AsyncFunction'));
+        assert(!systemOf(model.requests[0]!).includes('persistent TypeScript REPL'));
+        assert(!systemOf(model.requests[0]!).includes('console.log —'));
+        assert(systemOf(model.requests[0]!).includes('vm.restart —'));
+        assert(systemOf(model.requests[0]!).includes('strict AsyncFunction'));
         assert(model.requests.every(request => !request.tools?.some(tool => tool.name === 'exec')));
         const projected = JSON.stringify(model.requests[1]!.messages);
         assert(projected.includes('exec-result')); assert(projected.includes('Got contents'));
@@ -84,9 +89,9 @@ test('new mode executes through the native loop, audits guarded children and pro
         await send(['```js:exec\nreturn typeof tools;\n```', 'The tools namespace is disabled.']);
         assert(JSON.stringify(model.requests.at(-1)!.messages).includes('undefined'));
         assert(model.requests.every(request => request.tools?.length === 0));
-        assert(model.requests[0]!.system?.includes('## 命名空间'));
-        assert(model.requests[0]!.system?.includes('std.fs.read<|INTELLISENSE|>'));
-        assert(model.requests[0]!.system?.includes("Use the language of the user's latest request"));
+        assert(systemOf(model.requests[0]!).includes('## 命名空间'));
+        assert(systemOf(model.requests[0]!).includes('std.fs.read<|INTELLISENSE|>'));
+        assert(systemOf(model.requests[0]!).includes("Use the language of the user's human-authored request"));
         assert(agent.session.snapshotEvents().some(event => event.type === 'system/message' && JSON.stringify(event.data).includes('## 命名空间')));
         const events = agent.session.snapshotEvents();
         assert(events.some(event => event.type === 'exec/intellisense'));
