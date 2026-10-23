@@ -10,6 +10,8 @@
 
 `namespace_component.ts` 在 native 模式下按会话注册命名空间代理。代理使用命名参数，按 YAML argMap 转换字段；每次执行按实际调用者重新验证 manifest，并通过物理工具的原生执行流水线派发。生成代理不进入物理工具目录，变更 manifest 后替换，释放会话或卸载时清理；插件为无显式配置的会话创建的默认呈现也随插件卸载。PTC 模式仅向模型暴露 run_code，native 模式仅暴露 manifest 命名空间工具。
 
+`native_tools.ts` 为 native 代理生成符合 API 字符及 64 字符长度限制的名称，例如 tools.intellisense 对应 ns_tools__intellisense。编码区分点号、下划线与美元符号，长路径使用摘要，并避让物理工具名称。提示词列出命名空间路径与实际调用名的对应关系；Profile、IntelliSense 查询与 PTC 继续使用原路径。
+
 管理目录异步汇总全局、可用预设的 standing scope 及活动会话工具，以物理名称去重；读取预设使用 acquireScope 并始终释放 lease，无需创建会话。损坏的预设不参与目录，会话运行时仍只读取实际调用者作用域的物理工具，不能从管理目录继承其他预设权限。
 
 Profile 可同时保存来自多个预设的映射；当前模型作用域未挂载的物理工具不参与 effective/manifest，不影响其余映射，也不删除原始配置。后续挂载对应工具后原映射自动参与解析。

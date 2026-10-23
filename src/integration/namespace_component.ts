@@ -13,6 +13,7 @@ import { builtinDeclaration, namespaceDirectory, type NamespaceHint } from './pr
 import { builtinCommands, defaultBuiltinVisible, discoveryCommand, profileValues } from '../runtime/builtins.js';
 import { profileAnnotation } from '../registry/profile_tree.js';
 import type { z } from 'zod';
+import { nativeBindings } from './native_tools.js';
 
 /** @brief Profile-backed namespace discovery, independent of any execution runtime. */
 export class NamespaceComponent {
@@ -108,22 +109,24 @@ export class NamespaceComponent {
             const level = state.builtinVisible?.[item.path] ?? 0;
             if (level) hints.push({ ...item, ...(level === 2 ? { declaration: this.isPtc(agent) ? `const ${item.path.split('.').at(-1)}: ${item.signature};` : `function ${item.path.split('.').at(-1)}(): Promise<${item.signature}>;` } : {}) });
         }
-        return (hints.some(item => item.declaration && item.path.startsWith('tools.profile.')) ? '```ts\n' + profileAnnotation + '\n```\n\n' : '') + namespaceDirectory(hints);
+        const bindings = this.isPtc(agent) ? '' : '\n\nNative tool names (namespace path -> callable tool name; use named arguments):\n'
+            + nativeBindings(manifest(registry, this.aliases), registry.tools().map(tool => tool.id)).map(({ entry, name }) => `${entry.path} -> ${name}`).join('\n');
+        return (hints.some(item => item.declaration && item.path.startsWith('tools.profile.')) ? '```ts\n' + profileAnnotation + '\n```\n\n' : '') + namespaceDirectory(hints) + bindings;
     }
 
     /** @brief Install scoped namespace aliases while keeping dispatch inside native guards and auditing. */
     async syncNative(agent: Agent): Promise<string[]> {
         const entries = await this.entries(agent);
-        const fingerprint = JSON.stringify(entries);
+        const bindings = nativeBindings(entries, this.physical(agent).map(tool => tool.id));
+        const fingerprint = JSON.stringify(bindings);
         const previous = this.nativeTools.get(agent.id);
-        if (previous?.fingerprint === fingerprint) return entries.map(entry => entry.path);
+        if (previous?.fingerprint === fingerprint) return bindings.map(binding => binding.name);
         for (const dispose of previous?.disposers ?? []) dispose();
         const state = { fingerprint, disposers: [] as (() => void)[] };
         this.nativeTools.set(agent.id, state);
-        for (const entry of entries) {
-            if (entry.path === entry.tool) continue;
+        for (const { entry, name } of bindings) {
             const definition: ToolDefinition = {
-                name: entry.path, description: entry.doc, parameters: nativeSchema(entry),
+                name, description: `${entry.path}: ${entry.doc}`, parameters: nativeSchema(entry),
                 output: { schema: {}, render: (_args, value) => [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value) }] },
                 execute: async (args, parent) => {
                     const caller = parent.agent;
@@ -136,7 +139,7 @@ export class NamespaceComponent {
             this.generatedTools.add(definition);
             state.disposers.push(agent.ctx.tools.register(definition));
         }
-        return entries.map(entry => entry.path);
+        return bindings.map(binding => binding.name);
     }
 
     /** @brief Dispatch a namespace call through native permission checks and paired child audit records. */
