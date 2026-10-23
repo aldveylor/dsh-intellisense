@@ -105,3 +105,9 @@ schemas 提供 model-facing 参数 schema，get 可拿到实际定义，均须�
 ## 用户确认后的推进
 
 2026-10-23：已明确 AsyncFunction 仅持久化显式 globalThis 状态，以及 Agent stdin/stdout 与运行时 IPC 通道边界。继续 T2；V1 的 provider 替代接口与进程隔离证明仍须在 T3 单独处理。
+
+## T2 协议层实现记录
+
+新增 `src/llm_text_exec/`，包括 zod Config、围栏/marker 流解析、确定性历史投影、补全续写、usage 合并、完整合成工具块、取消联动和 session 审计事件声明。采用公开 LlmAdapter 契约注入 inner.stream，生产 DeepSeek 实例的装配属于后续 preset/provider 工作项。新组件不调用运行时，执行完全交给原生 loop。
+
+fake adapter 的 20 项回放测试通过，覆盖 A1–A9/A13 与错误、修复、分片、取消、usage 边界。完整源码构建通过；组件类型检查和 ESLint 通过；全量旧测试类型检查保持既有 12 条错误。此处只声明协议层完成，不声明 T3–T7、新 Agent Mode、真实 IPC 取消、工具宿主或进程沙箱验收完成。
