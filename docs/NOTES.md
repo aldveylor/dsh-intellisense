@@ -1,5 +1,7 @@
 # Text PTC 审计记录
 
+当前状态：Text PTC 已替换旧 REPL 并设为默认；实际 Web preset-mounted 会话已完成执行往返。最新交付与验证见文末“Text PTC 已接入并启用”。下方初始审计结果保留为历史记录。
+
 ## 版本证据
 
 2026-10-23 从实际安装的 package.json 读取。Node 为 v24.20.0，TypeScript 为 5.9.3。
@@ -49,3 +51,24 @@
 - A10–A12 尚未完成，不把 query mock 的取消测试视为真实 runtime RPC 验收。
 - 隔离探测：`node --permission` 下仍可在 127.0.0.1 监听端口；`unshare -Urn -- true` 成功，系统存在 libseccomp.so.2。后两项仅证明环境有候选机制，未实现或证明完整“仅 IPC”约束。
 - prompt.agent.md 和 history.agent.md 属于 agent 文件，按仓库规范只在本地更新，不加入 Git 提交。
+
+## Text PTC 已接入并启用
+
+后续用户明确要求移除旧模式、替换为新模式并使新 Agent Mode 生效，覆盖了初始“保留旧模式行为”的限制。本轮已完成：
+
+- index.ts 不再装配 TypeScriptAdapter/runConversation，使用 TextPtcAdapter 合成原生 exec 调用，直接 prose 回答不再编译为 TS。
+- codeRuntime 为本插件公开的 RuntimeHost 服务定义；上游当前服务仍是 ptcRuntime，没有改动上游或私有深导入。
+- ctx.intellisense 为可选补全服务；静态别名、Profile 和运行时 descriptor 提供按需 TS/Doxygen 信息。
+- text-ptc provider 通过公开 llm API 复用已注册的上游适配器与凭据，不重新实例化 DeepSeek 凭据连接；界面原 provider/model 仍可沿用，同样使用新协议。
+- preset.yml + agent.cordis.yml 已通过原生 agentPresets 注册。完整 Web profile 启动实测 mode=text-ptc、isDefault=true、broken=null；通过 agents.create + preset mount 创建的会话，header.agentPreset 为 text-ptc，并完成一次 exec → tools.profiles → 普通文本回答。
+- 当前本地 Web profile 过去保存的 selectedDefault=ptc 会覆盖 bundle 默认，已修改为 text-ptc，并通过官方 dump-config 确认 default/selectedDefault 均为 text-ptc。该配置位于 build，未提交。
+- 移除实际运行时、声明、补全、提示和 UI 的 vm.print，使用原生 Console；内置描述固定英文，图钉可取消，Node 标准接口默认不提示，自定义 vm/tools 默认提示，Profile 保存偏好。
+- UI 无 unknown 块，未挂载计数入口按草稿与 Profile 更新；运行时默认路径改为 tools，维护命令为 tools.<method>。
+- 新运行时在 Linux/Python3/libseccomp/Node permission 下启动。网络套接字创建/连接/监听与文件读取拒绝已实测；bootstrap 通过一次性 stdin 关闭后只留 IPC。超时/取消/卸载测试验证终止、清理和 epoch 增加。
+- 上游 Node PTC 默认 timeoutMs 源码为 120000（dsh-ptc-runtime-node/lib/index.js），本服务与 bundle 默认已对齐；本地用户显式配置仍可覆盖。
+
+检查日志在 build/text_ptc_active_*.log 和 build/text_ptc_mode_activation.log，不提交生成产物。完整 Web 激活 smoke 使用独立 build/activation_smoke 数据目录、随机本地端口、关闭浏览器和遥测，运行后已关闭服务，不调用真实模型。
+
+最新运行的新模式测试为 35 项全部通过；生产构建、typecheck:active、当前 lint 范围全部通过。历史全量测试未宣称通过，也没有删除旧测试或调整断言来隐藏不兼容。A1–A13 的协议/运行时/guard/卸载路径均有实际测试；不能将有限反例当作对任意 hostile JS 的安全性证明。
+
+已知边界：新进程后端目前只支持 Linux；超大工具结果明确拒绝，不使用句柄存储或静默截断。provider 使用公开上游服务转发而非重复持有新的 DeepSeek 实例；实际远端 API 与思考模式未做联网测试。

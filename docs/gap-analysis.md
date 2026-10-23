@@ -1,5 +1,7 @@
 # Text PTC 差距审计
 
+当前状态：依据后续用户决策，新模式已启用并替换旧 REPL；初始差距保留为审计记录，实际落实与偏差见文末。
+
 审计日期：2026-10-23。范围：本仓库源码和实际安装的 dsh `0.2.1-rc.2` 发布源码 / 类型声明。未修改上游，也未使用网络上的其他版本代替本地证据。本文为 T0/T1 交付，尚未实施 T2–T7。
 
 ## T0：仓库结构与对应关系
@@ -111,3 +113,16 @@ schemas 提供 model-facing 参数 schema，get 可拿到实际定义，均须�
 新增 `src/llm_text_exec/`，包括 zod Config、围栏/marker 流解析、确定性历史投影、补全续写、usage 合并、完整合成工具块、取消联动和 session 审计事件声明。采用公开 LlmAdapter 契约注入 inner.stream，生产 DeepSeek 实例的装配属于后续 preset/provider 工作项。新组件不调用运行时，执行完全交给原生 loop。
 
 fake adapter 的 20 项回放测试通过，覆盖 A1–A9/A13 与错误、修复、分片、取消、usage 边界。完整源码构建通过；组件类型检查和 ESLint 通过；全量旧测试类型检查保持既有 12 条错误。此处只声明协议层完成，不声明 T3–T7、新 Agent Mode、真实 IPC 取消、工具宿主或进程沙箱验收完成。
+
+## 最新用户决策与落实
+
+用户已要求移除旧模式并使新 Agent Mode 生效，因此初始“不改变旧模式行为”不再适用。旧 REPL 接管已从入口替换，Text PTC 已实际挂载。审计记录保留当时发现的旧状况，当前源码模型以 src/model.md 为准。
+
+- T2：已接入主循环；exec/context 额外记录动态系统提示全文，使实际状态相关请求可由日志重建。
+- T3：V1 不采用失效的上游 codeRuntime 假设；定义本插件自有 codeRuntime 服务并提供受限进程实现，不改上游。严格 AsyncFunction、显式 globalThis 持久化、epoch、超时、取消和卸载均已测试。
+- T4：tools 默认路径、YAML 别名、宿主参数映射与 schema 校验、冻结 VM 对象、native tools.execute(parent token) 和配对子调用审计已实现，允许/拒绝路径已由真实 AgentLoop 验证。
+- T5：可选 ctx.intellisense 服务已提供静态 TS/Doxygen 和无 getter/Proxy 执行的运行时内省；补全信息保留原文日志，注入时转义并限长。
+- T6：独立原生 Text PTC preset 与 provider 已注册。官方配置组合、新模式 roster 和真实 preset-mounted 会话 round trip 均已实测；本地持久默认选择同步更新。
+- T7：新模式测试、类型检查、lint、生产构建和实际 Web 激活 smoke 均通过，详细结果见 NOTES.md。
+
+偏差：provider 通过公开 llm 注册服务复用上游适配器，保留原有凭据和界面模型选择；Linux 后端使用 seccomp + Node permission，而不是只依赖 vm 或已有允许模块/网络访问的 PTC 后端。超大结果拒绝并明确报错；未实现结果句柄。没有真实模型请求或全量历史 REPL 测试通过的结论。

@@ -1,49 +1,37 @@
 # 源码模型
 
-入口 `index.ts` 按原生 Cordis 依赖装配模型无关的请求拦截器、注册表、维护服务和认证管理接口；释放时关闭会话进程。无需 DSH core 补丁。根目录 `cordis.patch.yml` 为发布包入口。`run.mjs` 自动构建，通过 `scripts/local_plugin.mjs` 将本项目以目录链接登记到 Web profile 的依赖和 `dsh.profile.bundles`，通过 DSH `runProfile` API 按原生 bundle 加载并启动 Web，不再追加绝对路径 patch；原生插件管理页由 bundle 清单发现本项目。可重复的 `--plugin <目录>` 参数额外登记已构建的本地插件，登记持久保存，重名目录冲突时拒绝覆盖。使用并注册 `build/workspace` 工作区，默认配置与数据位于 `build/.dsh`（允许 `DSH_HOME` 覆盖）；`run.sh` 为 Node.js 入口包装。
+本插件当前执行模式为 Text PTC。`index.ts` 挂载共享 Profile/工具表/管理 UI、新协议适配器、exec 工具、codeRuntime 和可选 intellisense 服务。旧 REPL 的 TypeScriptAdapter、runConversation 与源码轨迹注入不再由入口装配；旧实现文件只供历史测试引用，不是可选的运行模式。公开入口导出 RuntimeHost、TextExecAdapter 与 SemanticRegistry。
 
-## 数据与调用
+## 执行与审计
 
-`registry/registry.ts` 维护 UI 的具名 Profile 目录与新会话默认选择。`registry/profiles.ts` 为每个会话持有独立智能引用，指向持久化的不可变配置版本；会话修改按 CoW 分离，覆盖 Profile 仅替换目录版本，删除仅移除目录入口，既有会话继续持有旧版本并可在重启后恢复。新会话捕获 UI 当前选中的配置。物理工具调用与补全统计仍全局共享。
+`llm_text_exec/` 负责末尾 js:exec/ts:exec 围栏、marker 流缓冲、补全续写、usage 合并、合成工具调用和历史投影。无执行块直接回答，非 stop 不执行。原生 AgentLoop 执行 exec，并将工具结果作为下一步输入。详细模型见该目录 model.md。
 
-`registry/path.ts` 提供前后端共用的路径校验和工具名称编码；映射允许单段根命令名或多段命名空间路径，根命令生成可调用的全局函数声明，继续校验保留名称和路径碰撞。`registry/registry.ts` 将物理工具 ID、语义路径/别名、启用、固定映射和统计分开保存。物理工具从实际 DSH runtime 读取，失效工具的映射、别名、备注、图钉与树顺序保留，界面按当前物理工具清单标为红色失效块；恢复可用后自动恢复显示。失效映射不进入 effective 工具、声明、补全、VM 路径或 AI 提示，未配置工具只出现在 `unknown.<工具名>` 路径；非标识符字符（含 `$`）以 `$十六进制码点$` 转义，数字开头和保留名称添加 `$tool$` 前缀，避免名称碰撞。调用先验证映射启用状态和 JSON Schema，再交给 DSH execute；未配置工具同样可派发，执行授权完全交给原生 guard/策略判断，注册表不保存独立授权字段。命名空间元数据独立保存路径、常显设置和注释；注释进入 TS 声明文档，常显节点在 agent 可访问其后代工具时加入每轮提示词。配置事务串行化，持久化成功后提交内存状态，revision 防止旧页面覆盖更新。补全曝光与成功调用分别统计，使用频率和时间只在类型候选内排序。
+`runtime_host/` 管理每会话的受限 Node 进程、严格 AsyncFunction 执行、IPC 校验、取消、超时、epoch 和 descriptor 内省。普通声明不持久，显式 globalThis 状态只在进程存活期间保留。使用原生 console，无 vm.print。详细模型见该目录 model.md。
 
-`storage/store.ts` 定义 Store，生产使用 DSH JSON backend 的 `ts_intellisense` KV 单元、state 表；MemoryStore 和原子 FileStore 用于独立使用。保存注册表、会话数据检查点、续写日志、请求执行状态和物理工具派发日志。已完成请求返回缓存，未确定结果拒绝重试，不重放工具来恢复变量。
+`text_ptc/` 将真实 agent scope 工具和 Profile 投影为命名空间清单，支持 YAML 别名、宿主参数校验和原生 guarded tools.execute 子调用。注册 Text PTC provider 和 Agent Mode，保存 exec/context、exec/intellisense、exec/rewrite 及原生父子调用轨迹。详细模型见该目录 model.md。
 
-`dsh/adapter.ts` 作为请求流中间件维护独立上游请求和续写历史，不修改 AgentLoop 冻结请求。`index.ts` 通过官方 `llm/stream` waterfall 和 `isAgentLoopRequest` 识别普通会话的主循环请求，自动交给 REPL 控制器并保留界面选中的上游 provider/model 及生成参数，切换模型后继续使用原会话 VM；插件加载前已存在的普通会话同样接管。内部续写、标题/压缩请求和原生子代理不经过该接管。bundle 不覆盖原生默认模型配置，不注册模型路由，不配置固定 provider/model；上游请求直接继承原请求的模型选择及生成参数。每会话串行生成与执行。`physical()` 根据 agent 作用域读取实际 schema（通过原生 schemas/get 取得描述、参数和返回值）；每次执行前刷新 namespace 和声明。通过 `system-prompt/assemble` 仅移除 `tool:*`、`tools:*` 原工具提示分区，保留人设、计划/团队策略、技能、项目指令和运行上下文；原生 request/header 保留 VM 可调用工具目录，供轨迹记录子工具 schema；适配器保留原 `system` 与全部历史消息，追加带实时 VM 绑定的 REPL 协议。注入在原生组装之后进行，兼容极简预设的 complete 人设；REPL 提示不重新定义人设或模式授权。会话作用域的 native 呈现仅用于让 REPL 通过原生执行管线派发物理工具。上游 tools 数组为空；实时转发上游 reasoning 内容并为跨轮续写分配独立块索引，最终向原生 loop 返回 VM 执行结果，不回显生成源码；完成请求缓存同样返回执行结果且不重复记录或派发工具。`protocol/execution_trace.ts` 定义前后端共享的源码编辑事件；`protocol/controller.ts` 在上游文本 delta 到达时提供不含控制标记的源码预览，续写复用缓冲，纠错时清空重写。`dsh/execution_trace.ts` 在生成前分配稳定 callId，以生成轮次 index、offset 和后缀增量记录 `ts-repl/source`，将所有原始生成段（含终止标记）保存在 `ts_repl` 的 `codes: string[]` 参数中，每次 INTELLISENSE 查询及其完整候选、签名、上下文或错误通过成对的原生 PTC 子调用保存，将每次通过校验的 REPL 执行记录为原生 ts_repl 调用/结果；取消或生成失败仅标记预览中断，不派发未校验代码，其物理工具通过成对的 tool/ptc-dispatch-start、tool/ptc-dispatch 事件记录真实参数、结果、错误和展示元数据，供轨迹实时显示与持久化回放。`web/execution_trace/trajectory.ts` 为每条 REPL 调用注册按 callId 独立且独占源码与 assistant 事件的轨迹投影，从首个源码片段到达时保留代码节点及其真实 seq，避免中间执行记录提前结算原生 assistant、覆盖思考流，或将子工具移至错误轮次；实时结算与持久回放使用相同定义。执行事件直接记录已执行调用，最终流不发送可再次执行的 tool-call 块。工具 additionalContexts 仍经原生 agent.inject 注入。
+## Profile 与工具表
 
-## 编译与执行
+`registry/registry.ts` 管理全局具名 Profile 目录、映射、别名、注释、排序、启用状态、固定路径和使用统计。`registry/profiles.ts` 为每会话持有不可变配置版本的智能引用，修改按 CoW 分离；目录覆盖/删除不修改既有会话。新会话捕获 UI 当前选中配置。工具权限始终由原生 guard/策略决定。
 
-`typescript/project.ts` 管理虚拟 TS 源文件、环境声明与标准库，使用官方 Language Service 做全段语法/语义检查，再用 transpileModule 编译，不使用 AST 解释器。普通段整体执行；含顶层 await 的段按语句生成执行单元。await 初始化值通过临时全局属性传递，随后以真实 const/let/var 声明建立 VM 顶层绑定；临时属性立即删除。记录各单元 source map。跨 await 单元的提升/TDZ 与完整模块存在差别；独立类型声明不跨段保留。
+未配置物理工具通过 tools.<encoded-name> 调用，tools_* 管理命令通过 tools.<method> 调用；不生成 unknown 命名空间。路径保留名称、重复和树碰撞检查。失效工具保留配置，但不进入实际 manifest、补全或执行环境。builtinVisible 记录内置固定提示偏好，按 Profile 保存；默认只提示非 Node 标准的自定义命令，console 等标准接口默认不固定提示。历史 unknownVisible 字段目前仍作为未挂载工具的显示偏好存储字段，字段名不会产生 unknown 运行时命名空间。
 
-`typescript/completion.ts` 只分析不完整输入，不执行它。完整成员候选直接查询当前 VM 的 globalThis、词法绑定和对象属性，实际运行时成员决定可见名称；未执行源码内的局部符号仍通过 TS 分析。查询不调用 getter 或 Proxy trap。真实环境声明、会话推导类型和 TS language service 负责文档、签名和参数提示；JSDoc 挂在工具属性上，命名空间或名称前缀查询仅列出名称及 DSH 原生说明，不展开候选工具参数；完整可调用名称同时给出该工具的签名及参数字段说明，其同前缀候选仍不展开参数。调用左括号后的查询仅提供选中调用的参数提示，不列同前缀工具。参数与返回值字段说明保留在环境类型的 JSDoc 中，由 Language Service 根据调用位置、参数对象或返回值成员光标按需解析，不附完整 schema。映射备注不覆盖原始说明。全局补全优先当前 VM 绑定、工具根命名空间与 Promise，过滤关键字并注明截断，避免前 40 项标准库候选淹没实际环境。
+`storage/store.ts` 通过 DSH JSON backend 保存工具目录、Profile 版本和会话引用；MemoryStore/FileStore 用于独立使用。运行时不保存可执行状态或重放工具。
 
-`runtime/builtins.ts` 统一定义全局固定的 原生 `console` 方法与 `vm.restart(preserve?: readonly string[])` 声明和 UI 元数据；`vm` 是保留根，不能配置为工具路径、替换或删除。`runtime/session.ts` 为每会话保留真实 vm.Context 与词法声明。没有变量代理或 del。JS const/let 重声明与 delete 规则保留；暴露 Node 原生 `Console`，stdout/stderr 由 Writable 收集至执行反馈，不输出到父进程协议通道；不可修改的 `vm` 对象由运行时回调提供。`console` 使用 Node 原生格式化并收集当前段输出，返回给 agent 继续分析，不直接输出到对话。运行时异常返回 error 和当前已初始化的绑定，保留 Context 及既有副作用。`vm.restart()` 立即终止当前段并建立新 Context；可通过变量名数组保留指定变量的可复制值及其原有 const/let/var 类型，支持保留同段刚创建的变量。重置前完成所有变量校验与序列化，未知、未初始化或包含函数的变量转移失败时保留原 Context。固定回调和工具配置始终保留。声明结果不显示，无打印、错误或重启时，最终有意义的表达式作为用户回复。执行 ID 与源码绑定，重复 ID 返回相同 Promise。检查点序列化可复制的值和类型元数据，不保存闭包或重放工具。
+## 管理 UI
 
-`runtime/isolated.ts` / `worker.ts` 把 VM 放入独立受权限限制的 Node 子进程，用 IPC 请求补全/执行/检查点，通过父进程桥调用原生工具。桥仅在执行期间工作，取消和超时终止进程并传播 abort。进程限制不等于完整系统安全沙箱，特别是未覆盖所有网络能力。
+`web/management_panel.tsx` 和 `web/tree_provider.ts` 显示 console、tools、vm 固定树与可配置命名空间；内置描述/注释/tooltip 固定英文，其余 UI 支持中英文。内置命令不可改名、拖动或删除，图钉可以开启/取消，并按当前 Profile 草稿保存。
 
-## 协议、维护与界面
+UI 不再显示 unknown 块。树上方显示当前可用但未挂载的工具数量，点击打开只含未挂载工具的选择器；数量随挂载、移除映射和切换 Profile 更新。失效工具不计入，已挂载但禁用的工具仍算已挂载；内置管理工具和 exec 不计入未挂载工具。
 
-`protocol/markers.ts` 在响应完全结束后识别末尾控制标记；`controller.ts` 要求模型自愿 stop 后发起下一次生成，保留前缀，追加 system 补全信息与 assistant 前缀，不伪造用户消息。单独的补全标记在空源码位置请求补全，续写仅追加 system 上下文，不构造空 assistant 前缀。完整无标记输入先经子进程纯编译校验，失败时携带已有补全上下文、拒绝源码和纯文本诊断，要求重写整段；校验阶段不记录执行状态、不产生副作用。运行时错误不重放原程序，而是与 console 输出、重启后绑定一起反馈给 agent，驱动下一轮新程序；已有副作用与已初始化绑定保留。通过 DSH 原生 `ts-intellisense` logger 记录每轮响应、控制标记解析、补全请求及结果、编译校验诊断、执行源码及结果、请求错误，并携带会话/请求标识。打印、运行时错误或重启后，控制器追加已执行源码与内部 VM 反馈（包含当前绑定），清空未执行缓冲及过期补全，使用新的执行 ID 继续生成；只有无打印、错误和重启的最终表达式才返回用户。每段源码与其输出、打印、异常及绑定以 VM_EXECUTE 子调用配对保存，整个逻辑请求完成后才缓存最终回复。每次逻辑请求独立维护最多三条补全信息的 deque，新补全入队时淘汰最旧条目，正常补全和换行不限制总轮数；取消最大纠错次数；按完整未执行源码标识补全位置，跨续写累计每个位置的出现次数，第三次出现同一位置立即失败且不执行缓冲；补全信息只用于内部续写与诊断日志，不提交到原生对话历史，也不跨任务保留，同一光标第二次查询时携带已取得的 VM 上下文重置未执行缓冲并要求生成完整程序，避免无进展补全循环，只在通过校验后执行。原生工具调用或 DSML 包装响应会被拒绝并要求改用原始 TypeScript，保留此前未执行前缀，不展示或执行被拒绝的协议内容。`prompt.ts` 在每次请求展示当前 VM 会话绑定及其类型、可用根命名空间与原生 Promise；根据持久化成功调用统计补充常用/最近工具路径（含别名），按 agent 可见工具过滤。详细工具签名按需补全；提示明确补全用于构造待执行代码，补全后应完成真实调用并以最后一个表达式返回结果。已知工具路径和所需参数时直接调用，只有未知路径或缺少参数、返回类型及说明时才请求 IntelliSense，复用已经取得的信息。用户可见回复默认使用用户语言的自然语言字符串，普通对话直接返回字符串，工具调用后以真实结果组织自然语言答复；仅在用户明确要求时返回代码或结构化数据。
+`web/namespace_tree.ts` 处理路径、树迁移和混合拖动排序，固定内置节点禁止落入或移动。工具选择器仍可搜索普通可用工具并挂入根或指定命名空间。`web/profile_picker/` 实现 Profile 切换、创建、删除、重命名、保存和另存为；草稿名称带 *。`web/locale/` 保留本地化与原生语言桥接。`web/history_settings/` 保留已存的历史偏好控件；新协议续写预算由 zod Config 管理。
 
-`dsh/organization.ts` 使用原生 spawn 子代理和结构化输出 schema，继承父会话当前请求中的模型选择。提前保留 childId 并安装执行 guard，仅允许结构化输出工具。提案先在目标配置的内存快照验证，记录目标注册表，等待 UI 批准后以对应 revision 校验并事务提交；不能修改 DSH 原生执行策略。整理功能通过 `index.ts` 注册为普通物理工具 `tools_namespace`，默认位于 `unknown.tools_namespace`，可由 UI 挂载和命名；统一经过 schema 校验、原生执行策略、调用轨迹和使用统计，不再注入 VM 专用 `tools.sort` 或 sort IPC 通道。
+`web/routes.ts` 的管理接口沿用原生 Connection 的认证和 Host/Origin 保护。`dsh/organization.ts` 通过只读维护子代理产生提案，明确批准后按 revision 提交，不变更原生工具权限。
 
-`web/routes.ts` 使用原生 Connection fetch 注册认证路由，始终读写全局配置。整理使用存活的普通会话承载子代理，提案通过全局 revision 校验后提交。
+## 构建和部署
 
-`web/management_panel.tsx` 使用 React 实现命名空间树与工具选择弹窗。根作用域始终展开显示其直接子项，其余命名空间默认折叠，点击箭头后保留各节点的展开状态。树中显示固定的 console 与 vm 运行时节点，不再显示 unknown 块。console、vm 命名空间及其内置命令使用淡灰色只读节点，元数据与运行时声明共享；未挂载的可用物理工具通过树上方的实时数量入口打开工具选择器并挂载；计数依据当前 Profile 草稿，失效工具不计入、已挂载但禁用的工具仍按已挂载处理。上方命名空间树通过前置 40px 点击区域的箭头单独展开/收起；点击名称、注释、图钉或节点空白均不触发展开。名称和淡灰注释双击后原位编辑，无常驻注释输入框；Enter 或失焦提交，Escape 取消，输入法组词期间忽略提交按键。命名空间与命令均提供常显图钉及最右侧删除叉号，图钉始终可见，选中只高亮 SVG 内部。命令固定与命名空间一致，仅“不固定/固定”两档；固定后将路径、签名及提示注释直接加入提示词，并按 agent 可见性和启用状态过滤。命令行的提示注释双击打开弹窗编辑，可重置为原始注释；UI 与固定提示使用映射的 `description` 覆盖值，Tooltip 与 IntelliSense 声明始终只使用原命令注释；常显使用 `alwaysVisible`，原有 `pinned` 字段仍表示映射路径锁定。
+`run.mjs` 与 `scripts/local_plugin.mjs` 将本包登记为原生 bundle；cordis.patch.yml 注册插件和 Text PTC preset，并设为默认选择。`presets/text_ptc/` 保存模式元数据、Agent 能力清单及工具别名。`scripts/build_client.mjs` 构建共享宿主 React 的客户端、独立页面及运行时 worker bundle。生成产物位于 dist/build，不提交 Git。新运行时需要 Linux、Python3、libseccomp 和 Node >=24，加载时实测隔离条件，无法满足则失败。
 
-`web/tree_provider.ts` 为树提供固定运行时节点及交互属性，并提供按当前草稿计算未挂载工具的共享函数。命名空间和命令使用统一组件，fixed props 控制只读样式、拖放和内置常显锁定，渲染不依据节点名称分支；未挂载工具不再生成树节点，仍可通过普通工具选择器或未挂载数量入口挂载。命名空间行显示后代命令数量，内置命令块、名称及说明提供原始英文注释 tooltip。`web/management_panel.css` 独立维护面板样式，通过 import 引入。`web/profile_picker` 提供 Profile 控件，原生入口注入独立实现且沿用宿主主题的可编辑下拉栏，支持行内删除、双击重命名和底部输入创建；单击切换后保持展开，独立页面使用 select。选择框右侧提供保存和另存为，另存为以单次事务将草稿存为新 Profile 并保留原已保存配置。
+## 验证
 
-`web/namespace_tree.ts` 负责树结构的纯数据操作，统一拒绝修改固定命名空间、移动内置命令或将节点拖入 console/vm/unknown；支持通过工具选择器为未挂载物理工具创建普通映射；旧运行时保留的 unknown 路径仍受保护，但不渲染为 UI 节点。指针命中与原生拖放均忽略固定节点的落点。命名空间改名同步迁移后代命名空间、命令映射、注释、常显设置和排序，删除时移除整个子树的映射并保留原始工具及树外映射。命令与命名空间支持混合拖动排序和跨命名空间移动；节点边缘用于前插/后插，命名空间中部用于挂入，提示区域用于追加子节点，工具积木也可直接落在命令前后。命名空间移动同步迁移整个子树并拒绝循环或重名冲突，命令移动遇重名时增加数字后缀，所有路径、元数据和顺序一次性提交草稿；顺序持久化在全局注册表 `order` 中；显示和保存均保留既有顺序，未排名节点按插入顺序补齐，不按名称排序，编辑元数据保持原有位置。根层支持命令与命名空间混排；根层提示区域接收积木及已有命令，可直接挂载或移入根作用域。`web/tree_drag.ts` 以达到位移阈值后的指针拖动代替浏览器原生拖动，不接管滚轮；支持拖动影子、目标区域反馈及树区域边缘自动滚动，取消、失焦和释放时清理状态。保留原生拖放事件兼容入口，并与指针拖动共用目标解析和数据操作。树内拖动到命名空间内提示区域可移动映射；节点内虚线提示块保留双击创建命名空间，文字后的 SVG 加号打开 `web/tool_picker/tool_picker.tsx` 原生模态工具选择框，搜索后单击积木将工具挂载或移动到对应节点（包括根节点），重名自动增加数字后缀；弹窗支持 Escape、关闭按钮和点击外部关闭。固定路径映射禁止移动和删除。
-
-工具选择弹窗采用紧凑、内容自适应宽度并横向换行的拼接凸起积木形状，功能说明使用悬浮提示，未挂载工具使用红色文字。页面、分区、积木和控件背景透明，边框、文字及圆角继承 DSH 的 `--dsw-*` 主题变量；默认淡灰边框，聚焦亮灰。树适应容器宽度，搜索位于工具选择弹窗，顶部保留配置操作栏。配置操作栏使用具名 Profile，首次为 Default，支持创建空配置、删除、重命名和切换；每个 Profile 独立保存映射、命名空间、排序与未挂载工具常显设置，使用统计与 revision 全局共享。最后一个 Profile 不可删除，删除当前 Profile 自动切换至剩余配置。草稿与已保存配置有差异时，在当前 Profile 名称右侧显示 *；保存或重新加载后清除。保留版本化保存、组织提案与明确批准，不可信工具元数据作为 React 文本渲染。
-
-`web/client.ts` 参考 ModLens 的插件入口，通过 `plugins.bundle.config` 插槽按包名注册管理面板，由 `package.json` 的 `dsh.client` 与 `./client` 导出发现并立即加载。配置位于原生插件页的插件配置区域。`web/ui.ts` 与 `web/standalone.tsx` 保留独立认证页面。`scripts/build_client.mjs` 构建共享宿主 React 的原生懒加载模块及独立页面脚本。主提示词保留 REPL 协议与使用方式，不附 VM 安全/权限说明。
-
-`web/locale/` 保存中文与美式英语完整字典、共享翻译上下文和原生语言桥接。`web/client.ts` 注入 DSH `locale`，以 `ts_intellisense` 命名空间注册 `zh` 与 `en`（美式英语）字典；桥接订阅 locale revision，原位更新整个编辑器文案并保留草稿、展开状态及弹窗。状态保存翻译键，树操作异常在呈现时翻译；工具原始说明和用户配置不翻译。独立页面按浏览器语言选择中文或美式英语，未知语言回退英文，并同步页面标题和文档语言。
-
-## 新 text-ptc 模式重构
-
-`llm_text_exec/` 为独立的新文本执行协议层，详见该目录 model.md。支持 js:exec/ts:exec、按需补全、确定性历史投影、合成 exec 工具调用和完整审计事件；尚未注册 provider 或接入 preset，旧模式行为不变。新执行语义仅持久化显式 globalThis 状态，普通 AsyncFunction 局部声明不保留。
-
-内置 console/vm 命名空间与命令描述、注释及 Tooltip 固定使用英文，不经过 UI 本地化。程序自有 Agent 提示文案按英文设计；命名空间/命令/用户注释和 node:vm 原始错误保留原文，不做运行时语言限制或翻译。当前旧 REPL 全局注入仍由 index.ts 注册，新 text-ptc provider/preset 尚未接入，不能视为原 prompt 已全部完成。
+`tests/llm_text_exec/` 为 fake adapter 回放；`tests/text_ptc/` 覆盖新运行时、命名空间、原生 AgentLoop、权限拒绝、审计和卸载；`tests/web/unmounted_tools.test.ts` 覆盖未挂载入口、英文内置描述和可取消图钉。`typecheck:active` 检查所有生产源码和新模式测试；历史测试中的旧 REPL/unknown/vm.print 假设不适用于新模式，原全量测试类型检查已有旧错误，不宣称全量通过。
