@@ -1,0 +1,69 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import type { Agent } from '@deepseek-ai/dsh-agent';
+import { SemanticRegistry, type Mapping, type PinLevel } from '../../src/registry/registry.js';
+import { MemoryStore } from '../../src/storage/store.js';
+import { NamespaceComponent } from '../../src/integration/namespace_component.js';
+import { TreeProvider } from '../../src/management/panel/tree_provider.js';
+
+const tool = {
+    id: 'read_file', description: 'Read a file.',
+    parameters: { type: 'object', properties: { path: { type: 'string', description: 'File path.' } }, required: ['path'], additionalProperties: false },
+    output: { type: 'object', properties: { content: { type: 'string', description: 'File contents.' } }, required: ['content'], additionalProperties: false },
+};
+
+/** @brief Render the real prompt assembly with an isolated Profile registry. */
+function prompt(registry: SemanticRegistry): Promise<string> {
+    const component = { registryFor: async () => registry, aliases: [], isPtc: () => true } as unknown as NamespaceComponent;
+    return NamespaceComponent.prototype.prompt.call(component, {} as Agent);
+}
+
+test('three command levels hide, summarize, or publish complete documented signatures', async () => {
+    const registry = new SemanticRegistry(new MemoryStore());
+    registry.refresh([tool]);
+    for (const level of [0, 1, 2] as const) {
+        const mapping: Mapping = { id: tool.id, path: 'files.read', aliases: [], enabled: true, pinned: false, alwaysVisible: level };
+        await registry.configure([mapping], registry.snapshot().revision, undefined, undefined, undefined, undefined, { read_file: 'Custom brief' }, { 'console.dir': level });
+        const text = await prompt(registry);
+        assert.equal(text.includes('namespace files'), level > 0);
+        assert.equal(text.includes('const dir:'), level > 0);
+        if (level === 1) {
+            assert(text.includes('const read: Function;  // Custom brief'));
+            assert(!text.includes('@param'));
+        }
+        if (level === 2) {
+            assert(text.includes('function read(path: string): Promise<string>;'));
+            assert(text.includes('@brief Read a file.'));
+            assert(text.includes('@param path File path.'));
+            assert(text.includes('@returns File contents.'));
+            assert(text.includes('@param options Inspection depth, colors and hidden-property options.'));
+            assert(!text.includes('@param depth'));
+        }
+    }
+});
+
+test('detailed pins survive mount, unmount, profile save, and storage reload', async () => {
+    const store = new MemoryStore();
+    const registry = new SemanticRegistry(store);
+    registry.refresh([tool]);
+    await registry.configure([], 0, undefined, undefined, { read_file: 2 }, undefined, undefined, { 'console.log': 2 });
+    await registry.configure([{ id: tool.id, path: 'files.read', aliases: [], enabled: true, pinned: false }], 1);
+    assert.equal(registry.snapshot().mappings[0]?.alwaysVisible, 2);
+    assert.deepEqual(registry.snapshot().unmountedVisible, {});
+    await registry.configure([], 2);
+    assert.equal(registry.snapshot().unmountedVisible?.read_file, 2);
+    await registry.saveProfile('Detailed', registry.configuration());
+    const restored = new SemanticRegistry(store);
+    await restored.load(); restored.refresh([tool]);
+    assert.equal(restored.configuration('Detailed').unmountedVisible.read_file, 2);
+    assert.equal(restored.effective()[0]?.alwaysVisible, 2);
+    assert.equal(restored.snapshot().builtinVisible?.['console.log'], 2);
+    await assert.rejects(restored.configure([{ id: tool.id, path: 'files.read', aliases: [], enabled: true, pinned: false, alwaysVisible: 3 as PinLevel }], 4), /Invalid mapping/);
+});
+
+test('builtin provider preserves detailed pins and keeps discovery pinned', () => {
+    const tree = TreeProvider({ 'console.log': 2, 'tools.intellisense': 2 });
+    assert.equal(tree.find(node => node.path === 'console')?.commands.find(command => command.path === 'console.log')?.alwaysVisible, 2);
+    assert.equal(tree[0]?.commands[0]?.alwaysVisible, 2);
+    assert.equal(TreeProvider({})[0]?.commands[0]?.alwaysVisible, 1);
+});

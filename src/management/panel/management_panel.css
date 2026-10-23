@@ -24,3 +24,5 @@
 
 
 .ts-intellisense .ts-unmounted-count{display:block;margin-top:12px;color:var(--dsw-alias-label-secondary,#bdbdbd)}
+
+.ts-intellisense .ts-pin[data-level="2"],.ts-intellisense .ts-pin[data-level="2"]:hover{color:#eab308}

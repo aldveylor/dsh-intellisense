@@ -114,11 +114,12 @@ export function resultFor(entry: ManifestEntry, value: unknown): unknown {
     return field && value && typeof value === 'object' ? Object.hasOwn(value, field[0]) ? (value as Record<string, unknown>)[field[0]] : undefined : value;
 }
 
-/** @brief Emit positional signatures and scalar results with inline decoded parameter documentation. */
-export function declaration(entry: ManifestEntry): string {
+/** @brief Emit positional signatures and scalar results with decoded Doxygen parameter documentation. */
+export function declaration(entry: ManifestEntry, nested = true): string {
     const parts = entry.path.split('.');
     const name = parts.pop()!;
-    if (entry.tool === 'tools_intellisense') return `${parts.length ? `namespace ${parts.join('.')} {\n` : ''}/** @brief Query namespace members and tool signatures. */\nfunction ${name}(...queries: string[]): Promise<string>;\n${parts.length ? '}' : ''}`;
+    if (!nested) parts.length = 0;
+    if (entry.tool === 'tools_intellisense') return `${parts.length ? `namespace ${parts.join('.')} {\n` : ''}/**\n * @brief Query namespace members and tool signatures.\n * @param queries Namespace member paths or exact command paths.\n * @returns Complete TypeScript declarations for the requested paths.\n */\nfunction ${name}(...queries: string[]): Promise<string>;\n${parts.length ? '}' : ''}`;
     const doc = (text: string): string => decodeHTML(text).replaceAll('*/', '* /');
     const types: string[] = [];
     /** @brief Keep complex field types out of the callable signature. */
@@ -130,10 +131,11 @@ export function declaration(entry: ManifestEntry): string {
         return alias;
     };
     const fields = parameters(entry);
-    const args = fields ? fields.map(field => `${field.schema.description ? `/** ${doc(field.schema.description)} */ ` : ''}${field.name}${field.required ? '' : '?'}: ${typeName(field.schema, field.name)}`).join(', ')
-        : `/** Tool arguments */ args: ${typeName(entry.schema, 'args')}`;
+    const args = fields ? fields.map(field => `${field.name}${field.required ? '' : '?'}: ${typeName(field.schema, field.name)}`).join(', ')
+        : `args: ${typeName(entry.schema, 'args')}`;
+    const parameterDocs = fields ? fields.map(field => ` * @param ${field.name} ${doc(field.schema.description ?? 'Tool argument')}`).join('\n') : ' * @param args Tool arguments';
     const field = resultField(entry);
     const result = typeName(field?.[1] ?? entry.output, 'result');
     const optionalResult = field && !(entry.output as JsonSchemaNode).required?.includes(field[0]) ? ' | undefined' : '';
-    return `${parts.length ? `namespace ${parts.join('.')} {\n` : ''}${types.length ? types.join('\n') + '\n\n' : ''}/**\n * @brief ${doc(entry.doc)}\n * @returns ${field?.[1].description ? doc(field[1].description) : 'Tool result'}\n */\nfunction ${name}(${args}): Promise<${result}${optionalResult}>;\n${parts.length ? '}' : ''}`;
+    return `${parts.length ? `namespace ${parts.join('.')} {\n` : ''}${types.length ? types.join('\n') + '\n\n' : ''}/**\n * @brief ${doc(entry.doc)}\n${parameterDocs ? parameterDocs + '\n' : ''} * @returns ${field?.[1].description ? doc(field[1].description) : 'Tool result'}\n */\nfunction ${name}(${args}): Promise<${result}${optionalResult}>;\n${parts.length ? '}' : ''}`;
 }

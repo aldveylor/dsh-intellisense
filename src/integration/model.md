@@ -15,3 +15,5 @@
 `namespace.ts` 统一 PTC 参数投影、DSML schema/命名参数映射、返回值投影和声明生成。tools.intellisense 为固定内置项，不受 Profile 启用偏好影响。其他 tools_* 管理命令仍暂时禁用。
 
 `prompt.ts` 根据 native/ptc 配置生成初始说明，并渲染 Profile 选中的部分命名空间树。未知命令先直接查询 tools.intellisense；PTC 通过 run_code 调用命名空间，native 直接使用 DSML 命名空间工具。两个模式的查询结果一致。
+
+固定提示按命令等级生成：0 不输出，1 输出 Function 占位和 Profile 简略注释，2 输出完整签名与 @brief、@param、@returns 文档。详细工具文档沿用 IntelliSense 声明投影，参数别名与返回值解包规则相同；无参数命令不生成虚构 @param。tools.fix 的 fixed 参数使用 0/1/2 等级。

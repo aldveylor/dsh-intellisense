@@ -6,8 +6,8 @@ import type { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { PhysicalTool, SemanticRegistry } from '../registry/registry.js';
 import type { ProfileSessions } from '../registry/profiles.js';
-import { manifest, nativeArgumentsFor, nativeSchema, resultFor, type Aliases, type ManifestEntry } from './namespace.js';
-import { namespaceDirectory, type NamespaceHint } from './prompt.js';
+import { declaration, manifest, nativeArgumentsFor, nativeSchema, resultFor, type Aliases, type ManifestEntry } from './namespace.js';
+import { builtinDeclaration, namespaceDirectory, type NamespaceHint } from './prompt.js';
 import { builtinCommands, defaultBuiltinVisible, discoveryCommand } from '../runtime/builtins.js';
 import type { z } from 'zod';
 
@@ -80,10 +80,14 @@ export class NamespaceComponent {
         const hints: NamespaceHint[] = [];
         for (const entry of entries) {
             const mapping = registry.effective().find(mapping => mapping.id === entry.tool);
-            if (mapping?.alwaysVisible) hints.push({ path: entry.path, description: state.toolComments?.[entry.tool] ?? mapping.description ?? entry.doc });
+            if (mapping?.alwaysVisible) hints.push({ path: entry.path, description: state.toolComments?.[entry.tool] ?? mapping.description ?? entry.doc,
+                ...(mapping.alwaysVisible === 2 ? { declaration: declaration(entry, false) } : {}) });
         }
         for (const item of state.namespaces ?? []) if (item.alwaysVisible && entries.some(entry => entry.path.startsWith(item.path + '.'))) hints.push({ ...item, namespace: true });
-        for (const item of (this.isPtc(agent) ? builtinCommands : [discoveryCommand])) if (item.path === discoveryCommand.path || (state.builtinVisible ?? defaultBuiltinVisible).includes(item.path)) hints.push(item);
+        for (const item of (this.isPtc(agent) ? builtinCommands : [discoveryCommand])) {
+            const level = (state.builtinVisible ?? defaultBuiltinVisible)[item.path] || (item.path === discoveryCommand.path ? 1 : 0);
+            if (level) hints.push({ ...item, ...(level === 2 ? { declaration: builtinDeclaration(item) } : {}) });
+        }
         return namespaceDirectory(hints);
     }
 

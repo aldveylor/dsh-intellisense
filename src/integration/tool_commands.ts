@@ -28,7 +28,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         return mapping;
     };
     /** @brief Keep tool outputs native JSON values with their ordinary text rendering. */
-    const output = { schema: { type: 'object', additionalProperties: false, properties: { id: { type: 'string' }, path: { type: 'string' }, changed: { type: 'boolean' }, comment: { type: 'string' }, fixed: { type: 'boolean' }, profile: { type: 'string' }, saved: { type: 'boolean' }, loaded: { type: 'boolean' }, current: { type: 'string' }, profiles: { type: 'array', items: { type: 'string' } } } } as const, render: (_args: unknown, value: unknown) => [{ type: 'text' as const, text: JSON.stringify(value) }] };
+    const output = { schema: { type: 'object', additionalProperties: false, properties: { id: { type: 'string' }, path: { type: 'string' }, changed: { type: 'boolean' }, comment: { type: 'string' }, fixed: { type: 'integer', enum: [0, 1, 2] }, profile: { type: 'string' }, saved: { type: 'boolean' }, loaded: { type: 'boolean' }, current: { type: 'string' }, profiles: { type: 'array', items: { type: 'string' } } } } as const, render: (_args: unknown, value: unknown) => [{ type: 'text' as const, text: JSON.stringify(value) }] };
     register(defineTool({
         name: 'tools_mount', description: 'Mount a tool under node.name in this conversation. source accepts a physical ID or current path. An already mounted source keeps its path as an alias; tools is replaced automatically. Use node="" for the root. Changes are drafts until tools_commit.',
         parameters: { source: { type: 'string', required: true }, node: { type: 'string', required: true }, name: { type: 'string' } }, output,
@@ -82,24 +82,27 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         },
     }));
     register(defineTool({
-        name: 'tools_fix', description: 'Always display a tool command in this conversation context. Accepts physical IDs and mounted/tools paths. Set fixed=false to stop always displaying it. Save with tools_commit.',
-        parameters: { tool: { type: 'string', required: true }, fixed: { type: 'boolean' } }, output,
-        execute: async ({ tool: source, fixed = true }, execution) => {
+        name: 'tools_fix', description: 'Set command prompt exposure in this conversation: 0 hides it, 1 pins its brief, and 2 pins its full signature and documentation. Accepts physical IDs and mounted/tools paths. Save with tools_commit.',
+        parameters: { tool: { type: 'string', required: true }, fixed: { type: 'integer', enum: [0, 1, 2] } }, output,
+        execute: async ({ tool: source, fixed = 1 }, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
             const registry = await registryFor(execution.agent);
             const state = registry.snapshot();
-            if (source === 'tools.intellisense' || source === 'tools_intellisense') return { id: 'tools_intellisense', fixed: true };
+            if (![0, 1, 2].includes(fixed)) throw new Error('Invalid command pin level');
+            const level = fixed as 0 | 1 | 2;
+            if (source === 'tools.intellisense' || source === 'tools_intellisense') { source = 'tools.intellisense'; fixed = level || 1; }
             if (builtinCommands.some(command => command.path === source)) {
-                const visible = new Set(state.builtinVisible ?? defaultBuiltinVisible);
-                if (fixed) visible.add(source); else visible.delete(source);
-                await registry.configure(state.mappings, state.revision, undefined, undefined, undefined, undefined, undefined, [...visible]);
+                const visible = { ...(state.builtinVisible ?? defaultBuiltinVisible) };
+                visible[source] = fixed as 0 | 1 | 2;
+                await registry.configure(state.mappings, state.revision, undefined, undefined, undefined, undefined, undefined, visible);
                 await changed(execution.agent);
                 return { id: source, fixed };
             }
             const tool = resolve(registry, source);
-            const toolsVisible = (state.unmountedVisible ?? []).filter(id => id !== tool.id);
-            if (fixed && !state.mappings.some(mapping => mapping.id === tool.id)) toolsVisible.push(tool.id);
-            await registry.configure(state.mappings.map(mapping => mapping.id === tool.id ? { ...mapping, alwaysVisible: fixed } : mapping), state.revision, undefined, undefined, toolsVisible);
+            const toolsVisible = { ...state.unmountedVisible };
+            delete toolsVisible[tool.id];
+            if (fixed && !state.mappings.some(mapping => mapping.id === tool.id)) toolsVisible[tool.id] = level;
+            await registry.configure(state.mappings.map(mapping => mapping.id === tool.id ? { ...mapping, alwaysVisible: level } : mapping), state.revision, undefined, undefined, toolsVisible);
             await changed(execution.agent);
             return { id: tool.id, fixed };
         },

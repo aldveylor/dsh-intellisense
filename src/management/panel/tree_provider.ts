@@ -1,10 +1,10 @@
-import type { Mapping, PhysicalTool } from '../../registry/registry.js';
+import type { Mapping, PhysicalTool, PinLevel, CommandVisibility } from '../../registry/registry.js';
 import { vmCommands, consoleCommands, managementCommands, defaultBuiltinVisible, discoveryCommand } from '../../runtime/builtins.js';
 
 /** @brief Provider command metadata supplies interaction rules independently of its name. */
 export interface ProvidedCommand {
     path: string; id?: string; signature?: string; description: string;
-    fixed: boolean; draggable: boolean; alwaysVisible: boolean; disabled?: boolean;
+    fixed: boolean; draggable: boolean; alwaysVisible: PinLevel; disabled?: boolean;
 }
 
 /** @brief Synthetic namespaces share the ordinary namespace renderer through fixed props. */
@@ -17,13 +17,13 @@ export function unmountedTools(tools: PhysicalTool[], mappings: Mapping[]): Phys
 }
 
 /** @brief Provider owns visible, fixed runtime namespaces; unmounted tools use the picker. */
-export function TreeProvider(visible: readonly string[] = defaultBuiltinVisible): ProvidedNamespace[] {
+export function TreeProvider(visible: CommandVisibility = defaultBuiltinVisible): ProvidedNamespace[] {
     return [{ path: 'tools', description: 'Tool discovery and Profile management', fixed: true,
-        commands: [{ ...discoveryCommand, id: 'tools_intellisense', fixed: true, draggable: false, alwaysVisible: true }, ...managementCommands.map(command => ({ ...command, fixed: true, draggable: false, alwaysVisible: false, disabled: true }))] },
+        commands: [{ ...discoveryCommand, id: 'tools_intellisense', fixed: true, draggable: false, alwaysVisible: visible[discoveryCommand.path] || 1 }, ...managementCommands.map(command => ({ ...command, fixed: true, draggable: false, alwaysVisible: 0 as const, disabled: true }))] },
         { path: 'console', description: 'Native console output', fixed: true,
-        commands: consoleCommands.map(command => ({ ...command, fixed: true, draggable: false, alwaysVisible: visible.includes(command.path) })) },
+        commands: consoleCommands.map(command => ({ ...command, fixed: true, draggable: false, alwaysVisible: visible[command.path] ?? 0 })) },
         { path: 'vm', description: 'Built-in VM commands', fixed: true,
-        commands: vmCommands.map(command => ({ ...command, fixed: true, draggable: false, alwaysVisible: visible.includes(command.path) })) }];
+        commands: vmCommands.map(command => ({ ...command, fixed: true, draggable: false, alwaysVisible: visible[command.path] ?? 0 })) }];
 }
 
 /** @brief Resolve fixed runtime namespaces and their descendants. */

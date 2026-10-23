@@ -24,7 +24,7 @@ tools.intellisense 固定映射到内置 tools_intellisense，不受 Profile 图
 
 ## 管理 UI
 
-`management/panel/management_panel.tsx` 和 `management/panel/tree_provider.ts` 显示 console、tools、vm 固定树与可配置命名空间；内置描述/注释/tooltip 固定英文，其余 UI 支持中英文。内置命令不可改名、拖动或删除，tools.intellisense 始终固定提示，其余可用命令的图钉可以开启/取消，并按当前 Profile 草稿保存。
+`management/panel/management_panel.tsx` 和 `management/panel/tree_provider.ts` 显示 console、tools、vm 固定树与可配置命名空间；内置描述/注释/tooltip 固定英文，其余 UI 支持中英文。内置命令不可改名、拖动或删除，tools.intellisense 始终固定提示，其余可用命令的图钉按 0 → 1 → 2 → 0 切换，等级 2 使用黄色图标，并按当前 Profile 草稿保存。
 
 UI 不再显示 unknown 块。树上方显示当前可用但未挂载的工具数量，点击打开只含未挂载工具的选择器；数量随挂载、移除映射和切换 Profile 更新。失效工具不计入，已挂载但禁用的工具仍算已挂载；内置管理工具和 run_code 不计入未挂载工具。
 
@@ -41,3 +41,5 @@ UI 不再显示 unknown 块。树上方显示当前可用但未挂载的工具�
 ## 验证
 
 构建检查生产源码；旧标记协议测试保留原状，不因本次重构更新或运行。新双模式流程可使用 fake adapter 定向检查，无需真实模型请求。
+
+命令固定等级统一为 0（不固定）、1（固定但简略）、2（固定且详细）。Mapping.alwaysVisible 保存等级；builtinVisible、unmountedVisible 为路径或物理 ID 到等级的映射，随 Profile 保存，挂载和移除映射时保留等级。命名空间 alwaysVisible 仍为布尔值。

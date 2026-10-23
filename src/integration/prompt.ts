@@ -1,3 +1,5 @@
+import type { BuiltinCommand } from '../runtime/builtins.js';
+
 import { decodeHTML } from 'entities';
 
 /** @brief Select the initial command instructions from the configured presentation mode. */
@@ -13,11 +15,11 @@ Use top-level await and explicit return. Local declarations do not persist; only
 }
 
 /** @brief One prompt-visible namespace or command with a Profile-owned brief. */
-export interface NamespaceHint { path: string; description?: string; namespace?: boolean }
+export interface NamespaceHint { path: string; description?: string; namespace?: boolean; declaration?: string }
 
-/** @brief Render the partial Profile selection without exposing signatures or unpinned commands. */
+/** @brief Render the partial Profile selection including full declarations only for detailed pins. */
 export function namespaceDirectory(hints: readonly (string | NamespaceHint)[]): string {
-    interface Node { children: Map<string, Node>; description?: string; namespace?: boolean }
+    interface Node { children: Map<string, Node>; description?: string; namespace?: boolean; declaration?: string }
     const root: Node = { children: new Map(), namespace: true };
     for (const hint of hints) {
         const item = typeof hint === 'string' ? { path: hint } : hint;
@@ -28,6 +30,7 @@ export function namespaceDirectory(hints: readonly (string | NamespaceHint)[]): 
         }
         node.description = item.description;
         node.namespace = item.namespace;
+        node.declaration = item.declaration;
     }
     const lines = ['declare namespace global {'];
     /** @brief Keep Profile briefs on a single comment line and prevent fence injection. */
@@ -42,10 +45,39 @@ export function namespaceDirectory(hints: readonly (string | NamespaceHint)[]): 
                 lines.push(`${indent}namespace ${name} {${brief(child.description)}`);
                 visit(child, indent + '  ');
                 lines.push(`${indent}}`);
+            } else if (child.declaration) {
+                lines.push(...child.declaration.replaceAll('`', '\u02cb').replaceAll('<|', '< |').split('\n').map(line => indent + line));
             } else lines.push(`${indent}const ${name}: Function;${brief(child.description)}`);
         }
     }
     visit(root, '  ');
     lines.push('}');
     return `## Namespaces\n\nCurrent partial namespace structure:\n\nCall tools.intellisense directly to view namespace members and command signatures.\n\n\x60\x60\x60ts:namespace\n${lines.join('\n')}\n\x60\x60\x60`;
+}
+
+/** @brief Build documented builtin declarations from their shared runtime signatures. */
+export function builtinDeclaration(command: BuiltinCommand): string {
+    const names: string[] = [];
+    let depth = 0;
+    let start = 1;
+    const end = command.signature.lastIndexOf(') =>');
+    for (let index = 1; index <= end; index++) {
+        const char = command.signature[index];
+        if (index === end || (char === ',' && depth === 0)) {
+            const name = command.signature.slice(start, index).trim().match(/^(?:\.\.\.)?(\w+)/)?.[1];
+            if (name) names.push(name);
+            start = index + 1;
+        } else if ('{[('.includes(char!)) depth++;
+        else if ('}])'.includes(char!)) depth--;
+    }
+    const descriptions: Record<string, string> = {
+        data: 'Values to format or display.', value: 'Object to inspect.', options: 'Inspection depth, colors and hidden-property options.',
+        label: 'Timer or counter label.', condition: 'Condition to check.', properties: 'Properties to include in the table.',
+        queries: 'Namespace member paths or exact command paths.',
+    };
+    /** @brief Keep builtin documentation inside its comment and prompt fence. */
+    const clean = (text: string): string => decodeHTML(text).replaceAll('*/', '* /').replace(/[`\r\n\u2028\u2029]/g, ' ').replace(/<\|/g, '< |');
+    const docs = [` * @brief ${clean(command.description)}`, ...names.map(name => ` * @param ${name} ${descriptions[name] ?? 'Command arguments.'}`),
+        ` * @returns ${command.path === 'vm.restart' ? 'Does not return; the VM is terminated.' : command.path === 'tools.intellisense' ? 'Complete TypeScript declarations for the requested paths.' : 'No return value.'}`];
+    return `/**\n${docs.join('\n')}\n */\nconst ${command.path.split('.').at(-1)}: ${command.signature};`;
 }

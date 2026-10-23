@@ -1,3 +1,5 @@
+import type { CommandVisibility } from '../registry/registry.js';
+
 /** @brief Fixed command metadata shared by runtime declarations, completion and the read-only UI. */
 export interface BuiltinCommand { path: string; signature: string; description: string }
 
@@ -22,7 +24,7 @@ export const managementCommands: readonly BuiltinCommand[] = [
     { path: 'tools.mount', signature: '(args: { source: string; node: string; name?: string }) => Promise<unknown>', description: 'Mount a tool in the current conversation Profile.' },
     { path: 'tools.unmount', signature: '(args: { target: string }) => Promise<unknown>', description: 'Remove a mounted tool path from the current Profile.' },
     { path: 'tools.comment', signature: '(args: { tool: string; comment: string }) => Promise<unknown>', description: 'Edit a tool comment in the current Profile.' },
-    { path: 'tools.fix', signature: '(args: { tool: string; fixed?: boolean }) => Promise<unknown>', description: 'Change whether a tool appears in the model prompt.' },
+    { path: 'tools.fix', signature: '(args: { tool: string; fixed?: 0 | 1 | 2 }) => Promise<unknown>', description: 'Change whether a tool appears in the model prompt.' },
     { path: 'tools.commit', signature: '(args: { profile: string }) => Promise<unknown>', description: 'Save the conversation draft to a named Profile.' },
     { path: 'tools.profiles', signature: '(args: {}) => Promise<unknown>', description: 'List available Profiles and the current selection.' },
     { path: 'tools.loadprofile', signature: '(args: { profile: string }) => Promise<unknown>', description: 'Load a named Profile into this conversation.' },
@@ -32,7 +34,7 @@ export const managementCommands: readonly BuiltinCommand[] = [
 export const discoveryCommand: BuiltinCommand = { path: 'tools.intellisense', signature: '(...queries: string[]) => Promise<string>', description: 'Query namespace members and complete TypeScript tool signatures.' };
 
 /** @brief Default discovery includes custom commands and excludes standard console methods. */
-export const defaultBuiltinVisible = [...vmCommands.map(command => command.path), discoveryCommand.path];
+export const defaultBuiltinVisible: CommandVisibility = Object.fromEntries([...vmCommands.map(command => command.path), discoveryCommand.path].map(path => [path, 1]));
 
 /** @brief Callable runtime commands and permanently visible signature discovery. */
 export const builtinCommands = [...vmCommands, ...consoleCommands, discoveryCommand];
