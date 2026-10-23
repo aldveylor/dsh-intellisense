@@ -42,7 +42,7 @@ export function namespaceDirectory(hints: readonly (string | NamespaceHint)[]): 
         node.description = item.description;
         node.namespace = item.namespace;
     }
-    const lines = ['namespace global {'];
+    const lines = ['declare namespace global {'];
     /** @brief Keep Profile briefs on a single comment line and prevent fence injection. */
     function brief(text?: string): string {
         const value = text === undefined ? undefined : decodeHTML(text).replace(/[`\r\n\u2028\u2029]/g, ' ').replace(/<\|/g, '< |').trim();
@@ -52,13 +52,13 @@ export function namespaceDirectory(hints: readonly (string | NamespaceHint)[]): 
     function visit(node: Node, indent: string): void {
         for (const [name, child] of [...node.children].sort(([a], [b]) => a.localeCompare(b))) {
             if (child.namespace || child.children.size) {
-                lines.push(`${indent}namespace ${name} {${brief(child.description)}`);
-                visit(child, indent + '    ');
+                lines.push(`${indent}declare namespace ${name} {${brief(child.description)}`);
+                visit(child, indent + '  ');
                 lines.push(`${indent}}`);
-            } else lines.push(`${indent}${name}: Function;${brief(child.description)}`);
+            } else lines.push(`${indent}const ${name}: Function;${brief(child.description)}`);
         }
     }
-    visit(root, '    ');
+    visit(root, '  ');
     lines.push('}');
     return `## Namespaces\n\nCurrent partial namespace structure:\n\nRequire IntelliSense to view the namespace tree and the details of each command.\n\n\x60\x60\x60ts:namespace\n${lines.join('\n')}\n\x60\x60\x60`;
 }
