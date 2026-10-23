@@ -4,8 +4,8 @@ import { executionInstructions, namespaceDirectory } from '../../src/integration
 
 test('protocol guidance demonstrates terminal completion and follows user language without selecting a default language', () => {
     const prompt = executionInstructions('<|CUSTOM_SENSE|>', 'std.fs.read');
-    assert(prompt.includes('`return await std.fs.read<|CUSTOM_SENSE|>`'));
-    assert(!prompt.includes('```js:exec\nreturn await'));
+    assert(prompt.includes('````text\n```js:exec\nreturn await std.fs.read<|CUSTOM_SENSE|>\n````'));
+    assert(prompt.includes('Never output the marker alone'));
     assert(prompt.includes('STOP the response immediately without a closing fence'));
     assert(prompt.includes('unless the user explicitly requests another language'));
     assert(prompt.includes('Synthetic user-role continuation messages are not new human requests.'));

@@ -15,7 +15,12 @@ After this block, wait for the execution result before making claims about its o
 Each execution is a new strict AsyncFunction body supporting top-level await and explicit return. Local declarations never persist. Only explicit globalThis state persists within the live session process; a dsh restart or runtime reset loses that state. Use the native console interface for intermediate output.
 
 IntelliSense is an on-demand protocol, not a JavaScript function. Before the first use of a command whose signature has not been supplied in this conversation, you MUST request its signature instead of guessing its name, arguments or return type. Write the literal ${marker} immediately after the command path in an OPEN exec block, then STOP the response immediately without a closing fence, parentheses or any trailing explanation. To discover members, place the marker after a namespace and its dot. The marker is a control token, never a string or comment. Do not escape or explain it in user-facing prose.
-Example signature request: \x60return await ${examplePath}${marker}\x60. Start an exec fence before this expression and leave it unclosed; end immediately after the marker. The unclosed fence is intentional.
+Example signature request (the outer four-backtick fence only delimits this example; output the inner three-backtick opening and the expression):
+\x60\x60\x60\x60text
+\x60\x60\x60js:exec
+return await ${examplePath}${marker}
+\x60\x60\x60\x60
+The exec fence is intentionally unclosed. STOP the response immediately without a closing fence. Never output the marker alone: it must follow the command path inside the open exec block.
 Completion data will be supplied before you continue the remaining code. Continue exactly from the supplied prefix, then close the exec fence when the program is complete. You may request more completion data for another unknown path.
 Additional controls inside exec blocks: <|LINEBREAK|> ends the response and requests continuation on a new line; <|BREAK|> abandons the current program without executing it. Use them only for those purposes. Never invent other protocol markers. Continue using the user's language after execution.`;
 }
