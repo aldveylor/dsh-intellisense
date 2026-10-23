@@ -78,3 +78,19 @@ test('BREAK inside decoded DSML arguments vetoes dispatch and retains the reject
     assert(JSON.stringify(f.audit).includes('abandoned DSML'));
     assert(JSON.stringify(f.audit).includes('read_file'));
 });
+
+
+test('native discovery stops on the third consecutive path despite different prose prefixes', async () => {
+    const f = fixture(['First: std.fs.', 'Again: std.fs.', 'Third: std.fs.'].map(prefix => () => response([prefix, marker])));
+    const result = await f.run();
+    assert.equal(f.updates.length, 2);
+    assert(JSON.stringify(result.at(-1)).includes('COMPLETION_LOOP'));
+});
+
+test('native discovery continues beyond eight queries and resets when the path changes', async () => {
+    const paths = ['std.fs.', 'std.fs.', 'std.web.', 'std.fs.', 'std.fs.', 'std.agent.', 'std.fs.', 'std.fs.', 'vm.restart'];
+    const f = fixture([...paths.map(path => () => response([path, marker])), () => response(['The namespace tree is complete.'])]);
+    const result = await f.run();
+    assert.equal(f.updates.length, paths.length);
+    assert.deepEqual(result.at(-1), { type: 'finish', reason: { kind: 'stop' } });
+});

@@ -1,3 +1,4 @@
+import { completionPath } from '../protocol/completion_path.js';
 import type { CompletionQuery } from '../protocol/adapter.js';
 import { declaration, type ManifestEntry } from './namespace.js';
 import type { RuntimeHost } from '../runtime/host.js';
@@ -14,7 +15,7 @@ declare module '@deepseek-ai/cordis' { interface Context { intellisense: Intelli
 /** @brief Read static tool signatures and side-effect-free runtime descriptors on demand. */
 export async function intellisense(query: CompletionQuery, entries: ManifestEntry[], runtime?: RuntimeHost): Promise<{ kind: string; text: string }> {
     query.signal.throwIfAborted();
-    const path = /([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*\.?)\s*(?:\([^()]*)?$/.exec(query.prefix)?.[1] ?? '';
+    const path = completionPath(query.prefix);
     if (path === 'tools' || path.startsWith('tools.')) return { kind: 'members', text: 'The tools namespace is temporarily disabled.' };
     const exact = entries.find(entry => entry.path === path);
     if (exact) return { kind: 'signature', text: declaration(exact) };

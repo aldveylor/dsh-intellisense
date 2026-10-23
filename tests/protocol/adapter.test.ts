@@ -166,15 +166,29 @@ test('A6: max-tokens and missing finish prohibit execution', async () => {
     }
 });
 
-test('A7: repeat threshold and segment budget terminate completion loops', async () => {
+test('A7: third consecutive query of the same path fails despite changing code prefixes', async () => {
     const prefix = '```js:exec\nstd.fs.';
-    const f = fixture([prefix + marker, prefix + marker]);
+    const f = fixture([
+        prefix + marker,
+        '<|BREAK|>\n```js:exec\nreturn std.fs.' + marker,
+        '<|BREAK|>\n```js:exec\nconst files = std.fs.' + marker,
+    ]);
     const chunks = await f.run();
     assertStream(chunks, 'error');
     assert.equal(codeOf(chunks), undefined);
-    assert.equal(f.events.filter(e => e.type === 'exec/intellisense').length, 1);
-    const bounded = await fixture([prefix + marker], { maxSegments: 1 }).run();
-    assertStream(bounded, 'error');
+    assert.equal(f.events.filter(e => e.type === 'exec/intellisense').length, 2);
+    assert(JSON.stringify(chunks.at(-1)).includes('COMPLETION_LOOP'));
+});
+
+test('discovery can exceed the segment budget and resets repeated paths after switching', async () => {
+    const paths = ['std.fs.', 'std.fs.', 'std.agent.', 'std.fs.', 'std.fs.', 'std.web.', 'std.fs.', 'std.fs.', 'vm.restart'];
+    const segments = paths.map((path, index) => `${index ? '<|BREAK|>\n' : ''}\x60\x60\x60js:exec\n${path}${marker}`);
+    const f = fixture([...segments, '<|BREAK|>\nThe namespace tree is complete.'], { maxSegments: 1 });
+    const chunks = await f.run();
+    assertStream(chunks, 'stop');
+    assert.equal(codeOf(chunks), undefined);
+    assert.equal(f.events.filter(e => e.type === 'exec/intellisense').length, paths.length);
+    assert(JSON.stringify(chunks).includes('The namespace tree is complete.'));
 });
 
 test('A8: abort while a query is pending cancels both dependencies and emits nothing further', async () => {

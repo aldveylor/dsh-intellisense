@@ -3,6 +3,7 @@ import {
     LlmAdapter, LlmError, ToolCallId, type ContentBlock, type FinishReason, type GenerateOptions, type StreamChunk, type TokenUsage, type LlmFailure,
 } from '@deepseek-ai/dsh-llm';
 import { abortable, addUsage } from './stream.js';
+import { completionPath } from './completion_path.js';
 import { completionData } from './completion_data.js';
 import { Config, type ProtocolConfig } from './config.js';
 import { continuation, projectRequest, withIntellisense } from './projection.js';
@@ -96,7 +97,7 @@ export class TextExecAdapter extends LlmAdapter {
             });
         };
         try {
-            for (let segment = 0; segment < this.config.maxSegments; segment++) {
+            for (let segment = 0, continuations = 0; continuations < this.config.maxSegments; segment++) {
                 signal.throwIfAborted();
                 const streamProse = buffered.length === 0;
                 let response = '';
@@ -155,6 +156,7 @@ export class TextExecAdapter extends LlmAdapter {
                         await audit('', 'error');
                         request = { ...continuation(initial, buffered, '', segment, this.config.marker), signal };
                         buffered = ''; proseOffset = 0; repaired = true;
+                        continuations++;
                         continue;
                     }
                     throw new LlmError('Native DSML tool syntax requires an exec fence', 'MALFORMED_OUTPUT');
@@ -168,6 +170,7 @@ export class TextExecAdapter extends LlmAdapter {
                         await audit('', 'error');
                         request = { ...continuation(initial, buffered, '', segment, this.config.marker), signal };
                         buffered = ''; proseOffset = 0; repaired = true;
+                        continuations++;
                         continue;
                     }
                     throw new LlmError('Completion marker requires a command path inside an exec fence', 'MALFORMED_OUTPUT');
@@ -177,10 +180,10 @@ export class TextExecAdapter extends LlmAdapter {
                     const trimmed = last.code.trimEnd();
                     if (trimmed.endsWith(this.config.marker)) {
                         const code = trimmed.slice(0, -this.config.marker.length);
-                        repetitions = code === previousQuery ? repetitions + 1 : 1;
-                        previousQuery = code;
-                        if (repetitions >= this.config.repeatLimit) throw new LlmError('Repeated completion query limit reached', 'COMPLETION_LOOP');
-                        if (segment + 1 >= this.config.maxSegments) throw new LlmError('Continuation segment limit reached', 'COMPLETION_LOOP');
+                        const path = completionPath(code).replace(/\.$/, '');
+                        repetitions = path === previousQuery ? repetitions + 1 : 1;
+                        previousQuery = path;
+                        if (repetitions >= 3) throw new LlmError('Repeated completion query limit reached', 'COMPLETION_LOOP');
                         buffered = buffered.slice(0, buffered.indexOf('\n', last.start) + 1) + code;
                         const context = code.slice(-this.config.contextChars);
                         const started = performance.now();
@@ -203,12 +206,14 @@ export class TextExecAdapter extends LlmAdapter {
                         if (/<\|LINEBREAK(?:\|[\s\S]*?)?\|>\s*$/.test(last.code)) {
                             buffered = cleanControls(buffered, this.config.marker);
                             request = { ...continuation(initial, buffered, 'Continue on the next line.', segment), signal };
+                            continuations++;
                             continue;
                         }
                         if (this.config.malformedPolicy === 'repair-once' && !repaired) {
                             await audit('', 'error');
                             request = { ...continuation(initial, buffered, '', segment, this.config.marker), signal };
                             buffered = ''; proseOffset = 0; repaired = true;
+                            continuations++;
                             continue;
                         }
                         throw new LlmError('Unclosed exec fence', 'MALFORMED_OUTPUT');

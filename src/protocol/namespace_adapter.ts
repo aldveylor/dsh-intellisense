@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { BlockAssembler, LlmAdapter, LlmError, MessageId, type ContentBlock, type GenerateOptions, type StreamChunk, type TokenUsage } from '@deepseek-ai/dsh-llm';
 import type { ProtocolHost } from './adapter.js';
 import type { Position } from './events.js';
+import { completionPath } from './completion_path.js';
 import { completionData } from './completion_data.js';
 import { Config, type ProtocolConfig } from './config.js';
 import { cleanControls, stripNativeCalls } from './syntax.js';
@@ -31,7 +32,7 @@ export class NamespaceAdapter extends LlmAdapter {
         const originals: string[] = [];
         try {
             if (options.stop?.length) throw new LlmError('Namespace controls require unmodified terminal markers', 'UNSUPPORTED_OPTION');
-            for (let segment = 0; segment < this.config.maxSegments; segment++) {
+            for (let segment = 0; ; segment++) {
                 signal.throwIfAborted();
                 const assembler = new BlockAssembler();
                 let finished = false;
@@ -60,9 +61,10 @@ export class NamespaceAdapter extends LlmAdapter {
                 if (!finished || !['stop', 'tool-calls'].includes(assembler.finish.kind)) throw new LlmError('Namespace output did not finish normally', 'INVALID_FINISH');
                 if (!veto && text.trimEnd().endsWith(this.config.marker)) {
                     const prefix = text.trimEnd().slice(0, -this.config.marker.length);
-                    repeated = prefix === previous ? repeated + 1 : 1;
-                    previous = prefix;
-                    if (repeated >= this.config.repeatLimit || segment + 1 >= this.config.maxSegments) throw new LlmError('Namespace completion limit reached', 'COMPLETION_LOOP');
+                    const path = completionPath(prefix).replace(/\.$/, '');
+                    repeated = path === previous ? repeated + 1 : 1;
+                    previous = path;
+                    if (repeated >= 3) throw new LlmError('Repeated completion query limit reached', 'COMPLETION_LOOP');
                     const context = prefix.slice(-this.config.contextChars);
                     const started = performance.now();
                     const info = await abortable(this.host.complete({ prefix, context, sessionId: options.sessionId, signal }), signal);
