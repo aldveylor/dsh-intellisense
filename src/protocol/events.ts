@@ -6,15 +6,9 @@ export interface Position { turn: number; step: number }
 
 /** @brief All nondeterministic completion data needed to reconstruct a continuation request. */
 export interface SenseEvent extends Position {
-    marker: string;
-    segment: number;
-    sessionId: GenerateOptions['sessionId'];
-    prefix: string;
-    context: string;
+    queries: string[];
     info: string;
-    injected: string;
     elapsedMs: number;
-    discardedPrefixLength: number;
     profileRevision?: number;
     runtimeEpoch?: number;
 }
@@ -26,7 +20,7 @@ export interface RewriteEvent extends Position {
     hash: string;
     discardedTail: string;
     discardedBlocks: string[];
-    reason: 'exec' | 'prose' | 'abandoned' | 'error';
+    reason: 'exec' | 'prose' | 'error';
     failure?: LlmFailure;
 }
 
