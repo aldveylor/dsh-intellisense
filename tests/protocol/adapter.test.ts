@@ -94,6 +94,10 @@ test('invalid terminal completion markers fail explicitly when repair is disable
         const last = chunks.at(-1);
         assert(last?.type === 'finish' && last.reason.kind === 'error');
         assert.equal(last.reason.failure.code, 'MALFORMED_OUTPUT');
+        const terminal = f.events.at(-1)!.data;
+        assert('failure' in terminal);
+        assert.deepEqual(terminal.failure, last.reason.failure);
+        assert('original' in terminal && terminal.original.length === f.requests.length);
     }
 });
 
@@ -469,4 +473,19 @@ test('regenerated system prompt replaces request projection without changing ini
     assert(JSON.stringify(systems[0]).includes('Fresh project rules'));
     assert(!JSON.stringify(systems[0]).includes('Base deployment prompt'));
     assert.equal(updates.length, 1);
+});
+
+test('a failure after a repair audit still persists terminal error details for the same segment', async () => {
+    const events: AuditEvents['exec/rewrite'][] = [];
+    const f = fixture([marker], {}, { audit: (type, event) => {
+        if (type !== 'exec/rewrite') return;
+        const rewrite = event as AuditEvents['exec/rewrite'];
+        events.push(rewrite);
+        if (!rewrite.failure) throw new Error('Repair audit failed');
+    } });
+    const chunks = await f.run();
+    assert.equal(events.length, 2);
+    assert.deepEqual(events[1]!.failure, { code: 'TEXT_EXEC_FAILED', message: 'Repair audit failed' });
+    assert.deepEqual(events[1]!.original, [marker]);
+    assert.equal(chunks.at(-1)?.type, 'finish');
 });

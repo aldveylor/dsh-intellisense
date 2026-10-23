@@ -1,5 +1,5 @@
 import '@deepseek-ai/dsh-session';
-import type { GenerateOptions } from '@deepseek-ai/dsh-llm';
+import type { GenerateOptions, LlmFailure } from '@deepseek-ai/dsh-llm';
 
 /** @brief A loop-owned position passed explicitly into a request-local adapter. */
 export interface Position { turn: number; step: number }
@@ -27,6 +27,7 @@ export interface RewriteEvent extends Position {
     discardedTail: string;
     discardedBlocks: string[];
     reason: 'exec' | 'prose' | 'abandoned' | 'error';
+    failure?: LlmFailure;
 }
 
 /** @brief Durable custom events emitted through a session-owned writer. */

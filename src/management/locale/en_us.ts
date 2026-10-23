@@ -1,5 +1,6 @@
 /** @brief American English interface dictionary. */
 export const enUs = {
+    "protocol_error": "Protocol execution failed",
     "intellisense_trace": "IntelliSense completion request",
     "intellisense_query": "Query code",
     "intellisense_result": "Completion result",

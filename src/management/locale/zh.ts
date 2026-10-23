@@ -1,5 +1,6 @@
 /** @brief Chinese interface dictionary. */
 export const zh = {
+    "protocol_error": "协议执行失败",
     "intellisense_trace": "IntelliSense 补全调用",
     "intellisense_query": "查询代码",
     "intellisense_result": "补全结果",

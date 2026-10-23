@@ -100,11 +100,12 @@ export class NamespaceAdapter extends LlmAdapter {
             }
         } catch (error) {
             if (signal.aborted) return;
-            await this.host.audit('exec/rewrite', { ...this.position, original: originals, code: '', hash: '', discardedTail: '', discardedBlocks: [], reason: 'error' });
+            const failure = { code: error instanceof LlmError ? error.code : 'NAMESPACE_FAILED', message: error instanceof Error ? error.message : String(error) };
+            await this.host.audit('exec/rewrite', { ...this.position, original: originals, code: '', hash: '', discardedTail: '', discardedBlocks: [], reason: 'error', failure });
             signal.throwIfAborted();
             if (total) yield { type: 'usage', usage: total };
             signal.throwIfAborted();
-            yield { type: 'finish', reason: { kind: 'error', failure: { code: error instanceof LlmError ? error.code : 'NAMESPACE_FAILED', message: error instanceof Error ? error.message : String(error) } } };
+            yield { type: 'finish', reason: { kind: 'error', failure } };
         } finally {
             options.signal?.removeEventListener('abort', abort);
             controller.abort();

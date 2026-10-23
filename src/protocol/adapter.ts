@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import {
-    LlmAdapter, LlmError, ToolCallId, type ContentBlock, type FinishReason, type GenerateOptions, type StreamChunk, type TokenUsage,
+    LlmAdapter, LlmError, ToolCallId, type ContentBlock, type FinishReason, type GenerateOptions, type StreamChunk, type TokenUsage, type LlmFailure,
 } from '@deepseek-ai/dsh-llm';
 import { abortable, addUsage } from './stream.js';
 import { completionData } from './completion_data.js';
@@ -85,17 +85,15 @@ export class TextExecAdapter extends LlmAdapter {
         let previousQuery: string | undefined;
         let repetitions = 0;
         let discardedPrefix = 0;
-        let auditedSegments = 0;
         const originals: string[] = [];
-        const audit = async (code: string, reason: AuditEvents['exec/rewrite']['reason']): Promise<void> => {
+        const audit = async (code: string, reason: AuditEvents['exec/rewrite']['reason'], failure?: LlmFailure): Promise<void> => {
             const blocks = execBlocks(buffered);
             const selected = blocks.filter(block => !block.abandoned).at(-1);
             await this.host.audit('exec/rewrite', {
                 ...this.position, original: [...originals], code, hash: createHash('sha256').update(code).digest('hex'),
                 discardedTail: selected ? buffered.slice(selected.end) : '',
-                discardedBlocks: blocks.filter(block => block !== selected).map(block => buffered.slice(block.start, block.end)), reason,
+                discardedBlocks: blocks.filter(block => block !== selected).map(block => buffered.slice(block.start, block.end)), reason, ...(failure ? { failure } : {}),
             });
-            auditedSegments = originals.length;
         };
         try {
             for (let segment = 0; segment < this.config.maxSegments; segment++) {
@@ -237,10 +235,11 @@ export class TextExecAdapter extends LlmAdapter {
             throw new LlmError('Continuation segment limit reached', 'COMPLETION_LOOP');
         } catch (error) {
             if (signal.aborted) return;
-            if (auditedSegments !== originals.length || originals.length === 0) await audit('', 'error');
+            const failure = { code: error instanceof LlmError ? error.code : 'TEXT_EXEC_FAILED', message: error instanceof Error ? error.message : String(error) };
+            await audit('', 'error', failure);
             yield* checked(prose.end(), signal);
             if (total) yield* checked([{ type: 'usage', usage: total }], signal);
-            yield { type: 'finish', reason: { kind: 'error', failure: { code: error instanceof LlmError ? error.code : 'TEXT_EXEC_FAILED', message: error instanceof Error ? error.message : String(error) } } };
+            yield { type: 'finish', reason: { kind: 'error', failure } };
         } finally {
             options.signal?.removeEventListener('abort', abort);
             controller.abort();

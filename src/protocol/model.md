@@ -23,3 +23,5 @@
 补全后先持久化审计，再使用 assembleContextFor / systemPrompt.assemble / renderPrompt 完整重生成提示词；新增的 system/message 保存完整结果，保留最初的提示词事件。续写投影仅发送重生成的完整系统消息，不拼接旧系统片段。completion_data.ts 按 HTML 语义解码实体，使用动态长度 Markdown 围栏承载声明，模型读取实际 `<`、`>`、`&` 字符。
 
 初始系统提示词消息始终由原生首步装配完整生成并保留。补全更新使用相同 agent scope 重新调用所有提示词 provider 与 waterfall，新增完整 system/message，而非仅写入签名或更改旧消息内容；请求投影使用这次完整结果。回归检查覆盖原始人设保留及动态规则 provider 的重新求值。
+
+终止协议错误在 rewrite 记录中保存结构化 failure（错误码与原始消息），并在输出 error finish 前完成持久化。修复尝试的 reason: error 不含 failure；即使同一生成段已保存修复审计，最终失败也单独写入带 failure 的记录。Text PTC 和独立命名空间模式采用相同错误审计格式。
