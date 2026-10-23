@@ -9,7 +9,7 @@ export const Paths = z.array(z.string().regex(/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][
 
 /** @brief Strict host-to-worker protocol; functions and host objects never cross IPC. */
 export const HostMessage = z.discriminatedUnion('type', [
-    z.strictObject({ type: z.literal('init'), id: RpcId, paths: Paths, maxOutputBytes: z.number().int().positive(), syncTimeoutMs: z.number().int().positive() }),
+    z.strictObject({ type: z.literal('init'), id: RpcId, paths: Paths, values: z.record(z.string(), z.json()).default({}), maxOutputBytes: z.number().int().positive(), syncTimeoutMs: z.number().int().positive() }),
     z.strictObject({ type: z.literal('execute'), id: RpcId, execution: ExecutionId, javascript: z.string() }),
     z.strictObject({ type: z.literal('describe'), id: RpcId, path: z.string() }),
     z.strictObject({ type: z.literal('reply'), id: RpcId, value: z.json().optional(), error: z.string().optional() }),

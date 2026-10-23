@@ -115,7 +115,7 @@ export class RuntimeHost {
     }
 
     /** @brief Serialize owner executions; every invocation receives new strict AsyncFunction local bindings. */
-    execute(owner: string, id: string, code: string, paths: string[], invoke: (path: string, args: unknown, signal: AbortSignal) => Promise<unknown>, signal: AbortSignal): Promise<ExecutionResult> {
+    execute(owner: string, id: string, code: string, paths: string[], invoke: (path: string, args: unknown, signal: AbortSignal) => Promise<unknown>, signal: AbortSignal, values: Record<string, z.infer<ReturnType<typeof z.json>>> = {}): Promise<ExecutionResult> {
         const previous = this.queues.get(owner) ?? Promise.resolve();
         const work = previous.catch(() => { /* A previous failed run does not prevent a new explicit execution. */ }).then(async () => {
             signal.throwIfAborted();
@@ -125,7 +125,7 @@ export class RuntimeHost {
             signal.addEventListener('abort', abort, { once: true });
             if (signal.aborted) abort();
             try {
-                await this.request(owner, state, { type: 'init', paths, maxOutputBytes: this.config.maxOutputBytes, syncTimeoutMs: this.config.syncTimeoutMs });
+                await this.request(owner, state, { type: 'init', paths, values, maxOutputBytes: this.config.maxOutputBytes, syncTimeoutMs: this.config.syncTimeoutMs });
                 signal.throwIfAborted();
                 state.active = { id, controller, invoke };
                 const source = `(async function(){"use strict";\n${code}\n})()`;

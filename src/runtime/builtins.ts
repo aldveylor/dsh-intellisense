@@ -19,22 +19,23 @@ export const consoleCommands: readonly BuiltinCommand[] = [
     ...['clear', 'groupEnd'].map(name => ({ path: `console.${name}`, signature: '() => void', description: 'Clear the console or close the current console group.' })),
 ];
 
-/** @brief Fixed management commands are ordinary native tools under the tools namespace. */
+/** @brief Profile commands available through ordinary guarded native dispatch. */
 export const managementCommands: readonly BuiltinCommand[] = [
-    { path: 'tools.mount', signature: '(args: { source: string; node: string; name?: string }) => Promise<unknown>', description: 'Mount a tool in the current conversation Profile.' },
-    { path: 'tools.unmount', signature: '(args: { target: string }) => Promise<unknown>', description: 'Remove a mounted tool path from the current Profile.' },
-    { path: 'tools.comment', signature: '(args: { tool: string; comment: string }) => Promise<unknown>', description: 'Edit a tool comment in the current Profile.' },
-    { path: 'tools.fix', signature: '(args: { tool: string; fixed?: 0 | 1 | 2 }) => Promise<unknown>', description: 'Change whether a tool appears in the model prompt.' },
-    { path: 'tools.commit', signature: '(args: { profile: string }) => Promise<unknown>', description: 'Save the conversation draft to a named Profile.' },
-    { path: 'tools.profiles', signature: '(args: {}) => Promise<unknown>', description: 'List available Profiles and the current selection.' },
-    { path: 'tools.loadprofile', signature: '(args: { profile: string }) => Promise<unknown>', description: 'Load a named Profile into this conversation.' },
+    { path: 'tools.profile.load', signature: '(name?: string) => Promise<Profile>', description: 'Load a named Profile, or return the current conversation Profile when name is omitted.' },
+    { path: 'tools.profile.save', signature: '(name: string | undefined, profile: Profile) => Promise<void>', description: 'Save a Profile tree under name, defaulting to the current Profile name. Also accepts save(profile).' },
+];
+
+/** @brief Preloaded Profile values, with visibility preferences stored alongside builtin commands. */
+export const profileValues: readonly BuiltinCommand[] = [
+    { path: 'tools.profile.annotation', signature: 'string', description: 'English TypeScript declarations for the Profile data model.' },
+    { path: 'tools.profile.commands', signature: 'CommandBrief[]', description: 'Original physical command names and summaries available to this conversation.' },
 ];
 
 /** @brief Fixed discovery command available in both native and PTC modes. */
-export const discoveryCommand: BuiltinCommand = { path: 'tools.intellisense', signature: '(...queries: string[]) => Promise<string>', description: 'Query namespace members and complete TypeScript tool signatures.' };
+export const discoveryCommand: BuiltinCommand = { path: 'tools.intellisense', signature: '(args: string[]) => Promise<string>', description: 'Query namespace members and complete TypeScript tool signatures.' };
 
 /** @brief Default discovery includes custom commands and excludes standard console methods. */
-export const defaultBuiltinVisible: CommandVisibility = Object.fromEntries([...vmCommands.map(command => command.path), discoveryCommand.path].map(path => [path, 1]));
+export const defaultBuiltinVisible: CommandVisibility = Object.fromEntries([...vmCommands.map(command => command.path), discoveryCommand.path].map(path => [path, path === discoveryCommand.path ? 2 : 1]));
 
 /** @brief Callable runtime commands and permanently visible signature discovery. */
-export const builtinCommands = [...vmCommands, ...consoleCommands, discoveryCommand];
+export const builtinCommands = [...vmCommands, ...consoleCommands, discoveryCommand, ...managementCommands];
