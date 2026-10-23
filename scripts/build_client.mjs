@@ -7,7 +7,7 @@ const native = await build({
     loader: { '.css': 'text' },
     external: ['react', 'react/jsx-runtime', '@deepseek-ai/dsh-client-ui-primitives'], write: false, target: 'es2022',
 });
-await writeFile('dist/client.js', `window.__ModuleLoader__.load({id:"dsh-ts-intellisense",factory(require){\nconst module={exports:{}};\n${native.outputFiles[0].text}\nreturn module.exports;\n}});\n`);
+await writeFile('dist/client.js', `window.__ModuleLoader__.load({id:"dsh-intellisense",factory(require){\nconst module={exports:{}};\n${native.outputFiles[0].text}\nreturn module.exports;\n}});\n`);
 
 // The standalone authenticated page owns its React root and needs no shell globals.
 await build({

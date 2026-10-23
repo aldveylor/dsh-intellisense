@@ -1,4 +1,4 @@
-# Standalone text-ptc Agent composition based on the installed standard capability set.
+# Standalone intellisense Agent composition based on the installed standard capability set.
 - id: persona
   name: '@deepseek-ai/dsh-persona'
   config:
@@ -117,7 +117,7 @@
 - id: tool-plugin-market
   name: '@deepseek-ai/dsh-plugin-market/tools'
   disabled: true
-- id: text-ptc-presentation
+- id: intellisense-presentation
   name: "@deepseek-ai/dsh-agent-tool-presentation"
   config:
     mode: native

@@ -1,11 +1,11 @@
 - insert:
     - id: ts-intellisense
-      name: dsh-ts-intellisense
+      name: dsh-intellisense
       config:
         timeoutMs: 120000
-    - id: preset-text-ptc
-      name: dsh-ts-intellisense/preset
+    - id: preset-intellisense-ptc
+      name: dsh-intellisense/preset
 - id: agent-preset-registry
   config:
-    default: text-ptc
-    selectedDefault: text-ptc
+    default: intellisense-ptc
+    selectedDefault: intellisense-ptc

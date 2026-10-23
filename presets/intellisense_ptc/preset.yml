@@ -1,0 +1,4 @@
+id: intellisense-ptc
+name: Intellisense PTC
+description: JavaScript and TypeScript execution with namespace discovery.
+order: 0

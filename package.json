@@ -1,7 +1,7 @@
 {
-  "name": "dsh-ts-intellisense",
+  "name": "dsh-intellisense",
   "version": "0.1.0",
-  "description": "Fenced text execution with isolated JavaScript runtime and progressive IntelliSense for DeepSeek Harness",
+  "description": "Namespace-based DSML and isolated JavaScript/TypeScript execution with on-demand IntelliSense for DeepSeek Harness",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

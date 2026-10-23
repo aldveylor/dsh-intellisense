@@ -27,7 +27,7 @@ export function apply(ctx: Context): void {
         ctx.uiConversation.events.register(intellisenseTraceDefinition(key => ctx.locale.bind('ts_intellisense')(key)));
     });
     ctx.slots.inject('plugins.bundle.config', () => ctx.slots.register({
-        name: 'plugins.bundle.config', key: 'dsh-ts-intellisense',
+        name: 'plugins.bundle.config', key: 'dsh-intellisense',
         inject: () => ({ locale: ctx.locale, ProfileSelect: NativeProfileSelect, api: new URL('api/ts-intellisense-state', document.baseURI).href }),
     }, NativePanel));
 }

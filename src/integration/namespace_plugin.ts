@@ -25,7 +25,7 @@ declare module '@deepseek-ai/cordis' { interface Context { commandNamespaces: Na
 /** @brief Mount namespace configuration, initial system hints and native discovery controls. */
 export async function apply(ctx: Context, options: z.input<typeof Config> = {}): Promise<void> {
     const config = Config.parse(options);
-    const aliases = Aliases.parse(parse(await readFile(config.aliasesFile ?? new URL('../../presets/text_ptc/aliases.yml', import.meta.url), 'utf8')));
+    const aliases = Aliases.parse(parse(await readFile(config.aliasesFile ?? new URL('../../presets/intellisense_ptc/aliases.yml', import.meta.url), 'utf8')));
     const backend = ctx.storage.backend.get('json');
     if (!backend.kv) throw new Error('DSH json backend does not support KV storage');
     const unit = await backend.kv.open({ name: 'ts_intellisense', version: 1, tables: ['state'], hasGlobal: false, layout: 'per-record' });
