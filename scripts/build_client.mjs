@@ -15,3 +15,6 @@ await build({
     loader: { '.css': 'text' },
     outfile: 'dist/web/standalone.js', target: 'es2022', minify: true,
 });
+
+// The worker is loaded as an inline module under Node permissions, requiring no filesystem grants.
+await build({ entryPoints: ['src/runtime_host/worker.ts'], bundle: true, platform: 'node', format: 'esm', outfile: 'dist/runtime_host/worker_bundle.mjs', target: 'node24', minify: true });
