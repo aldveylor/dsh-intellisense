@@ -1,7 +1,5 @@
 /** @brief American English interface dictionary. */
 export const enUs = {
-    "mount_console": "Mount console",
-    "unmount_console": "Unmount console",
     "protocol_error": "Protocol execution failed",
     "intellisense_trace": "IntelliSense completion request",
     "intellisense_query": "Query code",

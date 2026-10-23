@@ -44,4 +44,4 @@ UI 不再显示 unknown 块。树上方显示当前可用但未挂载的工具�
 
 命令固定等级统一为 0（不固定）、1（固定但简略）、2（固定且详细）。Mapping.alwaysVisible 保存等级；builtinVisible、unmountedVisible 为路径或物理 ID 到等级的映射，随 Profile 保存，挂载和移除映射时保留等级。命名空间 alwaysVisible 仍为布尔值。
 
-consoleMounted 为随 Profile 保存的命名空间挂载开关，默认 false。管理面板保留 console 节点及挂载按钮；未挂载时不展示其命令，不参与 IntelliSense 和固定提示。运行时原生 console 始终可用，PTC 初始 prompt 明确提示可使用运行时提供的原生 Node.js 变量。
+consolePinned 为随 Profile 保存的命名空间固定提示开关，默认 false。管理面板始终展示 console 及其命令，console 命名空间图钉可切换是否固定提示；命令各自保留独立的提示等级。IntelliSense 与原生 console 的可用性不受固定状态影响。PTC 初始 prompt 提示可使用运行时提供的原生 Node.js 变量。

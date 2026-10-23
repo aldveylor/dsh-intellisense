@@ -8,6 +8,6 @@
 
 命名空间块统一显示当前层级名称，固定子树 tools.profile 显示 profile，悬停保留完整路径。
 
-consoleMounted 为随 Profile 保存的命名空间挂载开关，默认 false。管理面板保留 console 节点及挂载按钮；未挂载时不展示其命令，不参与 IntelliSense 和固定提示。运行时原生 console 始终可用，PTC 初始 prompt 明确提示可使用运行时提供的原生 Node.js 变量。
+consolePinned 为随 Profile 保存的命名空间固定提示开关，默认 false。管理面板始终展示 console 及其命令，console 命名空间图钉可切换是否固定提示；命令各自保留独立的提示等级。IntelliSense 与原生 console 的可用性不受固定状态影响。PTC 初始 prompt 提示可使用运行时提供的原生 Node.js 变量。
 
-除可选挂载的 console 外，固定命名空间（tools、tools.profile、vm）显示禁用的实心固定图标，提示固定命名空间不可修改；不改变命令各自的提示等级。
+除可切换固定提示的 console 外，固定命名空间（tools、tools.profile、vm）显示禁用的实心固定图标，提示固定命名空间不可修改；不改变命令各自的提示等级。

@@ -10,9 +10,9 @@ import type { NamespaceComponent } from './namespace_component.js';
 interface DeclarationNode { children: Map<string, DeclarationNode>; entry?: ManifestEntry; detailed?: boolean; signature?: string; description?: string; valueType?: string }
 
 /** @brief Render queried members and signatures as one valid ambient TypeScript namespace tree. */
-export function intellisense(queries: readonly string[], entries: readonly ManifestEntry[], runtime = false, consoleMounted = false): string {
+export function intellisense(queries: readonly string[], entries: readonly ManifestEntry[], runtime = false): string {
     const root: DeclarationNode = { children: new Map() };
-    const commands = builtinCommands.filter(command => runtime ? consoleMounted || !command.path.startsWith('console.') : command.path.startsWith('tools.'));
+    const commands = runtime ? builtinCommands : builtinCommands.filter(command => command.path.startsWith('tools.'));
     const visibleEntries = runtime ? entries.filter(entry => !['tools_profile_annotation', 'tools_profile_commands'].includes(entry.tool)) : entries;
     /** @brief Merge overlapping queries without repeating declarations. */
     function nodeFor(path: string): DeclarationNode {
@@ -83,7 +83,7 @@ export function registerIntellisense(ctx: Context, namespaces: NamespaceComponen
             if (!agent) throw new Error('A live conversation is required');
             execution.signal.throwIfAborted();
             const started = performance.now();
-            const info = intellisense(queries, await namespaces.entries(agent), namespaces.isPtc(agent), (await namespaces.registryFor(agent)).snapshot().consoleMounted ?? false);
+            const info = intellisense(queries, await namespaces.entries(agent), namespaces.isPtc(agent));
             const position = namespaces.position(agent);
             appendPluginRecord(agent.session, 'plugin:ts_intellisense/intellisense', {
                 ...position, queries, info, elapsedMs: performance.now() - started,

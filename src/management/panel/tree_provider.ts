@@ -17,12 +17,12 @@ export function unmountedTools(tools: PhysicalTool[], mappings: Mapping[]): Phys
 }
 
 /** @brief Provider owns visible, fixed runtime namespaces; unmounted tools use the picker. */
-export function TreeProvider(visible: CommandVisibility = defaultBuiltinVisible, consoleMounted = false): ProvidedNamespace[] {
+export function TreeProvider(visible: CommandVisibility = defaultBuiltinVisible): ProvidedNamespace[] {
     return [{ path: 'tools', description: 'Tool discovery and Profile management', fixed: true,
         commands: [{ ...discoveryCommand, id: 'tools_intellisense', fixed: true, draggable: false, alwaysVisible: 2 }],
         children: [{ path: 'tools.profile', description: 'Profile data and configuration', fixed: true, commands: [...managementCommands, ...profileValues].map(command => ({ ...command, fixed: true, draggable: false, alwaysVisible: visible[command.path] ?? 0 })) }] },
         { path: 'console', description: 'Native console output', fixed: true,
-        commands: consoleMounted ? consoleCommands.map(command => ({ ...command, fixed: true, draggable: false, alwaysVisible: visible[command.path] ?? 0 })) : [] },
+        commands: consoleCommands.map(command => ({ ...command, fixed: true, draggable: false, alwaysVisible: visible[command.path] ?? 0 })) },
         { path: 'vm', description: 'Built-in VM commands', fixed: true,
         commands: vmCommands.map(command => ({ ...command, fixed: true, draggable: false, alwaysVisible: visible[command.path] ?? 0 })) }];
 }

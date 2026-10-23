@@ -22,9 +22,9 @@ export function registerManagement(ctx: Context, globalRegistry: SemanticRegistr
             if (!request.headers.get('content-type')?.startsWith('application/json')) return Response.json({ error: 'Expected application/json' }, { status: 415, headers });
             const bodyText = await request.text();
             if (bodyText.length > 1_048_576) return Response.json({ error: 'Body exceeds 1 MiB' }, { status: 413, headers });
-            const body = JSON.parse(bodyText) as { action: string; mappings: Mapping[]; namespaces?: Namespace[]; order?: string[]; unmountedVisible?: CommandVisibility; builtinVisible?: CommandVisibility; consoleMounted?: boolean; revision: number; id: string; operation?: 'create' | 'select' | 'rename' | 'delete'; name?: string; newName?: string; profile?: string; toolComments?: Record<string, string> };
+            const body = JSON.parse(bodyText) as { action: string; mappings: Mapping[]; namespaces?: Namespace[]; order?: string[]; unmountedVisible?: CommandVisibility; builtinVisible?: CommandVisibility; consolePinned?: boolean; revision: number; id: string; operation?: 'create' | 'select' | 'rename' | 'delete'; name?: string; newName?: string; profile?: string; toolComments?: Record<string, string> };
             const registry = globalRegistry;
-            if (body.action === 'configure') await registry.configure(body.mappings, body.revision, body.namespaces, body.order, body.unmountedVisible, body.profile, body.toolComments, body.builtinVisible, body.consoleMounted);
+            if (body.action === 'configure') await registry.configure(body.mappings, body.revision, body.namespaces, body.order, body.unmountedVisible, body.profile, body.toolComments, body.builtinVisible, body.consolePinned);
             else if (body.action === 'profile') await registry.manageProfile(body.operation!, body.name!, body.revision, body.newName);
             else if (body.action === 'organize') {
                 const parent = sessions[0];
