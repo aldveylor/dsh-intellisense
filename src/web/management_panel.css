@@ -25,3 +25,5 @@
 .ts-intellisense .ts-history-settings { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-block: 12px; }
 .ts-intellisense .ts-history-settings label { display: inline-flex; align-items: center; gap: 6px; }
 .ts-intellisense .ts-history-settings input { width: 5em; }
+
+.ts-intellisense .ts-unmounted-count{display:block;margin-top:12px;color:var(--dsw-alias-label-secondary,#bdbdbd)}

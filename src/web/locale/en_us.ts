@@ -65,6 +65,7 @@ export const enUs = {
     "search_tools": "Search tools",
     "search_hint": "Search by name, path, or description",
     "tool_count": "Click a block to add it to this node · {count} tools",
+    "unmounted_count": "{count} unmounted tools",
     "unmounted": "Unmapped",
     "no_matches": "No matching tools.",
     "no_tools": "No tools are currently available.",

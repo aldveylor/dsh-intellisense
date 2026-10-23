@@ -65,6 +65,7 @@ export const zh = {
     "search_tools": "搜索工具",
     "search_hint": "搜索名称、路径或描述",
     "tool_count": "单击积木添加到当前节点 · {count} 个工具",
+    "unmounted_count": "{count} 个工具未挂载",
     "unmounted": "未挂载",
     "no_matches": "没有匹配的工具。",
     "no_tools": "当前没有可用工具。",

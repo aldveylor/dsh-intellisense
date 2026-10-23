@@ -5,7 +5,7 @@ import styles from './management_panel.css';
 import { useEffect, useState, type ComponentType, type DragEvent } from 'react';
 import type { Namespace, Mapping, PhysicalTool, RegistryState } from '../registry/registry.js';
 import { validatePath } from '../registry/path.js';
-import { TreeProvider, type ProvidedCommand, type ProvidedNamespace } from './tree_provider.js';
+import { TreeProvider, unmountedTools, type ProvidedCommand, type ProvidedNamespace } from './tree_provider.js';
 import { ProfilePicker, type ProfileSelectProps } from './profile_picker/profile_picker.js';
 import { ToolPicker } from './tool_picker/tool_picker.js';
 import { useTreeDrag, treeDropTarget } from './tree_drag.js';
@@ -200,7 +200,7 @@ function NamespaceNode({ path, tree, fixed = false, provided }: { path: string; 
             {fixed ? <span className="ts-node-name">{path}</span> : <EditableText className="ts-node-name" value={path.split('.').at(-1)!} label={t('namespace_path_name', { path })} busy={tree.busy}
                 commit={name => tree.renameNamespace(path, name)} />}
             <small className="ts-node-count" aria-label={t('command_count', { path })}>{count}</small>
-            {fixed ? <span className="ts-node-preview">{provided ? t(provided.path === 'vm' ? 'vm_description' : 'unknown_description') : undefined}</span> : <><EditableText className="ts-node-preview" value={config?.description ?? ''} label={t('namespace_comment', { path })} busy={tree.busy} empty
+            {fixed ? <span className="ts-node-preview">{provided ? t('vm_description') : undefined}</span> : <><EditableText className="ts-node-preview" value={config?.description ?? ''} label={t('namespace_comment', { path })} busy={tree.busy} empty
                 commit={description => { tree.configure(path, { description }); return true; }} />
             <span className="ts-node-actions">
                 <PinButton label={t('pin_namespace', { path })} active={config?.alwaysVisible ?? false} busy={tree.busy}
@@ -227,7 +227,7 @@ export function ManagementPanel({ api, ProfileSelect }: ManagementPanelProps) {
     const [unknownVisible, setUnknownVisible] = useState<string[]>([]);
     const [toolComments, setToolComments] = useState<Record<string, string>>({});
     const [descriptionEditor, setDescriptionEditor] = useState<{ id: string; text?: string }>();
-    const [toolPicker, setToolPicker] = useState<string>();
+    const [toolPicker, setToolPicker] = useState<{ parent: string; unmountedOnly?: boolean }>();
     const [status, setStatus] = useState('loading');
     const [busy, setBusy] = useState(false);
     const [proposal, setProposal] = useState<{ id: string; proposal: unknown }>();
@@ -268,7 +268,8 @@ export function ManagementPanel({ api, ProfileSelect }: ManagementPanelProps) {
         });
     }
 
-    const provided = TreeProvider(view?.tools ?? [], mappings, unknownVisible);
+    const provided = TreeProvider();
+    const unmounted = unmountedTools(view?.tools ?? [], mappings);
     const paths = [...new Set([...provided.map(node => node.path), ...namespacePaths({ mappings, namespaces })])];
     const saved = view?.state;
     const dirty = !!saved && JSON.stringify([mappings, namespaces, unknownVisible, toolComments, order]) !== JSON.stringify([saved.mappings, saved.namespaces ?? [], saved.unknownVisible ?? [], saved.toolComments ?? {}, orderedPaths([...namespacePaths({ mappings: saved.mappings, namespaces: saved.namespaces ?? [] }), ...saved.mappings.flatMap(m => [m.path, ...m.aliases])], saved.order ?? [])]);
@@ -394,7 +395,7 @@ export function ManagementPanel({ api, ProfileSelect }: ManagementPanelProps) {
         paths, mappings, namespaces, order, expanded, tools: view?.tools ?? [], busy: busy || !view,
         toolComments, unknownVisible, pinUnknown: id => setUnknownVisible(current => current.includes(id) ? current.filter(value => value !== id) : [...current, id]),
         editDescription: id => { if (!busy) setDescriptionEditor({ id, text: Object.hasOwn(toolComments, id) ? toolComments[id] : mappings.find(m => m.id === id)?.description }); },
-        pick: setToolPicker, configure: configureNamespace, drop: (event, parent) => nativeDrop(event, { path: parent, position: 'inside' }), create: createNamespace, rename: renameMapping, remove: removeMapping,
+        pick: parent => setToolPicker({ parent }), configure: configureNamespace, drop: (event, parent) => nativeDrop(event, { path: parent, position: 'inside' }), create: createNamespace, rename: renameMapping, remove: removeMapping,
         pinTool: mapping => setMappings(current => current.map(m => m.id === mapping.id ? { ...m, alwaysVisible: !m.alwaysVisible } : m)),
         renameNamespace: (path, name) => editNamespace(path, name), deleteNamespace: path => { editNamespace(path); },
         toggle: path => setExpanded(current => ({ ...current, [path]: !(current[path] ?? false) })), dropNode: (event) => nativeDrop(event, treeDropTarget(event.currentTarget, event.clientY)),
@@ -424,17 +425,19 @@ export function ManagementPanel({ api, ProfileSelect }: ManagementPanelProps) {
         </div></div>
         <main><section className="ts-namespaces"><h2>{t('namespace_tree')}</h2>
             <small>{t('tree_hint')}</small>
+            {view && <button className="ts-unmounted-count" type="button" data-unmounted-count={unmounted.length} aria-live="polite" disabled={busy || !unmounted.length}
+                onClick={() => setToolPicker({ parent: '', unmountedOnly: true })}>{t('unmounted_count', { count: unmounted.length })}</button>}
             <ul className="ts-tree">{orderedPaths([...paths.filter(path => !path.includes('.')), ...mappings.flatMap(m => [m.path, ...m.aliases]).filter(path => !path.includes('.'))], order).map(path => {
                 const command = mappings.find(m => m.path === path || m.aliases.includes(path));
                 return command ? <CommandNode key={path} path={path} mapping={command} tree={tree}
                     description={view?.tools.find(tool => tool.id === command.id)?.description} /> : <NamespaceNode key={path} path={path} tree={tree} provided={provided.find(node => node.path === path)} fixed={provided.find(node => node.path === path)?.fixed} />;
             })}
-                <NamespacePlaceholder busy={busy || !view} create={createNamespace} pick={setToolPicker} drop={(event, parent) => nativeDrop(event, { path: parent, position: 'inside' })} />
+                <NamespacePlaceholder busy={busy || !view} create={createNamespace} pick={parent => setToolPicker({ parent })} drop={(event, parent) => nativeDrop(event, { path: parent, position: 'inside' })} />
             </ul>
         </section></main>
-        {toolPicker !== undefined && view && <ToolPicker parent={toolPicker} tools={view.tools} mappings={mappings} busy={busy}
+        {toolPicker !== undefined && view && <ToolPicker parent={toolPicker.parent} tools={toolPicker.unmountedOnly ? unmounted : view.tools} mappings={mappings} busy={busy}
             close={() => setToolPicker(undefined)} select={tool => {
-                applyDrop({ namespace: false, id: tool.id }, { path: toolPicker, position: 'inside' });
+                applyDrop({ namespace: false, id: tool.id }, { path: toolPicker.parent, position: 'inside' });
                 setToolPicker(undefined);
             }} />}
         {descriptionEditor && <div className="ts-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="ts-description-title">
