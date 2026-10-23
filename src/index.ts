@@ -7,7 +7,9 @@ import '@deepseek-ai/dsh-tools';
 import { DshStore } from './storage/store.js';
 import { SemanticRegistry } from './registry/registry.js';
 import { TypeScriptAdapter } from './dsh/adapter.js';
-import { OrganizationService, proposalSchema } from './dsh/organization.js';
+import { OrganizationService } from './dsh/organization.js';
+import { ProfileSessions } from './registry/profiles.js';
+import { registerToolCommands } from './dsh/tool_commands.js';
 import { registerManagement } from './web/routes.js';
 
 export const name = 'dsh-ts-intellisense';
@@ -25,20 +27,9 @@ export async function apply(ctx: Context, options: Config = {}): Promise<void> {
     const store = new DshStore(unit);
     const registry = new SemanticRegistry(store); await registry.load();
     const organization = new OrganizationService(ctx, registry);
-    ctx.tools.register({
-        name: 'tools_namespace',
-        description: 'Sort tools into semantic namespaces. Return an organization proposal for human approval in the TypeScript tools management UI.',
-        parameters: { type: 'object', properties: {}, additionalProperties: false },
-        output: {
-            schema: { type: 'object', properties: { id: { type: 'string' }, proposal: proposalSchema } },
-            render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
-        },
-        execute: async (_args, execution) => {
-            if (!execution.agent) throw new Error('Namespace organization requires a live agent');
-            return organization.propose(execution.agent, execution.signal, await adapter.registryFor(execution.agent));
-        },
-    });
-    const adapter = new TypeScriptAdapter(ctx, config, registry, store);
+    const profiles = new ProfileSessions(registry, store);
+    const adapter = new TypeScriptAdapter(ctx, config, registry, store, profiles);
+    registerToolCommands(ctx, registry, profiles, agent => adapter.registryFor(agent), agent => adapter.configurationChanged(agent));
     ctx.on('llm/stream', (request, next) => {
         const agent = request.sessionId ? ctx.agents.get(request.sessionId) : undefined;
         if (isAgentLoopRequest(request) && !request.purpose && agent && agent.session.header.origin !== 'subagent') return adapter.stream(request);

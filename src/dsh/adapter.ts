@@ -2,14 +2,22 @@ import type { BindingType } from '../typescript/project.js';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
-import { ToolCallId, type GenerateOptions, type StreamChunk, type TokenUsage } from '@deepseek-ai/dsh-llm';
+import { ToolCallId, createUserMessage, type GenerateOptions, type StreamChunk, type TokenUsage } from '@deepseek-ai/dsh-llm';
 import type { Store } from '../storage/store.js';
 import type { SemanticRegistry, PhysicalTool } from '../registry/registry.js';
 import { IsolatedSession } from '../runtime/isolated.js';
 import type { SessionCheckpoint, ExecutionResult } from '../runtime/session.js';
 import { environmentPrompt } from '../protocol/prompt.js';
 import { runConversation } from '../protocol/controller.js';
+import type { ProfileSessions } from '../registry/profiles.js';
 import { ExecutionTrace } from './execution_trace.js';
+
+declare module '@deepseek-ai/dsh-llm' {
+    interface MessageSourceMap {
+        /** @brief A newly applied conversation-local profile configuration. */
+        'ts-intellisense': { kind: 'ts-intellisense'; form: 'notice'; summary: string };
+    }
+}
 
 /** @brief Execution limits are independent of the upstream model selection. */
 export interface AdapterConfig { timeoutMs: number }
@@ -18,12 +26,13 @@ interface ExecutionRecord { status: 'started' | 'completed' | 'failed'; source?:
 
 /** @brief DSH adapter owning continuation requests without rewriting frozen agent-loop requests. */
 export class TypeScriptAdapter {
+    private changes = new Map<string, string>();
     private sessions = new Map<string, Promise<IsolatedSession>>();
     private queues = new Map<string, Promise<unknown>>();
     private positions = new Map<string, { turn: number; step: number }>();
     private executions = new Map<string, ExecutionTrace>();
 
-    constructor(private ctx: Context, readonly config: AdapterConfig, private registry: SemanticRegistry, private store: Store) {
+    constructor(private ctx: Context, readonly config: AdapterConfig, private registry: SemanticRegistry, private store: Store, private profiles: ProfileSessions) {
         ctx.on('agent/assistant-stream', ({ agent, frame }) => {
             if (frame.type === 'start') this.positions.set(agent.id, { turn: frame.turn, step: frame.step });
             if (frame.type === 'end') this.positions.delete(agent.id);
@@ -41,10 +50,27 @@ export class TypeScriptAdapter {
         this.registry.refresh([...tools.values()]);
     }
 
-    /** @brief Resolve the shared global configuration for every agent session. */
+    /** @brief Resolve a session-owned profile reference without rebinding other conversations. */
     async registryFor(agent?: Agent): Promise<SemanticRegistry> {
         this.refresh();
-        return this.registry;
+        if (!agent) return this.registry;
+        const registry = await this.profiles.forSession(agent.id);
+        registry.refresh(this.physical(agent));
+        return registry;
+    }
+
+    /** @brief Publish new context only to the session whose configuration changed. */
+    async configurationChanged(agent: Agent): Promise<void> {
+        const registry = await this.registryFor(agent);
+        const state = registry.snapshot();
+        const text = `Tool profile context updated. This snapshot supersedes earlier tool-profile context; conversation history is unchanged.\n${JSON.stringify({ profile: state.profile, revision: state.revision, namespaces: state.namespaces ?? [], tools: registry.effective().map(tool => ({ id: tool.id, path: tool.path, aliases: tool.aliases, enabled: tool.enabled, comment: tool.description ?? tool.tool.description, fixed: tool.alwaysVisible ?? false })) })}`;
+        this.changes.set(agent.id, text);
+        agent.inject(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'ts-intellisense', form: 'notice', summary: 'Tool profile context updated' } }));
+        const pending = this.sessions.get(agent.id);
+        if (pending) {
+            const runtime = await pending;
+            await runtime.refreshEnvironment({ declarations: registry.declarations(), paths: registry.effective().filter(tool => tool.enabled).flatMap(tool => [tool.path, ...tool.aliases]) });
+        }
     }
 
     async prompt(agent?: Agent, bindings: BindingType[] = []): Promise<string> {
@@ -95,9 +121,14 @@ export class TypeScriptAdapter {
         const registry = await this.registryFor(agent);
         const runtime = await this.session(agent);
         const visible = new Set(this.physical(agent).map(t => t.id));
-        const mappings = registry.effective().filter(m => visible.has(m.id) && m.enabled);
-        const paths = mappings.flatMap(m => [m.path, ...m.aliases]);
-        await runtime.update({ declarations: registry.declarations(visible), paths });
+        /** @brief Refresh live bindings after a command changes this session's profile. */
+        const synchronize = async () => {
+            registry.refresh(this.physical(agent));
+            const mappings = registry.effective().filter(m => visible.has(m.id) && m.enabled);
+            await runtime.update({ declarations: registry.declarations(visible), paths: mappings.flatMap(m => [m.path, ...m.aliases]) });
+            return mappings;
+        };
+        await synchronize();
         const identity = this.key(JSON.stringify({ session: agent.id, messages: options.messages, model: options.model }));
         const executionKey = `execution_${identity}`;
         const previous = await this.store.load<ExecutionRecord>(executionKey);
@@ -121,8 +152,16 @@ export class TypeScriptAdapter {
             code: (round, code) => trace?.updateCode(round, code),
             intellisense: record => trace?.intellisense(record),
             trace: (event, details) => logger.info('%s %s', event, JSON.stringify({ session: agent.id, request: identity, ...details })),
+            takeContext: async () => {
+                const context = this.changes.get(agent.id);
+                this.changes.delete(agent.id);
+                return context;
+            },
             generate: request => {
-                const stream = this.ctx.llm.stream(request);
+                const stream = (async function* (adapter: TypeScriptAdapter) {
+                    await synchronize();
+                    yield* adapter.ctx.llm.stream({ ...request, system: [options.system, await adapter.prompt(agent, await runtime.declarations())].filter(Boolean).join('\n\n') });
+                })(this);
                 return (async function* () {
                     const reasoning = new Map<number, { index: number; text: string }>();
                     /** @brief Give each continuation's reasoning blocks unique outer stream indices. */
@@ -158,6 +197,7 @@ export class TypeScriptAdapter {
                 })();
             },
             complete: async source => {
+                const mappings = await synchronize();
                 const identities = Object.fromEntries(mappings.flatMap(m => [m.path, ...m.aliases].map(path => [path, m.id])));
                 const result = await runtime.complete(source, registry.snapshot().usage, identities);
                 await registry.expose(result.candidates.map(c => c.path));
@@ -231,7 +271,7 @@ export class TypeScriptAdapter {
     async release(sessionId: string): Promise<void> {
         const runtime = await this.sessions.get(sessionId);
         runtime?.dispose(); this.sessions.delete(sessionId);
-        this.positions.delete(sessionId); this.executions.delete(sessionId);
+        this.positions.delete(sessionId); this.executions.delete(sessionId); this.changes.delete(sessionId); this.profiles.release(sessionId);
     }
 
     async dispose(): Promise<void> { await Promise.all([...this.sessions.keys()].map(id => this.release(id))); }

@@ -52,12 +52,14 @@ export class SemanticRegistry {
             this.validateMappings(saved.mappings);
             this.validateNamespaces(saved.namespaces ?? [], saved.mappings);
             this.validateUnknownVisibility(saved.unknownVisible ?? []);
+            this.validateComments(saved.toolComments ?? {});
             for (const [name, configuration] of Object.entries(saved.inactiveProfiles ?? {})) {
                 this.validateProfileName(name);
                 if (name === (saved.profile ?? 'Default')) throw new Error('Duplicate active profile');
                 this.validateMappings(configuration.mappings);
                 this.validateNamespaces(configuration.namespaces, configuration.mappings);
                 this.validateUnknownVisibility(configuration.unknownVisible);
+                this.validateComments(configuration.toolComments ?? {});
             }
             this.state = saved;
         }
@@ -78,8 +80,9 @@ export class SemanticRegistry {
 
     /** @brief Extract only the configurable fields when archiving an active profile. */
     configuration(name = this.state.profile ?? 'Default'): RegistryConfiguration {
+        this.validateProfileName(name);
         if (name !== (this.state.profile ?? 'Default')) {
-            const configuration = this.state.inactiveProfiles?.[name];
+            const configuration = Object.hasOwn(this.state.inactiveProfiles ?? {}, name) ? this.state.inactiveProfiles![name] : undefined;
             if (!configuration) throw new Error('Profile does not exist');
             return structuredClone(configuration);
         }
@@ -177,7 +180,7 @@ export class SemanticRegistry {
                 path: `unknown.${toolName(tool.id)}`,
                 aliases: [], enabled: true, pinned: false,
                 alwaysVisible: mapping?.alwaysVisible ?? (!mapping && (this.state.unknownVisible ?? []).includes(tool.id)),
-                ...mapping, description: this.state.toolComments?.[tool.id] ?? mapping?.description, tool,
+                ...mapping, description: Object.hasOwn(this.state.toolComments ?? {}, tool.id) ? this.state.toolComments![tool.id] : mapping?.description, tool,
             };
         });
     }

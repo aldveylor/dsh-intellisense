@@ -60,6 +60,9 @@ export class SessionRuntime {
 
     update(environment: Environment): void {
         if (environment.paths.some(path => path === 'vm' || path.startsWith('vm.'))) throw new Error('The vm namespace is reserved for fixed built-in callbacks');
+        for (const root of new Set(environment.paths.map(path => path.split('.')[0]!))) {
+            if (this.types.has(root)) throw new Error(`Namespace collides with session binding: ${root}`);
+        }
         this.environment = environment;
         for (const root of this.roots) delete this.context[root];
         this.roots.clear();

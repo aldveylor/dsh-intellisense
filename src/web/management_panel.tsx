@@ -105,10 +105,10 @@ function CommandNode({ mapping, path, description, tree, fixed = false, command 
             <EditableText className="ts-node-name" value={path.split('.').at(-1)!} label={t('mapping_name', { path })} busy={tree.busy || !!mapping?.pinned}
                 commit={name => tree.rename(path, name)} />}
         {id && <span className="ts-mapping-source"><span aria-hidden="true">→ </span>{id}{invalid && <span role="status"> · {t('unavailable')}</span>}</span>}
-        <span className="ts-tool-preview" title={description} role={readOnly ? undefined : 'button'} tabIndex={readOnly ? undefined : tree.busy ? -1 : 0}
-            onDoubleClick={() => { if (!readOnly && id) tree.editDescription(id); }} onKeyDown={event => {
-                if (!readOnly && id && event.key === 'Enter') { event.preventDefault(); tree.editDescription(id); }
-            }}>{mapping?.description ?? description ?? t('edit_comment')}</span>
+        <span className="ts-tool-preview" title={description} role={fixed ? undefined : 'button'} tabIndex={fixed ? undefined : tree.busy ? -1 : 0}
+            onDoubleClick={() => { if (!fixed && id) tree.editDescription(id); }} onKeyDown={event => {
+                if (!fixed && id && event.key === 'Enter') { event.preventDefault(); tree.editDescription(id); }
+            }}>{(id && Object.hasOwn(tree.toolComments, id) ? tree.toolComments[id] : undefined) ?? mapping?.description ?? description ?? t('edit_comment')}</span>
         <span className="ts-node-actions">
             <PinButton label={t('pin_command', { path })} active={command?.alwaysVisible ?? mapping?.alwaysVisible ?? false} locked={fixed} busy={tree.busy}
                 toggle={() => { if (mapping) tree.pinTool(mapping); else if (id) tree.pinUnknown(id); }} />
@@ -170,7 +170,7 @@ interface TreeProps {
     editDescription: (id: string) => void; remove: (path: string) => void; pinTool: (mapping: Mapping) => void;
     renameNamespace: (path: string, name: string) => boolean; deleteNamespace: (path: string) => void;
     toggle: (path: string) => void; dropNode: (event: DragEvent<HTMLElement>, path: string, namespace: boolean) => void;
-    unknownVisible: string[]; pinUnknown: (id: string) => void;
+    toolComments: Record<string, string>; unknownVisible: string[]; pinUnknown: (id: string) => void;
 }
 
 /** @brief Namespace row whose children toggle only through the leading disclosure button. */
@@ -222,6 +222,7 @@ export function ManagementPanel({ api, ProfileSelect }: ManagementPanelProps) {
     const [order, setOrder] = useState<string[]>([]);
     const [expanded, setExpanded] = useState<Record<string, boolean>>({});
     const [unknownVisible, setUnknownVisible] = useState<string[]>([]);
+    const [toolComments, setToolComments] = useState<Record<string, string>>({});
     const [descriptionEditor, setDescriptionEditor] = useState<{ id: string; text?: string }>();
     const [toolPicker, setToolPicker] = useState<string>();
     const [status, setStatus] = useState('loading');
@@ -235,13 +236,14 @@ export function ManagementPanel({ api, ProfileSelect }: ManagementPanelProps) {
         setView(snapshot); setMappings(structuredClone(snapshot.state.mappings));
         setNamespaces(structuredClone(snapshot.state.namespaces ?? []));
         setUnknownVisible(structuredClone(snapshot.state.unknownVisible ?? []));
+        setToolComments(structuredClone(snapshot.state.toolComments ?? {}));
         setOrder(orderedPaths([...namespacePaths({ mappings: snapshot.state.mappings, namespaces: snapshot.state.namespaces ?? [] }), ...snapshot.state.mappings.flatMap(m => [m.path, ...m.aliases])], snapshot.state.order ?? []));
         setStatus('');
     }
 
     useEffect(() => {
         const controller = new AbortController();
-        setView(undefined); setMappings([]); setNamespaces([]); setUnknownVisible([]); setProposal(undefined); setOrder([]); setExpanded({}); setDescriptionEditor(undefined); setToolPicker(undefined); setStatus('loading');
+        setView(undefined); setMappings([]); setNamespaces([]); setUnknownVisible([]); setToolComments({}); setProposal(undefined); setOrder([]); setExpanded({}); setDescriptionEditor(undefined); setToolPicker(undefined); setStatus('loading');
         void reload(controller.signal).catch(error => { if (!controller.signal.aborted) setStatus(String(error instanceof Error ? error.message : error)); });
         return () => controller.abort();
     }, [api]);
@@ -266,7 +268,7 @@ export function ManagementPanel({ api, ProfileSelect }: ManagementPanelProps) {
     const provided = TreeProvider(view?.tools ?? [], mappings, unknownVisible);
     const paths = [...new Set([...provided.map(node => node.path), ...namespacePaths({ mappings, namespaces })])];
     const saved = view?.state;
-    const dirty = !!saved && JSON.stringify([mappings, namespaces, unknownVisible, order]) !== JSON.stringify([saved.mappings, saved.namespaces ?? [], saved.unknownVisible ?? [], orderedPaths([...namespacePaths({ mappings: saved.mappings, namespaces: saved.namespaces ?? [] }), ...saved.mappings.flatMap(m => [m.path, ...m.aliases])], saved.order ?? [])]);
+    const dirty = !!saved && JSON.stringify([mappings, namespaces, unknownVisible, toolComments, order]) !== JSON.stringify([saved.mappings, saved.namespaces ?? [], saved.unknownVisible ?? [], saved.toolComments ?? {}, orderedPaths([...namespacePaths({ mappings: saved.mappings, namespaces: saved.namespaces ?? [] }), ...saved.mappings.flatMap(m => [m.path, ...m.aliases])], saved.order ?? [])]);
 
     /** @brief Apply named configuration operations and replace the editor with the selected configuration. */
     function manageProfile(operation: 'create' | 'select' | 'rename' | 'delete', name: string, newName?: string): void {
@@ -387,8 +389,8 @@ export function ManagementPanel({ api, ProfileSelect }: ManagementPanelProps) {
 
     const tree: TreeProps = {
         paths, mappings, namespaces, order, expanded, tools: view?.tools ?? [], busy: busy || !view,
-        unknownVisible, pinUnknown: id => setUnknownVisible(current => current.includes(id) ? current.filter(value => value !== id) : [...current, id]),
-        editDescription: id => { if (!busy) setDescriptionEditor({ id, text: mappings.find(m => m.id === id)?.description }); },
+        toolComments, unknownVisible, pinUnknown: id => setUnknownVisible(current => current.includes(id) ? current.filter(value => value !== id) : [...current, id]),
+        editDescription: id => { if (!busy) setDescriptionEditor({ id, text: Object.hasOwn(toolComments, id) ? toolComments[id] : mappings.find(m => m.id === id)?.description }); },
         pick: setToolPicker, configure: configureNamespace, drop: (event, parent) => nativeDrop(event, { path: parent, position: 'inside' }), create: createNamespace, rename: renameMapping, remove: removeMapping,
         pinTool: mapping => setMappings(current => current.map(m => m.id === mapping.id ? { ...m, alwaysVisible: !m.alwaysVisible } : m)),
         renameNamespace: (path, name) => editNamespace(path, name), deleteNamespace: path => { editNamespace(path); },
@@ -405,7 +407,7 @@ export function ManagementPanel({ api, ProfileSelect }: ManagementPanelProps) {
                 select={name => manageProfile('select', name)} create={name => manageProfile('create', name)}
                 rename={(name, newName) => manageProfile('rename', name, newName)} remove={name => manageProfile('delete', name)}
                 save={profile => void action('saving', async () => {
-                    await request(api, { action: 'configure', profile, revision: view!.state.revision, namespaces, unknownVisible, order: orderedPaths([...paths, ...mappings.flatMap(m => [m.path, ...m.aliases])], order), mappings: mappings.map(m => ({ ...m, path: m.path.trim(), aliases: m.aliases.map(alias => alias.trim()).filter(Boolean) })) });
+                    await request(api, { action: 'configure', profile, revision: view!.state.revision, namespaces, unknownVisible, toolComments, order: orderedPaths([...paths, ...mappings.flatMap(m => [m.path, ...m.aliases])], order), mappings: mappings.map(m => ({ ...m, path: m.path.trim(), aliases: m.aliases.map(alias => alias.trim()).filter(Boolean) })) });
                     await reload();
                 })} />
             <button disabled={busy || !view?.sessions.length} onClick={() => void action('organizing', async () => {
@@ -430,7 +432,17 @@ export function ManagementPanel({ api, ProfileSelect }: ManagementPanelProps) {
         {descriptionEditor && <div className="ts-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="ts-description-title">
             <form onSubmit={event => {
                 event.preventDefault();
-                setMappings(current => current.map(m => m.id === descriptionEditor.id ? { ...m, description: descriptionEditor.text } : m));
+                setToolComments(current => {
+                    const next = { ...current };
+                    if (descriptionEditor.text === undefined) delete next[descriptionEditor.id];
+                    else next[descriptionEditor.id] = descriptionEditor.text;
+                    return next;
+                });
+                setMappings(current => current.map(mapping => {
+                    if (mapping.id !== descriptionEditor.id) return mapping;
+                    const { description, ...rest } = mapping;
+                    return rest;
+                }));
                 setDescriptionEditor(undefined); setStatus('');
             }}>
                 <h2 id="ts-description-title">{t('prompt_comment')} · {descriptionEditor.id}</h2>

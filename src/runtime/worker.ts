@@ -17,7 +17,15 @@ function bridge(kind: 'invoke', path: string, args: unknown): Promise<unknown> {
 }
 const runtime = new SessionRuntime((path, args) => bridge('invoke', path, args));
 let queue: Promise<unknown> = Promise.resolve();
-process.on('message', (message: Request | { type: 'bridge-result'; id: number; value?: unknown; error?: string }) => {
+process.on('message', (message: Request | { type: 'environment'; id: number; environment: Environment } | { type: 'bridge-result'; id: number; value?: unknown; error?: string }) => {
+    if ('type' in message && message.type === 'environment') {
+        try {
+            runtime.update(message.environment);
+            environment = message.environment;
+            process.send?.({ type: 'result', id: message.id, value: null });
+        } catch (error) { process.send?.({ type: 'result', id: message.id, error: error instanceof Error ? error.message : String(error) }); }
+        return;
+    }
     if ('type' in message) {
         const pending = outstanding.get(message.id);
         outstanding.delete(message.id);

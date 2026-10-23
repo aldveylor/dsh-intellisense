@@ -66,6 +66,17 @@ export class IsolatedSession {
         });
     }
 
+    /** @brief Update bindings at a suspended tool-call boundary without waiting behind its execution. */
+    refreshEnvironment(environment: Environment): Promise<void> {
+        if (this.dead) return Promise.reject(new Error('REPL process is closed'));
+        const id = ++this.sequence;
+        return new Promise((resolve, reject) => {
+            const timer = setTimeout(() => this.fail(new Error('REPL environment update timed out')), this.timeoutMs);
+            this.pending.set(id, { resolve: () => resolve(), reject, timer });
+            this.child.send({ type: 'environment', id, environment });
+        });
+    }
+
     update(environment: Environment): Promise<void> { return this.request('update', [environment]); }
 
     execute(id: string, source: string, signal?: AbortSignal): Promise<ExecutionResult> {
