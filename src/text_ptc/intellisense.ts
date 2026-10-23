@@ -3,6 +3,14 @@ import { declaration, type ManifestEntry } from './namespace.js';
 import type { RuntimeHost } from '../runtime_host/host.js';
 import { builtinCommands } from '../runtime/builtins.js';
 
+
+/** @brief Optional completion capability consumed through the public Cordis service lookup. */
+export interface IntellisenseService {
+    complete(query: CompletionQuery, entries: ManifestEntry[]): Promise<{ kind: string; text: string }>;
+}
+
+declare module '@deepseek-ai/cordis' { interface Context { intellisense: IntellisenseService } }
+
 /** @brief Read static tool signatures and side-effect-free runtime descriptors on demand. */
 export async function intellisense(query: CompletionQuery, entries: ManifestEntry[], runtime: RuntimeHost): Promise<{ kind: string; text: string }> {
     query.signal.throwIfAborted();

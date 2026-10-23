@@ -10,11 +10,14 @@ export function execBlocks(text: string): ExecBlock[] {
     while ((match = opening.exec(text))) {
         const start = opening.lastIndex;
         closing.lastIndex = start;
-        const close = closing.exec(text);
-        const code = (close ? text.slice(start, close.index).replace(/\r?\n$/, '') : text.slice(start));
-        const end = close ? closing.lastIndex : text.length;
-        blocks.push({ start: match.index, end, code, closed: close !== null, abandoned: /<\|BREAK(?:\|[\s\S]*?)?\|>/.test(code) });
-        if (!close) break;
+        const controls = [...text.slice(start).matchAll(/<\|(?:LINEBREAK|BREAK)(?:\|[\s\S]*?)?\|>/g)].map(token => ({ text: token[0], start: start + token.index!, end: start + token.index! + token[0].length }));
+        let close = closing.exec(text);
+        while (close && controls.some(control => control.start <= close!.index && close!.index < control.end)) close = closing.exec(text);
+        const abandoned = controls.find(control => control.text.startsWith('<|BREAK') && (!close || control.start < close.index));
+        const end = abandoned?.end ?? (close ? closing.lastIndex : text.length);
+        const code = abandoned ? text.slice(start, end) : close ? text.slice(start, close.index).replace(/\r?\n$/, '') : text.slice(start);
+        blocks.push({ start: match.index, end, code, closed: !!abandoned || close !== null, abandoned: !!abandoned });
+        if (!close && !abandoned) break;
         opening.lastIndex = end;
     }
     return blocks;

@@ -4,7 +4,15 @@ import type { SemanticRegistry } from '../registry/registry.js';
 import { toolName } from '../registry/path.js';
 
 /** @brief YAML aliases reference physical tools and rename argument fields without reimplementing tools. */
-export const Aliases = z.array(z.strictObject({ path: z.string().regex(/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+$/), tool: z.string().min(1), argMap: z.record(z.string(), z.string()).optional() }));
+export const Aliases = z.array(z.strictObject({ path: z.string().regex(/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+$/), tool: z.string().min(1), argMap: z.record(z.string(), z.string()).optional() })).superRefine((aliases, context) => {
+    const names = new Set<string>();
+    for (const [index, alias] of aliases.entries()) {
+        const parts = alias.path.split('.');
+        if (['console', 'vm', 'globalThis'].includes(parts[0]!) || parts.some(part => ['__proto__', 'constructor', 'prototype', 'then'].includes(part))) context.addIssue({ code: 'custom', path: [index, 'path'], message: 'Reserved alias path' });
+        if (names.has(alias.path)) context.addIssue({ code: 'custom', path: [index, 'path'], message: 'Duplicate alias path' });
+        names.add(alias.path);
+    }
+});
 
 /** @brief Trusted host-side namespace manifest entry. */
 export interface ManifestEntry { path: string; tool: string; argMap?: Record<string, string>; schema: Record<string, unknown>; output: unknown; doc: string }
@@ -51,7 +59,13 @@ export function declaration(entry: ManifestEntry): string {
     const parts = entry.path.split('.');
     const name = parts.pop()!;
     const doc = entry.doc.replaceAll('*/', '* /');
-    const fields = entry.schema.properties as Record<string, { description?: string }> | undefined;
+    const reverse = new Map(Object.entries(entry.argMap ?? {}).map(([source, target]) => [target, source]));
+    const schema = { ...entry.schema };
+    if (entry.argMap) {
+        if (schema.properties) schema.properties = Object.fromEntries(Object.entries(schema.properties as object).map(([name, value]) => [reverse.get(name) ?? name, value]));
+        if (Array.isArray(schema.required)) schema.required = schema.required.map(name => reverse.get(name) ?? name);
+    }
+    const fields = schema.properties as Record<string, { description?: string }> | undefined;
     const params = Object.entries(fields ?? {}).filter(([, schema]) => schema.description).map(([name, schema]) => ` * @param args.${name} ${schema.description!.replaceAll('*/', '* /')}`);
-    return `${parts.length ? `namespace ${parts.join('.')} {\n` : ''}/**\n * @brief ${doc}\n * @param args Tool arguments\n${params.join('\n')}${params.length ? '\n' : ''} * @returns Tool result\n */\nfunction ${name}(args: ${jsonSchemaToTs(entry.schema)}): Promise<${jsonSchemaToTs(entry.output)}>;\n${parts.length ? '}' : ''}`;
+    return `${parts.length ? `namespace ${parts.join('.')} {\n` : ''}/**\n * @brief ${doc}\n * @param args Tool arguments\n${params.join('\n')}${params.length ? '\n' : ''} * @returns Tool result\n */\nfunction ${name}(args: ${jsonSchemaToTs(schema)}): Promise<${jsonSchemaToTs(entry.output)}>;\n${parts.length ? '}' : ''}`;
 }

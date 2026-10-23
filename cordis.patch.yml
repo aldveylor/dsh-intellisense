@@ -2,7 +2,7 @@
     - id: ts-intellisense
       name: dsh-ts-intellisense
       config:
-        timeoutMs: 30000
+        timeoutMs: 120000
     - id: preset-text-ptc
       name: dsh-ts-intellisense/preset
 - id: agent-preset-registry

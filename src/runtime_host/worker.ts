@@ -7,7 +7,7 @@ import { HostMessage, RpcId, WorkerMessage, RunResult, type ExecutionResult } fr
 const context = vm.createContext(Object.create(null), { codeGeneration: { strings: false, wasm: false } });
 const global = vm.runInContext('globalThis', context) as object;
 const installedRoots = new Set<string>();
-const standardGlobals = new Set(Object.getOwnPropertyNames(global));
+const standardGlobals = new Set([...Object.getOwnPropertyNames(global), ...Object.getOwnPropertyNames(globalThis)]);
 const outstanding = new Map<number, { resolve(value: string): void; reject(error: Error): void }>();
 let execution: string | undefined;
 let sequence = 0;
@@ -46,6 +46,7 @@ function initialize(paths: string[]): void {
         Reflect.apply(fn, console, args);
     };
     const install = vm.runInContext(`(function(call, print, paths, methods) {
+        "use strict";
         const parse=JSON.parse, stringify=JSON.stringify;
         const tree=Object.create(null);
         for(const path of parse(paths)) {

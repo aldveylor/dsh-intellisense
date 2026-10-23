@@ -9,6 +9,7 @@ import '@deepseek-ai/dsh-agent';
 import '@deepseek-ai/dsh-tools';
 import { DshStore } from './storage/store.js';
 import { SemanticRegistry } from './registry/registry.js';
+import { intellisense } from './text_ptc/intellisense.js';
 import { TextPtcRoute } from './text_ptc/route.js';
 import { TextPtcAdapter } from './text_ptc/adapter.js';
 import { RuntimeHost, RuntimeConfig } from './runtime_host/host.js';
@@ -33,17 +34,19 @@ export async function apply(ctx: Context, options: Config = {}): Promise<void> {
     const { protocol, aliasesFile, ...runtimeOptions } = config;
     const runtime = new RuntimeHost(runtimeOptions);
     ctx.provide('codeRuntime', runtime);
+    ctx.provide('intellisense', { complete: (query, entries) => intellisense(query, entries, runtime) });
     ctx.effect(() => ctx.llm.registerAdapter(['text-ptc'], new TextPtcRoute(ctx.llm)));
     const aliases = Aliases.parse(parse(await readFile(aliasesFile ?? new URL('../presets/text_ptc/aliases.yml', import.meta.url), 'utf8')));
     const backend = ctx.storage.backend.get('json');
     if (!backend.kv) throw new Error('DSH json backend does not support KV storage');
     const unit = await backend.kv.open({ name: 'ts_intellisense', version: 1, tables: ['state'], hasGlobal: false, layout: 'per-record' });
+    ctx.effect(() => async () => { await runtime.dispose(); await unit.close(); });
     const store = new DshStore(unit);
     const registry = new SemanticRegistry(store); await registry.load();
     const profiles = new ProfileSessions(registry, store);
     const settings = new CompletionSettings(store); await settings.load();
     const adapter = new TextPtcAdapter(ctx, registry, profiles, runtime, aliases, protocol);
-    ctx.effect(() => async () => { await adapter.dispose(); await unit.close(); });
+    ctx.effect(() => async () => { await adapter.dispose(); });
     registerToolCommands(ctx, registry, profiles, agent => adapter.registryFor(agent), agent => adapter.configurationChanged(agent));
     ctx.on('llm/stream', (request, next) => {
         const agent = request.sessionId ? ctx.agents.get(request.sessionId) : undefined;

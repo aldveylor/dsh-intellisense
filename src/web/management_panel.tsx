@@ -262,15 +262,6 @@ export function ManagementPanel({ api, ProfileSelect }: ManagementPanelProps) {
         finally { setBusy(false); }
     }
 
-    /** @brief Create a draft mapping only when the user edits that tool. */
-    function update(tool: PhysicalTool, patch: Partial<Mapping>): void {
-        setMappings(current => {
-            const existing = current.find(m => m.id === tool.id);
-            const next: Mapping = { id: tool.id, path: '', aliases: [], enabled: true, pinned: false, ...existing, ...patch };
-            return existing ? current.map(m => m.id === tool.id ? next : m) : [...current, next];
-        });
-    }
-
     const provided = TreeProvider(builtinVisible);
     const unmounted = unmountedTools(view?.tools ?? [], mappings);
     const paths = [...new Set([...provided.map(node => node.path), ...namespacePaths({ mappings, namespaces })])];
@@ -455,7 +446,7 @@ export function ManagementPanel({ api, ProfileSelect }: ManagementPanelProps) {
                 });
                 setMappings(current => current.map(mapping => {
                     if (mapping.id !== descriptionEditor.id) return mapping;
-                    const { description, ...rest } = mapping;
+                    const { description: _description, ...rest } = mapping;
                     return rest;
                 }));
                 setDescriptionEditor(undefined); setStatus('');

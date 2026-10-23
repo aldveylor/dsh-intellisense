@@ -1,6 +1,6 @@
 # 文本执行协议
 
-本组件是新 text-ptc 模式的独立协议层；尚未装配到插件入口或注册 provider，不改变现有 TypeScript REPL 模式。
+本组件是已启用的 text-ptc 模式协议层，由 index.ts / text_ptc 适配器装配；旧 REPL 不再由入口接管。
 
 `config.ts` 使用 zod 验证 marker、段数、重复查询阈值、补全数据长度、上下文长度、整体缓冲上限及畸形输出策略；配置错误在构造时失败。
 
@@ -14,4 +14,4 @@
 
 执行语义已由用户明确：每次严格 AsyncFunction 的普通声明局部有效；显式 globalThis 状态才在同一存活进程内保留，重建后丢失。Agent 文本通道为 stdin/stdout，运行时控制/工具/补全为 IPC，console 结果不能污染 Agent stdout。
 
-`tests/llm_text_exec/` 使用 fake inner adapter 验证协议输出和审计事件，不依赖真实模型，不代表进程沙箱/provider/preset 已验收。独立类型检查只覆盖本组件，完整 tests 类型检查仍暴露审计阶段已发现的旧测试错误。lint 当前只覆盖新组件与对应测试，后续新组件应加入配置。
+`tests/llm_text_exec/` 使用 fake inner adapter 验证协议输出和审计事件，不依赖真实模型，进程/provider/preset 的独立验收记录见 docs/NOTES.md。独立类型检查检查组件，typecheck:active 另覆盖所有生产源码与新模式测试。lint 覆盖协议、运行时、Text PTC 组件和对应测试；原全量 tests 类型检查仍包含审计阶段已发现的历史测试错误。

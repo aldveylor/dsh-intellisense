@@ -66,6 +66,8 @@ test('new mode executes through the native loop, audits guarded children and pro
         const child = executions.find(execution => execution.name === 'read_file')!;
         assert(parent && child); assert.equal(child.parent, parent.token); assert.equal(child.rootCallId, parent.callId);
         assert(!model.requests[0]!.system?.includes('persistent TypeScript REPL'));
+        assert(!model.requests[0]!.system?.includes('console.log —'));
+        assert(model.requests[0]!.system?.includes('vm.restart —'));
         assert(model.requests[0]!.system?.includes('strict AsyncFunction'));
         assert(model.requests.every(request => !request.tools?.some(tool => tool.name === 'exec')));
         const projected = JSON.stringify(model.requests[1]!.messages);
@@ -79,13 +81,25 @@ test('new mode executes through the native loop, audits guarded children and pro
         assert(JSON.stringify(model.requests.at(-1)!.messages).includes('Denied by native guard'));
         await send(['```js:exec\nreturn std.fs.read<|INTELLISENSE|>', '({path:"c"});\n```', 'Read completed.']);
         assert.equal(reads, 2);
+        await send(['```js:exec\nawait tools.fix({tool:"vm.restart",fixed:false});await tools.fix({tool:"console.log",fixed:true});return "updated";\n```', 'Prompt preferences updated.']);
+        assert(model.requests.at(-1)!.system?.includes('console.log —'));
+        assert(!model.requests.at(-1)!.system?.includes('vm.restart —'));
         const events = agent.session.snapshotEvents();
         assert(events.some(event => event.type === 'exec/intellisense'));
         assert(events.some(event => event.type === 'exec/rewrite'));
         assert(events.some(event => event.type === 'tool/ptc-dispatch-start'));
         assert(events.some(event => event.type === 'tool/ptc-dispatch'));
+        const routed = await ctx.agentLoop.create(SessionId('routed-text-ptc'), { provider: 'text-ptc', model: 'fake/scripted' });
+        model.codes = ['Routed answer.'];
+        routed.followup(createUserMessage({ content: [{ type: 'text', text: 'Answer through the Text PTC provider.' }], source: { kind: 'user' } }));
+        await routed.whenIdle();
+        assert.deepEqual(errors, []);
+        assert.equal(model.codes.length, 0);
+        assert.equal(model.requests.at(-1)!.provider, 'fake');
+        assert.equal(model.requests.at(-1)!.model, 'scripted');
         await mounted.dispose();
         assert.equal(ctx.tools.get('exec'), undefined);
+        assert.equal(ctx.get('codeRuntime'), undefined);
         assert(!ctx.llm.listProviders().some(provider => provider.id === 'text-ptc'));
     } finally { await ctx.fiber.dispose(); await rm(directory, { recursive: true, force: true }); }
 });

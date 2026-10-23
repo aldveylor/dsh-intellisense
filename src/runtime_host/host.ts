@@ -8,13 +8,15 @@ import { launcher, verifySandbox } from './sandbox.js';
 
 /** @brief Deployment-controlled process budgets; unsupported confinement fails during loading. */
 export const RuntimeConfig = z.strictObject({
-    timeoutMs: z.number().int().min(100).default(30_000),
+    timeoutMs: z.number().int().min(100).default(120_000),
     syncTimeoutMs: z.number().int().min(10).default(1000),
     maxOutputBytes: z.number().int().min(1024).default(1_048_576),
     maxMessageBytes: z.number().int().min(1024).default(2_097_152),
     maxPendingCalls: z.number().int().positive().default(64),
     heapMb: z.number().int().min(32).default(192),
     python: z.string().min(1).default('python3'),
+    sandboxProbeTimeoutMs: z.number().int().min(100).default(10_000),
+    diagnosticChars: z.number().int().positive().default(4096),
 });
 
 /** @brief One owner-scoped process, its epoch and all in-flight work. */
@@ -37,11 +39,12 @@ export class RuntimeHost {
     private disposed = false;
     private bootstrap?: Promise<string>;
 
-    constructor(config: unknown = {}) { this.config = RuntimeConfig.parse(config); verifySandbox(this.config.python); }
+    constructor(config: unknown = {}) { this.config = RuntimeConfig.parse(config); verifySandbox(this.config.python, this.config.sandboxProbeTimeoutMs); }
 
     /** @brief Expose the next or current generation so a reconstructed process is announced before execution. */
     epoch(owner: string): number { return this.epochs.get(owner) ?? 1; }
 
+    /** @brief Launch one restricted owner process without granting source-file access. */
     private async process(owner: string): Promise<ProcessState> {
         if (this.disposed) throw new Error('Runtime host is disposed');
         const current = this.processes.get(owner);
@@ -49,6 +52,7 @@ export class RuntimeHost {
         const local = new URL('./worker_bundle.mjs', import.meta.url);
         this.bootstrap ??= readFile(existsSync(local) ? local : new URL('../../dist/runtime_host/worker_bundle.mjs', import.meta.url), 'utf8');
         const javascript = await this.bootstrap;
+        if (this.disposed) throw new Error('Runtime host is disposed');
         const child = spawn(this.config.python, ['-c', launcher, process.execPath, '--permission', `--max-old-space-size=${this.config.heapMb}`, '--input-type=module', '-'], {
             env: {}, stdio: ['pipe', 'ignore', 'pipe', 'ipc'], serialization: 'advanced',
         });
@@ -56,7 +60,7 @@ export class RuntimeHost {
         const state: ProcessState = { child, epoch: this.epoch(owner), sequence: 0, pending: new Map(), calls: new Set(), closed: false };
         this.processes.set(owner, state);
         let diagnostics = '';
-        child.stderr?.on('data', chunk => { diagnostics = (diagnostics + String(chunk)).slice(-4096); });
+        child.stderr?.on('data', chunk => { diagnostics = (diagnostics + String(chunk)).slice(-this.config.diagnosticChars); });
         child.on('error', error => this.close(owner, state, error));
         child.on('exit', () => this.close(owner, state, new Error(`Runtime process exited; global state was reset${diagnostics ? ': ' + diagnostics : ''}`)));
         child.on('message', raw => {
@@ -67,6 +71,7 @@ export class RuntimeHost {
         return state;
     }
 
+    /** @brief Validate a frame and resolve only requests belonging to its active owner. */
     private async receive(owner: string, state: ProcessState, raw: unknown): Promise<void> {
         try {
             if (Buffer.byteLength(JSON.stringify(raw)) > this.config.maxMessageBytes) throw new Error('IPC message exceeds configured limit');
@@ -90,6 +95,7 @@ export class RuntimeHost {
         } catch (error) { this.close(owner, state, error instanceof Error ? error : new Error(String(error))); }
     }
 
+    /** @brief Bound and validate host frames before writing the IPC channel. */
     private send(state: ProcessState, raw: unknown): void {
         const message = HostMessage.parse(raw);
         if (Buffer.byteLength(JSON.stringify(message)) > this.config.maxMessageBytes) throw new Error('IPC message exceeds configured limit');
@@ -97,6 +103,7 @@ export class RuntimeHost {
         state.child.send(message, error => { if (error) state.child.kill('SIGKILL'); });
     }
 
+    /** @brief Correlate one request with a deadline and a mandatory settlement. */
     private request(owner: string, state: ProcessState, raw: object): Promise<unknown> {
         const id = RpcId.parse(++state.sequence);
         return new Promise((resolve, reject) => {
@@ -148,6 +155,7 @@ export class RuntimeHost {
         finally { signal.removeEventListener('abort', abort); }
     }
 
+    /** @brief Hard-stop execution and reject every outstanding request exactly once. */
     private close(owner: string, state: ProcessState, error: Error): void {
         if (state.closed) return;
         state.closed = true; state.active?.controller.abort(error); state.child.kill('SIGKILL');

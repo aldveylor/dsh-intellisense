@@ -30,7 +30,10 @@ export interface RewriteEvent extends Position {
 export interface AuditEvents { 'exec/intellisense': SenseEvent; 'exec/rewrite': RewriteEvent }
 
 declare module '@deepseek-ai/dsh-session' {
-    interface SessionEventMap extends AuditEvents {}
+    interface SessionEventMap extends AuditEvents {
+        /** @brief Exact state-dependent system instructions used to reconstruct the provider request. */
+        'exec/context': Position & { instructions: string; provider: string; model: string; epoch: number };
+    }
 }
 
 declare module '@deepseek-ai/dsh-llm' {

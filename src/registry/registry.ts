@@ -95,6 +95,7 @@ export class SemanticRegistry {
     /** @brief Replace one reference's working configuration without modifying other holders. */
     async replaceConfiguration(configuration: RegistryConfiguration, profile: string): Promise<void> {
         const detached = structuredClone(configuration);
+        detached.builtinVisible ??= [...defaultBuiltinVisible];
         await this.transaction(async () => {
             this.validateProfileName(profile);
             this.validateMappings(detached.mappings);
@@ -111,6 +112,7 @@ export class SemanticRegistry {
     /** @brief Publish a new named version; existing session references retain their own snapshots. */
     async saveProfile(name: string, configuration: RegistryConfiguration): Promise<void> {
         const detached = structuredClone(configuration);
+        detached.builtinVisible ??= [...defaultBuiltinVisible];
         await this.transaction(async () => {
             this.validateProfileName(name);
             this.validateMappings(detached.mappings);

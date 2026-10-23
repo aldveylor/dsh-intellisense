@@ -335,3 +335,18 @@ test('native tool calls and data after finish are rejected before synthetic exec
         assert(end?.type === 'finish' && end.reason.kind === 'error' && end.reason.failure.code === 'INVALID_STREAM');
     }
 });
+
+test('BREAK itself closes an abandoned block and audit comments cannot close fences', async () => {
+    const f = fixture(['```js:exec\nnever();<|BREAK|discarded|>\n```ts:exec\nreturn 8;\n```']);
+    assert.equal(codeOf(await f.run()), 'return 8;');
+    const line = fixture(['```js:exec\nconst x=1;<|LINEBREAK|audit\n```\ncomment|>', 'return x;\n```']);
+    assert.equal(codeOf(await line.run()), 'const x=1;\nreturn x;');
+});
+
+test('native tool update notices are excluded from the schema-free upstream projection', () => {
+    const projected = projectRequest({ ...initial, messages: [
+        { role: 'developer', id: MessageId('updates'), source: { kind: 'tool-registry' }, content: [{ type: 'tool-addition', toolName: 'exec' }, { type: 'tool-removal', toolName: 'old' }] },
+        { role: 'user', content: [{ type: 'text', text: 'Continue' }] },
+    ] });
+    assert.deepEqual(projected.messages.map(message => message.role), ['user']);
+});

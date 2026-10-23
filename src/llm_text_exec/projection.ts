@@ -6,7 +6,10 @@ export function projectRequest(options: GenerateOptions): GenerateOptions {
     const calls = new Set<string>();
     const messages: RequestMessage[] = [];
     for (const message of options.messages) {
-        if (message.role === 'assistant') {
+        if (message.role === 'developer') {
+            const content = message.content.filter(block => block.type !== 'tool-addition' && block.type !== 'tool-removal');
+            if (content.length) messages.push({ ...message, content });
+        } else if (message.role === 'assistant') {
             const transformed = message.content.some(block => block.type === 'tool-call' && block.name === 'exec');
             if (!transformed) { messages.push(message); continue; }
             const content: ContentBlock[] = message.content.map(block => {
