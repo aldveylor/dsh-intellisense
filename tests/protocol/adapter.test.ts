@@ -74,6 +74,29 @@ test('A1: prose streams without a synthetic tool and closes with stop', async ()
     assert.deepEqual(f.events.map(e => e.type), ['exec/rewrite']);
 });
 
+test('a terminal completion marker outside an exec fence is repaired before execution', async () => {
+    for (const output of [marker, `std.cwd${marker}`]) {
+        const f = fixture([output, '```js:exec\nreturn await std.cwd' + marker, '();\n```']);
+        const chunks = await f.run();
+        assertStream(chunks, 'tool-calls');
+        assert.equal(codeOf(chunks), 'return await std.cwd();');
+        assert.equal(f.requests.length, 3);
+        assert.deepEqual(f.events.map(event => event.type), ['exec/rewrite', 'exec/intellisense', 'exec/rewrite']);
+        assert(!JSON.stringify(chunks).includes(marker));
+    }
+});
+
+test('invalid terminal completion markers fail explicitly when repair is disabled or exhausted', async () => {
+    for (const f of [fixture([marker], { malformedPolicy: 'error' }), fixture([marker, marker])]) {
+        const chunks = await f.run();
+        assertStream(chunks, 'error');
+        assert.equal(codeOf(chunks), undefined);
+        const last = chunks.at(-1);
+        assert(last?.type === 'finish' && last.reason.kind === 'error');
+        assert.equal(last.reason.failure.code, 'MALFORMED_OUTPUT');
+    }
+});
+
 test('A2: js and ts preserve exact code bytes, parent position and legal chunks', async () => {
     for (const language of ['js', 'ts']) {
         const code = 'const x = "inside ``` string";\nreturn x;';

@@ -162,6 +162,15 @@ export class TextExecAdapter extends LlmAdapter {
                     throw new LlmError('Native DSML tool syntax requires an exec fence', 'MALFORMED_OUTPUT');
                 }
                 const blocks = execBlocks(buffered);
+                if (!blocks.length && buffered.trimEnd().endsWith(this.config.marker)) {
+                    if (this.config.malformedPolicy === 'repair-once' && !repaired) {
+                        await audit('', 'error');
+                        request = { ...continuation(initial, buffered, '', segment, true), signal };
+                        buffered = ''; proseOffset = 0; repaired = true;
+                        continue;
+                    }
+                    throw new LlmError('Completion marker requires a command path inside an open exec fence', 'MALFORMED_OUTPUT');
+                }
                 const selected = blocks.filter(block => !block.abandoned).at(-1);
                 const last = blocks.at(-1);
                 if (last && !last.closed && !last.abandoned) {
