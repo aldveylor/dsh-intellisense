@@ -1,0 +1,5 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": { "rootDir": "../..", "noEmit": true },
+  "include": ["../../src/**/*.ts", "../../src/**/*.tsx", "./*.test.ts", "../llm_text_exec/*.test.ts", "../web/unmounted_tools.test.ts"]
+}

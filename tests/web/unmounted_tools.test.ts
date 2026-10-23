@@ -134,3 +134,50 @@ test('built-in namespace and command descriptions stay English in a Chinese inte
         assert.equal(document.querySelector('[data-namespace-path="unknown"]'), null);
     } finally { dom.window.close(); }
 });
+
+test('built-in pins are editable, standard Node commands default off and preferences survive Profile changes', async () => {
+    const registry = new SemanticRegistry(new MemoryStore());
+    registry.refresh([]);
+    const console = new VirtualConsole();
+    console.on('jsdomError', error => { if (!error.message.includes('Could not parse CSS')) throw error; });
+    const dom = new JSDOM(managementHtml, { url: 'http://localhost/api/ts-intellisense', runScripts: 'outside-only', virtualConsole: console });
+    try {
+        const { window } = dom;
+        Object.defineProperty(window.navigator, 'languages', { value: ['en-US'] });
+        window.structuredClone = structuredClone;
+        window.fetch = async (_url: unknown, options?: RequestInit) => {
+            if (options?.body) {
+                const body = JSON.parse(String(options.body));
+                if (body.action === 'profile') await registry.manageProfile(body.operation, body.name, body.revision, body.newName);
+                else await registry.configure(body.mappings, body.revision, body.namespaces, body.order, body.unknownVisible, body.profile, body.toolComments, body.builtinVisible);
+                return Response.json({ ok: true });
+            }
+            return Response.json({ state: registry.snapshot(), tools: [], effective: [], declarations: '', sessions: [] });
+        };
+        window.eval(await readFile(new URL('../../dist/web/standalone.js', import.meta.url), 'utf8'));
+        const { document } = window;
+        await until(() => !!document.querySelector('[data-unmounted-count]'));
+        for (const path of ['console', 'vm']) document.querySelector<HTMLButtonElement>(`[data-namespace-path="${path}"] .ts-disclosure`)!.click();
+        const pin = (path: string) => document.querySelector<HTMLButtonElement>(`[data-tree-path="${path}"] .ts-pin`)!;
+        await until(() => !!pin('console.log') && !!pin('vm.restart'));
+        assert(!pin('console.log').disabled); assert(!pin('vm.restart').disabled);
+        assert.equal(pin('console.log').getAttribute('aria-pressed'), 'false');
+        assert.equal(pin('vm.restart').getAttribute('aria-pressed'), 'true');
+        pin('console.log').click(); pin('vm.restart').click();
+        await until(() => pin('console.log').getAttribute('aria-pressed') === 'true' && pin('vm.restart').getAttribute('aria-pressed') === 'false');
+        const button = (label: string) => Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === label)!;
+        button('Save').click();
+        await until(() => !!registry.snapshot().builtinVisible?.includes('console.log') && !button('Save').disabled);
+        assert(!registry.snapshot().builtinVisible?.includes('vm.restart'));
+        assert(registry.snapshot().builtinVisible?.includes('tools.mount'));
+        button('Refresh').click();
+        await until(() => !button('Refresh').disabled && pin('console.log').getAttribute('aria-pressed') === 'true');
+        assert.equal(pin('vm.restart').getAttribute('aria-pressed'), 'false');
+        const initial = registry.configuration();
+        await registry.manageProfile('create', 'Other', registry.snapshot().revision);
+        assert(!registry.configuration().builtinVisible?.includes('console.log'));
+        assert(registry.configuration().builtinVisible?.includes('vm.restart'));
+        await registry.manageProfile('select', 'Default', registry.snapshot().revision);
+        assert.deepEqual(registry.configuration().builtinVisible, initial.builtinVisible);
+    } finally { dom.window.close(); }
+});

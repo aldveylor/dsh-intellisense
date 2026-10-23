@@ -1,5 +1,5 @@
 import type { Mapping, PhysicalTool } from '../registry/registry.js';
-import { vmCommands, consoleCommands } from '../runtime/builtins.js';
+import { vmCommands, consoleCommands, managementCommands, defaultBuiltinVisible } from '../runtime/builtins.js';
 
 /** @brief Provider command metadata supplies interaction rules independently of its name. */
 export interface ProvidedCommand {
@@ -13,15 +13,17 @@ export interface ProvidedNamespace { path: string; description: string; fixed: b
 /** @brief List currently available tools without a mounted path in the active draft. */
 export function unmountedTools(tools: PhysicalTool[], mappings: Mapping[]): PhysicalTool[] {
     const mounted = new Set(mappings.filter(mapping => mapping.path.trim()).map(mapping => mapping.id));
-    return tools.filter(tool => !mounted.has(tool.id));
+    return tools.filter(tool => !tool.id.startsWith('tools_') && !['exec', 'run_code'].includes(tool.id) && !mounted.has(tool.id));
 }
 
 /** @brief Provider owns visible, fixed runtime namespaces; unmounted tools use the picker. */
-export function TreeProvider(): ProvidedNamespace[] {
-    return [{ path: 'console', description: 'Native console output', fixed: true,
-        commands: consoleCommands.map(command => ({ ...command, fixed: true, draggable: false, alwaysVisible: true })) },
+export function TreeProvider(visible: readonly string[] = defaultBuiltinVisible): ProvidedNamespace[] {
+    return [{ path: 'tools', description: 'Tool namespace and Profile management', fixed: true,
+        commands: managementCommands.map(command => ({ ...command, fixed: true, draggable: false, alwaysVisible: visible.includes(command.path) })) },
+        { path: 'console', description: 'Native console output', fixed: true,
+        commands: consoleCommands.map(command => ({ ...command, fixed: true, draggable: false, alwaysVisible: visible.includes(command.path) })) },
         { path: 'vm', description: 'Built-in VM commands', fixed: true,
-        commands: vmCommands.map(command => ({ ...command, fixed: true, draggable: false, alwaysVisible: true })) }];
+        commands: vmCommands.map(command => ({ ...command, fixed: true, draggable: false, alwaysVisible: visible.includes(command.path) })) }];
 }
 
 /** @brief Keep legacy runtime paths protected without rendering their former synthetic namespace. */

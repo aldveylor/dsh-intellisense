@@ -3,7 +3,7 @@ export interface BuiltinCommand { path: string; signature: string; description: 
 
 /** @brief VM lifecycle commands; intermediate output is provided by the native console. */
 export const vmCommands: readonly BuiltinCommand[] = [
-    { path: 'vm.restart', signature: '(preserve?: readonly string[]) => never', description: 'Reset the Context, preserving named cloneable bindings and tool configuration.' },
+    { path: 'vm.restart', signature: '() => Promise<never>', description: 'Restart the session runtime and clear explicit global state.' },
 ];
 
 /** @brief Native Node Console methods with their public signatures and English documentation. */
@@ -17,13 +17,27 @@ export const consoleCommands: readonly BuiltinCommand[] = [
     ...['clear', 'groupEnd'].map(name => ({ path: `console.${name}`, signature: '() => void', description: 'Clear the console or close the current console group.' })),
 ];
 
+/** @brief Fixed management commands are ordinary native tools under the tools namespace. */
+export const managementCommands: readonly BuiltinCommand[] = [
+    { path: 'tools.mount', signature: '(args: { source: string; node: string; name?: string }) => Promise<unknown>', description: 'Mount a tool in the current conversation Profile.' },
+    { path: 'tools.unmount', signature: '(args: { target: string }) => Promise<unknown>', description: 'Remove a mounted tool path from the current Profile.' },
+    { path: 'tools.comment', signature: '(args: { tool: string; comment: string }) => Promise<unknown>', description: 'Edit a tool comment in the current Profile.' },
+    { path: 'tools.fix', signature: '(args: { tool: string; fixed?: boolean }) => Promise<unknown>', description: 'Change whether a tool appears in the model prompt.' },
+    { path: 'tools.commit', signature: '(args: { profile: string }) => Promise<unknown>', description: 'Save the conversation draft to a named Profile.' },
+    { path: 'tools.profiles', signature: '(args: {}) => Promise<unknown>', description: 'List available Profiles and the current selection.' },
+    { path: 'tools.loadprofile', signature: '(args: { profile: string }) => Promise<unknown>', description: 'Load a named Profile into this conversation.' },
+];
+
+/** @brief Default prompt discovery includes custom commands but excludes standard Node.js console methods. */
+export const defaultBuiltinVisible = [...vmCommands, ...managementCommands].map(command => command.path);
+
 /** @brief Complete fixed callable surface for discovery without obsolete VM output callbacks. */
-export const builtinCommands = [...vmCommands, ...consoleCommands];
+export const builtinCommands = [...vmCommands, ...consoleCommands, ...managementCommands];
 
 /** @brief The VM lifecycle namespace is always present and cannot be reassigned or configured. */
 export const vmDeclaration = `declare const vm: {
-    /** @brief Reset the Context, preserving named cloneable bindings; functions cannot be transferred. */
-    readonly restart: (preserve?: readonly string[]) => never;
+    /** @brief Restart the session runtime and clear explicit global state. */
+    readonly restart: () => Promise<never>;
 };`;
 
 /** @brief Declare only the native Console methods exposed by this runtime, independent of DOM types. */

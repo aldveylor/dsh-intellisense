@@ -3,3 +3,9 @@
       name: dsh-ts-intellisense
       config:
         timeoutMs: 30000
+    - id: preset-text-ptc
+      name: dsh-ts-intellisense/preset
+- id: agent-preset-registry
+  config:
+    default: text-ptc
+    selectedDefault: text-ptc

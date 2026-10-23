@@ -1,0 +1,5 @@
+# Host-side aliases; logic always remains in the native tool registry.
+- path: std.fs.read
+  tool: read_file
+  argMap:
+    path: path

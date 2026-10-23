@@ -3,6 +3,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import type { SemanticRegistry } from '../registry/registry.js';
 import type { ProfileSessions } from '../registry/profiles.js';
+import { builtinCommands, defaultBuiltinVisible } from '../runtime/builtins.js';
 import { validatePath } from '../registry/path.js';
 
 /** @brief Register independent, session-local tool editing commands and explicit profile publication. */
@@ -20,7 +21,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
             return work;
         },
     });
-    /** @brief Resolve a visible physical identity or mounted/unknown path without accepting stale tools. */
+    /** @brief Resolve a visible physical identity or mounted/tools path without accepting stale tools. */
     const resolve = (registry: SemanticRegistry, source: string) => {
         const mapping = registry.effective().find(tool => tool.path === source || tool.aliases.includes(source)) ?? registry.effective().find(tool => tool.id === source);
         if (!mapping) throw new Error(`Unknown tool: ${source}`);
@@ -29,7 +30,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
     /** @brief Keep tool outputs native JSON values with their ordinary text rendering. */
     const output = { schema: { type: 'object', additionalProperties: false, properties: { id: { type: 'string' }, path: { type: 'string' }, changed: { type: 'boolean' }, comment: { type: 'string' }, fixed: { type: 'boolean' }, profile: { type: 'string' }, saved: { type: 'boolean' }, loaded: { type: 'boolean' }, current: { type: 'string' }, profiles: { type: 'array', items: { type: 'string' } } } } as const, render: (_args: unknown, value: unknown) => [{ type: 'text' as const, text: JSON.stringify(value) }] };
     register(defineTool({
-        name: 'tools_mount', description: 'Mount a tool under node.name in this conversation. source accepts a physical ID or current path. An already mounted source keeps its path as an alias; unknown is replaced automatically. Use node="" for the root. Changes are drafts until tools_commit.',
+        name: 'tools_mount', description: 'Mount a tool under node.name in this conversation. source accepts a physical ID or current path. An already mounted source keeps its path as an alias; tools is replaced automatically. Use node="" for the root. Changes are drafts until tools_commit.',
         parameters: { source: { type: 'string', required: true }, node: { type: 'string', required: true }, name: { type: 'string' } }, output,
         execute: async ({ source, node, name }, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
@@ -39,7 +40,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
             if (!/^[a-zA-Z_$][\w$]*$/.test(leaf)) throw new Error('Invalid mount name');
             const path = node ? `${node}.${leaf}` : leaf;
             validatePath(path);
-            if (path === 'unknown' || path.startsWith('unknown.')) throw new Error('Cannot mount under unknown');
+            if (path === 'tools' || path.startsWith('tools.')) throw new Error('Cannot mount under tools');
             const state = registry.snapshot();
             const old = state.mappings.find(mapping => mapping.id === tool.id);
             const mappings = old ? state.mappings.map(mapping => mapping.id !== tool.id || mapping.path === path || mapping.aliases.includes(path) ? mapping : { ...mapping, aliases: [...mapping.aliases, path] }) :
@@ -50,12 +51,12 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         },
     }));
     register(defineTool({
-        name: 'tools_unmount', description: 'Remove one mounted target path from this conversation. Other aliases remain. unknown paths are unchanged. Save with tools_commit.',
+        name: 'tools_unmount', description: 'Remove one mounted target path from this conversation. Other aliases remain. tools paths are unchanged. Save with tools_commit.',
         parameters: { target: { type: 'string', required: true } }, output,
         execute: async ({ target }, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
             const registry = await registryFor(execution.agent);
-            if (target === 'unknown' || target.startsWith('unknown.')) return { changed: false };
+            if (target === 'tools' || target.startsWith('tools.')) return { changed: false };
             const state = registry.snapshot();
             const mappings = state.mappings.flatMap(mapping => {
                 if (mapping.path === target) return mapping.aliases.length ? [{ ...mapping, path: mapping.aliases[0]!, aliases: mapping.aliases.slice(1) }] : [];
@@ -68,7 +69,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         },
     }));
     register(defineTool({
-        name: 'tools_comment', description: 'Set a simplified prompt comment for any tool by physical ID or path, including unknown tools. Original IntelliSense documentation is preserved. Save with tools_commit.',
+        name: 'tools_comment', description: 'Set a simplified prompt comment for any tool by physical ID or path, including unmounted tools. Original IntelliSense documentation is preserved. Save with tools_commit.',
         parameters: { tool: { type: 'string', required: true }, comment: { type: 'string', required: true } }, output,
         execute: async ({ tool: source, comment }, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
@@ -81,16 +82,23 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         },
     }));
     register(defineTool({
-        name: 'tools_fix', description: 'Always display a tool command in this conversation context. Accepts physical IDs and mounted/unknown paths. Set fixed=false to stop always displaying it. Save with tools_commit.',
+        name: 'tools_fix', description: 'Always display a tool command in this conversation context. Accepts physical IDs and mounted/tools paths. Set fixed=false to stop always displaying it. Save with tools_commit.',
         parameters: { tool: { type: 'string', required: true }, fixed: { type: 'boolean' } }, output,
         execute: async ({ tool: source, fixed = true }, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
             const registry = await registryFor(execution.agent);
-            const tool = resolve(registry, source);
             const state = registry.snapshot();
-            const unknownVisible = (state.unknownVisible ?? []).filter(id => id !== tool.id);
-            if (fixed && !state.mappings.some(mapping => mapping.id === tool.id)) unknownVisible.push(tool.id);
-            await registry.configure(state.mappings.map(mapping => mapping.id === tool.id ? { ...mapping, alwaysVisible: fixed } : mapping), state.revision, undefined, undefined, unknownVisible);
+            if (builtinCommands.some(command => command.path === source)) {
+                const visible = new Set(state.builtinVisible ?? defaultBuiltinVisible);
+                if (fixed) visible.add(source); else visible.delete(source);
+                await registry.configure(state.mappings, state.revision, undefined, undefined, undefined, undefined, undefined, [...visible]);
+                await changed(execution.agent);
+                return { id: source, fixed };
+            }
+            const tool = resolve(registry, source);
+            const toolsVisible = (state.unknownVisible ?? []).filter(id => id !== tool.id);
+            if (fixed && !state.mappings.some(mapping => mapping.id === tool.id)) toolsVisible.push(tool.id);
+            await registry.configure(state.mappings.map(mapping => mapping.id === tool.id ? { ...mapping, alwaysVisible: fixed } : mapping), state.revision, undefined, undefined, toolsVisible);
             await changed(execution.agent);
             return { id: tool.id, fixed };
         },

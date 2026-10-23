@@ -11,7 +11,7 @@ export function ToolPicker({ parent, tools, mappings, busy, select, close }: {
     const dialog = useRef<HTMLDialogElement>(null);
     const [search, setSearch] = useState('');
     const filter = search.trim().toLowerCase();
-    const matches = tools.filter(tool => {
+    const matches = tools.filter(tool => !tool.id.startsWith('tools_') && !['exec', 'run_code'].includes(tool.id)).filter(tool => {
         const mapping = mappings.find(m => m.id === tool.id);
         return `${tool.id} ${mapping?.path ?? ''} ${mapping?.aliases.join(' ') ?? ''} ${tool.description} ${mapping?.description ?? ''}`.toLowerCase().includes(filter);
     });

@@ -4,6 +4,7 @@ import { useTranslation } from './locale/locale.js';
 import styles from './management_panel.css';
 import { useEffect, useState, type ComponentType, type DragEvent } from 'react';
 import type { Namespace, Mapping, PhysicalTool, RegistryState } from '../registry/registry.js';
+import { defaultBuiltinVisible } from '../runtime/builtins.js';
 import { validatePath } from '../registry/path.js';
 import { TreeProvider, unmountedTools, type ProvidedCommand, type ProvidedNamespace } from './tree_provider.js';
 import { ProfilePicker, type ProfileSelectProps } from './profile_picker/profile_picker.js';
@@ -113,8 +114,8 @@ function CommandNode({ mapping, path, description, tree, fixed = false, command 
                 if (!fixed && id && event.key === 'Enter') { event.preventDefault(); tree.editDescription(id); }
             }}>{(id && Object.hasOwn(tree.toolComments, id) ? tree.toolComments[id] : undefined) ?? mapping?.description ?? description ?? t('edit_comment')}</span>
         <span className="ts-node-actions">
-            <PinButton label={t('pin_command', { path })} active={command?.alwaysVisible ?? mapping?.alwaysVisible ?? false} locked={fixed} busy={tree.busy}
-                toggle={() => { if (mapping) tree.pinTool(mapping); else if (id) tree.pinUnknown(id); }} />
+            <PinButton label={t('pin_command', { path })} active={command?.alwaysVisible ?? mapping?.alwaysVisible ?? false} locked={false} busy={tree.busy}
+                toggle={() => { if (command) tree.pinBuiltin(command.path); else if (mapping) tree.pinTool(mapping); else if (id) tree.pinUnknown(id); }} />
             {!readOnly && <RemoveButton label={t('remove_mapping', { path })} busy={tree.busy || !!mapping?.pinned} remove={() => tree.remove(path)} />}
         </span>
     </li>;
@@ -173,7 +174,7 @@ interface TreeProps {
     editDescription: (id: string) => void; remove: (path: string) => void; pinTool: (mapping: Mapping) => void;
     renameNamespace: (path: string, name: string) => boolean; deleteNamespace: (path: string) => void;
     toggle: (path: string) => void; dropNode: (event: DragEvent<HTMLElement>, path: string, namespace: boolean) => void;
-    toolComments: Record<string, string>; unknownVisible: string[]; pinUnknown: (id: string) => void;
+    pinBuiltin: (path: string) => void; toolComments: Record<string, string>; unknownVisible: string[]; pinUnknown: (id: string) => void;
 }
 
 /** @brief Namespace row whose children toggle only through the leading disclosure button. */
@@ -224,6 +225,7 @@ export function ManagementPanel({ api, ProfileSelect }: ManagementPanelProps) {
     const [namespaces, setNamespaces] = useState<Namespace[]>([]);
     const [order, setOrder] = useState<string[]>([]);
     const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+    const [builtinVisible, setBuiltinVisible] = useState<string[]>([...defaultBuiltinVisible]);
     const [unknownVisible, setUnknownVisible] = useState<string[]>([]);
     const [toolComments, setToolComments] = useState<Record<string, string>>({});
     const [descriptionEditor, setDescriptionEditor] = useState<{ id: string; text?: string }>();
@@ -239,6 +241,7 @@ export function ManagementPanel({ api, ProfileSelect }: ManagementPanelProps) {
         setView(snapshot); setMappings(structuredClone(snapshot.state.mappings));
         setNamespaces(structuredClone(snapshot.state.namespaces ?? []));
         setUnknownVisible(structuredClone(snapshot.state.unknownVisible ?? []));
+        setBuiltinVisible(structuredClone(snapshot.state.builtinVisible ?? defaultBuiltinVisible));
         setToolComments(structuredClone(snapshot.state.toolComments ?? {}));
         setOrder(orderedPaths([...namespacePaths({ mappings: snapshot.state.mappings, namespaces: snapshot.state.namespaces ?? [] }), ...snapshot.state.mappings.flatMap(m => [m.path, ...m.aliases])], snapshot.state.order ?? []));
         setStatus('');
@@ -268,11 +271,11 @@ export function ManagementPanel({ api, ProfileSelect }: ManagementPanelProps) {
         });
     }
 
-    const provided = TreeProvider();
+    const provided = TreeProvider(builtinVisible);
     const unmounted = unmountedTools(view?.tools ?? [], mappings);
     const paths = [...new Set([...provided.map(node => node.path), ...namespacePaths({ mappings, namespaces })])];
     const saved = view?.state;
-    const dirty = !!saved && JSON.stringify([mappings, namespaces, unknownVisible, toolComments, order]) !== JSON.stringify([saved.mappings, saved.namespaces ?? [], saved.unknownVisible ?? [], saved.toolComments ?? {}, orderedPaths([...namespacePaths({ mappings: saved.mappings, namespaces: saved.namespaces ?? [] }), ...saved.mappings.flatMap(m => [m.path, ...m.aliases])], saved.order ?? [])]);
+    const dirty = !!saved && JSON.stringify([mappings, namespaces, unknownVisible, builtinVisible, toolComments, order]) !== JSON.stringify([saved.mappings, saved.namespaces ?? [], saved.unknownVisible ?? [], saved.builtinVisible ?? defaultBuiltinVisible, saved.toolComments ?? {}, orderedPaths([...namespacePaths({ mappings: saved.mappings, namespaces: saved.namespaces ?? [] }), ...saved.mappings.flatMap(m => [m.path, ...m.aliases])], saved.order ?? [])]);
 
     /** @brief Apply named configuration operations and replace the editor with the selected configuration. */
     function manageProfile(operation: 'create' | 'select' | 'rename' | 'delete', name: string, newName?: string): void {
@@ -393,6 +396,7 @@ export function ManagementPanel({ api, ProfileSelect }: ManagementPanelProps) {
 
     const tree: TreeProps = {
         paths, mappings, namespaces, order, expanded, tools: view?.tools ?? [], busy: busy || !view,
+        pinBuiltin: path => setBuiltinVisible(current => current.includes(path) ? current.filter(value => value !== path) : [...current, path]),
         toolComments, unknownVisible, pinUnknown: id => setUnknownVisible(current => current.includes(id) ? current.filter(value => value !== id) : [...current, id]),
         editDescription: id => { if (!busy) setDescriptionEditor({ id, text: Object.hasOwn(toolComments, id) ? toolComments[id] : mappings.find(m => m.id === id)?.description }); },
         pick: parent => setToolPicker({ parent }), configure: configureNamespace, drop: (event, parent) => nativeDrop(event, { path: parent, position: 'inside' }), create: createNamespace, rename: renameMapping, remove: removeMapping,
@@ -416,7 +420,7 @@ export function ManagementPanel({ api, ProfileSelect }: ManagementPanelProps) {
                 select={name => manageProfile('select', name)} create={name => manageProfile('create', name)}
                 rename={(name, newName) => manageProfile('rename', name, newName)} remove={name => manageProfile('delete', name)}
                 save={profile => void action('saving', async () => {
-                    await request(api, { action: 'configure', profile, revision: view!.state.revision, namespaces, unknownVisible, toolComments, order: orderedPaths([...paths, ...mappings.flatMap(m => [m.path, ...m.aliases])], order), mappings: mappings.map(m => ({ ...m, path: m.path.trim(), aliases: m.aliases.map(alias => alias.trim()).filter(Boolean) })) });
+                    await request(api, { action: 'configure', profile, revision: view!.state.revision, namespaces, unknownVisible, builtinVisible, toolComments, order: orderedPaths([...paths, ...mappings.flatMap(m => [m.path, ...m.aliases])], order), mappings: mappings.map(m => ({ ...m, path: m.path.trim(), aliases: m.aliases.map(alias => alias.trim()).filter(Boolean) })) });
                     await reload();
                 })} />
             <button disabled={busy || !view?.sessions.length} onClick={() => void action('organizing', async () => {

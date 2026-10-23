@@ -2,13 +2,13 @@ import type { CompletionSettings, HistoryLimits } from '../protocol/history.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { readFile } from 'node:fs/promises';
 import type { Namespace, Mapping, SemanticRegistry } from '../registry/registry.js';
-import type { TypeScriptAdapter } from '../dsh/adapter.js';
+import type { TextPtcAdapter } from '../text_ptc/adapter.js';
 import type { OrganizationService } from '../dsh/organization.js';
 import '@deepseek-ai/dsh-client-connection';
 import { managementHtml } from './ui.js';
 
 /** @brief Register management UI and APIs behind DSH owner-peer authentication and Host/Origin policy. */
-export function registerManagement(ctx: Context, globalRegistry: SemanticRegistry, adapter: TypeScriptAdapter, organization: OrganizationService, settings: CompletionSettings): void {
+export function registerManagement(ctx: Context, globalRegistry: SemanticRegistry, adapter: TextPtcAdapter, organization: OrganizationService, settings: CompletionSettings): void {
     const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
     ctx.connection.fetch.register({ path: '/api/ts-intellisense', methods: ['GET'], requestBody: 'buffered', fetch: async () => new Response(managementHtml, { headers: { ...headers, 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'" } }) });
     ctx.connection.fetch.register({ path: '/api/ts-intellisense-client', methods: ['GET'], requestBody: 'buffered', fetch: async () => new Response(await readFile(new URL('./standalone.js', import.meta.url), 'utf8'), { headers: { ...headers, 'Content-Type': 'text/javascript; charset=utf-8' } }) });
@@ -23,9 +23,9 @@ export function registerManagement(ctx: Context, globalRegistry: SemanticRegistr
             if (!request.headers.get('content-type')?.startsWith('application/json')) return Response.json({ error: 'Expected application/json' }, { status: 415, headers });
             const bodyText = await request.text();
             if (bodyText.length > 1_048_576) return Response.json({ error: 'Body exceeds 1 MiB' }, { status: 413, headers });
-            const body = JSON.parse(bodyText) as { action: string; mappings: Mapping[]; namespaces?: Namespace[]; order?: string[]; unknownVisible?: string[]; revision: number; id: string; operation?: 'create' | 'select' | 'rename' | 'delete'; name?: string; newName?: string; profile?: string; toolComments?: Record<string, string>; historyLimits: HistoryLimits };
+            const body = JSON.parse(bodyText) as { action: string; mappings: Mapping[]; namespaces?: Namespace[]; order?: string[]; unknownVisible?: string[]; builtinVisible?: string[]; revision: number; id: string; operation?: 'create' | 'select' | 'rename' | 'delete'; name?: string; newName?: string; profile?: string; toolComments?: Record<string, string>; historyLimits: HistoryLimits };
             const registry = globalRegistry;
-            if (body.action === 'configure') await registry.configure(body.mappings, body.revision, body.namespaces, body.order, body.unknownVisible, body.profile, body.toolComments);
+            if (body.action === 'configure') await registry.configure(body.mappings, body.revision, body.namespaces, body.order, body.unknownVisible, body.profile, body.toolComments, body.builtinVisible);
             else if (body.action === 'history') await settings.configure(body.historyLimits);
             else if (body.action === 'profile') await registry.manageProfile(body.operation!, body.name!, body.revision, body.newName);
             else if (body.action === 'organize') {

@@ -1,7 +1,7 @@
 {
   "name": "dsh-ts-intellisense",
   "version": "0.1.0",
-  "description": "Persistent TypeScript REPL and progressive IntelliSense for DeepSeek Harness",
+  "description": "Fenced text execution with isolated JavaScript runtime and progressive IntelliSense for DeepSeek Harness",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -14,12 +14,18 @@
       "types": "./dist/web/client.d.ts",
       "default": "./dist/client.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./preset": {
+      "types": "./dist/text_ptc/preset.d.ts",
+      "default": "./dist/text_ptc/preset.js"
+    }
   },
   "files": [
     "dist",
     "cordis.patch.yml",
-    "README.md"
+    "README.md",
+    "presets",
+    "docs"
   ],
   "dsh": {
     "bundle": {
@@ -39,15 +45,18 @@
     "typecheck": "tsc -p tests/tsconfig.json",
     "test": "npm run build && tsx --test tests/**/*.test.ts",
     "prepack": "npm run build",
-    "lint": "eslint --config scripts/eslint_config.mjs src/llm_text_exec tests/llm_text_exec",
+    "lint": "eslint --config scripts/eslint_config.mjs src/llm_text_exec src/runtime_host src/text_ptc tests/llm_text_exec tests/text_ptc",
     "typecheck:text-exec": "tsc -p tests/llm_text_exec/tsconfig.json",
-    "test:text-exec": "node --import tsx --test --test-timeout=10000 tests/llm_text_exec/*.test.ts"
+    "test:text-exec": "node --import tsx --test --test-timeout=10000 tests/llm_text_exec/*.test.ts",
+    "test:active": "node --import tsx --test --test-timeout=20000 tests/llm_text_exec/*.test.ts tests/text_ptc/*.test.ts tests/web/unmounted_tools.test.ts",
+    "typecheck:active": "tsc -p tests/text_ptc/tsconfig.json"
   },
   "license": "MIT",
   "dependencies": {
     "@deepseek-ai/dsh": "0.2.1-rc.2",
     "typescript": "5.9.3",
-    "zod": "4.6.7"
+    "zod": "4.6.7",
+    "yaml": "2.9.1"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-client-ui-primitives": "0.2.1-rc.2",
@@ -76,6 +85,7 @@
     "@deepseek-ai/dsh-storage": "0.2.1-rc.2",
     "@deepseek-ai/dsh-subagent": "0.2.1-rc.2",
     "@deepseek-ai/dsh-system-prompt": "0.2.1-rc.2",
-    "@deepseek-ai/dsh-tools": "0.2.1-rc.2"
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-agent-preset-registry": "0.2.1-rc.2"
   }
 }
