@@ -57,10 +57,10 @@ function EditableText({ value, label, className, busy, empty = false, commit }: 
 function nextPinLevel(level: PinLevel): PinLevel { return ((level + 1) % 3) as PinLevel; }
 
 /** @brief Shared always-visible pin control for namespace and command prompt exposure. */
-function PinButton({ label, active, busy, locked = false, level, toggle }: { label: string; active: boolean; busy: boolean; locked?: boolean; level?: PinLevel; toggle: () => void }) {
+function PinButton({ label, active, busy, locked = false, level, tooltip, toggle }: { tooltip?: string; label: string; active: boolean; busy: boolean; locked?: boolean; level?: PinLevel; toggle: () => void }) {
     const t = useTranslation();
     return <button className="ts-pin" type="button" aria-label={label} aria-pressed={active} data-filled={active} data-level={level}
-        title={level !== undefined ? t(`pin_level_${level}`) : locked ? t('builtin_pinned') : active ? t('unpin') : t('pin')} disabled={busy || locked} onClick={toggle}>
+        title={tooltip ?? (level !== undefined ? t(`pin_level_${level}`) : locked ? t('builtin_pinned') : active ? t('unpin') : t('pin'))} disabled={busy || locked} onClick={toggle}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" aria-hidden="true">
             <path d="m16 9 3-3-5-5-3 3v4l-5 5 5 5 5-5zM9 15l-5 5" />
         </svg>
@@ -209,6 +209,9 @@ function NamespaceNode({ path, tree, fixed = false, provided }: { path: string; 
                     toggle={() => tree.configure(path, { alwaysVisible: !config?.alwaysVisible })} />
                 <RemoveButton label={t('delete_namespace', { path })} busy={tree.busy} remove={() => tree.deleteNamespace(path)} />
             </span></>}
+            {fixed && path !== 'console' && <span className="ts-node-actions">
+                <PinButton label={t('fixed_namespace')} tooltip={t('fixed_namespace')} active busy={tree.busy} locked toggle={() => {}} />
+            </span>}
             {path === 'console' && <button type="button" disabled={tree.busy} aria-pressed={tree.consoleMounted}
                 onClick={tree.toggleConsole}>{t(tree.consoleMounted ? 'unmount_console' : 'mount_console')}</button>}
         </div>
