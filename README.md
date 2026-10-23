@@ -60,9 +60,9 @@ UI 固定显示 console、tools、vm 内置树，名称、描述和 tooltip 使�
 
 ```sh
 npm run build
-npm run typecheck:active
+npm run typecheck
 npm run lint
-npm run test:active
+npm test
 ```
 
 测试使用 fake adapter 和真实隔离进程，不调用真实模型。旧 REPL 实现、接口及专用测试已移除。旧历史保留设置不再提供，执行与续写预算统一由插件 Config 管理。Profile 中未挂载工具提示偏好字段为 `unmountedVisible`，不兼容旧状态字段。

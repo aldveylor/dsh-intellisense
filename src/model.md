@@ -4,11 +4,11 @@
 
 ## 执行与审计
 
-`llm_text_exec/` 负责末尾 js:exec/ts:exec 围栏、marker 流缓冲、补全续写、usage 合并、合成工具调用和历史投影。无执行块直接回答，非 stop 不执行。原生 AgentLoop 执行 exec，并将工具结果作为下一步输入。详细模型见该目录 model.md。
+`protocol/` 负责末尾 js:exec/ts:exec 围栏、marker 流缓冲、补全续写、usage 合并、合成工具调用和历史投影。无执行块直接回答，非 stop 不执行。原生 AgentLoop 执行 exec，并将工具结果作为下一步输入。详细模型见该目录 model.md。
 
-`runtime_host/` 管理每会话的受限 Node 进程、严格 AsyncFunction 执行、IPC 校验、取消、超时、epoch 和 descriptor 内省。普通声明不持久，显式 globalThis 状态只在进程存活期间保留。使用原生 console，无 vm.print。详细模型见该目录 model.md。
+`runtime/` 管理每会话的受限 Node 进程、严格 AsyncFunction 执行、IPC 校验、取消、超时、epoch 和 descriptor 内省。普通声明不持久，显式 globalThis 状态只在进程存活期间保留。使用原生 console，无 vm.print。详细模型见该目录 model.md。
 
-`text_ptc/` 将真实 agent scope 工具和 Profile 投影为命名空间清单，支持 YAML 别名、宿主参数校验和原生 guarded tools.execute 子调用。注册 Text PTC provider 和 Agent Mode，保存 exec/context、exec/intellisense、exec/rewrite 及原生父子调用轨迹。详细模型见该目录 model.md。
+`integration/` 将真实 agent scope 工具和 Profile 投影为命名空间清单，支持 YAML 别名、宿主参数校验和原生 guarded tools.execute 子调用。注册 Text PTC provider 和 Agent Mode，保存 exec/context、exec/intellisense、exec/rewrite 及原生父子调用轨迹。详细模型见该目录 model.md。
 
 ## Profile 与工具表
 
@@ -20,13 +20,13 @@
 
 ## 管理 UI
 
-`web/management_panel.tsx` 和 `web/tree_provider.ts` 显示 console、tools、vm 固定树与可配置命名空间；内置描述/注释/tooltip 固定英文，其余 UI 支持中英文。内置命令不可改名、拖动或删除，图钉可以开启/取消，并按当前 Profile 草稿保存。
+`management/panel/management_panel.tsx` 和 `management/panel/tree_provider.ts` 显示 console、tools、vm 固定树与可配置命名空间；内置描述/注释/tooltip 固定英文，其余 UI 支持中英文。内置命令不可改名、拖动或删除，图钉可以开启/取消，并按当前 Profile 草稿保存。
 
 UI 不再显示 unknown 块。树上方显示当前可用但未挂载的工具数量，点击打开只含未挂载工具的选择器；数量随挂载、移除映射和切换 Profile 更新。失效工具不计入，已挂载但禁用的工具仍算已挂载；内置管理工具和 exec 不计入未挂载工具。
 
-`web/namespace_tree.ts` 处理路径、树迁移和混合拖动排序，固定内置节点禁止落入或移动。工具选择器仍可搜索普通可用工具并挂入根或指定命名空间。`web/profile_picker/` 实现 Profile 切换、创建、删除、重命名、保存和另存为；草稿名称带 *。`web/locale/` 保留本地化与原生语言桥接。协议续写预算由 zod Config 管理；旧历史偏好接口及控件已移除。
+`management/panel/namespace_tree.ts` 处理路径、树迁移和混合拖动排序，固定内置节点禁止落入或移动。工具选择器仍可搜索普通可用工具并挂入根或指定命名空间。`management/profile_picker/` 实现 Profile 切换、创建、删除、重命名、保存和另存为；草稿名称带 *。`management/locale/` 保留本地化与原生语言桥接。协议续写预算由 zod Config 管理；旧历史偏好接口及控件已移除。
 
-`web/routes.ts` 的管理接口沿用原生 Connection 的认证和 Host/Origin 保护。`dsh/organization.ts` 通过只读维护子代理产生提案，明确批准后按 revision 提交，不变更原生工具权限。
+`management/server/routes.ts` 的管理接口沿用原生 Connection 的认证和 Host/Origin 保护。`integration/organization.ts` 通过只读维护子代理产生提案，明确批准后按 revision 提交，不变更原生工具权限。
 
 ## 构建和部署
 
@@ -34,4 +34,4 @@ UI 不再显示 unknown 块。树上方显示当前可用但未挂载的工具�
 
 ## 验证
 
-协议、运行时和原生 AgentLoop 的测试使用 fake adapter 与隔离进程，不调用真实模型。`tests/registry/` 与 `tests/web/` 保留当前工具目录及管理界面测试。旧 REPL、unknown 合成命名空间和 vm.print 专用测试已删除。构建检查所有生产源码。
+协议、运行时和原生 AgentLoop 的测试使用 fake adapter 与隔离进程，不调用真实模型。`tests/registry/` 与 `tests/management/` 保留当前工具目录及管理界面测试。旧 REPL、unknown 合成命名空间和 vm.print 专用测试已删除。构建检查所有生产源码。

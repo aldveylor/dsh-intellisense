@@ -9,16 +9,16 @@ import '@deepseek-ai/dsh-agent';
 import '@deepseek-ai/dsh-tools';
 import { DshStore } from './storage/store.js';
 import { SemanticRegistry } from './registry/registry.js';
-import { intellisense } from './text_ptc/intellisense.js';
-import { TextPtcRoute } from './text_ptc/route.js';
-import { TextPtcAdapter } from './text_ptc/adapter.js';
-import { RuntimeHost, RuntimeConfig } from './runtime_host/host.js';
-import { Config as ProtocolConfig } from './llm_text_exec/config.js';
-import { Aliases } from './text_ptc/namespace.js';
-import { OrganizationService } from './dsh/organization.js';
+import { intellisense } from './integration/intellisense.js';
+import { TextPtcRoute } from './integration/route.js';
+import { TextPtcAdapter } from './integration/adapter.js';
+import { RuntimeHost, RuntimeConfig } from './runtime/host.js';
+import { Config as ProtocolConfig } from './protocol/config.js';
+import { Aliases } from './integration/namespace.js';
+import { OrganizationService } from './integration/organization.js';
 import { ProfileSessions } from './registry/profiles.js';
-import { registerToolCommands } from './dsh/tool_commands.js';
-import { registerManagement } from './web/routes.js';
+import { registerToolCommands } from './integration/tool_commands.js';
+import { registerManagement } from './management/server/routes.js';
 
 export const name = 'dsh-ts-intellisense';
 export const inject = ['llm', 'tools', 'agents', 'systemPrompt', 'storage', storageBackendServiceKey('json'), 'subagents', 'connection'];
@@ -65,6 +65,6 @@ export async function apply(ctx: Context, options: Config = {}): Promise<void> {
     registerManagement(ctx, registry, adapter, new OrganizationService(ctx, registry));
 }
 
-export { RuntimeHost } from './runtime_host/host.js';
-export { TextExecAdapter } from './llm_text_exec/adapter.js';
+export { RuntimeHost } from './runtime/host.js';
+export { TextExecAdapter } from './protocol/adapter.js';
 export { SemanticRegistry } from './registry/registry.js';

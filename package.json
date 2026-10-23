@@ -11,13 +11,13 @@
       "default": "./dist/index.js"
     },
     "./client": {
-      "types": "./dist/web/client.d.ts",
+      "types": "./dist/management/client.d.ts",
       "default": "./dist/client.js"
     },
     "./package.json": "./package.json",
     "./preset": {
-      "types": "./dist/text_ptc/preset.d.ts",
-      "default": "./dist/text_ptc/preset.js"
+      "types": "./dist/integration/preset.d.ts",
+      "default": "./dist/integration/preset.js"
     }
   },
   "files": [
@@ -44,11 +44,9 @@
     "typecheck": "tsc -p tests/tsconfig.json",
     "test": "npm run build && tsx --test tests/**/*.test.ts",
     "prepack": "npm run build",
-    "lint": "eslint --config scripts/eslint_config.mjs src/llm_text_exec src/runtime_host src/text_ptc tests/llm_text_exec tests/text_ptc src/index.ts src/runtime/builtins.ts src/web/tree_provider.ts src/web/management_panel.tsx src/web/tool_picker src/web/routes.ts src/web/locale src/dsh/tool_commands.ts src/registry",
-    "typecheck:text-exec": "tsc -p tests/llm_text_exec/tsconfig.json",
-    "test:text-exec": "node --import tsx --test --test-timeout=10000 tests/llm_text_exec/*.test.ts",
-    "test:active": "node --import tsx --test --test-timeout=20000 tests/llm_text_exec/*.test.ts tests/text_ptc/*.test.ts tests/web/unmounted_tools.test.ts",
-    "typecheck:active": "tsc -p tests/text_ptc/tsconfig.json"
+    "lint": "eslint --config scripts/eslint_config.mjs src tests",
+    "typecheck:protocol": "tsc -p tests/protocol/tsconfig.json",
+    "test:protocol": "node --import tsx --test --test-timeout=10000 tests/protocol/*.test.ts"
   },
   "license": "MIT",
   "dependencies": {
