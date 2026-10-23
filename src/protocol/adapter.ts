@@ -162,7 +162,8 @@ export class TextExecAdapter extends LlmAdapter {
                     throw new LlmError('Native DSML tool syntax requires an exec fence', 'MALFORMED_OUTPUT');
                 }
                 const blocks = execBlocks(buffered);
-                if (!blocks.length && buffered.trimEnd().endsWith(this.config.marker)) {
+                if ((!blocks.length && buffered.trimEnd().endsWith(this.config.marker))
+                    || blocks.some(block => !block.abandoned && block.closed && block.code.includes(this.config.marker))) {
                     if (this.config.malformedPolicy === 'repair-once' && !repaired) {
                         await audit('', 'error');
                         request = { ...continuation(initial, buffered, '', segment, true), signal };

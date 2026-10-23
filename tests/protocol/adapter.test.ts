@@ -75,7 +75,7 @@ test('A1: prose streams without a synthetic tool and closes with stop', async ()
 });
 
 test('a terminal completion marker outside an exec fence is repaired before execution', async () => {
-    for (const output of [marker, `std.cwd${marker}`]) {
+    for (const output of [marker, `std.cwd${marker}`, '```js:exec\nreturn await std.cwd' + marker + '\n```']) {
         const f = fixture([output, '```js:exec\nreturn await std.cwd' + marker, '();\n```']);
         const chunks = await f.run();
         assertStream(chunks, 'tool-calls');
