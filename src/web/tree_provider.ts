@@ -26,8 +26,7 @@ export function TreeProvider(visible: readonly string[] = defaultBuiltinVisible)
         commands: vmCommands.map(command => ({ ...command, fixed: true, draggable: false, alwaysVisible: visible.includes(command.path) })) }];
 }
 
-/** @brief Keep legacy runtime paths protected without rendering their former synthetic namespace. */
+/** @brief Resolve fixed runtime namespaces and their descendants. */
 export function providedNamespace(path: string): ProvidedNamespace | undefined {
-    if (path === 'unknown' || path.startsWith('unknown.')) return { path: 'unknown', description: '', fixed: true, commands: [] };
     return TreeProvider().find(node => path === node.path || path.startsWith(`${node.path}.`));
 }

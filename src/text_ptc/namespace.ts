@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { jsonSchemaToTs, validateJsonSchemaValue, type JsonSchemaNode } from '@deepseek-ai/dsh-tools';
 import type { SemanticRegistry } from '../registry/registry.js';
-import { toolName } from '../registry/path.js';
 
 /** @brief YAML aliases reference physical tools and rename argument fields without reimplementing tools. */
 export const Aliases = z.array(z.strictObject({ path: z.string().regex(/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+$/), tool: z.string().min(1), argMap: z.record(z.string(), z.string()).optional() })).superRefine((aliases, context) => {
@@ -31,7 +30,7 @@ export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Ali
     for (const mapping of registry.effective().filter(mapping => mapping.enabled && !['exec', 'run_code'].includes(mapping.id))) {
         const physical = mapping.tool;
         const paths = mapping.id.startsWith('tools_') ? [`tools.${mapping.id.slice(6)}`] : [mapping.path, ...mapping.aliases];
-        for (const path of paths) insert({ path: path.startsWith('unknown.') ? `tools.${toolName(mapping.id)}` : path, tool: mapping.id, schema: physical.parameters, output: physical.output, doc: physical.description });
+        for (const path of paths) insert({ path, tool: mapping.id, schema: physical.parameters, output: physical.output, doc: physical.description });
     }
     const enabled = new Set(registry.effective().filter(mapping => mapping.enabled).map(mapping => mapping.id));
     for (const alias of aliases) {

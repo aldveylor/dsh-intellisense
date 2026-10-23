@@ -65,4 +65,4 @@ npm run lint
 npm run test:active
 ```
 
-新模式测试使用 fake adapter 和真实隔离进程，不调用真实模型。原 `npm run typecheck` / `npm test` 仍包含历史 REPL/unknown/vm.print 测试，其中有审计前已存在的错误和旧协议断言；不能将它们视作新模式验收套件。
+测试使用 fake adapter 和真实隔离进程，不调用真实模型。旧 REPL 实现、接口及专用测试已移除。旧历史保留设置不再提供，执行与续写预算统一由插件 Config 管理。Profile 中未挂载工具提示偏好字段为 `unmountedVisible`，不兼容旧状态字段。

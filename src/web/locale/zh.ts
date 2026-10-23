@@ -1,9 +1,5 @@
 /** @brief Chinese interface dictionary. */
 export const zh = {
-    "history_settings": "IntelliSense 历史保留",
-    "namespace_history": "命名空间",
-    "command_history": "命令",
-    "save_history": "保存历史设置",
     "add_comment": "双击添加注释",
     "builtin_pinned": "内置指令始终固定显示",
     "unpin": "取消固定显示",

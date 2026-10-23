@@ -16,7 +16,6 @@ import { RuntimeHost, RuntimeConfig } from './runtime_host/host.js';
 import { Config as ProtocolConfig } from './llm_text_exec/config.js';
 import { Aliases } from './text_ptc/namespace.js';
 import { OrganizationService } from './dsh/organization.js';
-import { CompletionSettings } from './protocol/history.js';
 import { ProfileSessions } from './registry/profiles.js';
 import { registerToolCommands } from './dsh/tool_commands.js';
 import { registerManagement } from './web/routes.js';
@@ -28,7 +27,7 @@ export const Config = RuntimeConfig.extend({ protocol: ProtocolConfig.default(()
 /** @brief Public options for the active text-execution mode. */
 export type Config = z.input<typeof Config>;
 
-/** @brief Replace the legacy REPL with fenced text execution and ordinary native exec tool calls. */
+/** @brief Register fenced text execution and native exec tool calls. */
 export async function apply(ctx: Context, options: Config = {}): Promise<void> {
     const config = Config.parse(options);
     const { protocol, aliasesFile, ...runtimeOptions } = config;
@@ -44,7 +43,6 @@ export async function apply(ctx: Context, options: Config = {}): Promise<void> {
     const store = new DshStore(unit);
     const registry = new SemanticRegistry(store); await registry.load();
     const profiles = new ProfileSessions(registry, store);
-    const settings = new CompletionSettings(store); await settings.load();
     const adapter = new TextPtcAdapter(ctx, registry, profiles, runtime, aliases, protocol);
     ctx.effect(() => async () => { await adapter.dispose(); });
     registerToolCommands(ctx, registry, profiles, agent => adapter.registryFor(agent), agent => adapter.configurationChanged(agent));
@@ -64,7 +62,7 @@ export async function apply(ctx: Context, options: Config = {}): Promise<void> {
     });
     ctx.on('agent/disposed', async ({ agent }) => { await adapter.release(agent.id); });
     for (const agent of ctx.agents.list()) await configure(agent);
-    registerManagement(ctx, registry, adapter, new OrganizationService(ctx, registry), settings);
+    registerManagement(ctx, registry, adapter, new OrganizationService(ctx, registry));
 }
 
 export { RuntimeHost } from './runtime_host/host.js';

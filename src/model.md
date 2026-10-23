@@ -1,6 +1,6 @@
 # 源码模型
 
-本插件当前执行模式为 Text PTC。`index.ts` 挂载共享 Profile/工具表/管理 UI、新协议适配器、exec 工具、codeRuntime 和可选 intellisense 服务。旧 REPL 的 TypeScriptAdapter、runConversation 与源码轨迹注入不再由入口装配；旧实现文件只供历史测试引用，不是可选的运行模式。公开入口导出 RuntimeHost、TextExecAdapter 与 SemanticRegistry。
+本插件当前执行模式为 Text PTC。`index.ts` 挂载共享 Profile/工具表/管理 UI、新协议适配器、exec 工具、codeRuntime 和可选 intellisense 服务。旧 REPL 实现、接口及其专用测试已移除。公开入口导出 RuntimeHost、TextExecAdapter 与 SemanticRegistry。
 
 ## 执行与审计
 
@@ -14,7 +14,7 @@
 
 `registry/registry.ts` 管理全局具名 Profile 目录、映射、别名、注释、排序、启用状态、固定路径和使用统计。`registry/profiles.ts` 为每会话持有不可变配置版本的智能引用，修改按 CoW 分离；目录覆盖/删除不修改既有会话。新会话捕获 UI 当前选中配置。工具权限始终由原生 guard/策略决定。
 
-未配置物理工具通过 tools.<encoded-name> 调用，tools_* 管理命令通过 tools.<method> 调用；不生成 unknown 命名空间。路径保留名称、重复和树碰撞检查。失效工具保留配置，但不进入实际 manifest、补全或执行环境。builtinVisible 记录内置固定提示偏好，按 Profile 保存；默认只提示非 Node 标准的自定义命令，console 等标准接口默认不固定提示。历史 unknownVisible 字段目前仍作为未挂载工具的显示偏好存储字段，字段名不会产生 unknown 运行时命名空间。
+未配置物理工具通过 tools.<encoded-name> 调用，tools_* 管理命令通过 tools.<method> 调用；不生成 unknown 命名空间。路径保留名称、重复和树碰撞检查。失效工具保留配置，但不进入实际 manifest、补全或执行环境。builtinVisible 记录内置固定提示偏好，按 Profile 保存；默认只提示非 Node 标准的自定义命令，console 等标准接口默认不固定提示。unmountedVisible 保存未挂载工具的固定提示偏好，不兼容旧字段名。
 
 `storage/store.ts` 通过 DSH JSON backend 保存工具目录、Profile 版本和会话引用；MemoryStore/FileStore 用于独立使用。运行时不保存可执行状态或重放工具。
 
@@ -24,7 +24,7 @@
 
 UI 不再显示 unknown 块。树上方显示当前可用但未挂载的工具数量，点击打开只含未挂载工具的选择器；数量随挂载、移除映射和切换 Profile 更新。失效工具不计入，已挂载但禁用的工具仍算已挂载；内置管理工具和 exec 不计入未挂载工具。
 
-`web/namespace_tree.ts` 处理路径、树迁移和混合拖动排序，固定内置节点禁止落入或移动。工具选择器仍可搜索普通可用工具并挂入根或指定命名空间。`web/profile_picker/` 实现 Profile 切换、创建、删除、重命名、保存和另存为；草稿名称带 *。`web/locale/` 保留本地化与原生语言桥接。`web/history_settings/` 保留已存的历史偏好控件；新协议续写预算由 zod Config 管理。
+`web/namespace_tree.ts` 处理路径、树迁移和混合拖动排序，固定内置节点禁止落入或移动。工具选择器仍可搜索普通可用工具并挂入根或指定命名空间。`web/profile_picker/` 实现 Profile 切换、创建、删除、重命名、保存和另存为；草稿名称带 *。`web/locale/` 保留本地化与原生语言桥接。协议续写预算由 zod Config 管理；旧历史偏好接口及控件已移除。
 
 `web/routes.ts` 的管理接口沿用原生 Connection 的认证和 Host/Origin 保护。`dsh/organization.ts` 通过只读维护子代理产生提案，明确批准后按 revision 提交，不变更原生工具权限。
 
@@ -34,4 +34,4 @@ UI 不再显示 unknown 块。树上方显示当前可用但未挂载的工具�
 
 ## 验证
 
-`tests/llm_text_exec/` 为 fake adapter 回放；`tests/text_ptc/` 覆盖新运行时、命名空间、原生 AgentLoop、权限拒绝、审计和卸载；`tests/web/unmounted_tools.test.ts` 覆盖未挂载入口、英文内置描述和可取消图钉。`typecheck:active` 检查所有生产源码和新模式测试；历史测试中的旧 REPL/unknown/vm.print 假设不适用于新模式，原全量测试类型检查已有旧错误，不宣称全量通过。
+协议、运行时和原生 AgentLoop 的测试使用 fake adapter 与隔离进程，不调用真实模型。`tests/registry/` 与 `tests/web/` 保留当前工具目录及管理界面测试。旧 REPL、unknown 合成命名空间和 vm.print 专用测试已删除。构建检查所有生产源码。

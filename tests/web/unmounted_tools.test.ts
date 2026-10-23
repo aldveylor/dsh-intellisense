@@ -56,7 +56,7 @@ test('unknown is absent; count follows mounting, unmounting, saving and profile 
                 if (options?.body) {
                     const body = JSON.parse(String(options.body));
                     if (body.action === 'profile') await registry.manageProfile(body.operation, body.name, body.revision, body.newName);
-                    else await registry.configure(body.mappings, body.revision, body.namespaces, body.order, body.unknownVisible);
+                    else await registry.configure(body.mappings, body.revision, body.namespaces, body.order, body.unmountedVisible);
                     return Response.json({ ok: true });
                 }
                 return Response.json({ state: registry.snapshot(), tools: registry.tools(), effective: registry.effective(), declarations: '', sessions: [] });
@@ -149,7 +149,7 @@ test('built-in pins are editable, standard Node commands default off and prefere
             if (options?.body) {
                 const body = JSON.parse(String(options.body));
                 if (body.action === 'profile') await registry.manageProfile(body.operation, body.name, body.revision, body.newName);
-                else await registry.configure(body.mappings, body.revision, body.namespaces, body.order, body.unknownVisible, body.profile, body.toolComments, body.builtinVisible);
+                else await registry.configure(body.mappings, body.revision, body.namespaces, body.order, body.unmountedVisible, body.profile, body.toolComments, body.builtinVisible);
                 return Response.json({ ok: true });
             }
             return Response.json({ state: registry.snapshot(), tools: [], effective: [], declarations: '', sessions: [] });

@@ -96,7 +96,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
                 return { id: source, fixed };
             }
             const tool = resolve(registry, source);
-            const toolsVisible = (state.unknownVisible ?? []).filter(id => id !== tool.id);
+            const toolsVisible = (state.unmountedVisible ?? []).filter(id => id !== tool.id);
             if (fixed && !state.mappings.some(mapping => mapping.id === tool.id)) toolsVisible.push(tool.id);
             await registry.configure(state.mappings.map(mapping => mapping.id === tool.id ? { ...mapping, alwaysVisible: fixed } : mapping), state.revision, undefined, undefined, toolsVisible);
             await changed(execution.agent);

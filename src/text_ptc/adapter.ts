@@ -19,7 +19,7 @@ import type { z } from 'zod';
 /** @brief Plugin-owned codeRuntime definition; isolated processes implement the verified execution contract. */
 declare module '@deepseek-ai/cordis' { interface Context { codeRuntime: RuntimeHost } }
 
-/** @brief Active text execution transport; legacy REPL interception is not installed. */
+/** @brief Text execution transport integrating the native agent loop and runtime. */
 export class TextPtcAdapter {
     private positions = new Map<string, Position>();
     private announced = new Map<string, number>();

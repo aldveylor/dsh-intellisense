@@ -1,6 +1,6 @@
 # Text PTC 模式模型
 
-`src/index.ts` 只装配新模式，不实例化旧 TypeScriptAdapter，不调用旧 runConversation。普通 AgentLoop 主请求交给 TextExecAdapter；标题、压缩和原生子代理不走该接管。原生循环拥有 exec 执行，适配器仅合成工具块，避免重复执行。
+`src/index.ts` 装配 Text PTC 模式。普通 AgentLoop 主请求交给 TextExecAdapter；标题、压缩和原生子代理不走该接管。原生循环拥有 exec 执行，适配器仅合成工具块，避免重复执行。
 
 `adapter.ts` 注册宿主 exec 工具，并从 agent/request 获取真实 turn/step。每次请求保留原人设、技能、项目指令和模式策略；原工具协议分区由 assemble waterfall 移除，注入新的末尾 js:exec/ts:exec 协议。系统指令、浅层自定义命名空间和经过转义的运行时状态全文记录为 exec/context；补全与生成原文分别记录 exec/intellisense 与 exec/rewrite，以便重建实际请求。
 

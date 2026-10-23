@@ -1,9 +1,5 @@
 /** @brief American English interface dictionary. */
 export const enUs = {
-    "history_settings": "IntelliSense history",
-    "namespace_history": "Namespaces",
-    "command_history": "Commands",
-    "save_history": "Save history settings",
     "add_comment": "Double-click to add a comment",
     "builtin_pinned": "Built-in commands are always pinned",
     "unpin": "Unpin",

@@ -12,11 +12,11 @@ test('profiles isolate all configuration fields and persist create, select, rena
     await registry.configure([mapping], 0, [{ path: 'files', description: 'Files', alwaysVisible: true }], ['files'], ['other']);
     await registry.manageProfile('create', 'Work', 1);
     assert.deepEqual(registry.snapshot().mappings, []);
-    assert.deepEqual(registry.snapshot().unknownVisible, []);
+    assert.deepEqual(registry.snapshot().unmountedVisible, []);
     await registry.configure([], 2, [{ path: 'work', description: 'Work', alwaysVisible: false }], ['work'], ['read']);
     await registry.manageProfile('select', 'Default', 3);
     assert.deepEqual(registry.snapshot().mappings, [mapping]);
-    assert.deepEqual(registry.snapshot().unknownVisible, ['other']);
+    assert.deepEqual(registry.snapshot().unmountedVisible, ['other']);
     assert.deepEqual(registry.snapshot().order, ['files', 'files.read']);
     await registry.manageProfile('rename', 'Work', 4, 'Office');
     const restored = new SemanticRegistry(store); await restored.load();
@@ -24,7 +24,7 @@ test('profiles isolate all configuration fields and persist create, select, rena
     assert(!('inactiveProfiles' in restored.snapshot()));
     await restored.manageProfile('select', 'Office', 5);
     assert.deepEqual(restored.snapshot().namespaces, [{ path: 'work', description: 'Work', alwaysVisible: false }]);
-    assert.deepEqual(restored.snapshot().unknownVisible, ['read']);
+    assert.deepEqual(restored.snapshot().unmountedVisible, ['read']);
     await restored.manageProfile('rename', 'Office', 6, 'Personal');
     await restored.manageProfile('delete', 'Personal', 7);
     assert.equal(restored.snapshot().profile, 'Default');

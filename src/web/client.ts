@@ -1,7 +1,6 @@
 import type { Context } from '@deepseek-ai/cordis';
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client';
 import type {} from '@deepseek-ai/dsh-client-ui-plugin-manager/client';
-import { registerReplTrajectory } from './execution_trace/trajectory.js';
 import { NativeProfileSelect } from './profile_picker/native_profile_select.js';
 import type {} from '@deepseek-ai/dsh-client-locale/client';
 import { NativePanel } from './locale/native_panel.js';
@@ -20,7 +19,6 @@ export const inject = ['slots', 'locale'];
 
 /** @brief Register global namespace configuration in the native Plugins page. */
 export function apply(ctx: Context): void {
-    registerReplTrajectory(ctx);
     ctx.effect(() => ctx.locale.register('ts_intellisense', { zh, en: enUs }));
     ctx.slots.inject('plugins.bundle.config', () => ctx.slots.register({
         name: 'plugins.bundle.config', key: 'dsh-ts-intellisense',

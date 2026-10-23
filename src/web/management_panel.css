@@ -22,8 +22,5 @@
 
 .ts-profile-dropdown{transform-origin:top center;animation:ts-profile-open .18s ease-out both}.ts-profile-dropdown[data-phase=closing]{pointer-events:none;animation:ts-profile-close .18s ease-in both}@keyframes ts-profile-open{from{opacity:0;transform:translateY(-6px) scaleY(.96)}to{opacity:1;transform:translateY(0) scaleY(1)}}@keyframes ts-profile-close{from{opacity:1;transform:translateY(0) scaleY(1)}to{opacity:0;transform:translateY(-6px) scaleY(.96)}}
 
-.ts-intellisense .ts-history-settings { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-block: 12px; }
-.ts-intellisense .ts-history-settings label { display: inline-flex; align-items: center; gap: 6px; }
-.ts-intellisense .ts-history-settings input { width: 5em; }
 
 .ts-intellisense .ts-unmounted-count{display:block;margin-top:12px;color:var(--dsw-alias-label-secondary,#bdbdbd)}

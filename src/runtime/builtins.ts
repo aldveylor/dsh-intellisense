@@ -33,13 +33,3 @@ export const defaultBuiltinVisible = [...vmCommands, ...managementCommands].map(
 
 /** @brief Complete fixed callable surface for discovery without obsolete VM output callbacks. */
 export const builtinCommands = [...vmCommands, ...consoleCommands, ...managementCommands];
-
-/** @brief The VM lifecycle namespace is always present and cannot be reassigned or configured. */
-export const vmDeclaration = `declare const vm: {
-    /** @brief Restart the session runtime and clear explicit global state. */
-    readonly restart: () => Promise<never>;
-};`;
-
-/** @brief Declare only the native Console methods exposed by this runtime, independent of DOM types. */
-export const consoleDeclaration = `declare const console: {\n${consoleCommands.map(command =>
-    `    /** @brief ${command.description} */\n    readonly ${command.path.split('.').at(-1)}: ${command.signature};`).join('\n')}\n};`;
