@@ -41,3 +41,7 @@
 `web/client.ts` 参考 ModLens 的插件入口，通过 `plugins.bundle.config` 插槽按包名注册管理面板，由 `package.json` 的 `dsh.client` 与 `./client` 导出发现并立即加载。配置位于原生插件页的插件配置区域。`web/ui.ts` 与 `web/standalone.tsx` 保留独立认证页面。`scripts/build_client.mjs` 构建共享宿主 React 的原生懒加载模块及独立页面脚本。主提示词保留 REPL 协议与使用方式，不附 VM 安全/权限说明。
 
 `web/locale/` 保存中文与美式英语完整字典、共享翻译上下文和原生语言桥接。`web/client.ts` 注入 DSH `locale`，以 `ts_intellisense` 命名空间注册 `zh` 与 `en`（美式英语）字典；桥接订阅 locale revision，原位更新整个编辑器文案并保留草稿、展开状态及弹窗。状态保存翻译键，树操作异常在呈现时翻译；工具原始说明和用户配置不翻译。独立页面按浏览器语言选择中文或美式英语，未知语言回退英文，并同步页面标题和文档语言。
+
+## 新 text-ptc 模式重构
+
+`llm_text_exec/` 为独立的新文本执行协议层，详见该目录 model.md。支持 js:exec/ts:exec、按需补全、确定性历史投影、合成 exec 工具调用和完整审计事件；尚未注册 provider 或接入 preset，旧模式行为不变。新执行语义仅持久化显式 globalThis 状态，普通 AsyncFunction 局部声明不保留。
