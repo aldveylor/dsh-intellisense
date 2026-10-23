@@ -48,12 +48,19 @@ function initialize(paths: string[]): void {
     const install = vm.runInContext(`(function(call, print, paths, methods) {
         "use strict";
         const parse=JSON.parse, stringify=JSON.stringify;
+        if(!Object.hasOwn(globalThis,'ToolCallError')) {
+            /** @brief A rejected namespace call, created entirely in the guest realm. */
+            class ToolCallError extends Error {
+                constructor(message,toolName){super(message);this.name='ToolCallError';this.toolName=toolName;}
+            }
+            Object.defineProperty(globalThis,'ToolCallError',{value:ToolCallError,configurable:false});
+        }
         const tree=Object.create(null);
         for(const path of parse(paths)) {
             const parts=path.split('.'); let node=tree;
             for(const part of parts.slice(0,-1)) node=node[part]??=(Object.create(null));
             const fn=(...args)=>new Promise((resolve,reject)=>{
-                try { call(path,stringify(args.map(value=>[value!==undefined,value??null]))).then(json=>{try{const [present,value]=parse(json);resolve(present?value:undefined)}catch(error){reject(new Error(String(error))) }},error=>reject(new Error(String(error.message??error)))); }
+                try { call(path,stringify(args.map(value=>[value!==undefined,value??null]))).then(json=>{try{const [present,value]=parse(json);resolve(present?value:undefined)}catch(error){reject(new Error(String(error))) }},error=>reject(new ToolCallError(String(error.message??error),path))); }
                 catch(error){reject(new Error(String(error.message??error)))}
             });
             Object.setPrototypeOf(fn,null); node[parts.at(-1)]=Object.freeze(fn);

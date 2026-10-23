@@ -118,6 +118,6 @@
   name: '@deepseek-ai/dsh-plugin-market/tools'
   disabled: true
 - id: intellisense-presentation
-  name: "@deepseek-ai/dsh-agent-tool-presentation"
+  name: dsh-intellisense/presentation
   config:
     mode: native

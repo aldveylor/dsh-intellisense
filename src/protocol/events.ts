@@ -1,10 +1,9 @@
 import '@deepseek-ai/dsh-session';
-import type { GenerateOptions, LlmFailure } from '@deepseek-ai/dsh-llm';
 
 /** @brief A loop-owned position passed explicitly into a request-local adapter. */
 export interface Position { turn: number; step: number }
 
-/** @brief All nondeterministic completion data needed to reconstruct a continuation request. */
+/** @brief Batched discovery arguments and the complete declaration result. */
 export interface SenseEvent extends Position {
     queries: string[];
     info: string;
@@ -13,32 +12,10 @@ export interface SenseEvent extends Position {
     runtimeEpoch?: number;
 }
 
-/** @brief Original response segments and every discard decision accompanying source extraction. */
-export interface RewriteEvent extends Position {
-    original: string[];
-    code: string;
-    hash: string;
-    discardedTail: string;
-    discardedBlocks: string[];
-    reason: 'exec' | 'prose' | 'error';
-    failure?: LlmFailure;
-}
-
-/** @brief Durable custom events emitted through a session-owned writer. */
-export interface AuditEvents { 'exec/intellisense': SenseEvent; 'exec/rewrite': RewriteEvent }
-
 declare module '@deepseek-ai/dsh-session' {
     interface PluginRecordMap {
         'plugin:ts_intellisense/intellisense': SenseEvent;
-        'plugin:ts_intellisense/rewrite': RewriteEvent;
         /** @brief Exact state-dependent request instructions retained outside the model surface. */
         'plugin:ts_intellisense/context': Position & { instructions: string; provider: string; model: string; epoch: number };
-    }
-}
-
-declare module '@deepseek-ai/dsh-llm' {
-    interface MessageSourceMap {
-        /** @brief Deterministic user-role projection of a logged program result. */
-        'exec-result': { kind: 'exec-result'; form: 'notice'; summary: string };
     }
 }

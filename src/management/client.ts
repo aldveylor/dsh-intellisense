@@ -6,7 +6,6 @@ import type {} from '@deepseek-ai/dsh-client-locale/client';
 import { NativePanel } from './locale/native_panel.js';
 import { zh } from './locale/zh.js';
 import { enUs } from './locale/en_us.js';
-import { errorTraceDefinition } from './trajectory/error_trace.js';
 import { intellisenseTraceDefinition } from './trajectory/intellisense_trace.js';
 import type { LocaleKey } from './locale/locale.js';
 
@@ -23,7 +22,6 @@ export const inject = ['slots', 'locale'];
 export function apply(ctx: Context): void {
     ctx.effect(() => ctx.locale.register('ts_intellisense', { zh, en: enUs }));
     ctx.inject(['uiConversation'], ctx => {
-        ctx.uiConversation.events.register(errorTraceDefinition(key => ctx.locale.bind('ts_intellisense')(key)));
         ctx.uiConversation.events.register(intellisenseTraceDefinition(key => ctx.locale.bind('ts_intellisense')(key)));
     });
     ctx.slots.inject('plugins.bundle.config', () => ctx.slots.register({

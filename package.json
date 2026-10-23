@@ -22,6 +22,10 @@
     "./namespace": {
       "types": "./dist/integration/namespace_plugin.d.ts",
       "default": "./dist/integration/namespace_plugin.js"
+    },
+    "./presentation": {
+      "types": "./dist/integration/presentation.d.ts",
+      "default": "./dist/integration/presentation.js"
     }
   },
   "files": [
@@ -88,6 +92,8 @@
     "@deepseek-ai/dsh-storage": "0.2.1-rc.2",
     "@deepseek-ai/dsh-subagent": "0.2.1-rc.2",
     "@deepseek-ai/dsh-system-prompt": "0.2.1-rc.2",
-    "@deepseek-ai/dsh-tools": "0.2.1-rc.2"
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-ptc-runtime": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-scope": "0.2.1-rc.2"
   }
 }

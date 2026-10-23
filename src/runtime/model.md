@@ -8,8 +8,10 @@
 
 `sandbox.ts` 在 Linux/Python3/libseccomp 下启动 Node 权限进程。seccomp 在 exec Node 前禁止 socket 创建、连接、绑定、监听及 ptrace 等；不禁止继承的 IPC socket 使用 sendmsg/recvmsg。Node 未授予文件读写、子进程、worker、addon 等权限。启动脚本由宿主构建为 bundle，经 stdin 一次性送入并关闭 stdin，之后控制与工具交互只有 IPC。没有为加载源码开放 dist/node_modules 文件读取权限。启动检查实际测试文件读取被 Node permission 拒绝、网络监听被 seccomp 拒绝；缺少能力时加载失败，无宽松回退。这不是已证明覆盖所有 Node/V8 漏洞的安全性结论。
 
-执行超时、取消、进程退出或 release 都终止进程，拒绝未决请求并取消宿主工具信号。重建 epoch 增加，下轮模型请求记录并提示状态重置。dispose 等待工具回调和进程退出。可调预算全部由 RuntimeConfig 验证；默认 wall timeout 为 120000ms，与安装的原生 Node PTC 后端默认一致，另有可调同步 VM deadline。
+执行超时、取消、进程退出或 release 都终止进程，拒绝未决请求并取消宿主工具信号。重建 epoch 增加，后续运行获得新的进程状态。dispose 等待工具回调和进程退出。可调预算全部由 RuntimeConfig 验证；默认 wall timeout 为 120000ms，与安装的原生 Node PTC 后端默认一致，另有可调同步 VM deadline。
 
 宿主启动和结果受大小上限限制，过大数据明确拒绝；不静默截断工具返回值。日志捕获达到上限则执行报错。运行时原生错误信息直接回传，不做语言过滤或翻译。
 
 工具包装使用 ...args 位置参数，通过 [present, value] 元组跨 IPC 传递每个值，保留可选参数中的 undefined 与显式 null 的区别；返回值也保留 undefined。宿主将位置参数交给命名空间契约重封装为原生对象，单字段原生响应由命名空间层解包后返回 VM。
+
+原生 run_code 通过 integration/namespace_runtime.ts 的 PtcRuntime seam 使用本运行时。工具调用闭包由原生 transport 提供，位置参数和返回值按 manifest 投影。worker 内的 ToolCallError 属于 guest realm，包含失败命名空间路径 toolName。

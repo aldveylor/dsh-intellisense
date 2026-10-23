@@ -22,8 +22,8 @@ os.execv(sys.argv[1], sys.argv[1:])
 
 /** @brief Refuse loading when the required process isolation cannot actually deny filesystem and networking. */
 export function verifySandbox(python: string, timeoutMs = 10_000): void {
-    if (process.platform !== 'linux') throw new Error('Text PTC requires Linux seccomp; no unrestricted fallback is available');
+    if (process.platform !== 'linux') throw new Error('Intellisense PTC requires Linux seccomp; no unrestricted fallback is available');
     const probe = `const fs=require('node:fs');const net=require('node:net');let denied=false;try{fs.readFileSync('/etc/hostname')}catch(e){denied=e.code==='ERR_ACCESS_DENIED'}if(!denied)process.exit(2);const server=net.createServer();server.on('error',e=>{if(e.code==='EPERM'||e.code==='EACCES')process.stdout.write('SANDBOX_OK');else process.exitCode=3});server.listen(0,'127.0.0.1',()=>process.exit(4));`;
     const result = spawnSync(python, ['-c', launcher, process.execPath, '--permission', '--eval', probe], { env: {}, encoding: 'utf8', timeout: timeoutMs });
-    if (result.status !== 0 || result.stdout !== 'SANDBOX_OK') throw new Error(`Text PTC sandbox unavailable: ${result.error?.message ?? result.stderr ?? result.status}`);
+    if (result.status !== 0 || result.stdout !== 'SANDBOX_OK') throw new Error(`Intellisense PTC sandbox unavailable: ${result.error?.message ?? result.stderr ?? result.status}`);
 }

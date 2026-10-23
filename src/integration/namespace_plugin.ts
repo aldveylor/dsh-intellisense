@@ -6,18 +6,18 @@ import { z } from 'zod';
 import { DshStore } from '../storage/store.js';
 import { SemanticRegistry } from '../registry/registry.js';
 import { ProfileSessions } from '../registry/profiles.js';
-import { Config as ProtocolConfig } from '../protocol/config.js';
 import { NamespaceComponent } from './namespace_component.js';
 import { Aliases } from './namespace.js';
 import { registerIntellisense } from './intellisense.js';
 import { registerToolCommands } from './tool_commands.js';
 import { registerManagement } from '../management/server/routes.js';
 import { OrganizationService } from './organization.js';
+import { executionInstructions } from './prompt.js';
 
 export const name = 'command-namespaces';
 export const inject = ['llm', 'tools', 'agents', 'systemPrompt', 'storage', storageBackendServiceKey('json'), 'subagents', 'connection'];
 /** @brief Namespace discovery budgets do not require or configure a runtime. */
-export const Config = z.object({ protocol: ProtocolConfig.default(() => ProtocolConfig.parse({})), aliasesFile: z.string().optional() }).prefault({});
+export const Config = z.object({ mode: z.enum(['native', 'ptc']).default('native'), aliasesFile: z.string().optional() }).prefault({});
 
 /** @brief Independent namespace service shared by native tools, the UI, and optional PTC execution. */
 declare module '@deepseek-ai/cordis' { interface Context { commandNamespaces: NamespaceComponent } }
@@ -33,26 +33,29 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
     const store = new DshStore(unit);
     const registry = new SemanticRegistry(store); await registry.load();
     const profiles = new ProfileSessions(registry, store);
-    const namespaces = new NamespaceComponent(ctx, registry, profiles, aliases);
+    const namespaces = new NamespaceComponent(ctx, registry, profiles, aliases, config.mode);
     ctx.provide('commandNamespaces', namespaces);
     registerIntellisense(ctx, namespaces);
     registerToolCommands(ctx, registry, profiles, agent => namespaces.registryFor(agent), agent => namespaces.configurationChanged(agent));
     registerManagement(ctx, registry, namespaces, new OrganizationService(ctx, registry));
-    ctx.on('agent/created', async ({ agent }) => { if (agent.session.header.origin !== 'subagent') { await namespaces.registryFor(agent); if (!namespaces.isPtc(agent)) await namespaces.syncNative(agent); } });
+    ctx.on('agent/created', async ({ agent }) => { await namespaces.configure(agent); });
     ctx.on('agent/disposed', ({ agent }) => { namespaces.release(agent.id); });
     ctx.on('system-prompt/assemble', async (_assembly, context, next) => {
         const assembled = await next();
         const agent = context.agent;
-        if (agent && agent.session.header.origin !== 'subagent') {
+        if (agent) {
             assembled.sections.push({ name: 'namespaces:directory', text: await namespaces.prompt(agent), interpolate: false });
             if (!namespaces.isPtc(agent)) {
                 const names = new Set(await namespaces.syncNative(agent));
                 assembled.sections = assembled.sections.filter(section => !section.name.startsWith('tool:') && !section.name.startsWith('tools:'));
                 assembled.tools = agent.ctx.tools.schemas(agent).filter(tool => names.has(tool.name));
-                assembled.sections.push({ name: 'namespaces:execution', text: 'Use native DSML tool calls with namespace names such as tools.intellisense and std.cwd. Call tools.intellisense with a queries string array before using an unfamiliar tool. A trailing dot lists namespace members; an exact path returns its TypeScript signature. DSML arguments use named parameter fields; tools.intellisense takes {"queries":["std.","std.cwd","std.fs."]}. Query results are reference data. Call commands directly, without JavaScript execution fences. Use the language of the user request for answers.', interpolate: false });
+            } else {
+                assembled.sections = assembled.sections.filter(section => !section.name.startsWith('tool:') && !section.name.startsWith('tools:'));
+                assembled.tools = assembled.tools.filter(tool => tool.name === 'run_code');
             }
+            assembled.sections.push({ name: 'namespaces:execution', text: executionInstructions(namespaces.isPtc(agent) ? 'ptc' : 'native'), interpolate: false });
         }
         return assembled;
     });
-    for (const agent of ctx.agents.list()) if (agent.session.header.origin !== 'subagent') { await namespaces.registryFor(agent); if (!namespaces.isPtc(agent)) await namespaces.syncNative(agent); }
+    for (const agent of ctx.agents.list()) await namespaces.configure(agent);
 }

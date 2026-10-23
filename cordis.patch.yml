@@ -1,5 +1,5 @@
 - insert:
-    - id: ts-intellisense
+    - id: intellisense
       name: dsh-intellisense
       config:
         timeoutMs: 120000

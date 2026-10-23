@@ -1,7 +1,6 @@
-import { appendPluginRecord } from '@deepseek-ai/dsh-session';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
-import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
-import '@deepseek-ai/dsh-agent-preset-registry';
+import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
+import * as presentation from './presentation.js';
 import type { Position } from '../protocol/events.js';
 import type { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
@@ -14,10 +13,12 @@ import type { z } from 'zod';
 
 /** @brief Profile-backed namespace discovery, independent of any execution runtime. */
 export class NamespaceComponent {
+    private generatedTools = new WeakSet<ToolDefinition>();
     private positions = new Map<string, Position>();
-    private nativeTools = new Map<string, { fingerprint: string; names: Set<string>; disposers: (() => void)[] }>();
+    private nativeTools = new Map<string, { fingerprint: string; disposers: (() => void)[] }>();
 
-    constructor(private ctx: Context, private registry: SemanticRegistry, readonly profiles: ProfileSessions, private aliases: z.infer<typeof Aliases>) {
+    constructor(private ctx: Context, private registry: SemanticRegistry, readonly profiles: ProfileSessions, private aliases: z.infer<typeof Aliases>, private defaultMode: presentation.PresentationMode = 'native') {
+        ctx.effect(() => () => { for (const id of this.nativeTools.keys()) this.release(id); });
         ctx.on('agent/request', async (payload, next) => {
             this.positions.set(payload.agent.id, { turn: payload.turn, step: payload.step });
             return next();
@@ -26,8 +27,14 @@ export class NamespaceComponent {
 
     /** @brief Resolve the actual live preset so native sessions never enter the PTC runtime. */
     isPtc(agent: Agent): boolean {
-        const preset = this.ctx.get('agentPresets')?.composedPreset(agent.ctx);
-        return !!this.ctx.get('codeRuntime') && (!preset || preset === 'intellisense-ptc');
+        return (presentation.presentationFor(agent.ctx) ?? this.defaultMode) === 'ptc';
+    }
+
+    /** @brief Configure preset-free sessions while preserving explicit inherited mode declarations. */
+    async configure(agent: Agent): Promise<void> {
+        if (!presentation.presentationFor(agent.ctx)) await agent.ctx.plugin(presentation, { mode: this.defaultMode });
+        await this.registryFor(agent);
+        if (!this.isPtc(agent)) await this.syncNative(agent);
     }
 
     /** @brief Read the native loop position for ordinary tool query audit events. */
@@ -36,7 +43,7 @@ export class NamespaceComponent {
     /** @brief Read only the native tool catalog visible to this agent. */
     physical(agent?: Agent): PhysicalTool[] {
         const tools = agent?.ctx.tools ?? this.ctx.tools;
-        return tools.schemas(agent).filter(tool => !['exec', 'run_code'].includes(tool.name) && !this.nativeTools.get(agent?.id ?? '')?.names.has(tool.name)).map(tool => ({ id: tool.name, description: tool.description, parameters: tool.parameters, output: tools.get(tool.name, agent)!.output.schema }));
+        return tools.schemas(agent).filter(tool => !['exec', 'run_code'].includes(tool.name) && !this.generatedTools.has(tools.get(tool.name, agent)!)).map(tool => ({ id: tool.name, description: tool.description, parameters: tool.parameters, output: tools.get(tool.name, agent)!.output.schema }));
     }
 
     /** @brief Refresh global metadata without changing any Profile configuration. */
@@ -83,19 +90,23 @@ export class NamespaceComponent {
         const previous = this.nativeTools.get(agent.id);
         if (previous?.fingerprint === fingerprint) return entries.map(entry => entry.path);
         for (const dispose of previous?.disposers ?? []) dispose();
-        const state = { fingerprint, names: new Set(entries.filter(entry => entry.path !== entry.tool).map(entry => entry.path)), disposers: [] as (() => void)[] };
+        const state = { fingerprint, disposers: [] as (() => void)[] };
         this.nativeTools.set(agent.id, state);
         for (const entry of entries) {
             if (entry.path === entry.tool) continue;
-            state.disposers.push(agent.ctx.tools.register({
+            const definition: ToolDefinition = {
                 name: entry.path, description: entry.doc, parameters: nativeSchema(entry),
                 output: { schema: {}, render: (_args, value) => [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value) }] },
                 execute: async (args, parent) => {
-                    const current = (await this.entries(agent)).find(candidate => candidate.path === entry.path && candidate.tool === entry.tool);
+                    const caller = parent.agent;
+                    if (!caller) throw new Error('A live conversation is required');
+                    const current = (await this.entries(caller)).find(candidate => candidate.path === entry.path && candidate.tool === entry.tool);
                     if (!current) throw new Error(`Execution denied: ${entry.path}`);
-                    return this.dispatch(agent, current, nativeArgumentsFor(current, args), parent, 1);
+                    return this.dispatch(caller, current, nativeArgumentsFor(current, args), parent, 1);
                 },
-            }));
+            };
+            this.generatedTools.add(definition);
+            state.disposers.push(agent.ctx.tools.register(definition));
         }
         return entries.map(entry => entry.path);
     }
@@ -109,6 +120,7 @@ export class NamespaceComponent {
         const settled = await agent.ctx.tools.execute({ agent, callId, rootCallId: parent.rootCallId, parent: parent.token, name: entry.tool, arguments: args, signal: parent.signal });
         agent.session.append('tool/ptc-dispatch', { ...ids, isError: settled.isError, content: settled.content, ...(settled.meta ? { meta: settled.meta } : {}) });
         for (const context of settled.additionalContexts ?? []) parent.deferContext(context);
+        if (settled.concludesTurn) parent.concludeTurn();
         if (settled.isError) throw new Error(settled.error.message);
         return resultFor(entry, settled.value) ?? null;
     }

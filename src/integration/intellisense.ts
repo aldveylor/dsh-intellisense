@@ -23,8 +23,8 @@ export function intellisense(queries: readonly string[], entries: readonly Manif
     }
     for (const query of queries) {
         if (query !== '' && !/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*\.?$/.test(query)) throw new Error(`Invalid IntelliSense query: ${query}`);
-        const exact = !query.endsWith('.') && entries.find(entry => entry.path === query);
-        const fixed = !query.endsWith('.') && commands.find(command => command.path === query);
+        const exact = query.endsWith('.') ? undefined : entries.find(entry => entry.path === query);
+        const fixed = query.endsWith('.') ? undefined : commands.find(command => command.path === query);
         if (exact || fixed) {
             Object.assign(nodeFor(query), { ...(exact ? { entry: exact } : { signature: fixed!.signature, description: fixed!.description }), detailed: true });
             continue;
