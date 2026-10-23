@@ -41,13 +41,23 @@ export function joinContinuation(prefix: string, text: string): { text: string; 
     return { text: prefix + text, discarded: 0 };
 }
 
-/** @brief Find the immutable prose prefix, retaining a partial opening fence at the current line. */
+/** @brief Locate leaked native tool syntax before any executable source or discarded tail. */
+export function nativeCallStart(text: string): number | undefined {
+    const match = /^[ \t]*<(?:｜｜DSML｜｜|\|\|DSML\|\|)/m.exec(text);
+    const block = execBlocks(text)[0];
+    return match && (!block || match.index < block.start) ? match.index : undefined;
+}
+
+/** @brief Retain executable/native call syntax and partial opening markers across chunks. */
 export function proseEnd(text: string): number {
     const block = execBlocks(text)[0];
+    const native = nativeCallStart(text);
+    if (native !== undefined) return native;
     if (block) return block.start;
     const start = text.lastIndexOf('\n') + 1;
     const line = text.slice(start);
-    if (['```js:exec', '```ts:exec'].some(fence => fence.startsWith(line) || line.trimEnd() === fence)) return start;
+    if (['```js:exec', '```ts:exec'].some(fence => fence.startsWith(line) || line.trimEnd() === fence)
+        || ['<｜｜DSML｜｜', '<||DSML||'].some(marker => marker.startsWith(line.trimStart()))) return start;
     return text.length;
 }
 

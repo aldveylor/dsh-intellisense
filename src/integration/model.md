@@ -2,7 +2,7 @@
 
 `src/index.ts` 装配 Text PTC 模式。普通 AgentLoop 主请求交给 TextExecAdapter；标题、压缩和原生子代理不走该接管。原生循环拥有 exec 执行，适配器仅合成工具块，避免重复执行。
 
-`adapter.ts` 注册宿主 exec 工具，并从 agent/request 获取真实 turn/step。每次请求保留原人设、技能、项目指令和模式策略；原工具协议分区由 assemble waterfall 移除，注入新的末尾 js:exec/ts:exec 协议。系统指令、浅层自定义命名空间和经过转义的运行时状态全文记录为 exec/context；补全与生成原文分别记录 exec/intellisense 与 exec/rewrite，以便重建实际请求。
+`adapter.ts` 注册宿主 exec 工具，并从 agent/request 获取真实 turn/step。每次请求保留原人设、技能、项目指令和模式策略；原工具协议分区由 assemble waterfall 移除，注入新的末尾 js:exec/ts:exec 协议，明确所有工具（含提问和展示）通过运行时命名空间调用，禁止输出原生工具调用或 DSML 标记。系统指令、浅层自定义命名空间和经过转义的运行时状态全文记录为 exec/context；补全与生成原文分别记录 exec/intellisense 与 exec/rewrite，以便重建实际请求。
 
 `namespace.ts` 由实际 agent scope 的工具 schema、session Profile 及 YAML 别名生成 manifest。未挂载工具使用 tools.<encoded-id>，维护命令为 tools.mount/unmount/comment/fix/commit/profiles/loadprofile，不再暴露 unknown。别名参数重命名、schema 校验和权限检查均在宿主。子调用通过 tools.execute，传入 parent execution token/rootCallId，成对记录原生 PTC dispatch 事件，并向父执行传递 additionalContexts。拒绝在 VM 内表现为 rejected Promise。
 

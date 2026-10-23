@@ -57,7 +57,7 @@ export function continuation(options: GenerateOptions, prefix: string, info: str
                 source: { kind: 'model', provider: options.provider, model: options.model }, content: [{ type: 'text', text: prefix }],
             },
             { role: 'user', content: [{ type: 'text', text: repair
-                ? 'The previous exec fence was malformed and was not executed. Rewrite the complete response with one closed js:exec or ts:exec block at the end.'
+                ? 'The previous execution syntax was malformed and was not executed. Native tool calls and DSML tags are unsupported. Rewrite the complete response with one closed js:exec or ts:exec block at the end, calling tools through the JavaScript runtime namespaces. If a signature is unknown, use the configured completion marker inside the open exec block. If no execution is needed, answer directly in prose.'
                 : `${info}\nContinue exactly from the interruption. Output only the remaining code and its closing fence. Do not repeat the prefix.` }] },
         ]),
     };

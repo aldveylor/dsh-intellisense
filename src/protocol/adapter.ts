@@ -4,7 +4,7 @@ import {
 } from '@deepseek-ai/dsh-llm';
 import { Config, type ProtocolConfig } from './config.js';
 import { continuation, projectRequest } from './projection.js';
-import { cleanControls, escapeData, execBlocks, joinContinuation, MarkerBuffer, proseEnd } from './syntax.js';
+import { cleanControls, escapeData, execBlocks, joinContinuation, MarkerBuffer, nativeCallStart, proseEnd } from './syntax.js';
 import type { AuditEvents, Position } from './events.js';
 
 /** @brief Completion query data is scoped to the current request and cancellation signal. */
@@ -120,6 +120,7 @@ export class TextExecAdapter extends LlmAdapter {
         try {
             for (let segment = 0; segment < this.config.maxSegments; segment++) {
                 signal.throwIfAborted();
+                const streamProse = buffered.length === 0;
                 let response = '';
                 let finish: FinishReason | undefined;
                 let usage: TokenUsage | undefined;
@@ -146,7 +147,7 @@ export class TextExecAdapter extends LlmAdapter {
                         else if (chunk.type === 'block-end' && chunk.block.type === 'text' && !textDeltas.has(chunk.index)) delta = chunk.block.text;
                         response += delta;
                         if (buffered.length + response.length > this.config.maxBufferedChars) throw new LlmError('Text execution output exceeds configured buffer', 'OUTPUT_LIMIT');
-                        if (segment === 0 && delta) {
+                        if (streamProse && delta) {
                             const end = proseEnd(response);
                             yield* checked(prose.push(response.slice(proseOffset, end)), signal);
                             proseOffset = end;
@@ -168,6 +169,15 @@ export class TextExecAdapter extends LlmAdapter {
                 } else buffered = response;
                 if (buffered.length > this.config.maxBufferedChars) throw new LlmError('Text execution output exceeds configured buffer', 'OUTPUT_LIMIT');
                 if (finish?.kind !== 'stop') throw new LlmError(`Upstream did not stop normally (${finish?.kind ?? 'missing finish'})`, 'INVALID_FINISH');
+                if (nativeCallStart(buffered) !== undefined) {
+                    if (this.config.malformedPolicy === 'repair-once' && !repaired) {
+                        await audit('', 'error');
+                        request = { ...continuation(initial, buffered, '', segment, true), signal };
+                        buffered = ''; proseOffset = 0; repaired = true;
+                        continue;
+                    }
+                    throw new LlmError('Native DSML tool syntax requires an exec fence', 'MALFORMED_OUTPUT');
+                }
                 const blocks = execBlocks(buffered);
                 const selected = blocks.filter(block => !block.abandoned).at(-1);
                 const last = blocks.at(-1);
@@ -202,7 +212,7 @@ export class TextExecAdapter extends LlmAdapter {
                     if (this.config.malformedPolicy === 'repair-once' && !repaired) {
                         await audit('', 'error');
                         request = { ...continuation(initial, buffered, '', segment, true), signal };
-                        buffered = ''; repaired = true;
+                        buffered = ''; proseOffset = 0; repaired = true;
                         continue;
                     }
                     throw new LlmError('Unclosed exec fence', 'MALFORMED_OUTPUT');
@@ -210,7 +220,7 @@ export class TextExecAdapter extends LlmAdapter {
                 const code = selected ? cleanControls(selected.code, this.config.marker) : '';
                 await audit(code, selected ? 'exec' : blocks.length ? 'abandoned' : 'prose');
                 signal.throwIfAborted();
-                if (segment === 0) {
+                if (streamProse) {
                     const end = blocks[0]?.start ?? buffered.length;
                     yield* checked(prose.push(buffered.slice(proseOffset, end)), signal);
                 }

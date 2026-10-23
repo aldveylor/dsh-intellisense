@@ -350,3 +350,68 @@ test('native tool update notices are excluded from the schema-free upstream proj
     ] });
     assert.deepEqual(projected.messages.map(message => message.role), ['user']);
 });
+
+const nativeCall = '<｜｜DSML｜｜ calls> <｜｜DSML｜｜ invoke name="ask_user_question"> <｜｜DSML｜｜ parameter name="questions" string="false">[{"question":"完整的树指的是哪个？"}]</｜｜DSML｜｜ parameter> </｜｜DSML｜｜ invoke> </｜｜DSML｜｜ calls>';
+
+test('leaked DSML is withheld across every split and repaired through an exec fence', async () => {
+    for (const text of [nativeCall, nativeCall.replaceAll('｜', '|')]) {
+        const input = `Checking.\n  ${text}`;
+        for (let split = 0; split <= input.length; split++) {
+            const f = fixture([[input.slice(0, split), input.slice(split)], '```js:exec\nreturn tools.ask_user_question({questions:[]});\n```']);
+            const chunks = await f.run();
+            assertStream(chunks, 'tool-calls');
+            assert.equal(codeOf(chunks), 'return tools.ask_user_question({questions:[]});');
+            assert.equal(chunks.filter(c => c.type === 'text-delta').map(c => c.text).join(''), 'Checking.\n');
+            assert.equal(f.requests.length, 2);
+            assert(JSON.stringify(f.requests[1]!.messages.at(-1)).includes('DSML tags are unsupported'));
+            assert.deepEqual(f.events.map(e => 'reason' in e.data && e.data.reason), ['error', 'exec']);
+            const first = f.events[0]!.data;
+            assert('original' in first && first.original[0] === input);
+        }
+    }
+});
+
+test('DSML repair is bounded and respects error policy and abnormal finish', async () => {
+    for (const [segments, config, requests] of [
+        [[nativeCall, nativeCall], {}, 2],
+        [[nativeCall], { malformedPolicy: 'error' }, 1],
+        [[nativeCall], { maxSegments: 1 }, 1],
+        [['```js:exec\nbad();', nativeCall], {}, 2],
+    ] as const) {
+        const f = fixture([...segments], config);
+        const chunks = await f.run();
+        assertStream(chunks, 'error');
+        assert.equal(codeOf(chunks), undefined);
+        assert.equal(f.requests.length, requests);
+        assert.equal(chunks.filter(c => c.type === 'text-delta').length, 0);
+    }
+    const adapter = new TextExecAdapter({ stream: () => response(nativeCall, { kind: 'max-tokens' }) }, {
+        complete: async () => undefined, audit: () => {},
+    }, { turn: 1, step: 1 });
+    const chunks = await collect(adapter.stream(initial));
+    assertStream(chunks, 'error');
+    assert.equal(chunks.filter(c => c.type === 'text-delta').length, 0);
+});
+
+test('a corrected response can stream prose and still request signature completion', async () => {
+    const answer = await fixture([nativeCall, ['No execution ', 'needed.']]).run();
+    assertStream(answer, 'stop');
+    assert.equal(answer.filter(c => c.type === 'text-delta').map(c => c.text).join(''), 'No execution needed.');
+    const continued = await fixture([nativeCall, 'Corrected.\n```js:exec\nreturn tools.' + marker, 'ask_user_question({questions:[]});\n```']).run();
+    assertStream(continued, 'tool-calls');
+    assert.equal(codeOf(continued), 'return tools.ask_user_question({questions:[]});');
+    assert.equal(continued.filter(c => c.type === 'text-delta').map(c => c.text).join(''), 'Corrected.\n');
+});
+
+test('DSML inside executable source or its discarded tail does not trigger repair', async () => {
+    const code = 'return `\n' + nativeCall + '\n`;';
+    const f = fixture(['```js:exec\n' + code + '\n```\n' + nativeCall]);
+    const chunks = await f.run();
+    assertStream(chunks, 'tool-calls');
+    assert.equal(codeOf(chunks), code);
+    assert.equal(f.requests.length, 1);
+    const prose = 'DSML syntax starts with <｜｜DSML｜｜ calls>.';
+    const answer = await fixture([prose]).run();
+    assertStream(answer, 'stop');
+    assert.equal(answer.filter(c => c.type === 'text-delta').map(c => c.text).join(''), prose);
+});
