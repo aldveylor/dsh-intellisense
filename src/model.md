@@ -10,7 +10,7 @@
 
 Intellisense PTC 模式仅向模型提供原生 run_code 工具。`integration/namespace_runtime.ts` 实现 PtcRuntime seam，将受限 RuntimeHost 和 manifest 命名空间接入原生 transport 的工具绑定；原生层拥有调度、权限、父子审计及工具结果历史。本插件不拦截模型流，不再解析代码围栏或提供源码续写。
 
-`integration/intellisense.ts` 注册 tools_intellisense，固定映射 tools.intellisense。查询列表包含尾点成员查询与精确签名查询，合并返回一个 TypeScript global 命名空间声明。PTC 可使用 tools.intellisense("std.", "std.cwd", "std.fs.")；DSML 调用同名工具，参数为 queries 数组。结果通过普通工具历史返回，并保存 plugin:ts_intellisense/intellisense 审计。
+`integration/intellisense.ts` 注册 tools_intellisense，固定映射 tools.intellisense。查询列表包含尾点成员查询与精确签名查询，合并返回一个 TypeScript global 命名空间声明。PTC 使用 tools.intellisense(["std.", "std.cwd", "std.fs."])；DSML 调用同名工具，参数为 queries 数组。结果通过普通工具历史返回，并保存 plugin:ts_intellisense/intellisense 审计。
 
 `runtime/` 管理每会话受限 Node 进程、严格 async 函数体、IPC、取消和超时。局部声明不持久，显式 globalThis 状态仅在进程存活期间保留。使用原生 console。DSML 模式不创建会话运行时。
 
@@ -18,13 +18,13 @@ Intellisense PTC 模式仅向模型提供原生 run_code 工具。`integration/n
 
 `registry/registry.ts` 管理全局具名 Profile 目录、映射、别名、注释、排序、启用状态、固定路径和使用统计。`registry/profiles.ts` 为每会话持有不可变配置版本的智能引用，修改按 CoW 分离；目录覆盖/删除不修改既有会话。新会话捕获 UI 当前选中配置。工具权限始终由原生 guard/策略决定。
 
-tools.intellisense 固定映射到内置 tools_intellisense，不受 Profile 图钉偏好或启用状态影响；其他 tools_* 管理工具暂时不进入实际执行与补全环境，未配置物理工具需挂载或提供自定义别名后调用；不生成 unknown 命名空间。路径保留名称、重复和树碰撞检查。失效工具保留配置，但不进入实际 manifest、补全或执行环境。builtinVisible 记录内置固定提示偏好，按 Profile 保存；默认只提示非 Node 标准的自定义命令，console 等标准接口默认不固定提示。unmountedVisible 保存未挂载工具的固定提示偏好，不兼容旧字段名。
+tools.intellisense 固定映射到内置 tools_intellisense，强制固定等级 2，不受 Profile 图钉偏好或启用状态影响。tools 仅保留 intellisense 和 profile：profile.load(name?) 返回当前或加载具名 Profile；profile.save(name, profile) 保存树，省略名称时使用当前 Profile，也支持 save(profile)。profile.annotation 与 profile.commands 在 VM 执行前预加载为冻结常量，在 DSML 中为可直接调用的无参数工具，分别返回英文模型声明与原始命令摘要；其余旧 tools 管理命令移除。未配置物理工具需挂载或提供自定义别名后调用；不生成 unknown 命名空间。路径保留名称、重复和树碰撞检查。失效工具保留配置，但不进入实际 manifest、补全或执行环境。builtinVisible 记录内置固定提示偏好，按 Profile 保存；默认只提示非 Node 标准的自定义命令，console 等标准接口默认不固定提示。unmountedVisible 保存未挂载工具的固定提示偏好，不兼容旧字段名。
 
 `storage/store.ts` 通过 DSH JSON backend 保存工具目录、Profile 版本和会话引用；MemoryStore/FileStore 用于独立使用。运行时不保存可执行状态或重放工具。
 
 ## 管理 UI
 
-`management/panel/management_panel.tsx` 和 `management/panel/tree_provider.ts` 显示 console、tools、vm 固定树与可配置命名空间；内置描述/注释/tooltip 固定英文，其余 UI 支持中英文。内置命令不可改名、拖动或删除，tools.intellisense 始终固定提示，其余可用命令的图钉按 0 → 1 → 2 → 0 切换，等级 2 使用黄色图标，并按当前 Profile 草稿保存。
+`management/panel/management_panel.tsx` 和 `management/panel/tree_provider.ts` 显示 console、tools、vm 固定树与可配置命名空间；内置描述/注释/tooltip 固定英文，其余 UI 支持中英文。内置命令不可改名、拖动或删除，tools.intellisense 强制固定等级 2、禁用图钉切换，tools.profile 显示嵌套子树，其余可用命令的图钉按 0 → 1 → 2 → 0 切换，等级 2 使用黄色图标，并按当前 Profile 草稿保存。
 
 UI 不再显示 unknown 块。树上方显示当前可用但未挂载的工具数量，点击打开只含未挂载工具的选择器；数量随挂载、移除映射和切换 Profile 更新。失效工具不计入，已挂载但禁用的工具仍算已挂载；内置管理工具和 run_code 不计入未挂载工具。
 
