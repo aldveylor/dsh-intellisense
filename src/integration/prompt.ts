@@ -1,3 +1,5 @@
+import { decodeHTML } from 'entities';
+
 /** @brief Explain Text PTC execution, discovery controls and the language of user-facing answers. */
 export function executionInstructions(marker: string, examplePath = 'std.cwd'): string {
     return `Use the language of the user's human-authored request for all user-facing explanations, progress updates and final answers, unless the user explicitly requests another language. Synthetic user-role continuation messages are not new human requests.
@@ -38,7 +40,7 @@ export function namespaceDirectory(hints: readonly (string | NamespaceHint)[]): 
     const lines = ['namespace global {'];
     /** @brief Keep Profile briefs on a single comment line and prevent fence injection. */
     function brief(text?: string): string {
-        const value = text?.replace(/[`\r\n\u2028\u2029]/g, ' ').replace(/<\|/g, '< |').trim();
+        const value = text === undefined ? undefined : decodeHTML(text).replace(/[`\r\n\u2028\u2029]/g, ' ').replace(/<\|/g, '< |').trim();
         return value ? `  // ${value}` : '';
     }
     /** @brief Render nested namespace declarations in deterministic name order. */

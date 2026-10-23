@@ -42,7 +42,7 @@ test('new mode executes through the native loop, audits guarded children and pro
     const ctx = new Context();
     try {
         await ctx.plugin(LlmRuntime); await ctx.plugin(SessionStore); await ctx.plugin(SessionProjectionRegistry);
-        await ctx.plugin(SystemPrompt, { personaPrefix: '' }); await ctx.plugin(ToolRuntime); await ctx.plugin(AgentRegistry);
+        await ctx.plugin(SystemPrompt, { personaPrefix: 'Preserve the original persona.' }); await ctx.plugin(ToolRuntime); await ctx.plugin(AgentRegistry);
         await ctx.plugin(AgentLoop, { agents: [] }); await ctx.plugin(Storage); await ctx.plugin(JsonStorage, { root: directory });
         const routes = new Map<string, ConnectionFetchRoute>();
         ctx.provide('connection', { fetch: { register: (route: ConnectionFetchRoute) => { routes.set(route.path, route); return () => { routes.delete(route.path); }; } } });
@@ -52,7 +52,12 @@ test('new mode executes through the native loop, audits guarded children and pro
         let reads = 0;
         ctx.tools.register(defineTool({ name: 'read_file', description: 'Read a file', parameters: { path: { type: 'string', required: true } }, output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] }, execute: async () => { reads++; return 'contents'; } }));
         const model = new ScriptedModel(); ctx.llm.registerAdapter(['fake'], model);
+        let rulesRevision = 0;
+        ctx.systemPrompt.section({ name: 'test:dynamic-rules', order: 1, text: () => `Current rules revision: ${rulesRevision}` });
         const mounted = await ctx.plugin(plugin, { timeoutMs: 3000 });
+        const sense = ctx.get('intellisense')!;
+        const complete = sense.complete.bind(sense);
+        sense.complete = async (...args) => { rulesRevision++; return complete(...args); };
         assert(ctx.tools.get('exec'));
         assert(ctx.llm.listProviders().some(provider => provider.id === 'text-ptc'));
         const agent = await ctx.agentLoop.create(SessionId('active-text-ptc'), { provider: 'fake', model: 'scripted' });
@@ -92,6 +97,10 @@ test('new mode executes through the native loop, audits guarded children and pro
         assert(completionUpdate && completionUpdate.seq > promptEvents[0].seq);
         assert(JSON.stringify(completionUpdate.data).includes('strict AsyncFunction'));
         assert(JSON.stringify(completionUpdate.data).includes('## Namespaces'));
+        assert(JSON.stringify(completionUpdate.data).includes('Preserve the original persona.'));
+        assert(JSON.stringify(completionUpdate.data).includes('Current rules revision: 1'));
+        assert(JSON.stringify(promptEvents[0].data).includes('Current rules revision: 0'));
+        assert(!JSON.stringify(promptEvents[0].data).includes('IntelliSense reference data'));
         assert.equal(model.requests.at(-2)!.messages.filter(message => message.role === 'system').length, 1);
         assert(systemOf(model.requests.at(-2)!).includes('IntelliSense reference data'));
         assert(agent.session.snapshotEvents().some(event => event.type === 'system/message' && JSON.stringify(event.data).includes('IntelliSense reference data')));
@@ -138,7 +147,7 @@ test('standalone namespace plugin injects initial hints and completion updates w
     const ctx = new Context();
     try {
         await ctx.plugin(LlmRuntime); await ctx.plugin(SessionStore); await ctx.plugin(SessionProjectionRegistry);
-        await ctx.plugin(SystemPrompt, { personaPrefix: '' }); await ctx.plugin(ToolRuntime); await ctx.plugin(AgentRegistry);
+        await ctx.plugin(SystemPrompt, { personaPrefix: 'Preserve the original persona.' }); await ctx.plugin(ToolRuntime); await ctx.plugin(AgentRegistry);
         await ctx.plugin(AgentLoop, { agents: [] }); await ctx.plugin(Storage); await ctx.plugin(JsonStorage, { root: directory });
         ctx.provide('connection', { fetch: { register: () => () => {} } });
         ctx.provide('subagents', { startActivation: async () => { throw new Error('Unused'); } });

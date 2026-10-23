@@ -65,7 +65,7 @@ export function argumentsFor(entry: ManifestEntry, values: unknown): unknown {
         args = Object.fromEntries(fields.flatMap((field, index) => values[index] === undefined ? [] : [[field.native, values[index]]]));
     } else {
         if (values.length > 1) throw new Error('Too many arguments');
-        args = values[0] ?? {};
+        args = values[0] === undefined ? {} : values[0];
         if (entry.argMap && args && typeof args === 'object' && !Array.isArray(args)) {
             const input = args;
             args = Object.fromEntries(Object.entries(input).map(([key, value]) => [entry.argMap![key] ?? key, value]));

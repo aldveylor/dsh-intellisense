@@ -88,4 +88,5 @@ test('zero-argument closed objects and unstructured object inputs keep unambiguo
     assert.deepEqual(argumentsFor(entry, []), {});
     const open = { ...entry, schema: { type: 'object' } };
     assert.deepEqual(argumentsFor(open, [{ key: 'value' }]), { key: 'value' });
+    assert.throws(() => argumentsFor(open, [null]), /Invalid arguments/);
 });

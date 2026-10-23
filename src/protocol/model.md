@@ -21,3 +21,5 @@
 `namespace_adapter.ts` 为无 VM 的原生命名空间模式提供独立适配器。响应在交付前缓冲，任意分片的 IntelliSense marker 触发系统数据注入；BREAK 使当前响应的结构化工具调用及 DSML 调用块全部失效，注释仅进入审计。缺少正常 finish、超限或取消时不交付调用。`stream.ts` 共享取消等待与 usage 合并，不依赖执行运行时。
 
 补全后先持久化审计，再使用 assembleContextFor / systemPrompt.assemble / renderPrompt 完整重生成提示词；新增的 system/message 保存完整结果，保留最初的提示词事件。续写投影仅发送重生成的完整系统消息，不拼接旧系统片段。completion_data.ts 按 HTML 语义解码实体，使用动态长度 Markdown 围栏承载声明，模型读取实际 `<`、`>`、`&` 字符。
+
+初始系统提示词消息始终由原生首步装配完整生成并保留。补全更新使用相同 agent scope 重新调用所有提示词 provider 与 waterfall，新增完整 system/message，而非仅写入签名或更改旧消息内容；请求投影使用这次完整结果。回归检查覆盖原始人设保留及动态规则 provider 的重新求值。
