@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import ts from 'typescript';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
-import { Aliases, manifest, argumentsFor, declaration } from '../../src/integration/namespace.js';
+import { Aliases, manifest, argumentsFor, resultFor, declaration } from '../../src/integration/namespace.js';
 import { intellisense } from '../../src/integration/intellisense.js';
 import { RuntimeHost } from '../../src/runtime/host.js';
 import { SessionId } from '@deepseek-ai/dsh-session';
@@ -21,8 +21,8 @@ test('disabled tools paths are omitted while YAML aliases validate mapped argume
     assert.deepEqual(manifest(registry(), []), []);
     assert(!entries.some(entry => entry.path.startsWith('unknown.')));
     const alias = entries.find(entry => entry.path === 'std.fs.read')!;
-    assert.deepEqual(argumentsFor(alias, { filename: 'a' }), { path: 'a' });
-    assert.throws(() => argumentsFor(alias, { filename: 3 }), /Invalid arguments/);
+    assert.deepEqual(argumentsFor(alias, ['a']), { path: 'a' });
+    assert.throws(() => argumentsFor(alias, [3]), /Invalid arguments/);
     assert.throws(() => manifest(registry(), Aliases.parse([{ path: 'console.read', tool: 'read_file' }])), /Reserved/);
 });
 
@@ -39,7 +39,7 @@ test('detailed completion uses valid TypeScript/Doxygen declarations and preserv
     assert(text.includes('@brief 读取文件（保留注释原文）'));
     assert(!text.includes('@param args.path'));
     assert(text.includes('/** 文件路径 */'));
-    assert(text.includes('function read(/** Tool arguments */ args: read_args): Promise<string>'));
+    assert(text.includes('function read(/** 文件路径 */ path: string): Promise<string>'));
     const file = ts.createSourceFile('intellisense.d.ts', text, ts.ScriptTarget.Latest, true);
     assert.equal(file.statements[0]?.kind, ts.SyntaxKind.ModuleDeclaration);
     assert.equal((file as typeof file & { parseDiagnostics: unknown[] }).parseDiagnostics.length, 0);
@@ -57,4 +57,35 @@ test('detailed completion uses valid TypeScript/Doxygen declarations and preserv
         const root = await intellisense({ ...query, prefix: '' }, entries, host);
         assert(!root.text.includes('tools.'));
     } finally { await host.dispose(); }
+});
+
+test('cwd and other single-field results expose scalar contracts and repack positional arguments', () => {
+    const entry = { path: 'std.cwd', tool: 'cwd', doc: 'Read &amp; change directory.', schema: { type: 'object', properties: { cd: { type: 'string' } } }, output: { type: 'object', properties: { cwd: { type: 'string' } }, required: ['cwd'] } };
+    assert(declaration(entry).includes('function cwd(cd?: string): Promise<string>'));
+    assert(declaration(entry).includes('Read & change directory.'));
+    assert.deepEqual(argumentsFor(entry, []), {});
+    assert.deepEqual(argumentsFor(entry, ['child']), { cd: 'child' });
+    assert.equal(resultFor(entry, { cwd: '/work' }), '/work');
+    assert.throws(() => argumentsFor(entry, [{ cd: 'child' }]), /Invalid arguments/);
+    assert.throws(() => argumentsFor(entry, ['a', 'b']), /Too many/);
+});
+
+test('positional contracts handle required-first order, aliases, optional holes, nulls and structured fields', () => {
+    const entry = { path: 'std.edit', tool: 'edit', doc: 'Edit', argMap: { filename: 'path' }, schema: { type: 'object', additionalProperties: false,
+        properties: { optional: { type: 'string' }, path: { type: 'string' }, options: { type: 'object', properties: { nested: { type: 'boolean' } }, additionalProperties: false }, nullable: { type: 'null' } }, required: ['path'] },
+        output: { type: 'object', properties: { a: { type: 'number' }, b: { type: 'string' } }, required: ['a', 'b'] } };
+    const signature = declaration(entry);
+    assert(signature.includes('filename: string, optional?: string,'));
+    assert.deepEqual(argumentsFor(entry, ['file', undefined, { nested: true }, null]), { path: 'file', options: { nested: true }, nullable: null });
+    const result = { a: 1, b: 'b' };
+    assert.deepEqual(resultFor(entry, result), result);
+    assert.throws(() => argumentsFor(entry, []), /Invalid arguments/);
+});
+
+test('zero-argument closed objects and unstructured object inputs keep unambiguous contracts', () => {
+    const entry = { path: 'std.list', tool: 'list', doc: 'List', schema: { type: 'object', additionalProperties: false }, output: { type: 'string' } };
+    assert(declaration(entry).includes('function list(): Promise<string>'));
+    assert.deepEqual(argumentsFor(entry, []), {});
+    const open = { ...entry, schema: { type: 'object' } };
+    assert.deepEqual(argumentsFor(open, [{ key: 'value' }]), { key: 'value' });
 });

@@ -21,7 +21,7 @@ export const RunResult = z.strictObject({ value: z.json().optional(), logs: z.ar
 /** @brief Strict worker-to-host protocol; invalid control messages close the process. */
 export const WorkerMessage = z.discriminatedUnion('type', [
     z.strictObject({ type: z.literal('result'), id: RpcId, value: z.union([RunResult, z.string(), z.null()]).optional(), error: z.string().optional() }),
-    z.strictObject({ type: z.literal('call'), id: RpcId, execution: ExecutionId, path: z.string(), args: z.json() }),
+    z.strictObject({ type: z.literal('call'), id: RpcId, execution: ExecutionId, path: z.string(), args: z.array(z.tuple([z.boolean(), z.json()])) }),
 ]);
 
 /** @brief Data shape returned to the model by the native exec tool. */

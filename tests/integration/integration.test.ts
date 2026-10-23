@@ -65,7 +65,7 @@ test('new mode executes through the native loop, audits guarded children and pro
             assert.deepEqual(errors, []);
             assert.equal(model.codes.length, 0);
         };
-        await send(['Reading.\n```ts:exec\nconst text: string=await std.fs.read({path:"a"});globalThis.count=1;console.log("Got %s",text);return text;\n```', 'The file contains contents.']);
+        await send(['Reading.\n```ts:exec\nconst text: string=await std.fs.read("a");globalThis.count=1;console.log("Got %s",text);return text;\n```', 'The file contains contents.']);
         assert.equal(reads, 1);
         const parent = executions.find(execution => execution.name === 'exec')!;
         const child = executions.find(execution => execution.name === 'read_file')!;
@@ -81,10 +81,10 @@ test('new mode executes through the native loop, audits guarded children and pro
         await send(['```js:exec\nreturn [typeof text,globalThis.count,typeof vm.print];\n```', 'The local variable is gone and global state remains.']);
         assert(JSON.stringify(model.requests.at(-1)!.messages).includes('undefined'));
         const guard = ctx.tools.guard(execution => execution.name === 'read_file' ? 'Denied by native guard' : undefined);
-        await send(['```js:exec\ntry{return await std.fs.read({path:"b"})}catch(error){return error.message}\n```', 'The read was denied.']);
+        await send(['```js:exec\ntry{return await std.fs.read("b")}catch(error){return error.message}\n```', 'The read was denied.']);
         guard(); assert.equal(reads, 1);
         assert(JSON.stringify(model.requests.at(-1)!.messages).includes('Denied by native guard'));
-        await send(['```js:exec\nreturn std.fs.read<|INTELLISENSE|>', '({path:"c"});\n```', 'Read completed.']);
+        await send(['```js:exec\nreturn std.fs.read<|INTELLISENSE|>', '("c");\n```', 'Read completed.']);
         assert.equal(reads, 2);
         const promptEvents = agent.session.snapshotEvents().filter(event => event.type === 'system/message');
         assert(promptEvents[0] && JSON.stringify(promptEvents[0].data).includes('## Namespaces'));

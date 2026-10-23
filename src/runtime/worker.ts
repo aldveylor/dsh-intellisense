@@ -52,8 +52,8 @@ function initialize(paths: string[]): void {
         for(const path of parse(paths)) {
             const parts=path.split('.'); let node=tree;
             for(const part of parts.slice(0,-1)) node=node[part]??=(Object.create(null));
-            const fn=(args={})=>new Promise((resolve,reject)=>{
-                try { call(path,stringify(args)).then(json=>{try{resolve(parse(json))}catch(error){reject(new Error(String(error))) }},error=>reject(new Error(String(error.message??error)))); }
+            const fn=(...args)=>new Promise((resolve,reject)=>{
+                try { call(path,stringify(args.map(value=>[value!==undefined,value??null]))).then(json=>{try{const [present,value]=parse(json);resolve(present?value:undefined)}catch(error){reject(new Error(String(error))) }},error=>reject(new Error(String(error.message??error)))); }
                 catch(error){reject(new Error(String(error.message??error)))}
             });
             Object.setPrototypeOf(fn,null); node[parts.at(-1)]=Object.freeze(fn);
@@ -91,7 +91,7 @@ process.on('message', async raw => {
     if (message.type === 'reply') {
         const pending = outstanding.get(message.id); outstanding.delete(message.id);
         if (message.error !== undefined) pending?.reject(new Error(message.error));
-        else pending?.resolve(JSON.stringify(message.value ?? null));
+        else pending?.resolve(JSON.stringify([message.value !== undefined, message.value ?? null]));
         return;
     }
     try {

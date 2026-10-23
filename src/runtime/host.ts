@@ -87,8 +87,8 @@ export class RuntimeHost {
             if (!active || active.id !== message.execution || state.calls.size > this.config.maxPendingCalls) throw new Error('RPC has no active owner or exceeds the pending limit');
             try {
                 active.controller.signal.throwIfAborted();
-                const value = await active.invoke(message.path, message.args, active.controller.signal);
-                this.send(state, { type: 'reply', id: message.id, value: z.json().parse(value ?? null) });
+                const value = await active.invoke(message.path, message.args.map(([present, value]) => present ? value : undefined), active.controller.signal);
+                this.send(state, { type: 'reply', id: message.id, value: value === undefined ? undefined : z.json().parse(value) });
             } catch (error) {
                 if (!state.closed) this.send(state, { type: 'reply', id: message.id, error: error instanceof Error ? error.message : String(error) });
             }

@@ -1,3 +1,4 @@
+import { decodeHTML } from 'entities';
 import { z } from 'zod';
 import { jsonSchemaToTs, validateJsonSchemaValue, type JsonSchemaNode } from '@deepseek-ai/dsh-tools';
 import type { SemanticRegistry } from '../registry/registry.js';
@@ -41,40 +42,74 @@ export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Ali
     return [...entries.values()];
 }
 
-/** @brief Validate translated arguments before entering the native policy and execution pipeline. */
-export function argumentsFor(entry: ManifestEntry, value: unknown): unknown {
-    let args = value;
-    if (entry.argMap) {
-        const input = z.record(z.string(), z.json()).parse(value);
-        args = Object.fromEntries(Object.entries(input).map(([key, item]) => [entry.argMap![key] ?? key, item]));
-        if (Object.keys(args as object).length !== Object.keys(input).length) throw new Error('Argument mapping contains a duplicate target');
+/** @brief One positional parameter projected from a native object contract. */
+interface Parameter { name: string; native: string; schema: JsonSchemaNode; required: boolean }
+
+/** @brief Expand named fields in stable required-first order; keep unconstrained objects as one argument. */
+function parameters(entry: ManifestEntry): Parameter[] | undefined {
+    if (entry.schema.type !== 'object' || entry.schema.oneOf) return;
+    const fields = Object.entries(entry.schema.properties as Record<string, JsonSchemaNode> ?? {});
+    if (!fields.length && entry.schema.additionalProperties !== false) return;
+    const names = new Map(Object.entries(entry.argMap ?? {}).map(([source, native]) => [native, source]));
+    return fields.map(([native, schema]) => ({ name: names.get(native) ?? native, native, schema, required: (entry.schema.required as string[] | undefined)?.includes(native) ?? false }))
+        .sort((a, b) => Number(b.required) - Number(a.required));
+}
+
+/** @brief Repack positional values into validated native arguments before guarded dispatch. */
+export function argumentsFor(entry: ManifestEntry, values: unknown): unknown {
+    if (!Array.isArray(values)) throw new Error('Expected positional arguments');
+    const fields = parameters(entry);
+    let args: unknown;
+    if (fields) {
+        if (values.length > fields.length) throw new Error('Too many arguments');
+        args = Object.fromEntries(fields.flatMap((field, index) => values[index] === undefined ? [] : [[field.native, values[index]]]));
+    } else {
+        if (values.length > 1) throw new Error('Too many arguments');
+        args = values[0] ?? {};
+        if (entry.argMap && args && typeof args === 'object' && !Array.isArray(args)) {
+            const input = args;
+            args = Object.fromEntries(Object.entries(input).map(([key, value]) => [entry.argMap![key] ?? key, value]));
+            if (Object.keys(args as object).length !== Object.keys(input).length) throw new Error('Argument mapping contains a duplicate target');
+        }
     }
     const errors = validateJsonSchemaValue(entry.schema as JsonSchemaNode, args);
     if (errors.length) throw new Error(`Invalid arguments: ${errors.join('; ')}`);
     return args;
 }
 
-/** @brief Detailed IntelliSense declarations use TypeScript namespace syntax and Doxygen documentation. */
+/** @brief Select only unambiguous single-property object results for scalar projection. */
+function resultField(entry: ManifestEntry): [string, JsonSchemaNode] | undefined {
+    const output = entry.output as JsonSchemaNode | undefined;
+    if (!output || output.type !== 'object' || output.oneOf) return;
+    const fields = Object.entries(output.properties ?? {});
+    return fields.length === 1 ? fields[0] : undefined;
+}
+
+/** @brief Unwrap the native response using the same contract exposed by IntelliSense. */
+export function resultFor(entry: ManifestEntry, value: unknown): unknown {
+    const field = resultField(entry);
+    return field && value && typeof value === 'object' ? Object.hasOwn(value, field[0]) ? (value as Record<string, unknown>)[field[0]] : undefined : value;
+}
+
+/** @brief Emit positional signatures and scalar results with inline decoded parameter documentation. */
 export function declaration(entry: ManifestEntry): string {
     const parts = entry.path.split('.');
     const name = parts.pop()!;
-    const doc = entry.doc.replaceAll('*/', '* /');
-    const reverse = new Map(Object.entries(entry.argMap ?? {}).map(([source, target]) => [target, source]));
-    const schema = { ...entry.schema };
-    if (entry.argMap) {
-        if (schema.properties) schema.properties = Object.fromEntries(Object.entries(schema.properties as object).map(([name, value]) => [reverse.get(name) ?? name, value]));
-        if (Array.isArray(schema.required)) schema.required = schema.required.map(name => reverse.get(name) ?? name);
-    }
+    const doc = (text: string): string => decodeHTML(text).replaceAll('*/', '* /');
     const types: string[] = [];
-    /** @brief Name object contracts so the call signature stays compact without changing the native API. */
+    /** @brief Keep complex field types out of the callable signature. */
     const typeName = (value: unknown, suffix: string): string => {
-        const text = jsonSchemaToTs(value);
+        const text = decodeHTML(jsonSchemaToTs(value));
         if (!text.includes('{')) return text;
         const alias = `${name}_${suffix}`;
         types.push(`type ${alias} = ${text};`);
         return alias;
     };
-    const args = typeName(schema, 'args');
-    const result = typeName(entry.output, 'result');
-    return `${parts.length ? `namespace ${parts.join('.')} {\n` : ''}${types.length ? types.join('\n') + '\n\n' : ''}/**\n * @brief ${doc}\n * @returns Tool result\n */\nfunction ${name}(/** Tool arguments */ args: ${args}): Promise<${result}>;\n${parts.length ? '}' : ''}`;
+    const fields = parameters(entry);
+    const args = fields ? fields.map(field => `${field.schema.description ? `/** ${doc(field.schema.description)} */ ` : ''}${field.name}${field.required ? '' : '?'}: ${typeName(field.schema, field.name)}`).join(', ')
+        : `/** Tool arguments */ args: ${typeName(entry.schema, 'args')}`;
+    const field = resultField(entry);
+    const result = typeName(field?.[1] ?? entry.output, 'result');
+    const optionalResult = field && !(entry.output as JsonSchemaNode).required?.includes(field[0]) ? ' | undefined' : '';
+    return `${parts.length ? `namespace ${parts.join('.')} {\n` : ''}${types.length ? types.join('\n') + '\n\n' : ''}/**\n * @brief ${doc(entry.doc)}\n * @returns ${field?.[1].description ? doc(field[1].description) : 'Tool result'}\n */\nfunction ${name}(${args}): Promise<${result}${optionalResult}>;\n${parts.length ? '}' : ''}`;
 }

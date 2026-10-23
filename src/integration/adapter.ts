@@ -12,7 +12,7 @@ import { escapeData } from '../protocol/syntax.js';
 import { TextExecAdapter } from '../protocol/adapter.js';
 import type { ProtocolConfig } from '../protocol/config.js';
 import type { Position } from '../protocol/events.js';
-import { argumentsFor } from './namespace.js';
+import { argumentsFor, resultFor } from './namespace.js';
 import './intellisense.js';
 
 /** @brief Plugin-owned codeRuntime definition; isolated processes implement the verified execution contract. */
@@ -83,7 +83,7 @@ export class TextPtcAdapter {
                 agent.session.append('tool/ptc-dispatch', { ...ids, isError: settled.isError, content: settled.content, ...(settled.meta ? { meta: settled.meta } : {}) });
                 for (const context of settled.additionalContexts ?? []) parent.deferContext(context);
                 if (settled.isError) throw new Error(settled.error.message);
-                return settled.value;
+                return resultFor(current, settled.value);
             }, parent.signal);
             if (result.error) throw new CodeRunFailedError(`${result.error}${result.logs.length ? '\n' + result.logs.join('\n') : ''}`);
             return result;

@@ -39,9 +39,9 @@ test('RPC values and rejections cross IPC without exposing host objects', async 
     const host = new RuntimeHost({ timeoutMs: 3000 });
     try {
         const calls: unknown[] = [];
-        const result = await host.execute('rpc', 'one', 'return await std.read({path:"a"});', ['std.read'], async (path, args) => { calls.push([path, args]); return { text: 'contents' }; }, signal());
+        const result = await host.execute('rpc', 'one', 'return await std.read("a");', ['std.read'], async (path, args) => { calls.push([path, args]); return { text: 'contents' }; }, signal());
         assert.deepEqual(result.value, { text: 'contents' });
-        assert.deepEqual(calls, [['std.read', { path: 'a' }]]);
+        assert.deepEqual(calls, [['std.read', ['a']]]);
         const denied = await host.execute('rpc', 'two', 'try{await std.read({})}catch(error){return error.message}', ['std.read'], async () => { throw new Error('Denied 原文'); }, signal());
         assert.equal(denied.value, 'Denied 原文');
     } finally { await host.dispose(); }
@@ -80,4 +80,17 @@ test('A10: disposal rejects pending work and prevents any future runtime launch'
 test('IPC schemas reject unknown fields and callbacks', () => {
     assert(!HostMessage.safeParse({ type: 'execute', id: 1, execution: 'a', javascript: 'return 1', callback: () => {} }).success);
     assert(!WorkerMessage.safeParse({ type: 'call', id: 1, execution: 'a', path: 'std.read', args: () => {} }).success);
+});
+
+test('positional RPC preserves optional holes, explicit null and undefined results across realms', async () => {
+    const host = new RuntimeHost({ timeoutMs: 3000 });
+    try {
+        const received: unknown[] = [];
+        const result = await host.execute('positional', 'one', 'return [await std.call("x",undefined,null,{nested:true}),typeof await std.empty()];', ['std.call', 'std.empty'], async (path, args) => {
+            received.push([path, args]);
+            return path === 'std.call' ? 'ok' : undefined;
+        }, signal());
+        assert.deepEqual(result.value, ['ok', 'undefined']);
+        assert.deepEqual(received, [['std.call', ['x', undefined, null, { nested: true }]], ['std.empty', []]]);
+    } finally { await host.dispose(); }
 });
