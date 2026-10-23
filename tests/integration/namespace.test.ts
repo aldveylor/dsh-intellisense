@@ -15,9 +15,10 @@ function registry(): SemanticRegistry {
     return registry;
 }
 
-test('unmounted physical tools use tools and YAML aliases validate mapped arguments on the host', () => {
+test('disabled tools paths are omitted while YAML aliases validate mapped arguments on the host', () => {
     const entries = manifest(registry(), Aliases.parse([{ path: 'std.fs.read', tool: 'read_file', argMap: { filename: 'path' } }]));
-    assert(entries.some(entry => entry.path === 'tools.read_file'));
+    assert(!entries.some(entry => entry.path === 'tools' || entry.path.startsWith('tools.')));
+    assert.deepEqual(manifest(registry(), []), []);
     assert(!entries.some(entry => entry.path.startsWith('unknown.')));
     const alias = entries.find(entry => entry.path === 'std.fs.read')!;
     assert.deepEqual(argumentsFor(alias, { filename: 'a' }), { path: 'a' });
@@ -40,5 +41,10 @@ test('detailed completion uses valid TypeScript/Doxygen declarations and preserv
         const fixed = await intellisense({ ...query, prefix: 'console.log' }, entries, host);
         assert(fixed.text.includes('namespace console'));
         assert(fixed.text.includes('function log('));
+        const disabled = await intellisense({ ...query, prefix: 'tools.mount' }, entries, host);
+        assert(disabled.text.includes('temporarily disabled'));
+        assert(!disabled.text.includes('function mount'));
+        const root = await intellisense({ ...query, prefix: '' }, entries, host);
+        assert(!root.text.includes('tools.'));
     } finally { await host.dispose(); }
 });

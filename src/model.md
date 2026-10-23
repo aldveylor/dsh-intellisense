@@ -8,7 +8,7 @@
 
 `runtime/` 管理每会话的受限 Node 进程、严格 AsyncFunction 执行、IPC 校验、取消、超时、epoch 和 descriptor 内省。普通声明不持久，显式 globalThis 状态只在进程存活期间保留。使用原生 console，无 vm.print。详细模型见该目录 model.md。
 
-`integration/` 将真实 agent scope 工具和 Profile 投影为命名空间清单，支持 YAML 别名、宿主参数校验和原生 guarded tools.execute 子调用。注册 Text PTC provider 和 Agent Mode，保存 exec/context、exec/intellisense、exec/rewrite 及原生父子调用轨迹。详细模型见该目录 model.md。
+`integration/` 将真实 agent scope 工具和 Profile 投影为命名空间清单，支持 YAML 别名、宿主参数校验和原生 guarded tools.execute 子调用。注册 Text PTC provider 和 Agent Mode，将 PTC 协议及命名空间只读树写入系统提示词装配，模型工具 schema 为空；保存 exec/context、exec/intellisense、exec/rewrite 及原生父子调用轨迹。详细模型见该目录 model.md。
 
 ## Profile 与工具表
 

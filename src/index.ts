@@ -57,7 +57,12 @@ export async function apply(ctx: Context, options: Config = {}): Promise<void> {
     ctx.on('agent/created', async ({ agent }) => { await configure(agent); });
     ctx.on('system-prompt/assemble', async (_assembly, context, next) => {
         const assembled = await next();
-        if (context.agent && context.agent.session.header.origin !== 'subagent') assembled.sections = assembled.sections.filter(section => !section.name.startsWith('tool:') && !section.name.startsWith('tools:'));
+        if (context.agent && context.agent.session.header.origin !== 'subagent') {
+            assembled.sections = assembled.sections.filter(section => !section.name.startsWith('tool:') && !section.name.startsWith('tools:'));
+            const prompt = await adapter.prompt(context.agent, context.signal ?? new AbortController().signal);
+            assembled.sections.push({ name: 'text-ptc:execution', text: prompt.instructions, interpolate: false }, { name: 'text-ptc:namespaces', text: prompt.namespaces, interpolate: false });
+            assembled.tools = [];
+        }
         return assembled;
     });
     ctx.on('agent/disposed', async ({ agent }) => { await adapter.release(agent.id); });

@@ -81,9 +81,13 @@ test('new mode executes through the native loop, audits guarded children and pro
         assert(JSON.stringify(model.requests.at(-1)!.messages).includes('Denied by native guard'));
         await send(['```js:exec\nreturn std.fs.read<|INTELLISENSE|>', '({path:"c"});\n```', 'Read completed.']);
         assert.equal(reads, 2);
-        await send(['```js:exec\nawait tools.fix({tool:"vm.restart",fixed:false});await tools.fix({tool:"console.log",fixed:true});return "updated";\n```', 'Prompt preferences updated.']);
-        assert(model.requests.at(-1)!.system?.includes('console.log —'));
-        assert(!model.requests.at(-1)!.system?.includes('vm.restart —'));
+        await send(['```js:exec\nreturn typeof tools;\n```', 'The tools namespace is disabled.']);
+        assert(JSON.stringify(model.requests.at(-1)!.messages).includes('undefined'));
+        assert(model.requests.every(request => request.tools?.length === 0));
+        assert(model.requests[0]!.system?.includes('## 命名空间'));
+        assert(model.requests[0]!.system?.includes('std.fs.read<|INTELLISENSE|>'));
+        assert(model.requests[0]!.system?.includes("Use the language of the user's latest request"));
+        assert(agent.session.snapshotEvents().some(event => event.type === 'system/message' && JSON.stringify(event.data).includes('## 命名空间')));
         const events = agent.session.snapshotEvents();
         assert(events.some(event => event.type === 'exec/intellisense'));
         assert(events.some(event => event.type === 'exec/rewrite'));
