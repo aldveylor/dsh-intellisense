@@ -153,7 +153,7 @@ export class TextExecAdapter extends LlmAdapter {
                 if (nativeCallStart(buffered) !== undefined) {
                     if (this.config.malformedPolicy === 'repair-once' && !repaired) {
                         await audit('', 'error');
-                        request = { ...continuation(initial, buffered, '', segment, true), signal };
+                        request = { ...continuation(initial, buffered, '', segment, this.config.marker), signal };
                         buffered = ''; proseOffset = 0; repaired = true;
                         continue;
                     }
@@ -164,7 +164,7 @@ export class TextExecAdapter extends LlmAdapter {
                     || blocks.some(block => !block.abandoned && block.closed && block.code.includes(this.config.marker))) {
                     if (this.config.malformedPolicy === 'repair-once' && !repaired) {
                         await audit('', 'error');
-                        request = { ...continuation(initial, buffered, '', segment, true), signal };
+                        request = { ...continuation(initial, buffered, '', segment, this.config.marker), signal };
                         buffered = ''; proseOffset = 0; repaired = true;
                         continue;
                     }
@@ -205,7 +205,7 @@ export class TextExecAdapter extends LlmAdapter {
                     }
                     if (this.config.malformedPolicy === 'repair-once' && !repaired) {
                         await audit('', 'error');
-                        request = { ...continuation(initial, buffered, '', segment, true), signal };
+                        request = { ...continuation(initial, buffered, '', segment, this.config.marker), signal };
                         buffered = ''; proseOffset = 0; repaired = true;
                         continue;
                     }

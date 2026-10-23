@@ -25,3 +25,5 @@
 初始系统提示词消息始终由原生首步装配完整生成并保留。补全更新使用相同 agent scope 重新调用所有提示词 provider 与 waterfall，新增完整 system/message，而非仅写入签名或更改旧消息内容；请求投影使用这次完整结果。回归检查覆盖原始人设保留及动态规则 provider 的重新求值。
 
 终止协议错误在 rewrite 记录中保存结构化 failure（错误码与原始消息），并在输出 error finish 前完成持久化。修复尝试的 reason: error 不含 failure；即使同一生成段已保存修复审计，最终失败也单独写入带 failure 的记录。Text PTC 和独立命名空间模式采用相同错误审计格式。
+
+畸形输出重试明确区分签名发现与程序执行，提供采用实际配置 marker 的未闭合 namespace 查询示例；发现分支要求在 marker 后立即结束，不再要求统一闭合执行围栏。

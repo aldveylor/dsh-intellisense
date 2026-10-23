@@ -489,3 +489,14 @@ test('a failure after a repair audit still persists terminal error details for t
     assert.deepEqual(events[1]!.original, [marker]);
     assert.equal(chunks.at(-1)?.type, 'finish');
 });
+
+test('malformed completion repair supplies an unclosed namespace example using the configured marker', async () => {
+    const customMarker = '<|CUSTOM_SENSE|>';
+    const f = fixture([`std.${customMarker}`, `\x60\x60\x60js:exec\nstd.${customMarker}`, '\x60\x60\x60js:exec\nreturn 1;\n\x60\x60\x60'], { marker: customMarker });
+    await f.run();
+    const instruction = JSON.stringify(f.requests[1]!.messages.at(-1));
+    assert(instruction.includes(`std.${customMarker}`));
+    assert(instruction.includes('Do NOT append a newline, closing fence'));
+    assert(!instruction.includes('one closed'));
+    assert(!instruction.includes(marker));
+});
