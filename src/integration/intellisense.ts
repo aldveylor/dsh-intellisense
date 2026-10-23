@@ -90,7 +90,7 @@ export function registerIntellisense(ctx: Context, namespaces: NamespaceComponen
             appendPluginRecord(agent.session, 'plugin:ts_intellisense/intellisense', {
                 ...position, queries, info, elapsedMs: performance.now() - started,
                 profileRevision: (await namespaces.registryFor(agent)).snapshot().revision,
-                runtimeEpoch: namespaces.isPtc(agent) ? ctx.get('codeRuntime')?.epoch(agent.id) ?? 0 : 0,
+                runtimeEpoch: namespaces.isPtc(agent) ? agent.ctx.get('codeRuntime')?.epoch(agent.id) ?? 0 : 0,
             });
             return info;
         },

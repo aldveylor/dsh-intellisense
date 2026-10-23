@@ -1,6 +1,3 @@
-# NamespaceRuntime owns ptcRuntime; the base Node backend exposes only flat tools.
-- id: ptc-runtime
-  disabled: true
 - insert:
     - id: intellisense
       name: dsh-intellisense

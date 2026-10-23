@@ -8,8 +8,6 @@ import { SemanticRegistry } from '../registry/registry.js';
 import { ProfileSessions } from '../registry/profiles.js';
 import { NamespaceComponent } from './namespace_component.js';
 import { Aliases } from './namespace.js';
-import { registerIntellisense } from './intellisense.js';
-import { registerToolCommands } from './tool_commands.js';
 import { registerManagement } from '../management/server/routes.js';
 import { OrganizationService } from './organization.js';
 import { executionInstructions } from './prompt.js';
@@ -35,15 +33,13 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
     const profiles = new ProfileSessions(registry, store);
     const namespaces = new NamespaceComponent(ctx, registry, profiles, aliases, config.mode);
     ctx.provide('commandNamespaces', namespaces);
-    registerIntellisense(ctx, namespaces);
-    registerToolCommands(ctx, registry, profiles, agent => namespaces.registryFor(agent), agent => namespaces.configurationChanged(agent));
     registerManagement(ctx, registry, namespaces, new OrganizationService(ctx, registry));
     ctx.on('agent/created', async ({ agent }) => { await namespaces.configure(agent); });
     ctx.on('agent/disposed', async ({ agent }) => { await namespaces.release(agent.id); });
     ctx.on('system-prompt/assemble', async (_assembly, context, next) => {
         const assembled = await next();
         const agent = context.agent;
-        if (agent) {
+        if (agent && namespaces.enabled(agent)) {
             assembled.sections.push({ name: 'namespaces:directory', text: await namespaces.prompt(agent), interpolate: false });
             if (!namespaces.isPtc(agent)) {
                 const names = new Set(await namespaces.syncNative(agent));

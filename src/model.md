@@ -4,7 +4,7 @@
 
 ## 执行与查询
 
-`integration/presentation.ts` 通过 config.mode 选择 native/ptc 工具呈现与初始提示词，按作用域继承 preset 配置。主插件 mode 默认 ptc，独立命名空间入口默认 native。
+`integration/presentation.ts` 通过 config.mode 选择 native/ptc 工具呈现与初始提示词，按作用域继承 preset 配置。仅显式挂载 presentation 的 Intellisense / Intellisense PTC 模式启用命名空间；标准模式及其它模式保持原生工具与提示词。主插件 mode 默认 ptc，独立命名空间入口默认 native，但均不自动为会话挂载模式。
 
 `integration/namespace_component.ts` 管理 Profile、工具目录与共享 manifest。Intellisense 模式按会话渐进注册原生工具，初始仅提供 tools.intellisense 和固定命令，查询后添加直接成员；名称以单下划线替换点号，不加 ns_ 前缀。执行时根据实际调用者重新验证可见性，并通过原生 guard/execute 流水线派发。代理不进入物理工具目录，卸载时清理。
 
@@ -36,7 +36,7 @@ UI 不再显示 unknown 块。树上方显示当前可用但未挂载的工具�
 
 `run.mjs` 与 scripts/local_plugin.mjs 将本包登记为原生 bundle；本地注册按真实目录移除同目录的旧包名 link 依赖及 bundle，并去重 bundle 列表，避免包重命名后重复加载。cordis.patch.yml 注册插件和两个模式，默认 intellisense-ptc。presets/intellisense_ptc 与 presets/intellisense 保存各自模式元数据和 Agent 能力清单；共享 YAML 别名位于 presets/intellisense_ptc/aliases.yml。两个模式分别通过 presentation 配置选择 ptc/native 呈现，并据此生成初始 prompt。
 
-bundle patch 禁用基础包的 ptc-runtime（NodePtcRuntime），由本项目的 NamespaceRuntime 唯一提供 ptcRuntime，避免基础运行时占用服务后仅暴露扁平物理工具、导致 tools.intellisense 等命名空间不可调用。
+保留基础包 ptc-runtime，供其它模式使用。Intellisense PTC 的 presentation 隔离 ptcRuntime 服务，并在自身作用域创建 NamespaceRuntime 与 RuntimeHost；内置工具也仅注册到两个自定义模式的 presentation 作用域。
 
 构建清理 dist 并编译生产源码、管理客户端及 worker。dist/build 生成物不提交。受限运行时需要 Linux、Python3、libseccomp 和 Node >=24，加载时实测隔离条件。
 

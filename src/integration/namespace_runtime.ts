@@ -3,7 +3,8 @@ import type { Agent } from '@deepseek-ai/dsh-agent';
 import PtcRuntime, { type PtcRunRequest, type PtcRunSpec, type PtcRunResult } from '@deepseek-ai/dsh-ptc-runtime';
 import { argumentsFor, resultFor } from './namespace.js';
 import type {} from './namespace_plugin.js';
-import type { RuntimeHost } from '../runtime/host.js';
+import { RuntimeHost, type RuntimeConfig } from '../runtime/host.js';
+import type { z } from 'zod';
 
 /** @brief Settle an IPC callback on cancellation; native run_code still owns and drains the actual tool call. */
 async function bindingResult<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
@@ -18,17 +19,22 @@ async function bindingResult<T>(work: Promise<T>, signal: AbortSignal): Promise<
 }
 
 /** @brief The isolated process runtime consumed by the native run_code transport. */
-declare module '@deepseek-ai/cordis' { interface Context { codeRuntime: RuntimeHost } }
+declare module '@deepseek-ai/cordis' { interface Context { codeRuntime: RuntimeHost; codeRuntimeOptions: z.infer<typeof RuntimeConfig> } }
 
 /** @brief Adapt native PTC bindings to Profile namespaces while preserving native dispatch scheduling. */
 export class NamespaceRuntime extends PtcRuntime {
-    static inject = ['codeRuntime'];
+    static inject = ['codeRuntimeOptions'];
     readonly language = 'typescript';
     readonly isolation = 'process';
     private sequence = 0;
     private runtime: RuntimeHost;
 
-    constructor(ctx: Context) { super(ctx); this.runtime = ctx.codeRuntime; }
+    constructor(ctx: Context) {
+        super(ctx);
+        this.runtime = new RuntimeHost(ctx.codeRuntimeOptions);
+        ctx.provide('codeRuntime', this.runtime);
+        ctx.effect(() => () => this.runtime.dispose());
+    }
 
     override get executionInstructions(): string { return 'Use namespace commands directly, such as std.cwd() and tools.intellisense(["std."]). Each run is an async function body; use await and return. Only explicit globalThis state persists.'; }
 

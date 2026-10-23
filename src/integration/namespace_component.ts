@@ -13,35 +13,42 @@ import { builtinDeclaration, namespaceDirectory, type NamespaceHint } from './pr
 import { builtinCommands, defaultBuiltinVisible, discoveryCommand, profileValues } from '../runtime/builtins.js';
 import { profileAnnotation } from '../registry/profile_tree.js';
 import type { z } from 'zod';
+import { registerIntellisense } from './intellisense.js';
+import { registerToolCommands } from './tool_commands.js';
 import { nativeBindings, nativeDiscovery, nativeQueryEntries } from './native_tools.js';
 
 /** @brief Profile-backed namespace discovery, independent of any execution runtime. */
 export class NamespaceComponent {
-    private fallbackPresentations = new Map<string, () => Promise<void>>();
     private generatedTools = new WeakSet<ToolDefinition>();
     private positions = new Map<string, Position>();
     private discovered = new Map<string, Set<string>>();
     private nativeTools = new Map<string, { fingerprint: string; disposers: (() => void)[] }>();
 
-    constructor(private ctx: Context, private registry: SemanticRegistry, readonly profiles: ProfileSessions, private aliases: z.infer<typeof Aliases>, private defaultMode: presentation.PresentationMode = 'native') {
-        ctx.effect(() => async () => { await Promise.all([...new Set([...this.nativeTools.keys(), ...this.fallbackPresentations.keys()])].map(id => this.release(id))); });
+    constructor(private ctx: Context, private registry: SemanticRegistry, readonly profiles: ProfileSessions, private aliases: z.infer<typeof Aliases>, _defaultMode: presentation.PresentationMode = 'native') {
+        ctx.effect(() => async () => { await Promise.all([...this.nativeTools.keys()].map(id => this.release(id))); });
         ctx.on('agent/request', async (payload, next) => {
-            this.positions.set(payload.agent.id, { turn: payload.turn, step: payload.step });
+            if (this.enabled(payload.agent)) this.positions.set(payload.agent.id, { turn: payload.turn, step: payload.step });
             return next();
         });
     }
 
-    /** @brief Use the same scoped presentation config for runtime bindings and initial prompts. */
-    isPtc(agent: Agent): boolean {
-        return (presentation.presentationFor(agent.ctx) ?? this.defaultMode) === 'ptc';
+    /** @brief Register builtin tools in the owning presentation scope. */
+    register(ctx: Context): void {
+        registerIntellisense(ctx, this);
+        registerToolCommands(ctx, this.registry, this.profiles, agent => this.registryFor(agent), agent => this.configurationChanged(agent));
     }
 
-    /** @brief Configure preset-free sessions while preserving explicit inherited mode declarations. */
+    /** @brief Enable namespaces only for an explicitly configured Intellisense scope. */
+    enabled(agent: Agent): boolean { return presentation.presentationFor(agent.ctx) !== undefined; }
+
+    /** @brief Use the same scoped presentation config for runtime bindings and initial prompts. */
+    isPtc(agent: Agent): boolean {
+        return presentation.presentationFor(agent.ctx) === 'ptc';
+    }
+
+    /** @brief Initialize only sessions belonging to an Intellisense presentation scope. */
     async configure(agent: Agent): Promise<void> {
-        if (!presentation.presentationFor(agent.ctx)) {
-            const mounted = await agent.ctx.plugin(presentation, { mode: this.defaultMode });
-            this.fallbackPresentations.set(agent.id, () => mounted.dispose());
-        }
+        if (!this.enabled(agent)) return;
         await this.registryFor(agent);
         if (!this.isPtc(agent)) await this.syncNative(agent);
     }
@@ -195,8 +202,5 @@ export class NamespaceComponent {
         this.positions.delete(owner);
         this.discovered.delete(owner);
         this.profiles.release(owner);
-        const disposePresentation = this.fallbackPresentations.get(owner);
-        this.fallbackPresentations.delete(owner);
-        await disposePresentation?.();
     }
 }
