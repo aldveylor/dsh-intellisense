@@ -8,31 +8,38 @@ export type CommandName = string;
 export interface CommandBrief { name: CommandName; brief: string }
 
 /** @brief A mounted physical command with an optional simplified description. */
-export interface CommandNode { command: CommandName; simplifiedBrief?: string }
+export interface CommandNode { type: 'command'; command: CommandName; simplifiedBrief?: string }
 
 /** @brief Recursive namespace members keyed by their local names. */
-export interface NamespaceNode { [name: string]: CommandNode | NamespaceNode }
+export interface NamespaceNode { type: 'namespace'; children: Record<string, CommandNode | NamespaceNode> }
 
 /** @brief Public editable Profile representation. */
 export interface Profile { name: string; root: NamespaceNode }
 
 /** @brief Validate recursive Profile input before converting it into registry configuration. */
 export const ProfileSchema: z.ZodType<Profile> = z.lazy(() => z.strictObject({ name: z.string(), root: namespaceSchema }));
-const namespaceSchema: z.ZodType<NamespaceNode> = z.lazy(() => z.record(z.string(), z.union([z.strictObject({ command: z.string(), simplifiedBrief: z.string().optional() }), namespaceSchema])));
+const namespaceSchema: z.ZodType<NamespaceNode> = z.lazy(() => z.strictObject({
+    type: z.literal('namespace'),
+    children: z.record(z.string(), z.union([z.strictObject({ type: z.literal('command'), command: z.string(), simplifiedBrief: z.string().optional() }), namespaceSchema])),
+}));
 
 /** @brief Export only configured paths and comments; runtime metadata remains internal. */
 export function profileTree(name: string, configuration: RegistryConfiguration): Profile {
-    const root: NamespaceNode = Object.create(null);
+    const root: NamespaceNode = { type: 'namespace', children: Object.create(null) };
     const nodeFor = (path: string): NamespaceNode => {
         let node = root;
-        for (const part of path.split('.').filter(Boolean)) node = (node[part] ??= Object.create(null)) as NamespaceNode;
+        for (const part of path.split('.').filter(Boolean)) {
+            const child = node.children[part] ??= { type: 'namespace', children: Object.create(null) };
+            if (child.type !== 'namespace') throw new Error(`Namespace collides with command: ${path}`);
+            node = child;
+        }
         return node;
     };
     for (const item of configuration.namespaces) nodeFor(item.path);
     for (const mapping of configuration.mappings) for (const path of [mapping.path, ...mapping.aliases]) {
         const parts = path.split('.');
         const brief = configuration.toolComments?.[mapping.id] ?? mapping.description;
-        nodeFor(parts.slice(0, -1).join('.'))[parts.at(-1)!] = { command: mapping.id, ...(brief === undefined ? {} : { simplifiedBrief: brief }) };
+        nodeFor(parts.slice(0, -1).join('.')).children[parts.at(-1)!] = { type: 'command', command: mapping.id, ...(brief === undefined ? {} : { simplifiedBrief: brief }) };
     }
     return { name, root };
 }
@@ -41,11 +48,11 @@ export function profileTree(name: string, configuration: RegistryConfiguration):
 export function profileConfiguration(profile: Profile, current: RegistryConfiguration, commands: readonly CommandBrief[]): RegistryConfiguration {
     const configuration: RegistryConfiguration = { ...current, mappings: [], namespaces: [], order: [], toolComments: {} };
     const visit = (node: NamespaceNode, prefix: string): void => {
-        for (const [name, child] of Object.entries(node)) {
+        for (const [name, child] of Object.entries(node.children)) {
             const path = prefix ? `${prefix}.${name}` : name;
             configuration.order.push(path);
-            if (typeof child.command === 'string') {
-                const command = child as CommandNode;
+            if (child.type === 'command') {
+                const command = child;
                 if (!commands.some(item => item.name === command.command)) throw new Error(`Unknown command: ${command.command}`);
                 const previous = current.mappings.find(item => item.id === command.command);
                 const mounted = configuration.mappings.find(item => item.id === command.command);
@@ -55,7 +62,7 @@ export function profileConfiguration(profile: Profile, current: RegistryConfigur
             } else {
                 const previous = current.namespaces.find(item => item.path === path);
                 configuration.namespaces.push(previous ?? { path, description: '', alwaysVisible: false });
-                visit(child as NamespaceNode, path);
+                visit(child, path);
             }
         }
     };
@@ -70,11 +77,15 @@ type CommandName = string;
 interface CommandBrief { name: CommandName; brief: string; }
 /** @brief A mounted command and its optional simplified description. */
 interface CommandNode {
+    type: 'command';
     command: CommandName;
     /** @brief Short description of what the command does. */
     simplifiedBrief?: string;
 }
 /** @brief Recursive namespace members keyed by local name. */
-interface NamespaceNode { [name: string]: CommandNode | NamespaceNode; }
+interface NamespaceNode {
+    type: 'namespace';
+    children: Record<string, CommandNode | NamespaceNode>;
+}
 /** @brief Named command namespace configuration. */
 interface Profile { name: string; root: NamespaceNode; }`;
