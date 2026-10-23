@@ -1,4 +1,4 @@
 id: intellisense
 name: Intellisense
-description: Native DSML namespace calls with TypeScript signature discovery.
+description: Native DSML namespace calls with progressive tool discovery.
 order: 1

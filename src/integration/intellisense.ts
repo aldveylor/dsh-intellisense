@@ -75,7 +75,7 @@ export function intellisense(queries: readonly string[], entries: readonly Manif
 export function registerIntellisense(ctx: Context, namespaces: NamespaceComponent): void {
     ctx.effect(() => ctx.tools.register(defineTool({
         name: 'tools_intellisense',
-        description: 'Query namespace members with a trailing dot, or complete tool signatures by exact path. Returns TypeScript declarations. Call through tools.intellisense.',
+        description: 'Query namespace members with a trailing dot, or complete tool signatures by exact path. Discovers commands progressively. Call through tools.intellisense.',
         parameters: { queries: { type: 'array', items: { type: 'string' }, required: true } },
         output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
         execute: async ({ queries }, execution) => {
@@ -83,7 +83,9 @@ export function registerIntellisense(ctx: Context, namespaces: NamespaceComponen
             if (!agent) throw new Error('A live conversation is required');
             execution.signal.throwIfAborted();
             const started = performance.now();
-            const info = intellisense(queries, await namespaces.entries(agent), namespaces.isPtc(agent));
+            const info = namespaces.isPtc(agent)
+                ? intellisense(queries, await namespaces.entries(agent), true)
+                : await namespaces.discover(agent, queries);
             const position = namespaces.position(agent);
             appendPluginRecord(agent.session, 'plugin:ts_intellisense/intellisense', {
                 ...position, queries, info, elapsedMs: performance.now() - started,

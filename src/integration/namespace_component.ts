@@ -13,13 +13,14 @@ import { builtinDeclaration, namespaceDirectory, type NamespaceHint } from './pr
 import { builtinCommands, defaultBuiltinVisible, discoveryCommand, profileValues } from '../runtime/builtins.js';
 import { profileAnnotation } from '../registry/profile_tree.js';
 import type { z } from 'zod';
-import { nativeBindings } from './native_tools.js';
+import { nativeBindings, nativeDiscovery, nativeQueryEntries } from './native_tools.js';
 
 /** @brief Profile-backed namespace discovery, independent of any execution runtime. */
 export class NamespaceComponent {
     private fallbackPresentations = new Map<string, () => Promise<void>>();
     private generatedTools = new WeakSet<ToolDefinition>();
     private positions = new Map<string, Position>();
+    private discovered = new Map<string, Set<string>>();
     private nativeTools = new Map<string, { fingerprint: string; disposers: (() => void)[] }>();
 
     constructor(private ctx: Context, private registry: SemanticRegistry, readonly profiles: ProfileSessions, private aliases: z.infer<typeof Aliases>, private defaultMode: presentation.PresentationMode = 'native') {
@@ -92,6 +93,15 @@ export class NamespaceComponent {
     async prompt(agent: Agent): Promise<string> {
         const registry = await this.registryFor(agent);
         const state = registry.snapshot();
+        if (!this.isPtc(agent)) {
+            const entries = manifest(registry, this.aliases);
+            const bindings = nativeBindings(entries, registry.tools().map(tool => tool.id));
+            const visible = new Set((await this.nativeEntries(agent)).map(entry => entry.path));
+            return JSON.stringify({
+                namespaces: [...new Set(entries.filter(entry => !visible.has(entry.path)).map(entry => entry.path.split('.')[0]!))].sort(),
+                tools: bindings.filter(({ entry }) => visible.has(entry.path)).map(({ entry, name }) => ({ path: entry.path, tool: name, description: entry.doc })),
+            }, null, 2);
+        }
         const entries = manifest(registry, this.aliases).filter(entry => !['tools_profile_annotation', 'tools_profile_commands'].includes(entry.tool));
         const hints: NamespaceHint[] = [];
         for (const entry of entries) {
@@ -109,15 +119,36 @@ export class NamespaceComponent {
             const level = state.builtinVisible?.[item.path] ?? 0;
             if (level) hints.push({ ...item, ...(level === 2 ? { declaration: this.isPtc(agent) ? `const ${item.path.split('.').at(-1)}: ${item.signature};` : `function ${item.path.split('.').at(-1)}(): Promise<${item.signature}>;` } : {}) });
         }
-        const bindings = this.isPtc(agent) ? '' : '\n\nNative tool names (namespace path -> callable tool name; use named arguments):\n'
-            + nativeBindings(manifest(registry, this.aliases), registry.tools().map(tool => tool.id)).map(({ entry, name }) => `${entry.path} -> ${name}`).join('\n');
-        return (hints.some(item => item.declaration && item.path.startsWith('tools.profile.')) ? '```ts\n' + profileAnnotation + '\n```\n\n' : '') + namespaceDirectory(hints) + bindings;
+        return (hints.some(item => item.declaration && item.path.startsWith('tools.profile.')) ? '```ts\n' + profileAnnotation + '\n```\n\n' : '') + namespaceDirectory(hints);
+    }
+
+    /** @brief Keep native exposure limited to discovery, pinned commands and queried members. */
+    private async nativeEntries(agent: Agent): Promise<ManifestEntry[]> {
+        const registry = await this.registryFor(agent);
+        const state = registry.snapshot();
+        const discovered = this.discovered.get(agent.id);
+        return manifest(registry, this.aliases).filter(entry => entry.path === discoveryCommand.path || discovered?.has(entry.path)
+            || registry.effective().some(mapping => mapping.id === entry.tool && mapping.alwaysVisible)
+            || state.builtinVisible?.[entry.path]);
+    }
+
+    /** @brief Expand native tools for this conversation and invalidate the assembled system prompt. */
+    async discover(agent: Agent, queries: readonly string[]): Promise<string> {
+        const entries = await this.entries(agent);
+        const selected = nativeQueryEntries(queries, entries);
+        let discovered = this.discovered.get(agent.id);
+        if (!discovered) this.discovered.set(agent.id, discovered = new Set());
+        for (const entry of selected) discovered.add(entry.path);
+        await this.syncNative(agent);
+        this.ctx.emit('system-prompt/change');
+        return nativeDiscovery(queries, nativeBindings(entries, this.physical(agent).map(tool => tool.id)));
     }
 
     /** @brief Install scoped namespace aliases while keeping dispatch inside native guards and auditing. */
     async syncNative(agent: Agent): Promise<string[]> {
         const entries = await this.entries(agent);
-        const bindings = nativeBindings(entries, this.physical(agent).map(tool => tool.id));
+        const visible = new Set((await this.nativeEntries(agent)).map(entry => entry.path));
+        const bindings = nativeBindings(entries, this.physical(agent).map(tool => tool.id)).filter(({ entry }) => visible.has(entry.path));
         const fingerprint = JSON.stringify(bindings);
         const previous = this.nativeTools.get(agent.id);
         if (previous?.fingerprint === fingerprint) return bindings.map(binding => binding.name);
@@ -125,6 +156,7 @@ export class NamespaceComponent {
         const state = { fingerprint, disposers: [] as (() => void)[] };
         this.nativeTools.set(agent.id, state);
         for (const { entry, name } of bindings) {
+            if (name === entry.tool && !entry.argMap) continue;
             const definition: ToolDefinition = {
                 name, description: `${entry.path}: ${entry.doc}`, parameters: nativeSchema(entry),
                 output: { schema: {}, render: (_args, value) => [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value) }] },
@@ -161,6 +193,7 @@ export class NamespaceComponent {
         for (const dispose of this.nativeTools.get(owner)?.disposers ?? []) dispose();
         this.nativeTools.delete(owner);
         this.positions.delete(owner);
+        this.discovered.delete(owner);
         this.profiles.release(owner);
         const disposePresentation = this.fallbackPresentations.get(owner);
         this.fallbackPresentations.delete(owner);
