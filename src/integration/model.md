@@ -21,3 +21,5 @@ builtinVisible 为 Profile 的固定提示偏好，默认只包含自定义 vm �
 `namespace_plugin.ts` 是可独立挂载的 `dsh-ts-intellisense/namespace` 入口，持有工具目录、Profile、管理 UI、补全服务与初始系统命名空间注入；无 codeRuntime 时保留原生工具 schema 并挂载 NamespaceAdapter。默认入口先提供 codeRuntime，再组合命名空间插件和 TextPtcAdapter，后者只依赖 NamespaceComponent 的 manifest、提示与补全审计接口。模型提示仅描述当前使用协议，不包含组件拆分及 tools 临时禁用等实现细节。
 
 命令适配按照同一契约生成 IntelliSense 与执行映射：具名原生参数对象按必填在前、可选在后的稳定顺序展开为位置参数，调用前重新封装并校验原生 schema；argMap 仅改变公开参数名。单字段原生输出投影为字段值，多字段输出保留对象。cwd 公开为 cwd(cd?: string): Promise<string>。签名、字段描述和补全数据按 HTML 语义解码。系统提示词标题统一为 Namespaces。
+
+纯命名空间或签名浏览时，提示明确允许通过 `<|BREAK|>` 放弃缓冲程序而不执行，随后开启新 exec 块查询其他路径，或直接回答原始请求；正常续写指令遵循同一约定。

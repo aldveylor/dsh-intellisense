@@ -61,7 +61,7 @@ export function continuation(options: GenerateOptions, prefix: string, info: str
 \x60\x60\x60js:exec
 std.${repairMarker}
 Only when the program is ready to execute without requesting IntelliSense should you close its exec fence. If no execution or discovery is needed, answer directly in prose.`
-                : `${info}\nContinue exactly from the interruption. Output only the remaining code and its closing fence. Do not repeat the prefix.` }] },
+                : `${info}\nContinue exactly from the interruption without repeating the prefix. If execution is intended, output the remaining code and its closing fence. For discovery only, emit <|BREAK|> to abandon the buffered code without execution; then open a new exec block to query another path, or answer the original request directly in prose.` }] },
         ]),
     };
 }

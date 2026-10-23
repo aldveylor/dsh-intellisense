@@ -21,7 +21,7 @@ Example signature request (the outer four-backtick fence only delimits this exam
 return await ${examplePath}${marker}
 \x60\x60\x60\x60
 The exec fence is intentionally unclosed. STOP the response immediately without a closing fence. Never output the marker alone: it must follow the command path inside the open exec block.
-Completion data will be supplied before you continue the remaining code. Continue exactly from the supplied prefix, then close the exec fence when the program is complete. You may request more completion data for another unknown path.
+Completion data will be supplied before you continue the remaining code. Continue exactly from the supplied prefix. If you only need to inspect namespaces or signatures, emit <|BREAK|> to abandon the buffered code without executing it. After BREAK, you may open a new exec block to query another path, or answer the original request directly in prose. Close an exec fence only when you intend to execute its program. You may request more completion data for another unknown path.
 Additional controls inside exec blocks: <|LINEBREAK|> ends the response and requests continuation on a new line; <|BREAK|> abandons the current program without executing it. Use them only for those purposes. Never invent other protocol markers. Continue using the user's language after execution.`;
 }
 
