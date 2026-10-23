@@ -160,19 +160,20 @@ export class TextExecAdapter extends LlmAdapter {
                     throw new LlmError('Native DSML tool syntax requires an exec fence', 'MALFORMED_OUTPUT');
                 }
                 const blocks = execBlocks(buffered);
+                const last = blocks.at(-1);
                 if ((!blocks.length && buffered.trimEnd().endsWith(this.config.marker))
-                    || blocks.some(block => !block.abandoned && block.closed && block.code.includes(this.config.marker))) {
+                    || blocks.some(block => !block.abandoned && block.closed && block.code.includes(this.config.marker)
+                        && (block !== last || !block.code.trimEnd().endsWith(this.config.marker)))) {
                     if (this.config.malformedPolicy === 'repair-once' && !repaired) {
                         await audit('', 'error');
                         request = { ...continuation(initial, buffered, '', segment, this.config.marker), signal };
                         buffered = ''; proseOffset = 0; repaired = true;
                         continue;
                     }
-                    throw new LlmError('Completion marker requires a command path inside an open exec fence', 'MALFORMED_OUTPUT');
+                    throw new LlmError('Completion marker requires a command path inside an exec fence', 'MALFORMED_OUTPUT');
                 }
                 const selected = blocks.filter(block => !block.abandoned).at(-1);
-                const last = blocks.at(-1);
-                if (last && !last.closed && !last.abandoned) {
+                if (last && !last.abandoned) {
                     const trimmed = last.code.trimEnd();
                     if (trimmed.endsWith(this.config.marker)) {
                         const code = trimmed.slice(0, -this.config.marker.length);
@@ -180,7 +181,7 @@ export class TextExecAdapter extends LlmAdapter {
                         previousQuery = code;
                         if (repetitions >= this.config.repeatLimit) throw new LlmError('Repeated completion query limit reached', 'COMPLETION_LOOP');
                         if (segment + 1 >= this.config.maxSegments) throw new LlmError('Continuation segment limit reached', 'COMPLETION_LOOP');
-                        buffered = buffered.slice(0, buffered.length - last.code.length) + code;
+                        buffered = buffered.slice(0, buffered.indexOf('\n', last.start) + 1) + code;
                         const context = code.slice(-this.config.contextChars);
                         const started = performance.now();
                         const info = await abortable(this.host.complete({ prefix: code, context, sessionId: options.sessionId, signal }), signal);
@@ -198,18 +199,20 @@ export class TextExecAdapter extends LlmAdapter {
                         request = { ...continuation(initial, buffered, '', segment), signal };
                         continue;
                     }
-                    if (/<\|LINEBREAK(?:\|[\s\S]*?)?\|>\s*$/.test(last.code)) {
-                        buffered = cleanControls(buffered, this.config.marker);
-                        request = { ...continuation(initial, buffered, 'Continue on the next line.', segment), signal };
-                        continue;
+                    if (!last.closed) {
+                        if (/<\|LINEBREAK(?:\|[\s\S]*?)?\|>\s*$/.test(last.code)) {
+                            buffered = cleanControls(buffered, this.config.marker);
+                            request = { ...continuation(initial, buffered, 'Continue on the next line.', segment), signal };
+                            continue;
+                        }
+                        if (this.config.malformedPolicy === 'repair-once' && !repaired) {
+                            await audit('', 'error');
+                            request = { ...continuation(initial, buffered, '', segment, this.config.marker), signal };
+                            buffered = ''; proseOffset = 0; repaired = true;
+                            continue;
+                        }
+                        throw new LlmError('Unclosed exec fence', 'MALFORMED_OUTPUT');
                     }
-                    if (this.config.malformedPolicy === 'repair-once' && !repaired) {
-                        await audit('', 'error');
-                        request = { ...continuation(initial, buffered, '', segment, this.config.marker), signal };
-                        buffered = ''; proseOffset = 0; repaired = true;
-                        continue;
-                    }
-                    throw new LlmError('Unclosed exec fence', 'MALFORMED_OUTPUT');
                 }
                 const code = selected ? cleanControls(selected.code, this.config.marker) : '';
                 await audit(code, selected ? 'exec' : blocks.length ? 'abandoned' : 'prose');

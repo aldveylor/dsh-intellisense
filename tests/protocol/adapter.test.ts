@@ -75,7 +75,7 @@ test('A1: prose streams without a synthetic tool and closes with stop', async ()
 });
 
 test('a terminal completion marker outside an exec fence is repaired before execution', async () => {
-    for (const output of [marker, `std.cwd${marker}`, '```js:exec\nreturn await std.cwd' + marker + '\n```']) {
+    for (const output of [marker, `std.cwd${marker}`]) {
         const f = fixture([output, '```js:exec\nreturn await std.cwd' + marker, '();\n```']);
         const chunks = await f.run();
         assertStream(chunks, 'tool-calls');
@@ -499,4 +499,32 @@ test('malformed completion repair supplies an unclosed namespace example using t
     assert(instruction.includes('Do NOT append a newline, closing fence'));
     assert(!instruction.includes('one closed'));
     assert(!instruction.includes(marker));
+});
+
+test('closed completion fences continue exactly like the recommended open fences without repair', async () => {
+    for (const language of ['js', 'ts']) {
+        for (const ending of ['', '\n\x60\x60\x60', '\n\x60\x60\x60\nignored tail']) {
+            const original = `Checking.\n\x60\x60\x60${language}:exec\nreturn await std.cwd${marker}${ending}`;
+            const f = fixture([original, '();\n\x60\x60\x60'], { malformedPolicy: 'error' });
+            const chunks = await f.run();
+            assertStream(chunks, 'tool-calls');
+            assert.equal(codeOf(chunks), 'return await std.cwd();');
+            assert.equal(f.requests.length, 2);
+            assert.deepEqual(f.events.map(event => event.type), ['exec/intellisense', 'exec/rewrite']);
+            const query = f.events[0]!.data;
+            assert('prefix' in query && query.prefix === 'return await std.cwd');
+            const rewrite = f.events[1]!.data;
+            assert('original' in rewrite && rewrite.original[0] === original);
+            assert(!JSON.stringify(chunks).includes(marker));
+        }
+    }
+});
+
+test('closed completion markers with source after the marker remain malformed and never execute', async () => {
+    const f = fixture([`\x60\x60\x60js:exec\nstd.cwd${marker}();\n\x60\x60\x60`], { malformedPolicy: 'error' });
+    const chunks = await f.run();
+    assertStream(chunks, 'error');
+    assert.equal(codeOf(chunks), undefined);
+    assert.equal(f.requests.length, 1);
+    assert(!f.events.some(event => event.type === 'exec/intellisense'));
 });

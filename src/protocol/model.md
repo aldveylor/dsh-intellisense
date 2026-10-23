@@ -4,7 +4,7 @@
 
 `config.ts` 使用 zod 验证 marker、段数、重复查询阈值、补全数据长度、上下文长度、整体缓冲上限及畸形输出策略；配置错误在构造时失败。
 
-`syntax.ts` 识别行首 js:exec/ts:exec 围栏，缓存不完整围栏与 marker，解析 LINEBREAK/BREAK 及其审计注释，选择最后未放弃的程序。所有 exec 源码均缓存到 stop 后才转换为工具调用。围栏后的文本以及前序程序丢弃信息保存在审计事件中。执行围栏前行首泄漏的 DSML 原生调用标记（全角或 ASCII 竖线）按畸形协议处理，跨 chunk 缓存以避免原样展示；依照 malformedPolicy 共享一次完整重写机会，重复失败则结束为 error，原始输出保留审计。重写后的普通回答与执行前说明仍可流式展示。响应末尾位于 exec 围栏外或已闭合执行源码中的补全 marker 同样按畸形协议处理，修复失败则明确报错，避免清除 marker 后静默完成。
+`syntax.ts` 识别行首 js:exec/ts:exec 围栏，缓存不完整围栏与 marker，解析 LINEBREAK/BREAK 及其审计注释，选择最后未放弃的程序。所有 exec 源码均缓存到 stop 后才转换为工具调用。围栏后的文本以及前序程序丢弃信息保存在审计事件中。执行围栏前行首泄漏的 DSML 原生调用标记（全角或 ASCII 竖线）按畸形协议处理，跨 chunk 缓存以避免原样展示；依照 malformedPolicy 共享一次完整重写机会，重复失败则结束为 error，原始输出保留审计。重写后的普通回答与执行前说明仍可流式展示。响应末尾位于 exec 围栏外的补全 marker，以及已闭合执行源码中不位于末尾或不属于最后一个执行块的补全 marker，按畸形协议处理，修复失败则明确报错。最后一个有效执行块的源码末尾包含补全 marker 时，无论围栏是否闭合均触发补全：移除 marker、结束围栏与尾部文本，按未闭合源码前缀续写，禁止提前执行。prompt 只推荐未闭合补全写法，不提示闭合兼容写法。
 
 `projection.ts` 是日志到上游消息的纯函数。合成 exec 调用还原为 js:exec 文本，对应结果转换为转义的 exec-result user 数据；相邻 user/assistant 合并，exec schema 移除。续写采用已核实适配器契约支持的 assistant 已生成文本 + user 续写指令，不依赖私有 prefix 接口。新建续写消息使用确定性 MessageId，不使用随机消息构造器。
 
