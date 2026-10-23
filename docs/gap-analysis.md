@@ -81,8 +81,8 @@ schemas 提供 model-facing 参数 schema，get 可拿到实际定义，均须�
 
 ## 风险排序及待明确的语义
 
-1. **P0：AsyncFunction 与跨调用词法变量保留冲突。** SPEC 3.6/第 7 节同时要求严格 AsyncFunction 与变量跨调用保留。实测每次新建函数时 let/const 只在本次函数局部存在；持久 vm.Context 不会改变其词法作用域。建议新模式只承诺 globalThis 显式状态跨调用保留，重启后丢失；若要求 let/const，应继续采用 REPL，或接受额外源码转换。该选择影响 T2 提示/执行返回协议及 T3 实现，等待明确。
-2. **P0：仅 IPC 与 stdin/stdout 的边界不明确。** prompt 前言要求 agent 交互走 stdin/stdout，SPEC 运行时描述要求目标进程仅 IPC。建议 stdin/stdout 用于 Agent 文本通道，运行时控制/工具 RPC 走 IPC，console 作为有执行 ID 的数据事件回传；但必须先明确这里 agent 是否指运行时子进程。
+1. **P0：AsyncFunction 与跨调用词法变量保留冲突。** SPEC 3.6/第 7 节同时要求严格 AsyncFunction 与变量跨调用保留。实测每次新建函数时 let/const 只在本次函数局部存在；持久 vm.Context 不会改变其词法作用域。建议新模式只承诺 globalThis 显式状态跨调用保留，重启后丢失；若要求 let/const，应继续采用 REPL，或接受额外源码转换。2026-10-23 用户已确认该方案；prompt.agent.md 已修正，不再阻塞。
+2. **P0：仅 IPC 与 stdin/stdout 的边界不明确。** prompt 前言要求 agent 交互走 stdin/stdout，SPEC 运行时描述要求目标进程仅 IPC。建议 stdin/stdout 用于 Agent 文本通道，运行时控制/工具 RPC 走 IPC，console 作为有执行 ID 的数据事件回传；2026-10-23 用户已确认上述通道分工；prompt.agent.md 已修正，不再阻塞。
 3. **P0：进程级“仅 IPC”尚未成立。** 现有 Node permission 启动允许读 dist/node_modules，不能证明拒绝所有网络能力。原生 PTC 后端允许模块导入及按 sandbox policy 进行文件访问，也不能直接复用并宣称达到 SPEC。需独立验证限制机制，无法满足应加载失败，不能降级为仅删除 vm 中模块。A12 只检查 require/process 名称仍不足以证明进程权限边界。
 4. **P1：新旧模式共享 UI/注册表。** 全局 unknown 改 tools、全局 vm.print 改 console 会改变旧模式。建议只在新模式投影 namespace 和 builtins，旧 Profile 保存结构继续共享；UI 按模式显示固定节点。该建议为可行分类，不是已实施行为。
 5. **P1：日志与流。** marker 跨 chunk、源码缓冲、合成 block、native thinking replay、取消和确定性重放需整体设计；不得沿用旧控制器直接执行后再合成 exec。
@@ -101,3 +101,7 @@ schemas 提供 model-facing 参数 schema，get 可拿到实际定义，均须�
 ## 当前完成边界
 
 已完成静态勘察与源码契约核实，未完成任何新模式验收。V1 失效假设已隔离；V6 使用 SPEC 明确允许的退化路线。依据 AGENTS.md“存在需要解决的问题、警告或者错误，则停止任务，写入文件，以等待下一步指令”，在上述 P0 语义明确前停止实现，不将文档审计视为重构完成。基线检查结果见 NOTES.md。
+
+## 用户确认后的推进
+
+2026-10-23：已明确 AsyncFunction 仅持久化显式 globalThis 状态，以及 Agent stdin/stdout 与运行时 IPC 通道边界。继续 T2；V1 的 provider 替代接口与进程隔离证明仍须在 T3 单独处理。
