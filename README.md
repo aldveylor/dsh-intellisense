@@ -65,4 +65,4 @@ npm run lint
 npm run test:active
 ```
 
-新模式测试使用 fake adapter 和真实隔离进程，不调用真实模型。原 `npm run typecheck` / `npm test` 仍包含历史 REPL/unknown/vm.print 测试，其中有审计前已存在的错误和旧协议断言；不能将它们视作新模式验收套件。验证结果与实际版本见 `docs/NOTES.md`，审计及偏差见 `docs/gap-analysis.md`。
+新模式测试使用 fake adapter 和真实隔离进程，不调用真实模型。原 `npm run typecheck` / `npm test` 仍包含历史 REPL/unknown/vm.print 测试，其中有审计前已存在的错误和旧协议断言；不能将它们视作新模式验收套件。

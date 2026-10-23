@@ -24,8 +24,7 @@
     "dist",
     "cordis.patch.yml",
     "README.md",
-    "presets",
-    "docs"
+    "presets"
   ],
   "dsh": {
     "bundle": {
