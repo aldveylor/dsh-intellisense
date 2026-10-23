@@ -114,7 +114,7 @@ function CommandNode({ mapping, path, description, tree, fixed = false, command 
                 if (!fixed && id && event.key === 'Enter') { event.preventDefault(); tree.editDescription(id); }
             }}>{(id && Object.hasOwn(tree.toolComments, id) ? tree.toolComments[id] : undefined) ?? mapping?.description ?? description ?? t('edit_comment')}</span>
         <span className="ts-node-actions">
-            <PinButton label={t('pin_command', { path })} active={!!(command?.alwaysVisible ?? mapping?.alwaysVisible)} level={command?.alwaysVisible ?? mapping?.alwaysVisible ?? 0} busy={tree.busy || !!command?.disabled}
+            <PinButton label={t('pin_command', { path })} active={!!(command?.alwaysVisible ?? mapping?.alwaysVisible)} level={command?.alwaysVisible ?? mapping?.alwaysVisible ?? 0} busy={tree.busy || !!command?.disabled || path === 'tools.intellisense'}
                 toggle={() => { if (command) tree.pinBuiltin(command.path); else if (mapping) tree.pinTool(mapping); else if (id) tree.pinUnmounted(id); }} />
             {!readOnly && <RemoveButton label={t('remove_mapping', { path })} busy={tree.busy || !!mapping?.pinned} remove={() => tree.remove(path)} />}
         </span>
@@ -186,7 +186,7 @@ function NamespaceNode({ path, tree, fixed = false, provided }: { path: string; 
     const mounted = tree.mappings.flatMap(mapping => [mapping.path, ...mapping.aliases].map(path => ({ path, mapping })))
         .filter(m => m.path.split('.').slice(0, -1).join('.') === path);
     const nodes = orderedPaths([...children, ...mounted.map(m => m.path)], tree.order);
-    const count = provided ? provided.commands.length : tree.mappings
+    const count = provided ? provided.commands.length + (provided.children?.length ?? 0) : tree.mappings
         .flatMap(mapping => [mapping.path, ...mapping.aliases]).filter(command => inNamespace(command, path)).length;
     return <li data-tree-path={path}>
         <div className={`ts-node-block${fixed ? ' ts-fixed-node' : ''}`} data-namespace-path={path} data-drop-disabled={fixed || undefined} draggable={!tree.busy && !fixed} onDragStart={event => {
@@ -209,7 +209,8 @@ function NamespaceNode({ path, tree, fixed = false, provided }: { path: string; 
                 <RemoveButton label={t('delete_namespace', { path })} busy={tree.busy} remove={() => tree.deleteNamespace(path)} />
             </span></>}
         </div>
-        {open && <ul>{provided ? provided.commands.map(command => <CommandNode key={command.path} path={command.path} description={command.description} command={command} fixed={command.fixed} tree={tree} />) : nodes.map(node => {
+        {open && <ul>{provided ? <>{provided.commands.map(command => <CommandNode key={command.path} path={command.path} description={command.description} command={command} fixed={command.fixed} tree={tree} />)}
+            {provided.children?.map(child => <NamespaceNode key={child.path} path={child.path} tree={tree} provided={child} fixed={child.fixed} />)}</> : nodes.map(node => {
             const command = mounted.find(m => m.path === node);
             return command ? <CommandNode key={node} path={node} mapping={command.mapping} tree={tree}
                 description={tree.tools.find(t => t.id === command.mapping.id)?.description} /> : <NamespaceNode key={node} path={node} tree={tree} />;
@@ -387,7 +388,7 @@ export function ManagementPanel({ api, ProfileSelect }: ManagementPanelProps) {
 
     const tree: TreeProps = {
         paths, mappings, namespaces, order, expanded, tools: view?.tools ?? [], busy: busy || !view,
-        pinBuiltin: path => setBuiltinVisible(current => ({ ...current, [path]: nextPinLevel(current[path] ?? 0) || (path === 'tools.intellisense' ? 1 : 0) })),
+        pinBuiltin: path => setBuiltinVisible(current => ({ ...current, [path]: path === 'tools.intellisense' ? 2 : nextPinLevel(current[path] ?? 0) })),
         toolComments, unmountedVisible, pinUnmounted: id => setUnmountedVisible(current => ({ ...current, [id]: nextPinLevel(current[id] ?? 0) })),
         editDescription: id => { if (!busy) setDescriptionEditor({ id, text: Object.hasOwn(toolComments, id) ? toolComments[id] : mappings.find(m => m.id === id)?.description }); },
         pick: parent => setToolPicker({ parent }), configure: configureNamespace, drop: (event, parent) => nativeDrop(event, { path: parent, position: 'inside' }), create: createNamespace, rename: renameMapping, remove: removeMapping,

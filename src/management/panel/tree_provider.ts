@@ -1,5 +1,5 @@
 import type { Mapping, PhysicalTool, PinLevel, CommandVisibility } from '../../registry/registry.js';
-import { vmCommands, consoleCommands, managementCommands, defaultBuiltinVisible, discoveryCommand } from '../../runtime/builtins.js';
+import { vmCommands, consoleCommands, managementCommands, defaultBuiltinVisible, discoveryCommand, profileValues } from '../../runtime/builtins.js';
 
 /** @brief Provider command metadata supplies interaction rules independently of its name. */
 export interface ProvidedCommand {
@@ -8,7 +8,7 @@ export interface ProvidedCommand {
 }
 
 /** @brief Synthetic namespaces share the ordinary namespace renderer through fixed props. */
-export interface ProvidedNamespace { path: string; description: string; fixed: boolean; commands: ProvidedCommand[] }
+export interface ProvidedNamespace { path: string; description: string; fixed: boolean; commands: ProvidedCommand[]; children?: ProvidedNamespace[] }
 
 /** @brief List currently available tools without a mounted path in the active draft. */
 export function unmountedTools(tools: PhysicalTool[], mappings: Mapping[]): PhysicalTool[] {
@@ -19,7 +19,8 @@ export function unmountedTools(tools: PhysicalTool[], mappings: Mapping[]): Phys
 /** @brief Provider owns visible, fixed runtime namespaces; unmounted tools use the picker. */
 export function TreeProvider(visible: CommandVisibility = defaultBuiltinVisible): ProvidedNamespace[] {
     return [{ path: 'tools', description: 'Tool discovery and Profile management', fixed: true,
-        commands: [{ ...discoveryCommand, id: 'tools_intellisense', fixed: true, draggable: false, alwaysVisible: visible[discoveryCommand.path] || 1 }, ...managementCommands.map(command => ({ ...command, fixed: true, draggable: false, alwaysVisible: 0 as const, disabled: true }))] },
+        commands: [{ ...discoveryCommand, id: 'tools_intellisense', fixed: true, draggable: false, alwaysVisible: 2 }],
+        children: [{ path: 'tools.profile', description: 'Profile data and configuration', fixed: true, commands: [...managementCommands, ...profileValues].map(command => ({ ...command, fixed: true, draggable: false, alwaysVisible: visible[command.path] ?? 0 })) }] },
         { path: 'console', description: 'Native console output', fixed: true,
         commands: consoleCommands.map(command => ({ ...command, fixed: true, draggable: false, alwaysVisible: visible[command.path] ?? 0 })) },
         { path: 'vm', description: 'Built-in VM commands', fixed: true,
@@ -28,5 +29,6 @@ export function TreeProvider(visible: CommandVisibility = defaultBuiltinVisible)
 
 /** @brief Resolve fixed runtime namespaces and their descendants. */
 export function providedNamespace(path: string): ProvidedNamespace | undefined {
-    return TreeProvider().find(node => path === node.path || path.startsWith(`${node.path}.`));
+    const roots = TreeProvider();
+    return [...roots.flatMap(node => node.children ?? []), ...roots].find(node => path === node.path || path.startsWith(`${node.path}.`));
 }
