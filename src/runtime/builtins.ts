@@ -28,8 +28,8 @@ export const managementCommands: readonly BuiltinCommand[] = [
     { path: 'tools.loadprofile', signature: '(args: { profile: string }) => Promise<unknown>', description: 'Load a named Profile into this conversation.' },
 ];
 
-/** @brief Default prompt discovery includes custom commands but excludes standard Node.js console methods. */
-export const defaultBuiltinVisible = [...vmCommands, ...managementCommands].map(command => command.path);
+/** @brief Default discovery includes enabled custom commands and excludes standard console methods. */
+export const defaultBuiltinVisible = vmCommands.map(command => command.path);
 
-/** @brief Complete fixed callable surface for discovery without obsolete VM output callbacks. */
-export const builtinCommands = [...vmCommands, ...consoleCommands, ...managementCommands];
+/** @brief Enabled fixed callable surface; tools management is temporarily disabled. */
+export const builtinCommands = [...vmCommands, ...consoleCommands];

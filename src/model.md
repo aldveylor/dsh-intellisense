@@ -14,13 +14,13 @@
 
 `registry/registry.ts` 管理全局具名 Profile 目录、映射、别名、注释、排序、启用状态、固定路径和使用统计。`registry/profiles.ts` 为每会话持有不可变配置版本的智能引用，修改按 CoW 分离；目录覆盖/删除不修改既有会话。新会话捕获 UI 当前选中配置。工具权限始终由原生 guard/策略决定。
 
-未配置物理工具通过 tools.<encoded-name> 调用，tools_* 管理命令通过 tools.<method> 调用；不生成 unknown 命名空间。路径保留名称、重复和树碰撞检查。失效工具保留配置，但不进入实际 manifest、补全或执行环境。builtinVisible 记录内置固定提示偏好，按 Profile 保存；默认只提示非 Node 标准的自定义命令，console 等标准接口默认不固定提示。unmountedVisible 保存未挂载工具的固定提示偏好，不兼容旧字段名。
+tools 命名空间及 tools_* 管理工具暂时不进入实际执行与补全环境，未配置物理工具需挂载或提供自定义别名后调用；不生成 unknown 命名空间。路径保留名称、重复和树碰撞检查。失效工具保留配置，但不进入实际 manifest、补全或执行环境。builtinVisible 记录内置固定提示偏好，按 Profile 保存；默认只提示非 Node 标准的自定义命令，console 等标准接口默认不固定提示。unmountedVisible 保存未挂载工具的固定提示偏好，不兼容旧字段名。
 
 `storage/store.ts` 通过 DSH JSON backend 保存工具目录、Profile 版本和会话引用；MemoryStore/FileStore 用于独立使用。运行时不保存可执行状态或重放工具。
 
 ## 管理 UI
 
-`management/panel/management_panel.tsx` 和 `management/panel/tree_provider.ts` 显示 console、tools、vm 固定树与可配置命名空间；内置描述/注释/tooltip 固定英文，其余 UI 支持中英文。内置命令不可改名、拖动或删除，图钉可以开启/取消，并按当前 Profile 草稿保存。
+`management/panel/management_panel.tsx` 和 `management/panel/tree_provider.ts` 显示 console、tools、vm 固定树与可配置命名空间；内置描述/注释/tooltip 固定英文，其余 UI 支持中英文。内置命令不可改名、拖动或删除，除暂时禁用的 tools 命令外，图钉可以开启/取消，并按当前 Profile 草稿保存。
 
 UI 不再显示 unknown 块。树上方显示当前可用但未挂载的工具数量，点击打开只含未挂载工具的选择器；数量随挂载、移除映射和切换 Profile 更新。失效工具不计入，已挂载但禁用的工具仍算已挂载；内置管理工具和 exec 不计入未挂载工具。
 

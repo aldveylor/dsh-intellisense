@@ -93,7 +93,7 @@ function CommandNode({ mapping, path, description, tree, fixed = false, command 
     const invalid = !!mapping && !tree.tools.some(tool => tool.id === id);
     const draggable = !tree.busy && (command ? command.draggable : !fixed && !mapping?.pinned);
     return <li className={`ts-tree-tool${fixed ? ' ts-fixed-node' : ''}${invalid ? ' ts-tool-invalid' : ''}`}
-        data-tool-status={invalid ? 'invalid' : 'available'} data-tree-path={path} data-tool-id={id} data-drop-disabled={readOnly || undefined}
+        aria-disabled={command?.disabled || undefined} data-tool-status={command?.disabled ? 'disabled' : invalid ? 'invalid' : 'available'} data-tree-path={path} data-tool-id={id} data-drop-disabled={readOnly || undefined}
         title={invalid ? t('invalid_tool') : description} draggable={draggable}
         onDragStart={event => {
             if (!draggable || (event.target as HTMLElement).tagName === 'INPUT') { event.preventDefault(); return; }
@@ -111,7 +111,7 @@ function CommandNode({ mapping, path, description, tree, fixed = false, command 
                 if (!fixed && id && event.key === 'Enter') { event.preventDefault(); tree.editDescription(id); }
             }}>{(id && Object.hasOwn(tree.toolComments, id) ? tree.toolComments[id] : undefined) ?? mapping?.description ?? description ?? t('edit_comment')}</span>
         <span className="ts-node-actions">
-            <PinButton label={t('pin_command', { path })} active={command?.alwaysVisible ?? mapping?.alwaysVisible ?? false} locked={false} busy={tree.busy}
+            <PinButton label={t('pin_command', { path })} active={command?.alwaysVisible ?? mapping?.alwaysVisible ?? false} locked={false} busy={tree.busy || !!command?.disabled}
                 toggle={() => { if (command) tree.pinBuiltin(command.path); else if (mapping) tree.pinTool(mapping); else if (id) tree.pinUnmounted(id); }} />
             {!readOnly && <RemoveButton label={t('remove_mapping', { path })} busy={tree.busy || !!mapping?.pinned} remove={() => tree.remove(path)} />}
         </span>

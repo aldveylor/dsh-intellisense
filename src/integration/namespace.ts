@@ -20,6 +20,7 @@ export interface ManifestEntry { path: string; tool: string; argMap?: Record<str
 export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Aliases>): ManifestEntry[] {
     const entries = new Map<string, ManifestEntry>();
     const insert = (entry: ManifestEntry): void => {
+        if (entry.path === 'tools' || entry.path.startsWith('tools.') || entry.tool.startsWith('tools_')) return;
         const parts = entry.path.split('.');
         if (parts.some(part => ['__proto__', 'constructor', 'prototype', 'then'].includes(part)) || ['console', 'vm', 'globalThis'].includes(parts[0]!)) throw new Error(`Reserved manifest path: ${entry.path}`);
         const previous = entries.get(entry.path);
