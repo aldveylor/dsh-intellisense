@@ -1,3 +1,5 @@
+import { HistorySettings } from './history_settings/history_settings.js';
+import type { HistoryLimits } from '../protocol/history.js';
 import { useTranslation } from './locale/locale.js';
 import styles from './management_panel.css';
 import { useEffect, useState, type ComponentType, type DragEvent } from 'react';
@@ -12,6 +14,7 @@ import { isFixedNamespace, namespacePaths, orderedPaths, inNamespace, renameName
 /** @brief Authenticated management metadata, shared by embedded and standalone React views. */
 interface View {
     state: RegistryState;
+    historyLimits?: HistoryLimits;
     tools: PhysicalTool[];
     effective: Array<Mapping & { tool: PhysicalTool }>;
     declarations: string;
@@ -400,6 +403,11 @@ export function ManagementPanel({ api, ProfileSelect }: ManagementPanelProps) {
     return <div className="ts-intellisense" ref={drag.container} onPointerDownCapture={drag.pointerDown} onDragStartCapture={drag.preventNativeDrag}>
         <style>{styles}</style>
         <header><h1>{t('title')}</h1></header>
+        <HistorySettings value={view?.historyLimits} busy={busy || !view} save={historyLimits => void action('saving', async () => {
+            await request(api, { action: 'history', historyLimits });
+            setView(current => current ? { ...current, historyLimits } : current);
+            setStatus('');
+        })} />
         {status && <p role="status" aria-live="polite">{t(status)}</p>}
         <div className="ts-toolbar"><div className="ts-actions">
             <button disabled={busy} onClick={() => void action('refreshing', reload)}>{t('refresh')}</button>

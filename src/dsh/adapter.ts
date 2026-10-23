@@ -9,6 +9,7 @@ import { IsolatedSession } from '../runtime/isolated.js';
 import type { SessionCheckpoint, ExecutionResult } from '../runtime/session.js';
 import { environmentPrompt } from '../protocol/prompt.js';
 import { runConversation } from '../protocol/controller.js';
+import type { CompletionSettings } from '../protocol/history.js';
 import type { ProfileSessions } from '../registry/profiles.js';
 import { ExecutionTrace } from './execution_trace.js';
 
@@ -32,7 +33,7 @@ export class TypeScriptAdapter {
     private positions = new Map<string, { turn: number; step: number }>();
     private executions = new Map<string, ExecutionTrace>();
 
-    constructor(private ctx: Context, readonly config: AdapterConfig, private registry: SemanticRegistry, private store: Store, private profiles: ProfileSessions) {
+    constructor(private ctx: Context, readonly config: AdapterConfig, private registry: SemanticRegistry, private store: Store, private profiles: ProfileSessions, private settings: CompletionSettings) {
         ctx.on('agent/assistant-stream', ({ agent, frame }) => {
             if (frame.type === 'start') this.positions.set(agent.id, { turn: frame.turn, step: frame.step });
             if (frame.type === 'end') this.positions.delete(agent.id);
@@ -149,6 +150,7 @@ export class TypeScriptAdapter {
         const trace = position ? new ExecutionTrace(agent, position, options) : undefined;
         let lastResult: ExecutionResult | undefined;
         const response = await runConversation({
+            historyLimits: () => this.settings.limits(),
             code: (round, code) => trace?.updateCode(round, code),
             intellisense: record => trace?.intellisense(record),
             trace: (event, details) => logger.info('%s %s', event, JSON.stringify({ session: agent.id, request: identity, ...details })),

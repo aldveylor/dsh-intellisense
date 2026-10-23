@@ -2,10 +2,12 @@ import { createAssistantMessage, createSystemMessage, type GenerateOptions, type
 import { mergeContinuation, previewSource, processMarkers, type Segment } from './markers.js';
 import type { CompletionResult } from '../typescript/completion.js';
 import type { ExecutionResult } from '../runtime/session.js';
+import { CompletionHistory, defaultHistoryLimits, type HistoryLimits } from './history.js';
 import type { IntellisenseRecord } from './execution_trace.js';
 
 /** @brief Host capabilities used by the independently testable continuation controller. */
 export interface ControllerHost {
+    historyLimits?(): HistoryLimits;
     takeContext?(): Promise<string | undefined>;
     generate(options: GenerateOptions): AsyncIterable<StreamChunk>;
     trace?(event: string, details: Record<string, unknown>): void;
@@ -35,7 +37,9 @@ export function continuationHistory(original: RequestMessage[], prefix: string, 
 export async function runConversation(host: ControllerHost, initial: GenerateOptions, identity: string): Promise<LogicalResponse> {
     const history = [...initial.messages];
     let prefix = '';
-    const discoveries: string[] = [];
+    const discoveries = new CompletionHistory();
+    const limits = () => host.historyLimits?.() ?? defaultHistoryLimits;
+    const discoveryContext = () => discoveries.context(limits());
     const completionPositions = new Map<string, { count: number; result?: CompletionResult }>();
     let request = initial;
     for (let round = 0; ; round++) {
@@ -74,7 +78,7 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
         catch (error) {
             host.source?.(prefix);
             host.trace?.('ts.parse.error', { round, response, error: error instanceof Error ? error.message : String(error) });
-            const context = `${discoveries.join('\n\n')}\nInvalid control marker format: ${error instanceof Error ? error.message : String(error)}. The rejected response has not executed. Return only TypeScript up to one terminal control marker and stop immediately; never append an explanation after a marker.\nRejected response:\n${response}`;
+            const context = `${discoveryContext()}\nInvalid control marker format: ${error instanceof Error ? error.message : String(error)}. The rejected response has not executed. Return only TypeScript up to one terminal control marker and stop immediately; never append an explanation after a marker.\nRejected response:\n${response}`;
             await host.journal({ round, prefix, response, context });
             request = { ...initial, messages: continuationHistory(history, prefix, context, initial.provider, initial.model), tools: [], toolHistory: undefined };
             continue;
@@ -91,7 +95,7 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
             const error = await host.validate?.(prefix);
             host.trace?.('ts.validate.result', { round, valid: !error, diagnostics: error });
             if (error) {
-                const context = `${discoveries.join('\n\n')}\nTypeScript validation failed before execution. No code from the buffered program has executed. Replace the entire buffered program with corrected executable TypeScript only; do not include prose or Markdown fences.\nRejected source:\n${prefix}\nCompiler diagnostics:\n${error}`;
+                const context = `${discoveryContext()}\nTypeScript validation failed before execution. No code from the buffered program has executed. Replace the entire buffered program with corrected executable TypeScript only; do not include prose or Markdown fences.\nRejected source:\n${prefix}\nCompiler diagnostics:\n${error}`;
                 await host.journal({ round, prefix, response, context });
                 prefix = '';
                 host.source?.(prefix);
@@ -115,7 +119,7 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
                 ].join('\n');
                 history.push(createAssistantMessage({ content: [{ type: 'text', text: prefix }], source: { provider: initial.provider, model: initial.model } }), createSystemMessage(feedback));
                 prefix = '';
-                discoveries.length = 0;
+                discoveries.clear();
                 completionPositions.clear();
                 host.source?.(prefix);
                 request = { ...initial, messages: [...history], tools: [], toolHistory: undefined };
@@ -136,7 +140,7 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
             }
             if (occurrences > 1) {
                 host.intellisense?.({ phase: 'result', round, source: prefix, result: position.result, reused: true });
-                const context = `${discoveries.join('\n\n')}\nThe same cursor has already been inspected; its current VM members are listed above. No source has executed. Discard the unfinished buffer and write a complete executable TypeScript program that answers the original request. To list namespace members without invoking tools, use Object.keys(namespace) as the final executable expression. Do not repeat the same discovery request.`;
+                const context = `${discoveryContext()}\nThe same cursor has already been inspected; its current VM members are listed above. No source has executed. Discard the unfinished buffer and write a complete executable TypeScript program that answers the original request. To list namespace members without invoking tools, use Object.keys(namespace) as the final executable expression. Do not repeat the same discovery request.`;
                 await host.journal({ round, prefix, response, context });
                 prefix = '';
                 host.source?.(prefix);
@@ -152,10 +156,9 @@ export async function runConversation(host: ControllerHost, initial: GenerateOpt
             position.result = completion;
             host.intellisense?.({ phase: 'result', round, source: prefix, result: completion });
             host.trace?.('intellisense.result', { round, source: prefix, ...completion });
-            discoveries.push(completion.context);
-            if (discoveries.length > 3) discoveries.shift();
+            discoveries.push(completion, limits());
         }
-        const context = [...discoveries, ...(segment.kind === 'line' ? ['Continue on the next line. The buffered source remains unexecuted.'] : [])].join('\n\n');
+        const context = [discoveryContext(), ...(segment.kind === 'line' ? ['Continue on the next line. The buffered source remains unexecuted.'] : [])].join('\n\n');
         if (segment.kind === 'line') {
             prefix += '\n';
             host.source?.(prefix);

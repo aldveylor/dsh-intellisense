@@ -8,6 +8,7 @@ import { DshStore } from './storage/store.js';
 import { SemanticRegistry } from './registry/registry.js';
 import { TypeScriptAdapter } from './dsh/adapter.js';
 import { OrganizationService } from './dsh/organization.js';
+import { CompletionSettings } from './protocol/history.js';
 import { ProfileSessions } from './registry/profiles.js';
 import { registerToolCommands } from './dsh/tool_commands.js';
 import { registerManagement } from './web/routes.js';
@@ -28,7 +29,8 @@ export async function apply(ctx: Context, options: Config = {}): Promise<void> {
     const registry = new SemanticRegistry(store); await registry.load();
     const organization = new OrganizationService(ctx, registry);
     const profiles = new ProfileSessions(registry, store);
-    const adapter = new TypeScriptAdapter(ctx, config, registry, store, profiles);
+    const settings = new CompletionSettings(store); await settings.load();
+    const adapter = new TypeScriptAdapter(ctx, config, registry, store, profiles, settings);
     registerToolCommands(ctx, registry, profiles, agent => adapter.registryFor(agent), agent => adapter.configurationChanged(agent));
     ctx.on('llm/stream', (request, next) => {
         const agent = request.sessionId ? ctx.agents.get(request.sessionId) : undefined;
@@ -59,7 +61,7 @@ export async function apply(ctx: Context, options: Config = {}): Promise<void> {
             await adapter.registryFor(agent);
         }
     }
-    registerManagement(ctx, registry, adapter, organization);
+    registerManagement(ctx, registry, adapter, organization, settings);
     ctx.effect(() => async () => { await adapter.dispose(); await unit.close(); });
 }
 
