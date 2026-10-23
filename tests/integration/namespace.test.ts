@@ -37,9 +37,12 @@ test('detailed completion uses valid TypeScript/Doxygen declarations and preserv
     const entries = manifest(registry(), Aliases.parse([{ path: 'std.fs.read', tool: 'read_file' }]));
     const text = declaration(entries.find(entry => entry.path === 'std.fs.read')!);
     assert(text.includes('@brief 读取文件（保留注释原文）'));
-    assert(text.includes('@param args.path 文件路径'));
+    assert(!text.includes('@param args.path'));
+    assert(text.includes('/** 文件路径 */'));
+    assert(text.includes('function read(/** Tool arguments */ args: read_args): Promise<string>'));
     const file = ts.createSourceFile('intellisense.d.ts', text, ts.ScriptTarget.Latest, true);
     assert.equal(file.statements[0]?.kind, ts.SyntaxKind.ModuleDeclaration);
+    assert.equal((file as typeof file & { parseDiagnostics: unknown[] }).parseDiagnostics.length, 0);
     const host = new RuntimeHost({ timeoutMs: 3000 });
     try {
         const query = { prefix: 'await std.fs.read(', context: '', sessionId: SessionId('sense'), signal: new AbortController().signal };

@@ -65,7 +65,16 @@ export function declaration(entry: ManifestEntry): string {
         if (schema.properties) schema.properties = Object.fromEntries(Object.entries(schema.properties as object).map(([name, value]) => [reverse.get(name) ?? name, value]));
         if (Array.isArray(schema.required)) schema.required = schema.required.map(name => reverse.get(name) ?? name);
     }
-    const fields = schema.properties as Record<string, { description?: string }> | undefined;
-    const params = Object.entries(fields ?? {}).filter(([, schema]) => schema.description).map(([name, schema]) => ` * @param args.${name} ${schema.description!.replaceAll('*/', '* /')}`);
-    return `${parts.length ? `namespace ${parts.join('.')} {\n` : ''}/**\n * @brief ${doc}\n * @param args Tool arguments\n${params.join('\n')}${params.length ? '\n' : ''} * @returns Tool result\n */\nfunction ${name}(args: ${jsonSchemaToTs(schema)}): Promise<${jsonSchemaToTs(entry.output)}>;\n${parts.length ? '}' : ''}`;
+    const types: string[] = [];
+    /** @brief Name object contracts so the call signature stays compact without changing the native API. */
+    const typeName = (value: unknown, suffix: string): string => {
+        const text = jsonSchemaToTs(value);
+        if (!text.includes('{')) return text;
+        const alias = `${name}_${suffix}`;
+        types.push(`type ${alias} = ${text};`);
+        return alias;
+    };
+    const args = typeName(schema, 'args');
+    const result = typeName(entry.output, 'result');
+    return `${parts.length ? `namespace ${parts.join('.')} {\n` : ''}${types.length ? types.join('\n') + '\n\n' : ''}/**\n * @brief ${doc}\n * @returns Tool result\n */\nfunction ${name}(/** Tool arguments */ args: ${args}): Promise<${result}>;\n${parts.length ? '}' : ''}`;
 }

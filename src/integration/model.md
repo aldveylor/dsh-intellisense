@@ -13,3 +13,7 @@
 `preset.ts` 从 presets/text_ptc/preset.yml 与 agent.cordis.yml 注册原生 Text PTC Agent Mode。能力组成基于已安装的 standard preset，保留规划、技能、工具和子代理约束，工具呈现为 native 以承载真实 exec。bundle 设置默认和 selectedDefault 为 text-ptc；已存在用户层配置优先于 bundle，需同步保存选择。
 
 builtinVisible 为 Profile 的固定提示偏好，默认只包含自定义 vm 命令，标准 console 默认不提示。固定 UI 节点仍不可改名/移动/删除；tools 图钉禁用，其余图钉可切换。取消提示不改变可调用性。所有内置描述固定英文。
+
+## 命名空间组件
+
+`namespace_component.ts` 独立管理工具目录、会话 Profile、manifest 和初始提示词中的部分命名空间结构；PTC 适配器依赖它提供运行时映射。固定提示仅包含 Profile 固定的命令和命名空间，取消 console 子命令固定后不再出现在初始结构中；描述采用 Profile 简化注释。树使用 ts:namespace 和 namespace global 表示，完整成员和签名通过 IntelliSense 查询。补全函数参数文档内联到参数，属性注释保留在类型中，复杂对象使用具名类型以简化调用签名。补全示例使用行内代码并明确 exec 围栏不闭合。

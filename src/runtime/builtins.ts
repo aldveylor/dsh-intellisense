@@ -3,7 +3,7 @@ export interface BuiltinCommand { path: string; signature: string; description: 
 
 /** @brief VM lifecycle commands; intermediate output is provided by the native console. */
 export const vmCommands: readonly BuiltinCommand[] = [
-    { path: 'vm.restart', signature: '() => Promise<never>', description: 'Restart the session runtime and clear explicit global state.' },
+    { path: 'vm.restart', signature: '() => Promise<never>', description: 'Restart the entire VM, terminating running work and clearing all global state.' },
 ];
 
 /** @brief Native Node Console methods with their public signatures and English documentation. */

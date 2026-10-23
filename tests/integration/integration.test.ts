@@ -72,7 +72,7 @@ test('new mode executes through the native loop, audits guarded children and pro
         assert(parent && child); assert.equal(child.parent, parent.token); assert.equal(child.rootCallId, parent.callId);
         assert(!systemOf(model.requests[0]!).includes('persistent TypeScript REPL'));
         assert(!systemOf(model.requests[0]!).includes('console.log —'));
-        assert(systemOf(model.requests[0]!).includes('vm.restart —'));
+        assert(systemOf(model.requests[0]!).includes('restart: Function;'));
         assert(systemOf(model.requests[0]!).includes('strict AsyncFunction'));
         assert(model.requests.every(request => !request.tools?.some(tool => tool.name === 'exec')));
         const projected = JSON.stringify(model.requests[1]!.messages);
@@ -90,7 +90,7 @@ test('new mode executes through the native loop, audits guarded children and pro
         assert(JSON.stringify(model.requests.at(-1)!.messages).includes('undefined'));
         assert(model.requests.every(request => request.tools?.length === 0));
         assert(systemOf(model.requests[0]!).includes('## 命名空间'));
-        assert(systemOf(model.requests[0]!).includes('std.fs.read<|INTELLISENSE|>'));
+        assert(systemOf(model.requests[0]!).includes('std.cwd<|INTELLISENSE|>'));
         assert(systemOf(model.requests[0]!).includes("Use the language of the user's human-authored request"));
         assert(agent.session.snapshotEvents().some(event => event.type === 'system/message' && JSON.stringify(event.data).includes('## 命名空间')));
         const events = agent.session.snapshotEvents();
