@@ -1,13 +1,13 @@
 import type { Context } from '@deepseek-ai/cordis';
 import { readFile } from 'node:fs/promises';
 import type { Namespace, Mapping, SemanticRegistry } from '../../registry/registry.js';
-import type { TextPtcAdapter } from '../../integration/adapter.js';
+import type { NamespaceComponent } from '../../integration/namespace_component.js';
 import type { OrganizationService } from '../../integration/organization.js';
 import '@deepseek-ai/dsh-client-connection';
 import { managementHtml } from './page.js';
 
 /** @brief Register management UI and APIs behind DSH owner-peer authentication and Host/Origin policy. */
-export function registerManagement(ctx: Context, globalRegistry: SemanticRegistry, adapter: TextPtcAdapter, organization: OrganizationService): void {
+export function registerManagement(ctx: Context, globalRegistry: SemanticRegistry, adapter: Pick<NamespaceComponent, 'refresh'>, organization: OrganizationService): void {
     const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
     ctx.connection.fetch.register({ path: '/api/ts-intellisense', methods: ['GET'], requestBody: 'buffered', fetch: async () => new Response(managementHtml, { headers: { ...headers, 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'" } }) });
     ctx.connection.fetch.register({ path: '/api/ts-intellisense-client', methods: ['GET'], requestBody: 'buffered', fetch: async () => new Response(await readFile(new URL('../standalone.js', import.meta.url), 'utf8'), { headers: { ...headers, 'Content-Type': 'text/javascript; charset=utf-8' } }) });

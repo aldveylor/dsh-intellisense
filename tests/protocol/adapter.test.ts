@@ -417,3 +417,15 @@ test('DSML inside executable source or its discarded tail does not trigger repai
     assertStream(answer, 'stop');
     assert.equal(answer.filter(c => c.type === 'text-delta').map(c => c.text).join(''), prose);
 });
+
+test('BREAK abandons a raw DSML call without repairing it into an executable program', async () => {
+    const original = 'Cancelled.\n<｜｜DSML｜｜function_calls><｜｜DSML｜｜invoke name="std.cwd"/>\n<|BREAK|abandoned call|>';
+    const f = fixture([original]);
+    const chunks = await f.run();
+    assert.equal(codeOf(chunks), undefined);
+    assert.equal(f.requests.length, 1);
+    assert(!JSON.stringify(chunks).includes('DSML'));
+    assert(!JSON.stringify(chunks).includes('abandoned call'));
+    assert(JSON.stringify(f.events).includes('abandoned call'));
+    assert.deepEqual(chunks.at(-1), { type: 'finish', reason: { kind: 'stop' } });
+});

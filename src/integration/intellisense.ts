@@ -18,9 +18,10 @@ export async function intellisense(query: CompletionQuery, entries: ManifestEntr
     if (path === 'tools' || path.startsWith('tools.')) return { kind: 'members', text: 'The tools namespace is temporarily disabled.' };
     const exact = entries.find(entry => entry.path === path);
     if (exact) return { kind: 'signature', text: declaration(exact) };
-    const fixed = builtinCommands.find(command => command.path === path);
+    const availableBuiltins = runtime ? builtinCommands : [];
+    const fixed = availableBuiltins.find(command => command.path === path);
     if (fixed) return { kind: 'signature', text: `namespace ${fixed.path.split('.').slice(0, -1).join('.')} {\n/** @brief ${fixed.description} */\nfunction ${fixed.path.split('.').at(-1)}${fixed.signature.replace(' => ', ': ')};\n}` };
-    const staticPaths = [...entries.map(entry => ({ path: entry.path, description: entry.doc })), ...builtinCommands];
+    const staticPaths = [...entries.map(entry => ({ path: entry.path, description: entry.doc })), ...availableBuiltins];
     const prefix = path.endsWith('.') ? path : path.slice(0, path.lastIndexOf('.') + 1);
     const names = [...new Set(staticPaths.filter(entry => entry.path.startsWith(path)).map(entry => {
         const member = entry.path.slice(prefix.length).split('.')[0]!;

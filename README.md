@@ -66,3 +66,7 @@ npm test
 ```
 
 测试使用 fake adapter 和真实隔离进程，不调用真实模型。旧 REPL 实现、接口及专用测试已移除。旧历史保留设置不再提供，执行与续写预算统一由插件 Config 管理。Profile 中未挂载工具提示偏好字段为 `unmountedVisible`，不兼容旧状态字段。
+
+## Independent namespaces
+
+Mount `dsh-ts-intellisense/namespace` to use Profile-backed namespace discovery with native tools, without creating a JavaScript VM. The default `dsh-ts-intellisense` entry composes this component with isolated Text PTC execution. Both share management UI, partial namespace hints, IntelliSense system-prompt updates and durable completion traces. The marker `<|BREAK|comment|>` vetoes the current response's tool dispatch, including DSML calls.

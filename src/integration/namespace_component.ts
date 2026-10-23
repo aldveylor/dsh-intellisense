@@ -1,3 +1,8 @@
+import { appendPluginRecord } from '@deepseek-ai/dsh-session';
+import { createSystemMessage } from '@deepseek-ai/dsh-llm';
+import type { Position, SenseEvent, RewriteEvent } from '../protocol/events.js';
+import type { ProtocolHost } from '../protocol/adapter.js';
+import { senseRecord } from '../protocol/session_records.js';
 import type { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { PhysicalTool, SemanticRegistry } from '../registry/registry.js';
@@ -50,8 +55,35 @@ export class NamespaceComponent {
             if (mapping?.alwaysVisible) hints.push({ path: entry.path, description: state.toolComments?.[entry.tool] ?? mapping.description ?? entry.doc });
         }
         for (const item of state.namespaces ?? []) if (item.alwaysVisible && entries.some(entry => entry.path.startsWith(item.path + '.'))) hints.push({ ...item, namespace: true });
-        for (const item of builtinCommands) if ((state.builtinVisible ?? defaultBuiltinVisible).includes(item.path)) hints.push(item);
+        for (const item of (this.ctx.get('codeRuntime') ? builtinCommands : [])) if ((state.builtinVisible ?? defaultBuiltinVisible).includes(item.path)) hints.push(item);
         return namespaceDirectory(hints);
+    }
+
+    /** @brief Recover signatures only for the current Profile version and runtime lifetime. */
+    async completions(agent: Agent, epoch: number): Promise<string> {
+        const revision = (await this.registryFor(agent)).snapshot().revision;
+        const completions = new Map<string, string>();
+        for (const event of agent.session.snapshotEvents()) {
+            const data = senseRecord(event);
+            if (data?.profileRevision === revision && data.runtimeEpoch === epoch) completions.set(data.prefix, data.injected);
+        }
+        return [...completions.values()].join('\n\n');
+    }
+
+    /** @brief Share discovery and durable system-prompt updates across native and PTC transports. */
+    protocolHost(agent: Agent, position: Position, epoch: () => number): ProtocolHost {
+        return {
+            promptUpdated: async text => {
+                agent.session.append('system/message', { ...position, message: createSystemMessage(text) }, { surfaceOp: 'append' });
+            },
+            complete: async query => this.ctx.get('intellisense')?.complete(query, await this.entries(agent)),
+            audit: async (type, event) => {
+                if (type === 'exec/intellisense') appendPluginRecord(agent.session, 'plugin:ts_intellisense/intellisense', {
+                    ...event as SenseEvent, profileRevision: (await this.registryFor(agent)).snapshot().revision, runtimeEpoch: epoch(),
+                });
+                else appendPluginRecord(agent.session, 'plugin:ts_intellisense/rewrite', event as RewriteEvent);
+            },
+        };
     }
 
     /** @brief Release a live Profile reference while retaining its persisted version. */

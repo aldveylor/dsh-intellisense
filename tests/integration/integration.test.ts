@@ -100,6 +100,16 @@ test('new mode executes through the native loop, audits guarded children and pro
         assert(events.some(event => String(event.type) === 'plugin:ts_intellisense/rewrite'));
         assert(events.some(event => event.type === 'tool/ptc-dispatch-start'));
         assert(events.some(event => event.type === 'tool/ptc-dispatch'));
+        const namespaces = ctx.get('commandNamespaces')!;
+        const registry = await namespaces.registryFor(agent);
+        await registry.replaceConfiguration({ ...registry.configuration(), builtinVisible: ['console.log'], mappings: [{ id: 'read_file', path: 'std.fs.read', aliases: [], enabled: true, pinned: false, alwaysVisible: true, description: 'Read briefly' }] }, 'Default');
+        const pinned = await namespaces.prompt(agent);
+        assert(pinned.includes('log: Function;'));
+        assert(pinned.includes('read: Function;  // Read briefly'));
+        assert(!pinned.includes('restart: Function;'));
+        await registry.replaceConfiguration({ ...registry.configuration(), builtinVisible: [], mappings: registry.configuration().mappings.map(mapping => ({ ...mapping, alwaysVisible: false })) }, 'Default');
+        assert(!(await namespaces.prompt(agent)).includes('log: Function;'));
+        assert(!(await namespaces.prompt(agent)).includes('read: Function;'));
         const routed = await ctx.agentLoop.create(SessionId('routed-text-ptc'), { provider: 'text-ptc', model: 'fake/scripted' });
         model.codes = ['Routed answer.'];
         routed.followup(createUserMessage({ content: [{ type: 'text', text: 'Answer through the Text PTC provider.' }], source: { kind: 'user' } }));
@@ -112,5 +122,38 @@ test('new mode executes through the native loop, audits guarded children and pro
         assert.equal(ctx.tools.get('exec'), undefined);
         assert.equal(ctx.get('codeRuntime'), undefined);
         assert(!ctx.llm.listProviders().some(provider => provider.id === 'text-ptc'));
+    } finally { await ctx.fiber.dispose(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('standalone namespace plugin injects initial hints and completion updates without creating a VM', { timeout: 10_000 }, async () => {
+    const namespacePlugin = await import('../../src/integration/namespace_plugin.js');
+    const directory = await mkdtemp(join(tmpdir(), 'namespace-native-'));
+    const ctx = new Context();
+    try {
+        await ctx.plugin(LlmRuntime); await ctx.plugin(SessionStore); await ctx.plugin(SessionProjectionRegistry);
+        await ctx.plugin(SystemPrompt, { personaPrefix: '' }); await ctx.plugin(ToolRuntime); await ctx.plugin(AgentRegistry);
+        await ctx.plugin(AgentLoop, { agents: [] }); await ctx.plugin(Storage); await ctx.plugin(JsonStorage, { root: directory });
+        ctx.provide('connection', { fetch: { register: () => () => {} } });
+        ctx.provide('subagents', { startActivation: async () => { throw new Error('Unused'); } });
+        ctx.tools.register(defineTool({ name: 'read_file', description: 'Read a file', parameters: { path: { type: 'string', required: true } }, output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] }, execute: async () => 'contents' }));
+        const model = new ScriptedModel(); ctx.llm.registerAdapter(['fake'], model);
+        const mounted = await ctx.plugin(namespacePlugin);
+        assert.equal(ctx.get('codeRuntime'), undefined);
+        assert.equal(ctx.tools.get('exec'), undefined);
+        const agent = await ctx.agentLoop.create(SessionId('native-namespaces'), { provider: 'fake', model: 'scripted' });
+        const errors: unknown[] = [];
+        ctx.on('agent/error', ({ error }) => { errors.push(error); });
+        model.codes = ['std.fs.read<|INTELLISENSE|>', 'The signature is available.'];
+        agent.followup(createUserMessage({ content: [{ type: 'text', text: 'Inspect the read command.' }], source: { kind: 'user' } }));
+        await agent.whenIdle();
+        assert.deepEqual(errors, []);
+        assert.equal(model.codes.length, 0);
+        assert(systemOf(model.requests[0]!).includes('Current partial namespace structure:'));
+        assert(!systemOf(model.requests[0]!).includes('strict AsyncFunction'));
+        assert(!systemOf(model.requests[0]!).includes('restart: Function;'));
+        assert(systemOf(model.requests[1]!).includes('function read'));
+        assert(model.requests[0]!.tools?.some(tool => tool.name === 'read_file'));
+        await mounted.dispose();
+        assert.equal(ctx.get('commandNamespaces'), undefined);
     } finally { await ctx.fiber.dispose(); await rm(directory, { recursive: true, force: true }); }
 });

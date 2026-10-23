@@ -17,3 +17,5 @@ builtinVisible 为 Profile 的固定提示偏好，默认只包含自定义 vm �
 ## 命名空间组件
 
 `namespace_component.ts` 独立管理工具目录、会话 Profile、manifest 和初始提示词中的部分命名空间结构；PTC 适配器依赖它提供运行时映射。固定提示仅包含 Profile 固定的命令和命名空间，取消 console 子命令固定后不再出现在初始结构中；描述采用 Profile 简化注释。树使用 ts:namespace 和 namespace global 表示，完整成员和签名通过 IntelliSense 查询。补全函数参数文档内联到参数，属性注释保留在类型中，复杂对象使用具名类型以简化调用签名。补全示例使用行内代码并明确 exec 围栏不闭合。
+
+`namespace_plugin.ts` 是可独立挂载的 `dsh-ts-intellisense/namespace` 入口，持有工具目录、Profile、管理 UI、补全服务与初始系统命名空间注入；无 codeRuntime 时保留原生工具 schema 并挂载 NamespaceAdapter。默认入口先提供 codeRuntime，再组合命名空间插件和 TextPtcAdapter，后者只依赖 NamespaceComponent 的 manifest、提示与补全审计接口。模型提示仅描述当前使用协议，不包含组件拆分及 tools 临时禁用等实现细节。

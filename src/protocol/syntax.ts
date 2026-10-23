@@ -83,3 +83,8 @@ export class MarkerBuffer {
         return cleanControls(value.slice(0, end), this.marker);
     }
 }
+
+/** @brief Remove native DSML call blocks when a namespace BREAK vetoes dispatch. */
+export function stripNativeCalls(text: string): string {
+    return text.replace(/<(?:｜｜DSML｜｜|\|\|DSML\|\|)function_calls\b[\s\S]*?(?:<\/(?:｜｜DSML｜｜|\|\|DSML\|\|)function_calls>|(?=<\|BREAK)|$)/g, '');
+}

@@ -17,3 +17,5 @@
 `tests/protocol/` 使用 fake inner adapter 验证协议输出和审计事件，不依赖真实模型。构建检查生产源码，类型检查覆盖保留的测试。旧 REPL 接口及专用测试已删除。
 
 补全注入位于系统消息，续写 user 消息只负责请求继续。每次注入前提交原生 system/message，轨迹使用原生“系统提示词已更新”事件；补全审计继续保留查询、原文和净化数据。后续步骤按 Profile revision 与 VM epoch 恢复仍有效的补全。`session_records.ts` 验证浏览器及持久化补全记录，所有扩展记录通过 appendPluginRecord 写入 plugin: 名称并设置 ignorable，兼容当前 Session 格式验证与日志下载。
+
+`namespace_adapter.ts` 为无 VM 的原生命名空间模式提供独立适配器。响应在交付前缓冲，任意分片的 IntelliSense marker 触发系统数据注入；BREAK 使当前响应的结构化工具调用及 DSML 调用块全部失效，注释仅进入审计。缺少正常 finish、超限或取消时不交付调用。`stream.ts` 共享取消等待与 usage 合并，不依赖执行运行时。

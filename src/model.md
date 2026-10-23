@@ -1,6 +1,6 @@
 # 源码模型
 
-本插件当前执行模式为 Text PTC。`index.ts` 挂载共享 Profile/工具表/管理 UI、新协议适配器、exec 工具、codeRuntime 和可选 intellisense 服务。旧 REPL 实现、接口及其专用测试已移除。公开入口导出 RuntimeHost、TextExecAdapter 与 SemanticRegistry。
+本插件由独立命名空间组件与依赖它的 Text PTC 组件组成。`integration/namespace_plugin.ts`（包入口 `./namespace`）挂载 Profile、工具表、管理 UI、初始命名空间提示与 IntelliSense/BREAK 协议，不创建 VM；`index.ts` 默认组合该组件与 exec 工具、codeRuntime 及 Text PTC 协议适配器。旧 REPL 实现、接口及其专用测试已移除。公开入口导出 RuntimeHost、TextExecAdapter 与 SemanticRegistry。
 
 ## 执行与审计
 
@@ -35,3 +35,5 @@ UI 不再显示 unknown 块。树上方显示当前可用但未挂载的工具�
 ## 验证
 
 协议、运行时和原生 AgentLoop 的测试使用 fake adapter 与隔离进程，不调用真实模型。`tests/registry/` 与 `tests/management/` 保留当前工具目录及管理界面测试。旧 REPL、unknown 合成命名空间和 vm.print 专用测试已删除。构建检查所有生产源码。
+
+命名空间独立模式保留原生工具协议，BREAK 在转交原生调用前废弃当前响应的调用（包括 DSML）；PTC 模式由末尾执行块协议接管。插件审计使用 `plugin:ts_intellisense/*` 可忽略记录，原生系统提示词更新保存到 `system/message`。

@@ -2,9 +2,10 @@ import { createHash } from 'node:crypto';
 import {
     LlmAdapter, LlmError, ToolCallId, type ContentBlock, type FinishReason, type GenerateOptions, type StreamChunk, type TokenUsage,
 } from '@deepseek-ai/dsh-llm';
+import { abortable, addUsage } from './stream.js';
 import { Config, type ProtocolConfig } from './config.js';
 import { continuation, projectRequest, withIntellisense } from './projection.js';
-import { cleanControls, escapeData, execBlocks, joinContinuation, MarkerBuffer, nativeCallStart, proseEnd } from './syntax.js';
+import { cleanControls, escapeData, execBlocks, joinContinuation, MarkerBuffer, nativeCallStart, proseEnd, stripNativeCalls } from './syntax.js';
 import type { AuditEvents, Position } from './events.js';
 
 /** @brief Completion query data is scoped to the current request and cancellation signal. */
@@ -53,30 +54,6 @@ class TextOutput {
 /** @brief Check cancellation at every yield, including consumer pauses between adjacent chunks. */
 function* checked(chunks: StreamChunk[], signal: AbortSignal): Generator<StreamChunk> {
     for (const chunk of chunks) { signal.throwIfAborted(); yield chunk; }
-}
-
-/** @brief Abort even a stalled iterator/query while propagating the same signal to its owner. */
-async function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
-    signal.throwIfAborted();
-    let abort: () => void = () => {};
-    const cancelled = new Promise<never>((_resolve, reject) => {
-        abort = () => reject(signal.reason);
-        signal.addEventListener('abort', abort, { once: true });
-    });
-    try { return await Promise.race([promise, cancelled]); }
-    finally { signal.removeEventListener('abort', abort); }
-}
-
-/** @brief Merge disjoint usage fields, retaining totalTokens only when every segment supplied it. */
-function addUsage(total: TokenUsage | undefined, part: TokenUsage | undefined): TokenUsage | undefined {
-    if (!part) return total;
-    if (!total) return { ...part };
-    const merged: TokenUsage = { inputTokens: total.inputTokens + part.inputTokens, outputTokens: total.outputTokens + part.outputTokens };
-    for (const key of ['cacheReadTokens', 'cacheWriteTokens', 'reasoningTokens'] as const) {
-        if (total[key] !== undefined || part[key] !== undefined) merged[key] = (total[key] ?? 0) + (part[key] ?? 0);
-    }
-    if (total.totalTokens !== undefined && part.totalTokens !== undefined) merged.totalTokens = total.totalTokens + part.totalTokens;
-    return merged;
 }
 
 /** @brief Request-local text execution adapter; the native loop exclusively owns actual execution. */
@@ -171,6 +148,9 @@ export class TextExecAdapter extends LlmAdapter {
                 } else buffered = response;
                 if (buffered.length > this.config.maxBufferedChars) throw new LlmError('Text execution output exceeds configured buffer', 'OUTPUT_LIMIT');
                 if (finish?.kind !== 'stop') throw new LlmError(`Upstream did not stop normally (${finish?.kind ?? 'missing finish'})`, 'INVALID_FINISH');
+                if (nativeCallStart(buffered) !== undefined && /<\|BREAK(?:\|[\s\S]*?)?\|>/.test(buffered)) {
+                    buffered = stripNativeCalls(buffered);
+                }
                 if (nativeCallStart(buffered) !== undefined) {
                     if (this.config.malformedPolicy === 'repair-once' && !repaired) {
                         await audit('', 'error');

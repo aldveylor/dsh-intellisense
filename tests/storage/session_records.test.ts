@@ -17,7 +17,7 @@ test('completion records survive current Session framing and log export admissio
     appendPluginRecord(session, 'plugin:ts_intellisense/rewrite', { turn: 1, step: 1, original: ['done'], code: '', hash: '', discardedTail: '', discardedBlocks: [], reason: 'prose' });
     const events = session.snapshotEvents();
     for (const event of events) {
-        const row = releasedV4SessionFormatCodec.encodeEvent(event);
+        const row = releasedV4SessionFormatCodec.encodeEvent(JSON.parse(JSON.stringify(event)));
         assert.doesNotThrow(() => assertV4RowAdmission(row));
         assert.equal(row.ignorable, true);
     }
