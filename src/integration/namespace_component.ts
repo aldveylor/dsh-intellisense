@@ -4,6 +4,8 @@ import * as presentation from './presentation.js';
 import type { Position } from '../protocol/events.js';
 import type { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
+import type { ScopeKey } from '@deepseek-ai/dsh-scope';
+import '@deepseek-ai/dsh-agent-preset-registry';
 import type { PhysicalTool, SemanticRegistry } from '../registry/registry.js';
 import type { ProfileSessions } from '../registry/profiles.js';
 import { declaration, manifest, nativeArgumentsFor, nativeSchema, resultFor, type Aliases, type ManifestEntry } from './namespace.js';
@@ -46,22 +48,29 @@ export class NamespaceComponent {
     position(agent: Agent): Position { return this.positions.get(agent.id) ?? { turn: 0, step: 0 }; }
 
     /** @brief Read only the native tool catalog visible to this agent. */
-    physical(agent?: Agent): PhysicalTool[] {
+    physical(agent?: Agent, scope: ScopeKey | undefined = agent): PhysicalTool[] {
         const tools = agent?.ctx.tools ?? this.ctx.tools;
-        return tools.schemas(agent).filter(tool => !['exec', 'run_code'].includes(tool.name) && !this.generatedTools.has(tools.get(tool.name, agent)!)).map(tool => ({ id: tool.name, description: tool.description, parameters: tool.parameters, output: tools.get(tool.name, agent)!.output.schema }));
+        return tools.schemas(scope).filter(tool => !['exec', 'run_code'].includes(tool.name) && !this.generatedTools.has(tools.get(tool.name, scope)!)).map(tool => ({ id: tool.name, description: tool.description, parameters: tool.parameters, output: tools.get(tool.name, scope)!.output.schema }));
     }
 
-    /** @brief Refresh global metadata without changing any Profile configuration. */
-    refresh(): void {
+    /** @brief Include standing preset tools in the editor catalog even without live conversations. */
+    async refresh(): Promise<void> {
         const tools = new Map(this.physical().map(tool => [tool.id, tool]));
+        const presets = this.ctx.get('agentPresets');
+        if (presets) for (const preset of await presets.list()) {
+            if (preset.broken) continue;
+            const scope = await presets.acquireScope(preset.id);
+            try {
+                for (const tool of this.physical(undefined, scope.key)) tools.set(tool.id, tool);
+            } finally { await scope[Symbol.asyncDispose](); }
+        }
         for (const agent of this.ctx.agents.list()) for (const tool of this.physical(agent)) tools.set(tool.id, tool);
         this.registry.refresh([...tools.values()]);
     }
 
     /** @brief Resolve the session's immutable Profile reference against its current tool scope. */
     async registryFor(agent?: Agent): Promise<SemanticRegistry> {
-        this.refresh();
-        if (!agent) return this.registry;
+        if (!agent) { await this.refresh(); return this.registry; }
         const registry = await this.profiles.forSession(agent.id);
         registry.refresh(this.physical(agent));
         return registry;
