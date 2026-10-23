@@ -88,6 +88,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
             if (!execution.agent) throw new Error('A live conversation is required');
             const registry = await registryFor(execution.agent);
             const state = registry.snapshot();
+            if (source === 'tools.intellisense' || source === 'tools_intellisense') return { id: 'tools_intellisense', fixed: true };
             if (builtinCommands.some(command => command.path === source)) {
                 const visible = new Set(state.builtinVisible ?? defaultBuiltinVisible);
                 if (fixed) visible.add(source); else visible.delete(source);

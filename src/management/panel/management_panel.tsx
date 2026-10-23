@@ -111,7 +111,7 @@ function CommandNode({ mapping, path, description, tree, fixed = false, command 
                 if (!fixed && id && event.key === 'Enter') { event.preventDefault(); tree.editDescription(id); }
             }}>{(id && Object.hasOwn(tree.toolComments, id) ? tree.toolComments[id] : undefined) ?? mapping?.description ?? description ?? t('edit_comment')}</span>
         <span className="ts-node-actions">
-            <PinButton label={t('pin_command', { path })} active={command?.alwaysVisible ?? mapping?.alwaysVisible ?? false} locked={false} busy={tree.busy || !!command?.disabled}
+            <PinButton label={t('pin_command', { path })} active={command?.alwaysVisible ?? mapping?.alwaysVisible ?? false} locked={command?.path === 'tools.intellisense'} busy={tree.busy || !!command?.disabled}
                 toggle={() => { if (command) tree.pinBuiltin(command.path); else if (mapping) tree.pinTool(mapping); else if (id) tree.pinUnmounted(id); }} />
             {!readOnly && <RemoveButton label={t('remove_mapping', { path })} busy={tree.busy || !!mapping?.pinned} remove={() => tree.remove(path)} />}
         </span>

@@ -8,7 +8,7 @@ export const Aliases = z.array(z.strictObject({ path: z.string().regex(/^[A-Za-z
     const names = new Set<string>();
     for (const [index, alias] of aliases.entries()) {
         const parts = alias.path.split('.');
-        if (['console', 'vm', 'globalThis'].includes(parts[0]!) || parts.some(part => ['__proto__', 'constructor', 'prototype', 'then'].includes(part))) context.addIssue({ code: 'custom', path: [index, 'path'], message: 'Reserved alias path' });
+        if (['console', 'vm', 'tools', 'globalThis'].includes(parts[0]!) || parts.some(part => ['__proto__', 'constructor', 'prototype', 'then'].includes(part))) context.addIssue({ code: 'custom', path: [index, 'path'], message: 'Reserved alias path' });
         if (names.has(alias.path)) context.addIssue({ code: 'custom', path: [index, 'path'], message: 'Duplicate alias path' });
         names.add(alias.path);
     }
@@ -21,7 +21,7 @@ export interface ManifestEntry { path: string; tool: string; argMap?: Record<str
 export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Aliases>): ManifestEntry[] {
     const entries = new Map<string, ManifestEntry>();
     const insert = (entry: ManifestEntry): void => {
-        if (entry.path === 'tools' || entry.path.startsWith('tools.') || entry.tool.startsWith('tools_')) return;
+        if ((entry.path === 'tools' || entry.path.startsWith('tools.') || entry.tool.startsWith('tools_')) && !(entry.path === 'tools.intellisense' && entry.tool === 'tools_intellisense')) return;
         const parts = entry.path.split('.');
         if (parts.some(part => ['__proto__', 'constructor', 'prototype', 'then'].includes(part)) || ['console', 'vm', 'globalThis'].includes(parts[0]!)) throw new Error(`Reserved manifest path: ${entry.path}`);
         const previous = entries.get(entry.path);
@@ -39,6 +39,8 @@ export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Ali
         const tool = registry.tools().find(tool => tool.id === alias.tool);
         if (tool && enabled.has(tool.id)) insert({ ...alias, schema: tool.parameters, output: tool.output, doc: tool.description });
     }
+    const discovery = registry.tools().find(tool => tool.id === 'tools_intellisense');
+    if (discovery) insert({ path: 'tools.intellisense', tool: discovery.id, schema: discovery.parameters, output: discovery.output, doc: discovery.description });
     return [...entries.values()];
 }
 
@@ -58,6 +60,7 @@ function parameters(entry: ManifestEntry): Parameter[] | undefined {
 /** @brief Repack positional values into validated native arguments before guarded dispatch. */
 export function argumentsFor(entry: ManifestEntry, values: unknown): unknown {
     if (!Array.isArray(values)) throw new Error('Expected positional arguments');
+    if (entry.tool === 'tools_intellisense') return nativeArgumentsFor(entry, { queries: values.length === 1 && Array.isArray(values[0]) ? values[0] : values });
     const fields = parameters(entry);
     let args: unknown;
     if (fields) {
@@ -72,9 +75,29 @@ export function argumentsFor(entry: ManifestEntry, values: unknown): unknown {
             if (Object.keys(args as object).length !== Object.keys(input).length) throw new Error('Argument mapping contains a duplicate target');
         }
     }
+    return nativeArgumentsFor({ ...entry, argMap: undefined }, args);
+}
+
+/** @brief Validate named DSML arguments after translating configured alias field names. */
+export function nativeArgumentsFor(entry: ManifestEntry, input: unknown): unknown {
+    let args = input;
+    if (entry.argMap && args && typeof args === 'object' && !Array.isArray(args)) {
+        const pairs = Object.entries(args).map(([key, value]) => [entry.argMap![key] ?? key, value]);
+        args = Object.fromEntries(pairs);
+        if (Object.keys(args as object).length !== pairs.length) throw new Error('Argument mapping contains a duplicate target');
+    }
     const errors = validateJsonSchemaValue(entry.schema as JsonSchemaNode, args);
     if (errors.length) throw new Error(`Invalid arguments: ${errors.join('; ')}`);
     return args;
+}
+
+/** @brief Project native object schemas onto configured DSML argument names. */
+export function nativeSchema(entry: ManifestEntry): Record<string, unknown> {
+    const names = new Map(Object.entries(entry.argMap ?? {}).map(([alias, native]) => [native, alias]));
+    const schema = structuredClone(entry.schema);
+    if (schema.properties && typeof schema.properties === 'object') schema.properties = Object.fromEntries(Object.entries(schema.properties).map(([key, value]) => [names.get(key) ?? key, value]));
+    if (Array.isArray(schema.required)) schema.required = schema.required.map(key => names.get(key) ?? key);
+    return schema;
 }
 
 /** @brief Select only unambiguous single-property object results for scalar projection. */
@@ -95,6 +118,7 @@ export function resultFor(entry: ManifestEntry, value: unknown): unknown {
 export function declaration(entry: ManifestEntry): string {
     const parts = entry.path.split('.');
     const name = parts.pop()!;
+    if (entry.tool === 'tools_intellisense') return `${parts.length ? `namespace ${parts.join('.')} {\n` : ''}/** @brief Query namespace members and tool signatures. */\nfunction ${name}(...queries: string[]): Promise<string>;\n${parts.length ? '}' : ''}`;
     const doc = (text: string): string => decodeHTML(text).replaceAll('*/', '* /');
     const types: string[] = [];
     /** @brief Keep complex field types out of the callable signature. */

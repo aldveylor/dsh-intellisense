@@ -28,8 +28,11 @@ export const managementCommands: readonly BuiltinCommand[] = [
     { path: 'tools.loadprofile', signature: '(args: { profile: string }) => Promise<unknown>', description: 'Load a named Profile into this conversation.' },
 ];
 
-/** @brief Default discovery includes enabled custom commands and excludes standard console methods. */
-export const defaultBuiltinVisible = vmCommands.map(command => command.path);
+/** @brief Fixed discovery command available in both native and PTC modes. */
+export const discoveryCommand: BuiltinCommand = { path: 'tools.intellisense', signature: '(...queries: string[]) => Promise<string>', description: 'Query namespace members and complete TypeScript tool signatures.' };
 
-/** @brief Enabled fixed callable surface; tools management is temporarily disabled. */
-export const builtinCommands = [...vmCommands, ...consoleCommands];
+/** @brief Default discovery includes custom commands and excludes standard console methods. */
+export const defaultBuiltinVisible = [...vmCommands.map(command => command.path), discoveryCommand.path];
+
+/** @brief Callable runtime commands and permanently visible signature discovery. */
+export const builtinCommands = [...vmCommands, ...consoleCommands, discoveryCommand];

@@ -1,27 +1,42 @@
 import { appendPluginRecord } from '@deepseek-ai/dsh-session';
-import { renderPrompt } from '@deepseek-ai/dsh-system-prompt';
-import { assembleContextFor } from '@deepseek-ai/dsh-agent';
-import { createSystemMessage } from '@deepseek-ai/dsh-llm';
-import type { Position, SenseEvent, RewriteEvent } from '../protocol/events.js';
-import type { ProtocolHost } from '../protocol/adapter.js';
-import { senseRecord } from '../protocol/session_records.js';
+import { ToolCallId } from '@deepseek-ai/dsh-llm';
+import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
+import '@deepseek-ai/dsh-agent-preset-registry';
+import type { Position } from '../protocol/events.js';
 import type { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { PhysicalTool, SemanticRegistry } from '../registry/registry.js';
 import type { ProfileSessions } from '../registry/profiles.js';
-import { manifest, type Aliases, type ManifestEntry } from './namespace.js';
+import { manifest, nativeArgumentsFor, nativeSchema, resultFor, type Aliases, type ManifestEntry } from './namespace.js';
 import { namespaceDirectory, type NamespaceHint } from './prompt.js';
-import { builtinCommands, defaultBuiltinVisible } from '../runtime/builtins.js';
+import { builtinCommands, defaultBuiltinVisible, discoveryCommand } from '../runtime/builtins.js';
 import type { z } from 'zod';
 
 /** @brief Profile-backed namespace discovery, independent of any execution runtime. */
 export class NamespaceComponent {
-    constructor(private ctx: Context, private registry: SemanticRegistry, readonly profiles: ProfileSessions, private aliases: z.infer<typeof Aliases>) {}
+    private positions = new Map<string, Position>();
+    private nativeTools = new Map<string, { fingerprint: string; names: Set<string>; disposers: (() => void)[] }>();
+
+    constructor(private ctx: Context, private registry: SemanticRegistry, readonly profiles: ProfileSessions, private aliases: z.infer<typeof Aliases>) {
+        ctx.on('agent/request', async (payload, next) => {
+            this.positions.set(payload.agent.id, { turn: payload.turn, step: payload.step });
+            return next();
+        });
+    }
+
+    /** @brief Resolve the actual live preset so native sessions never enter the PTC runtime. */
+    isPtc(agent: Agent): boolean {
+        const preset = this.ctx.get('agentPresets')?.composedPreset(agent.ctx);
+        return !!this.ctx.get('codeRuntime') && (!preset || preset === 'intellisense-ptc');
+    }
+
+    /** @brief Read the native loop position for ordinary tool query audit events. */
+    position(agent: Agent): Position { return this.positions.get(agent.id) ?? { turn: 0, step: 0 }; }
 
     /** @brief Read only the native tool catalog visible to this agent. */
     physical(agent?: Agent): PhysicalTool[] {
         const tools = agent?.ctx.tools ?? this.ctx.tools;
-        return tools.schemas(agent).filter(tool => !['exec', 'run_code'].includes(tool.name)).map(tool => ({ id: tool.name, description: tool.description, parameters: tool.parameters, output: tools.get(tool.name, agent)!.output.schema }));
+        return tools.schemas(agent).filter(tool => !['exec', 'run_code'].includes(tool.name) && !this.nativeTools.get(agent?.id ?? '')?.names.has(tool.name)).map(tool => ({ id: tool.name, description: tool.description, parameters: tool.parameters, output: tools.get(tool.name, agent)!.output.schema }));
     }
 
     /** @brief Refresh global metadata without changing any Profile configuration. */
@@ -44,7 +59,7 @@ export class NamespaceComponent {
     async entries(agent: Agent): Promise<ManifestEntry[]> { return manifest(await this.registryFor(agent), this.aliases); }
 
     /** @brief Notify the native system-prompt assembler after session configuration changes. */
-    async configurationChanged(agent: Agent): Promise<void> { await this.registryFor(agent); this.ctx.emit('system-prompt/change'); }
+    async configurationChanged(agent: Agent): Promise<void> { await this.registryFor(agent); if (!this.isPtc(agent)) await this.syncNative(agent); this.ctx.emit('system-prompt/change'); }
 
     /** @brief Publish only explicitly pinned commands and namespaces with their Profile briefs. */
     async prompt(agent: Agent): Promise<string> {
@@ -57,41 +72,52 @@ export class NamespaceComponent {
             if (mapping?.alwaysVisible) hints.push({ path: entry.path, description: state.toolComments?.[entry.tool] ?? mapping.description ?? entry.doc });
         }
         for (const item of state.namespaces ?? []) if (item.alwaysVisible && entries.some(entry => entry.path.startsWith(item.path + '.'))) hints.push({ ...item, namespace: true });
-        for (const item of (this.ctx.get('codeRuntime') ? builtinCommands : [])) if ((state.builtinVisible ?? defaultBuiltinVisible).includes(item.path)) hints.push(item);
+        for (const item of (this.isPtc(agent) ? builtinCommands : [discoveryCommand])) if (item.path === discoveryCommand.path || (state.builtinVisible ?? defaultBuiltinVisible).includes(item.path)) hints.push(item);
         return namespaceDirectory(hints);
     }
 
-    /** @brief Recover signatures only for the current Profile version and runtime lifetime. */
-    async completions(agent: Agent, epoch: number): Promise<string> {
-        const revision = (await this.registryFor(agent)).snapshot().revision;
-        const completions = new Map<string, string>();
-        for (const event of agent.session.snapshotEvents()) {
-            const data = senseRecord(event);
-            if (data?.profileRevision === revision && data.runtimeEpoch === epoch) completions.set(data.prefix, data.injected);
+    /** @brief Install scoped namespace aliases while keeping dispatch inside native guards and auditing. */
+    async syncNative(agent: Agent): Promise<string[]> {
+        const entries = await this.entries(agent);
+        const fingerprint = JSON.stringify(entries);
+        const previous = this.nativeTools.get(agent.id);
+        if (previous?.fingerprint === fingerprint) return entries.map(entry => entry.path);
+        for (const dispose of previous?.disposers ?? []) dispose();
+        const state = { fingerprint, names: new Set(entries.filter(entry => entry.path !== entry.tool).map(entry => entry.path)), disposers: [] as (() => void)[] };
+        this.nativeTools.set(agent.id, state);
+        for (const entry of entries) {
+            if (entry.path === entry.tool) continue;
+            state.disposers.push(agent.ctx.tools.register({
+                name: entry.path, description: entry.doc, parameters: nativeSchema(entry),
+                output: { schema: {}, render: (_args, value) => [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value) }] },
+                execute: async (args, parent) => {
+                    const current = (await this.entries(agent)).find(candidate => candidate.path === entry.path && candidate.tool === entry.tool);
+                    if (!current) throw new Error(`Execution denied: ${entry.path}`);
+                    return this.dispatch(agent, current, nativeArgumentsFor(current, args), parent, 1);
+                },
+            }));
         }
-        return [...completions.values()].join('\n\n');
+        return entries.map(entry => entry.path);
     }
 
-    /** @brief Share discovery and durable system-prompt updates across native and PTC transports. */
-    protocolHost(agent: Agent, position: Position, epoch: () => number): ProtocolHost {
-        return {
-            promptUpdated: async (_text, signal) => {
-                const assembly = await this.ctx.systemPrompt.assemble(assembleContextFor(agent, signal));
-                signal.throwIfAborted();
-                const text = renderPrompt(assembly);
-                agent.session.append('system/message', { ...position, message: createSystemMessage(text) }, { surfaceOp: 'append' });
-                return text;
-            },
-            complete: async query => this.ctx.get('intellisense')?.complete(query, await this.entries(agent)),
-            audit: async (type, event) => {
-                if (type === 'exec/intellisense') appendPluginRecord(agent.session, 'plugin:ts_intellisense/intellisense', {
-                    ...event as SenseEvent, profileRevision: (await this.registryFor(agent)).snapshot().revision, runtimeEpoch: epoch(),
-                });
-                else appendPluginRecord(agent.session, 'plugin:ts_intellisense/rewrite', event as RewriteEvent);
-            },
-        };
+    /** @brief Dispatch a namespace call through native permission checks and paired child audit records. */
+    async dispatch(agent: Agent, entry: ManifestEntry, args: unknown, parent: ToolRunContext, sequence: number): Promise<unknown> {
+        if (!agent.ctx.tools.get(entry.tool, agent)) throw new Error(`Execution denied: ${entry.path}`);
+        const callId = ToolCallId(`${parent.callId}:tool:${sequence}`);
+        const ids = { rootCallId: parent.rootCallId, parentCallId: parent.callId, subCallId: callId, name: entry.tool, arguments: args };
+        agent.session.append('tool/ptc-dispatch-start', ids);
+        const settled = await agent.ctx.tools.execute({ agent, callId, rootCallId: parent.rootCallId, parent: parent.token, name: entry.tool, arguments: args, signal: parent.signal });
+        agent.session.append('tool/ptc-dispatch', { ...ids, isError: settled.isError, content: settled.content, ...(settled.meta ? { meta: settled.meta } : {}) });
+        for (const context of settled.additionalContexts ?? []) parent.deferContext(context);
+        if (settled.isError) throw new Error(settled.error.message);
+        return resultFor(entry, settled.value) ?? null;
     }
 
-    /** @brief Release a live Profile reference while retaining its persisted version. */
-    release(owner: string): void { this.profiles.release(owner); }
+    /** @brief Release scoped aliases and the live Profile reference. */
+    release(owner: string): void {
+        for (const dispose of this.nativeTools.get(owner)?.disposers ?? []) dispose();
+        this.nativeTools.delete(owner);
+        this.positions.delete(owner);
+        this.profiles.release(owner);
+    }
 }
