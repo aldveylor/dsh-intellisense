@@ -89,7 +89,7 @@ function CommandNode({ mapping, path, description, tree, fixed = false, command 
     mapping?: Mapping; path: string; description?: string; tree: TreeProps; fixed?: boolean; command?: ProvidedCommand;
 }) {
     const t = useTranslation();
-    if (fixed && command) description = t(command.path === 'vm.print' ? 'vm_print' : 'vm_restart');
+    if (fixed && command) description = command.description;
     const id = mapping?.id ?? command?.id;
     const readOnly = fixed || !!command;
     const invalid = !!mapping && !tree.tools.some(tool => tool.id === id);
@@ -200,7 +200,7 @@ function NamespaceNode({ path, tree, fixed = false, provided }: { path: string; 
             {fixed ? <span className="ts-node-name">{path}</span> : <EditableText className="ts-node-name" value={path.split('.').at(-1)!} label={t('namespace_path_name', { path })} busy={tree.busy}
                 commit={name => tree.renameNamespace(path, name)} />}
             <small className="ts-node-count" aria-label={t('command_count', { path })}>{count}</small>
-            {fixed ? <span className="ts-node-preview">{provided ? t('vm_description') : undefined}</span> : <><EditableText className="ts-node-preview" value={config?.description ?? ''} label={t('namespace_comment', { path })} busy={tree.busy} empty
+            {fixed ? <span className="ts-node-preview">{provided?.description}</span> : <><EditableText className="ts-node-preview" value={config?.description ?? ''} label={t('namespace_comment', { path })} busy={tree.busy} empty
                 commit={description => { tree.configure(path, { description }); return true; }} />
             <span className="ts-node-actions">
                 <PinButton label={t('pin_namespace', { path })} active={config?.alwaysVisible ?? false} busy={tree.busy}

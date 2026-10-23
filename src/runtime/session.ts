@@ -1,4 +1,6 @@
 import vm from 'node:vm';
+import { Console } from 'node:console';
+import { Writable } from 'node:stream';
 import { inspect } from 'node:util';
 import { isProxy } from 'node:util/types';
 import { serialize, deserialize } from 'node:v8';
@@ -35,12 +37,16 @@ export class SessionRuntime {
     /** @brief Install immutable VM-owned callbacks independently of the configurable tool registry. */
     private createContext(): vm.Context {
         const context = vm.createContext(Object.create(null), { codeGeneration: { strings: false, wasm: false } });
-        new vm.Script('delete globalThis.console').runInContext(context);
+        const output = new Writable({ write: (chunk: Buffer, _encoding, done): void => {
+            // Console writes after an execution ends have no owner and are deliberately discarded.
+            this.feedback?.prints.push(chunk.toString().replace(/\r?\n$/, '').slice(0, 16_384));
+            done();
+        } });
+        Object.defineProperty(context, 'console', { value: new Console({
+            stdout: output, stderr: output, colorMode: false,
+            inspectOptions: { depth: 4, maxArrayLength: 50, maxStringLength: 4096, getters: false, customInspect: false },
+        }) });
         Object.defineProperty(context, 'vm', { value: Object.freeze({
-            print: (...values: unknown[]): void => {
-                if (!this.feedback) throw new Error('vm.print requires an active execution');
-                this.feedback.prints.push(values.map(value => this.format(value)).join(' '));
-            },
             restart: (preserve: readonly string[] = []): never => {
                 if (!this.feedback) throw new Error('vm.restart requires an active execution');
                 if (!Array.isArray(preserve) || preserve.some(name => typeof name !== 'string')) throw new Error('vm.restart expects an array of variable names');
@@ -59,7 +65,7 @@ export class SessionRuntime {
     }
 
     update(environment: Environment): void {
-        if (environment.paths.some(path => path === 'vm' || path.startsWith('vm.'))) throw new Error('The vm namespace is reserved for fixed built-in callbacks');
+        if (environment.paths.some(path => ['vm', 'console'].some(root => path === root || path.startsWith(`${root}.`)))) throw new Error('The vm and console namespaces are reserved for fixed built-ins');
         for (const root of new Set(environment.paths.map(path => path.split('.')[0]!))) {
             if (this.types.has(root)) throw new Error(`Namespace collides with session binding: ${root}`);
         }
@@ -137,7 +143,7 @@ export class SessionRuntime {
         if (/\b__dsh\w*/.test(source)) throw new Error('Reserved runtime identifier');
         const compiled = this.project.compile(source, this.declarations(), this.environment.declarations);
         for (const binding of compiled.bindings) {
-            if (this.roots.has(binding.name) || ['vm', 'tools', 'Promise', 'globalThis'].includes(binding.name)) throw new Error(`Reserved binding: ${binding.name}`);
+            if (this.roots.has(binding.name) || ['vm', 'console', 'tools', 'Promise', 'globalThis'].includes(binding.name)) throw new Error(`Reserved binding: ${binding.name}`);
             const previous = this.types.get(binding.name);
             if (previous && (previous.kind !== 'var' || binding.kind !== 'var')) throw new SyntaxError(`Identifier '${binding.name}' has already been declared`);
         }

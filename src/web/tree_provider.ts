@@ -1,5 +1,5 @@
 import type { Mapping, PhysicalTool } from '../registry/registry.js';
-import { vmCommands } from '../runtime/builtins.js';
+import { vmCommands, consoleCommands } from '../runtime/builtins.js';
 
 /** @brief Provider command metadata supplies interaction rules independently of its name. */
 export interface ProvidedCommand {
@@ -18,7 +18,9 @@ export function unmountedTools(tools: PhysicalTool[], mappings: Mapping[]): Phys
 
 /** @brief Provider owns visible, fixed runtime namespaces; unmounted tools use the picker. */
 export function TreeProvider(): ProvidedNamespace[] {
-    return [{ path: 'vm', description: 'Built-in VM commands', fixed: true,
+    return [{ path: 'console', description: 'Native console output', fixed: true,
+        commands: consoleCommands.map(command => ({ ...command, fixed: true, draggable: false, alwaysVisible: true })) },
+        { path: 'vm', description: 'Built-in VM commands', fixed: true,
         commands: vmCommands.map(command => ({ ...command, fixed: true, draggable: false, alwaysVisible: true })) }];
 }
 

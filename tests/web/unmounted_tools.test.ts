@@ -101,3 +101,36 @@ test('unknown is absent; count follows mounting, unmounting, saving and profile 
         } finally { dom.window.close(); }
     }
 });
+
+test('built-in namespace and command descriptions stay English in a Chinese interface', async () => {
+    const console = new VirtualConsole();
+    console.on('jsdomError', error => { if (!error.message.includes('Could not parse CSS')) throw error; });
+    const dom = new JSDOM(managementHtml, { url: 'http://localhost/api/ts-intellisense', runScripts: 'outside-only', virtualConsole: console });
+    try {
+        const { window } = dom;
+        Object.defineProperty(window.navigator, 'languages', { value: ['zh-CN'] });
+        window.structuredClone = structuredClone;
+        window.fetch = async () => Response.json({
+            state: { version: 1, revision: 0, mappings: [], namespaces: [], usage: {}, profile: 'Default', profiles: ['Default'] },
+            tools: [], effective: [], declarations: '', sessions: [],
+        });
+        window.eval(await readFile(new URL('../../dist/web/standalone.js', import.meta.url), 'utf8'));
+        const { document } = window;
+        await until(() => !!document.querySelector('[data-unmounted-count]'));
+        assert.equal(document.querySelector('[data-unmounted-count]')!.textContent, '0 个工具未挂载');
+        for (const namespace of TreeProvider()) {
+            const block = document.querySelector(`[data-namespace-path="${namespace.path}"]`)!;
+            assert.equal(block.querySelector('.ts-node-preview')!.textContent, namespace.description);
+            block.querySelector<HTMLButtonElement>('.ts-disclosure')!.click();
+            await until(() => !!document.querySelector(`[data-tree-path="${namespace.commands[0]!.path}"]`));
+            for (const command of namespace.commands) {
+                const row = document.querySelector(`[data-tree-path="${command.path}"]`)!;
+                assert.equal(row.querySelector('.ts-tool-preview')!.textContent, command.description);
+                assert.equal(row.getAttribute('title'), command.description);
+                assert.equal((row as HTMLElement).draggable, false);
+            }
+        }
+        assert.equal(document.querySelector('[data-tree-path="vm.print"]'), null);
+        assert.equal(document.querySelector('[data-namespace-path="unknown"]'), null);
+    } finally { dom.window.close(); }
+});

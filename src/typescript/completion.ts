@@ -2,7 +2,7 @@ import ts from 'typescript';
 import type { SessionRuntime } from '../runtime/session.js';
 import type { Environment } from '../runtime/session.js';
 import type { Usage } from '../registry/registry.js';
-import { vmCommands } from '../runtime/builtins.js';
+import { builtinCommands } from '../runtime/builtins.js';
 
 /** @brief A real TypeScript language-service completion, including callable signature. */
 export interface Candidate { name: string; path: string; kind: string; signature: string; documentation: string }
@@ -13,7 +13,7 @@ export interface CompletionResult { candidates: Candidate[]; signatures: string[
 export function complete(runtime: SessionRuntime, environment: Environment, source: string, usage: Record<string, Usage> = {}, identities: Record<string, string> = {}): CompletionResult {
     const project = runtime.project;
     const bindings = runtime.declarations();
-    const callablePaths = [...environment.paths, ...vmCommands.map(command => command.path)];
+    const callablePaths = [...environment.paths, ...builtinCommands.map(command => command.path)];
     project.prepare(source, bindings, environment.declarations);
     const service = project.languageService();
     const result = service.getCompletionsAtPosition(project.input, source.length, { includeCompletionsWithInsertText: true });
