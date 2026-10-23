@@ -30,7 +30,7 @@ export class NamespaceRuntime extends PtcRuntime {
 
     constructor(ctx: Context) { super(ctx); this.runtime = ctx.codeRuntime; }
 
-    override get executionInstructions(): string { return 'Use namespace commands directly, such as std.cwd() and tools.intellisense("std."). Each run is an async function body; use await and return. Only explicit globalThis state persists.'; }
+    override get executionInstructions(): string { return 'Use namespace commands directly, such as std.cwd() and tools.intellisense(["std."]). Each run is an async function body; use await and return. Only explicit globalThis state persists.'; }
 
     override get timeout(): { defaultMs: number; maxMs: number } {
         const timeoutMs = this.runtime.config.timeoutMs;
@@ -61,14 +61,14 @@ export class NamespaceRuntime extends PtcRuntime {
             if (!agent?.id || !agent.ctx || !agent.session) throw new Error('run_code requires a live conversation');
             const bindings = spec.bindings.find(binding => binding.global === 'tools')?.functions;
             if (!bindings) throw new Error('Native PTC tool bindings are required');
-            const entries = await namespaces.entries(agent);
+            const entries = (await namespaces.entries(agent)).filter(entry => !['tools_profile_annotation', 'tools_profile_commands'].includes(entry.tool));
             const result = await runtime.execute(agent.id, `run-code-${++this.sequence}`, spec.program, [...entries.map(entry => entry.path), 'vm.restart'], async (path, input, signal) => {
                 signal.throwIfAborted();
                 if (path === 'vm.restart') { void runtime.release(agent.id); throw new Error('Runtime state was reset'); }
                 const entry = (await namespaces.entries(agent)).find(entry => entry.path === path);
                 if (!entry || !Object.hasOwn(bindings, entry.tool)) throw new Error(`Execution denied: ${path}`);
                 return resultFor(entry, await bindingResult(bindings[entry.tool]!(argumentsFor(entry, input)), signal));
-            }, controller.signal);
+            }, controller.signal, await namespaces.values(agent));
             return { logs: result.logs, ...(result.value === undefined ? {} : { value: result.value }), ...(result.error ? { error: { kind: 'exception' as const, message: result.error } } : {}) };
         } catch (error) {
             return { logs: [], error: { kind: timedOut ? 'timeout' : spec.signal?.aborted ? 'abort' : 'exception', message: error instanceof Error ? error.message : String(error) } };

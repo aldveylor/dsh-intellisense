@@ -8,7 +8,8 @@ import type { PhysicalTool, SemanticRegistry } from '../registry/registry.js';
 import type { ProfileSessions } from '../registry/profiles.js';
 import { declaration, manifest, nativeArgumentsFor, nativeSchema, resultFor, type Aliases, type ManifestEntry } from './namespace.js';
 import { builtinDeclaration, namespaceDirectory, type NamespaceHint } from './prompt.js';
-import { builtinCommands, defaultBuiltinVisible, discoveryCommand } from '../runtime/builtins.js';
+import { builtinCommands, defaultBuiltinVisible, discoveryCommand, profileValues } from '../runtime/builtins.js';
+import { profileAnnotation } from '../registry/profile_tree.js';
 import type { z } from 'zod';
 
 /** @brief Profile-backed namespace discovery, independent of any execution runtime. */
@@ -69,6 +70,11 @@ export class NamespaceComponent {
     /** @brief Resolve the current enabled namespace independently of prompt visibility. */
     async entries(agent: Agent): Promise<ManifestEntry[]> { return manifest(await this.registryFor(agent), this.aliases); }
 
+    /** @brief Preload data-only Profile metadata before guest execution. */
+    async values(agent: Agent): Promise<{ [path: string]: string | { name: string; brief: string }[] }> {
+        return { 'tools.profile.annotation': profileAnnotation, 'tools.profile.commands': (await this.registryFor(agent)).tools().filter(tool => !tool.id.startsWith('tools_')).map(tool => ({ name: tool.id, brief: tool.description })) };
+    }
+
     /** @brief Notify the native system-prompt assembler after session configuration changes. */
     async configurationChanged(agent: Agent): Promise<void> { await this.registryFor(agent); if (!this.isPtc(agent)) await this.syncNative(agent); this.ctx.emit('system-prompt/change'); }
 
@@ -76,7 +82,7 @@ export class NamespaceComponent {
     async prompt(agent: Agent): Promise<string> {
         const registry = await this.registryFor(agent);
         const state = registry.snapshot();
-        const entries = manifest(registry, this.aliases);
+        const entries = manifest(registry, this.aliases).filter(entry => !['tools_profile_annotation', 'tools_profile_commands'].includes(entry.tool));
         const hints: NamespaceHint[] = [];
         for (const entry of entries) {
             const mapping = registry.effective().find(mapping => mapping.id === entry.tool);
@@ -84,11 +90,15 @@ export class NamespaceComponent {
                 ...(mapping.alwaysVisible === 2 ? { declaration: declaration(entry, false) } : {}) });
         }
         for (const item of state.namespaces ?? []) if (item.alwaysVisible && entries.some(entry => entry.path.startsWith(item.path + '.'))) hints.push({ ...item, namespace: true });
-        for (const item of (this.isPtc(agent) ? builtinCommands : [discoveryCommand])) {
-            const level = (state.builtinVisible ?? defaultBuiltinVisible)[item.path] || (item.path === discoveryCommand.path ? 1 : 0);
+        for (const item of (this.isPtc(agent) ? builtinCommands : builtinCommands.filter(command => command.path.startsWith('tools.')))) {
+            const level = item.path === discoveryCommand.path ? 2 : (state.builtinVisible ?? defaultBuiltinVisible)[item.path] ?? 0;
             if (level) hints.push({ ...item, ...(level === 2 ? { declaration: builtinDeclaration(item) } : {}) });
         }
-        return namespaceDirectory(hints);
+        for (const item of profileValues) {
+            const level = state.builtinVisible?.[item.path] ?? 0;
+            if (level) hints.push({ ...item, ...(level === 2 ? { declaration: this.isPtc(agent) ? `const ${item.path.split('.').at(-1)}: ${item.signature};` : `function ${item.path.split('.').at(-1)}(): Promise<${item.signature}>;` } : {}) });
+        }
+        return (hints.some(item => item.declaration && item.path.startsWith('tools.profile.')) ? '```ts\n' + profileAnnotation + '\n```\n\n' : '') + namespaceDirectory(hints);
     }
 
     /** @brief Install scoped namespace aliases while keeping dispatch inside native guards and auditing. */

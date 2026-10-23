@@ -1,6 +1,7 @@
 import { decodeHTML } from 'entities';
 import { z } from 'zod';
 import { jsonSchemaToTs, validateJsonSchemaValue, type JsonSchemaNode } from '@deepseek-ai/dsh-tools';
+import { managementCommands } from '../runtime/builtins.js';
 import type { SemanticRegistry } from '../registry/registry.js';
 
 /** @brief YAML aliases reference physical tools and rename argument fields without reimplementing tools. */
@@ -20,8 +21,9 @@ export interface ManifestEntry { path: string; tool: string; argMap?: Record<str
 /** @brief Build deterministic, scoped aliases from the current Profile and physical tool catalog. */
 export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Aliases>): ManifestEntry[] {
     const entries = new Map<string, ManifestEntry>();
+    const managementPaths: Record<string, string> = { tools_intellisense: 'tools.intellisense', tools_profile_load: 'tools.profile.load', tools_profile_save: 'tools.profile.save', tools_profile_annotation: 'tools.profile.annotation', tools_profile_commands: 'tools.profile.commands' };
     const insert = (entry: ManifestEntry): void => {
-        if ((entry.path === 'tools' || entry.path.startsWith('tools.') || entry.tool.startsWith('tools_')) && !(entry.path === 'tools.intellisense' && entry.tool === 'tools_intellisense')) return;
+        if ((entry.path === 'tools' || entry.path.startsWith('tools.') || entry.tool.startsWith('tools_')) && managementPaths[entry.tool] !== entry.path) return;
         const parts = entry.path.split('.');
         if (parts.some(part => ['__proto__', 'constructor', 'prototype', 'then'].includes(part)) || ['console', 'vm', 'globalThis'].includes(parts[0]!)) throw new Error(`Reserved manifest path: ${entry.path}`);
         const previous = entries.get(entry.path);
@@ -39,8 +41,10 @@ export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Ali
         const tool = registry.tools().find(tool => tool.id === alias.tool);
         if (tool && enabled.has(tool.id)) insert({ ...alias, schema: tool.parameters, output: tool.output, doc: tool.description });
     }
-    const discovery = registry.tools().find(tool => tool.id === 'tools_intellisense');
-    if (discovery) insert({ path: 'tools.intellisense', tool: discovery.id, schema: discovery.parameters, output: discovery.output, doc: discovery.description });
+    for (const [id, path] of Object.entries(managementPaths)) {
+        const tool = registry.tools().find(tool => tool.id === id);
+        if (tool) insert({ path, tool: tool.id, schema: tool.parameters, output: tool.output, doc: tool.description });
+    }
     return [...entries.values()];
 }
 
@@ -60,7 +64,18 @@ function parameters(entry: ManifestEntry): Parameter[] | undefined {
 /** @brief Repack positional values into validated native arguments before guarded dispatch. */
 export function argumentsFor(entry: ManifestEntry, values: unknown): unknown {
     if (!Array.isArray(values)) throw new Error('Expected positional arguments');
-    if (entry.tool === 'tools_intellisense') return nativeArgumentsFor(entry, { queries: values.length === 1 && Array.isArray(values[0]) ? values[0] : values });
+    if (entry.tool === 'tools_intellisense') {
+        if (values.length !== 1 || !Array.isArray(values[0])) throw new Error('Expected one string array');
+        return nativeArgumentsFor(entry, { queries: values[0] });
+    }
+    if (entry.tool === 'tools_profile_load') {
+        if (values.length > 1) throw new Error('Too many arguments');
+        return nativeArgumentsFor(entry, values[0] === undefined ? {} : { name: values[0] });
+    }
+    if (entry.tool === 'tools_profile_save') {
+        if (values.length < 1 || values.length > 2) throw new Error('Expected a Profile and an optional name');
+        return nativeArgumentsFor(entry, values.length === 1 ? { profile: values[0] } : { ...(values[0] === undefined ? {} : { name: values[0] }), profile: values[1] });
+    }
     const fields = parameters(entry);
     let args: unknown;
     if (fields) {
@@ -110,6 +125,7 @@ function resultField(entry: ManifestEntry): [string, JsonSchemaNode] | undefined
 
 /** @brief Unwrap the native response using the same contract exposed by IntelliSense. */
 export function resultFor(entry: ManifestEntry, value: unknown): unknown {
+    if (entry.tool === 'tools_profile_save') return undefined;
     const field = resultField(entry);
     return field && value && typeof value === 'object' ? Object.hasOwn(value, field[0]) ? (value as Record<string, unknown>)[field[0]] : undefined : value;
 }
@@ -119,7 +135,13 @@ export function declaration(entry: ManifestEntry, nested = true): string {
     const parts = entry.path.split('.');
     const name = parts.pop()!;
     if (!nested) parts.length = 0;
-    if (entry.tool === 'tools_intellisense') return `${parts.length ? `namespace ${parts.join('.')} {\n` : ''}/**\n * @brief Query namespace members and tool signatures.\n * @param queries Namespace member paths or exact command paths.\n * @returns Complete TypeScript declarations for the requested paths.\n */\nfunction ${name}(...queries: string[]): Promise<string>;\n${parts.length ? '}' : ''}`;
+    if (entry.tool === 'tools_intellisense') return `${parts.length ? `namespace ${parts.join('.')} {\n` : ''}/**\n * @brief Query namespace members and tool signatures.\n * @param args Namespace member paths or exact command paths.\n * @returns Complete TypeScript declarations for the requested paths.\n */\nfunction ${name}(args: string[]): Promise<string>;\n${parts.length ? '}' : ''}`;
+    if (entry.tool === 'tools_profile_annotation' || entry.tool === 'tools_profile_commands') return `${parts.length ? `namespace ${parts.join('.')} {\n` : ''}/** @brief ${entry.doc.replaceAll('*/', '* /')} */\nfunction ${name}(): Promise<${entry.tool === 'tools_profile_annotation' ? 'string' : 'CommandBrief[]'}>;\n${parts.length ? '}' : ''}`;
+    if (entry.tool === 'tools_profile_load' || entry.tool === 'tools_profile_save') {
+        const command = managementCommands.find(item => item.path === (entry.tool === 'tools_profile_load' ? 'tools.profile.load' : 'tools.profile.save'))!;
+        const signature = entry.tool === 'tools_profile_load' ? '(name?: string): Promise<Profile>' : '(name: string | undefined, profile: Profile): Promise<void>';
+        return `${parts.length ? `namespace ${parts.join('.')} {\n` : ''}/** @brief ${command.description} */\nfunction ${name}${signature};\n${entry.tool === 'tools_profile_save' ? `function ${name}(profile: Profile): Promise<void>;\n` : ''}${parts.length ? '}' : ''}`;
+    }
     const doc = (text: string): string => decodeHTML(text).replaceAll('*/', '* /');
     const types: string[] = [];
     /** @brief Keep complex field types out of the callable signature. */

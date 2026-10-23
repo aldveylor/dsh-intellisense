@@ -1,4 +1,4 @@
-const forbidden = new Set(['__proto__', 'prototype', 'constructor', '__dsh', 'then', 'setFixed']);
+const forbidden = new Set(['__proto__', 'prototype', 'constructor', '__dsh', 'then']);
 const reserved = new Set(['vm', 'tools', 'console', 'globalThis', 'Promise', 'Object', 'Array', 'JSON', 'Math', 'String', 'Number', 'Boolean', 'Date', 'Error', 'Reflect', 'Symbol', 'Map', 'Set', 'WeakMap', 'WeakSet', 'RegExp', 'Function', 'eval', 'Intl', 'ArrayBuffer', 'Uint8Array', 'undefined', 'NaN', 'Infinity']);
 
 /** @brief Validate semantic paths before generating declarations or runtime objects. */

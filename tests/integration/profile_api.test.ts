@@ -1,0 +1,81 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import ts from 'typescript';
+import type { Context } from '@deepseek-ai/cordis';
+import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
+import { SemanticRegistry } from '../../src/registry/registry.js';
+import { ProfileSessions } from '../../src/registry/profiles.js';
+import { profileAnnotation } from '../../src/registry/profile_tree.js';
+import { MemoryStore } from '../../src/storage/store.js';
+import { registerToolCommands } from '../../src/integration/tool_commands.js';
+import { argumentsFor, manifest } from '../../src/integration/namespace.js';
+import { intellisense } from '../../src/integration/intellisense.js';
+import { RuntimeHost } from '../../src/runtime/host.js';
+
+/** @brief Exercise native command handlers using a real catalog and session references. */
+async function fixture() {
+    const definitions = new Map<string, ToolDefinition>();
+    const ctx = { effect: (work: () => unknown) => work(), tools: { register: (tool: ToolDefinition) => { definitions.set(tool.name, tool); return () => {}; } } } as unknown as Context;
+    const catalog = new SemanticRegistry(new MemoryStore());
+    const physical = { id: 'read_file', description: 'Read a file.', parameters: { type: 'object' }, output: { type: 'string' } };
+    catalog.refresh([physical]);
+    const profiles = new ProfileSessions(catalog, new MemoryStore());
+    const registry = await profiles.forSession('session');
+    registry.refresh([physical]);
+    registerToolCommands(ctx, catalog, profiles, async () => registry, async () => {});
+    const execution = { agent: { id: 'session' }, signal: new AbortController().signal } as ToolRunContext;
+    const call = (name: string, args: unknown = {}) => definitions.get(name)!.execute(args, execution);
+    return { definitions, registry, catalog, call };
+}
+
+test('native Profile data tools and optional-name save/load use session defaults', async () => {
+    const { definitions, call, registry } = await fixture();
+    assert.deepEqual([...definitions.keys()].sort(), ['tools_profile_annotation', 'tools_profile_commands', 'tools_profile_load', 'tools_profile_save']);
+    assert.equal(await call('tools_profile_annotation'), profileAnnotation);
+    assert.deepEqual(await call('tools_profile_commands'), [{ name: 'read_file', brief: 'Read a file.' }]);
+    const profile = { name: 'Ignored', root: { files: { read: { command: 'read_file', simplifiedBrief: 'Read text' } } } };
+    await call('tools_profile_save', { profile });
+    assert.deepEqual(await call('tools_profile_load'), { ...profile, name: 'Default' });
+    await call('tools_profile_save', { name: 'Copy', profile });
+    assert.equal(registry.snapshot().profile, 'Copy');
+    await call('tools_profile_load', { name: 'Default' });
+    assert.equal(registry.snapshot().profile, 'Default');
+});
+
+test('manifest exposes only the new tools API and projects VM array arguments', async () => {
+    const { definitions, registry } = await fixture();
+    registry.refresh([...definitions.values()].map(tool => ({ id: tool.name, description: tool.description, parameters: tool.parameters, output: tool.output.schema } )).concat([
+        { id: 'tools_intellisense', description: 'Inspect commands.', parameters: { type: 'object', properties: { queries: { type: 'array', items: { type: 'string' } } }, required: ['queries'] }, output: { type: 'string' } },
+        { id: 'tools_mount', description: 'Old command.', parameters: {}, output: {} },
+    ]));
+    const entries = manifest(registry, []);
+    assert.deepEqual(entries.map(entry => entry.path).sort(), ['tools.intellisense', 'tools.profile.annotation', 'tools.profile.commands', 'tools.profile.load', 'tools.profile.save']);
+    const discovery = entries.find(entry => entry.path === 'tools.intellisense')!;
+    assert.deepEqual(argumentsFor(discovery, [['files.']]), { queries: ['files.'] });
+    assert.throws(() => argumentsFor(discovery, ['files.']));
+    assert.deepEqual(argumentsFor(entries.find(entry => entry.path === 'tools.profile.save')!, [{ name: 'Default', root: {} }]), { profile: { name: 'Default', root: {} } });
+    const vm = intellisense(['tools.profile.', 'tools.profile.save', 'tools.intellisense'], entries, true);
+    assert(vm.includes('const annotation: string'));
+    assert(vm.includes('function save(profile: Profile)'));
+    assert(vm.includes('function intellisense(args: string[])'));
+    const native = intellisense(['tools.profile.annotation'], entries, false);
+    assert(native.includes('function annotation()'));
+    for (const source of [vm, native]) {
+        const file = ts.createSourceFile('api.d.ts', source, ts.ScriptTarget.Latest, true);
+        assert.equal((file as ts.SourceFile & { parseDiagnostics: unknown[] }).parseDiagnostics.length, 0);
+    }
+});
+
+test('guest constants preload as frozen data before execution', async () => {
+    const host = new RuntimeHost({ timeoutMs: 3000 });
+    try {
+        const calls: unknown[] = [];
+        const result = await host.execute('profile', 'one', `
+            return [tools.profile.annotation,tools.profile.commands[0].name,
+                Object.isFrozen(tools.profile.commands[0]),Object.getPrototypeOf(files.read) === null];`, ['files.read'], async (path, args) => { calls.push([path, args]); return true; }, new AbortController().signal,
+        { 'tools.profile.annotation': 'declarations', 'tools.profile.commands': [{ name: 'read_file', brief: 'Read a file.' }] });
+        assert.equal(result.error, undefined);
+        assert.deepEqual(result.value, ['declarations', 'read_file', true, true]);
+        assert.deepEqual(calls, []);
+    } finally { await host.dispose(); }
+});
