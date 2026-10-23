@@ -26,9 +26,9 @@ tools.intellisense 固定映射到内置 tools_intellisense，不受 Profile 图
 
 `management/panel/management_panel.tsx` 和 `management/panel/tree_provider.ts` 显示 console、tools、vm 固定树与可配置命名空间；内置描述/注释/tooltip 固定英文，其余 UI 支持中英文。内置命令不可改名、拖动或删除，tools.intellisense 始终固定提示，其余可用命令的图钉可以开启/取消，并按当前 Profile 草稿保存。
 
-UI 不再显示 unknown 块。树上方显示当前可用但未挂载的工具数量，点击打开只含未挂载工具的选择器；数量随挂载、移除映射和切换 Profile 更新。失效工具不计入，已挂载但禁用的工具仍算已挂载；内置管理工具和 exec 不计入未挂载工具。
+UI 不再显示 unknown 块。树上方显示当前可用但未挂载的工具数量，点击打开只含未挂载工具的选择器；数量随挂载、移除映射和切换 Profile 更新。失效工具不计入，已挂载但禁用的工具仍算已挂载；内置管理工具和 run_code 不计入未挂载工具。
 
-`management/panel/namespace_tree.ts` 处理路径、树迁移和混合拖动排序，固定内置节点禁止落入或移动。工具选择器仍可搜索普通可用工具并挂入根或指定命名空间。`management/profile_picker/` 实现 Profile 切换、创建、删除、重命名、保存和另存为；草稿名称带 *。`management/locale/` 保留本地化与原生语言桥接。协议续写预算由 zod Config 管理；旧历史偏好接口及控件已移除。
+`management/panel/namespace_tree.ts` 处理路径、树迁移和混合拖动排序，固定内置节点禁止落入或移动。工具选择器仍可搜索普通可用工具并挂入根或指定命名空间。`management/profile_picker/` 实现 Profile 切换、创建、删除、重命名、保存和另存为；草稿名称带 *。`management/locale/` 保留本地化与原生语言桥接。运行时预算由 zod Config 管理；旧历史偏好接口及控件已移除。
 
 `management/server/routes.ts` 的管理接口沿用原生 Connection 的认证和 Host/Origin 保护。`integration/organization.ts` 通过只读维护子代理产生提案，明确批准后按 revision 提交，不变更原生工具权限。
 

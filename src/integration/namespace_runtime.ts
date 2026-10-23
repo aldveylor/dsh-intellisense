@@ -5,6 +5,18 @@ import { argumentsFor, resultFor } from './namespace.js';
 import type {} from './namespace_plugin.js';
 import type { RuntimeHost } from '../runtime/host.js';
 
+/** @brief Settle an IPC callback on cancellation; native run_code still owns and drains the actual tool call. */
+async function bindingResult<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
+    signal.throwIfAborted();
+    let abort: () => void = () => {};
+    const cancelled = new Promise<never>((_resolve, reject) => {
+        abort = () => reject(signal.reason);
+        signal.addEventListener('abort', abort, { once: true });
+    });
+    try { return await Promise.race([work, cancelled]); }
+    finally { signal.removeEventListener('abort', abort); }
+}
+
 /** @brief The isolated process runtime consumed by the native run_code transport. */
 declare module '@deepseek-ai/cordis' { interface Context { codeRuntime: RuntimeHost } }
 
@@ -55,7 +67,7 @@ export class NamespaceRuntime extends PtcRuntime {
                 if (path === 'vm.restart') { void runtime.release(agent.id); throw new Error('Runtime state was reset'); }
                 const entry = (await namespaces.entries(agent)).find(entry => entry.path === path);
                 if (!entry || !Object.hasOwn(bindings, entry.tool)) throw new Error(`Execution denied: ${path}`);
-                return resultFor(entry, await bindings[entry.tool]!(argumentsFor(entry, input)));
+                return resultFor(entry, await bindingResult(bindings[entry.tool]!(argumentsFor(entry, input)), signal));
             }, controller.signal);
             return { logs: result.logs, ...(result.value === undefined ? {} : { value: result.value }), ...(result.error ? { error: { kind: 'exception' as const, message: result.error } } : {}) };
         } catch (error) {

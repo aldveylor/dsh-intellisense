@@ -39,7 +39,7 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
     registerToolCommands(ctx, registry, profiles, agent => namespaces.registryFor(agent), agent => namespaces.configurationChanged(agent));
     registerManagement(ctx, registry, namespaces, new OrganizationService(ctx, registry));
     ctx.on('agent/created', async ({ agent }) => { await namespaces.configure(agent); });
-    ctx.on('agent/disposed', ({ agent }) => { namespaces.release(agent.id); });
+    ctx.on('agent/disposed', async ({ agent }) => { await namespaces.release(agent.id); });
     ctx.on('system-prompt/assemble', async (_assembly, context, next) => {
         const assembled = await next();
         const agent = context.agent;

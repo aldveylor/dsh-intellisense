@@ -13,26 +13,30 @@ import type { z } from 'zod';
 
 /** @brief Profile-backed namespace discovery, independent of any execution runtime. */
 export class NamespaceComponent {
+    private fallbackPresentations = new Map<string, () => Promise<void>>();
     private generatedTools = new WeakSet<ToolDefinition>();
     private positions = new Map<string, Position>();
     private nativeTools = new Map<string, { fingerprint: string; disposers: (() => void)[] }>();
 
     constructor(private ctx: Context, private registry: SemanticRegistry, readonly profiles: ProfileSessions, private aliases: z.infer<typeof Aliases>, private defaultMode: presentation.PresentationMode = 'native') {
-        ctx.effect(() => () => { for (const id of this.nativeTools.keys()) this.release(id); });
+        ctx.effect(() => async () => { await Promise.all([...new Set([...this.nativeTools.keys(), ...this.fallbackPresentations.keys()])].map(id => this.release(id))); });
         ctx.on('agent/request', async (payload, next) => {
             this.positions.set(payload.agent.id, { turn: payload.turn, step: payload.step });
             return next();
         });
     }
 
-    /** @brief Resolve the actual live preset so native sessions never enter the PTC runtime. */
+    /** @brief Use the same scoped presentation config for runtime bindings and initial prompts. */
     isPtc(agent: Agent): boolean {
         return (presentation.presentationFor(agent.ctx) ?? this.defaultMode) === 'ptc';
     }
 
     /** @brief Configure preset-free sessions while preserving explicit inherited mode declarations. */
     async configure(agent: Agent): Promise<void> {
-        if (!presentation.presentationFor(agent.ctx)) await agent.ctx.plugin(presentation, { mode: this.defaultMode });
+        if (!presentation.presentationFor(agent.ctx)) {
+            const mounted = await agent.ctx.plugin(presentation, { mode: this.defaultMode });
+            this.fallbackPresentations.set(agent.id, () => mounted.dispose());
+        }
         await this.registryFor(agent);
         if (!this.isPtc(agent)) await this.syncNative(agent);
     }
@@ -126,10 +130,13 @@ export class NamespaceComponent {
     }
 
     /** @brief Release scoped aliases and the live Profile reference. */
-    release(owner: string): void {
+    async release(owner: string): Promise<void> {
         for (const dispose of this.nativeTools.get(owner)?.disposers ?? []) dispose();
         this.nativeTools.delete(owner);
         this.positions.delete(owner);
         this.profiles.release(owner);
+        const disposePresentation = this.fallbackPresentations.get(owner);
+        this.fallbackPresentations.delete(owner);
+        await disposePresentation?.();
     }
 }

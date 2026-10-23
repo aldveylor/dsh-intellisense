@@ -39,7 +39,7 @@ export function namespaceDirectory(hints: readonly (string | NamespaceHint)[]): 
     function visit(node: Node, indent: string): void {
         for (const [name, child] of [...node.children].sort(([a], [b]) => a.localeCompare(b))) {
             if (child.namespace || child.children.size) {
-                lines.push(`${indent}declare namespace ${name} {${brief(child.description)}`);
+                lines.push(`${indent}namespace ${name} {${brief(child.description)}`);
                 visit(child, indent + '  ');
                 lines.push(`${indent}}`);
             } else lines.push(`${indent}const ${name}: Function;${brief(child.description)}`);

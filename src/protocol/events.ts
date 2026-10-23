@@ -15,7 +15,5 @@ export interface SenseEvent extends Position {
 declare module '@deepseek-ai/dsh-session' {
     interface PluginRecordMap {
         'plugin:ts_intellisense/intellisense': SenseEvent;
-        /** @brief Exact state-dependent request instructions retained outside the model surface. */
-        'plugin:ts_intellisense/context': Position & { instructions: string; provider: string; model: string; epoch: number };
     }
 }
