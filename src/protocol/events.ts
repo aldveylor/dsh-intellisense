@@ -15,6 +15,8 @@ export interface SenseEvent extends Position {
     injected: string;
     elapsedMs: number;
     discardedPrefixLength: number;
+    profileRevision?: number;
+    runtimeEpoch?: number;
 }
 
 /** @brief Original response segments and every discard decision accompanying source extraction. */
@@ -31,9 +33,11 @@ export interface RewriteEvent extends Position {
 export interface AuditEvents { 'exec/intellisense': SenseEvent; 'exec/rewrite': RewriteEvent }
 
 declare module '@deepseek-ai/dsh-session' {
-    interface SessionEventMap extends AuditEvents {
-        /** @brief Exact state-dependent system instructions used to reconstruct the provider request. */
-        'exec/context': Position & { instructions: string; provider: string; model: string; epoch: number };
+    interface PluginRecordMap {
+        'plugin:ts_intellisense/intellisense': SenseEvent;
+        'plugin:ts_intellisense/rewrite': RewriteEvent;
+        /** @brief Exact state-dependent request instructions retained outside the model surface. */
+        'plugin:ts_intellisense/context': Position & { instructions: string; provider: string; model: string; epoch: number };
     }
 }
 

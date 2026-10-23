@@ -1,18 +1,17 @@
 import type { ContextMessageNode, ConversationNodeDefinitionInput } from '@deepseek-ai/dsh-client-ui-conversation/client';
 import type { TrajectoryConversationViewNode } from '@deepseek-ai/dsh-client-ui-trajectory/client';
-import type {} from '../../protocol/events.js';
+import { senseRecord } from '../../protocol/session_records.js';
 import type { LocaleKey } from '../locale/locale.js';
 
 /** @brief Project durable completion queries into ordinary read-only trajectory context rows. */
 export function intellisenseTraceDefinition(t: (key: LocaleKey) => string): ConversationNodeDefinitionInput<ContextMessageNode> {
     return {
         kind: 'text-ptc-intellisense', target: 'trajectory',
-        match: {
-            'exec/intellisense': event => ({ id: String(event.seq), role: 'start' }),
-        },
+        match: event => senseRecord(event) ? { id: String(event.seq), role: 'start' } : null,
         start: (_context, match) => {
-            if (match.event.type !== 'exec/intellisense') throw new Error('Expected exec/intellisense');
-            const { seq, time, data } = match.event;
+            const data = senseRecord(match.event);
+            if (!data) throw new Error('Expected IntelliSense plugin record');
+            const { seq, time } = match.event;
             const marker = data.marker ?? '<|INTELLISENSE|>';
             const label = `${marker} · ${t('intellisense_trace')}`;
             return {

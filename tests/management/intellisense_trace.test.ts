@@ -7,8 +7,8 @@ import { zh } from '../../src/management/locale/zh.js';
 import { enUs } from '../../src/management/locale/en_us.js';
 
 test('completion audit events produce localized trajectory rows with actual marker, query, result and timing', () => {
-    const event: SessionEvent<'exec/intellisense'> = {
-        type: 'exec/intellisense', seq: SessionSeq(12), time: 100,
+    const event = {
+        type: 'plugin:ts_intellisense/intellisense', ignorable: true, seq: SessionSeq(12), time: 100,
         data: { turn: 1, step: 2, segment: 0, marker: '<|CUSTOM_SENSE|>', sessionId: undefined,
             prefix: 'return await std.fs.read', context: 'std.fs.read', info: 'function read(): Promise<string>;',
             injected: 'data', elapsedMs: 12.4, discardedPrefixLength: 0 },
@@ -16,9 +16,9 @@ test('completion audit events produce localized trajectory rows with actual mark
     for (const dictionary of [zh, enUs]) {
         const definition = intellisenseTraceDefinition(key => dictionary[key]);
         const handler = definition.match;
-        assert(typeof handler !== 'function');
-        assert.deepEqual(handler[event.type]!(event), { id: '12', role: 'start' });
-        const match: ConversationStartMatch = { event, role: 'start', location: { kind: 'session' } };
+        assert(typeof handler === 'function');
+        assert.deepEqual(handler(event as unknown as SessionEvent), { id: '12', role: 'start' });
+        const match: ConversationStartMatch = { event: event as unknown as SessionEvent, role: 'start', location: { kind: 'session' } };
         const context: ConversationNodeContext<ContextMessageNode> = {
             key: 'text-ptc-intellisense:12', kind: definition.kind, id: '12',
             matches: [match], start: match, state: undefined, current: new Map(),

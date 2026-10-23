@@ -62,3 +62,16 @@ export function continuation(options: GenerateOptions, prefix: string, info: str
         ]),
     };
 }
+
+/** @brief Supply completion data as system content, retaining all previous signatures in this request. */
+export function withIntellisense(options: GenerateOptions, text: string, segment: number): GenerateOptions {
+    const index = options.messages.reduce((last, message, index) => message.role === 'system' ? index + 1 : last, 0);
+    return {
+        ...options,
+        messages: [
+            ...options.messages.slice(0, index),
+            { role: 'system', id: MessageId(`text-exec-intellisense-${segment}`), source: { kind: 'system-prompt' }, content: [{ type: 'text', text }] },
+            ...options.messages.slice(index),
+        ],
+    };
+}

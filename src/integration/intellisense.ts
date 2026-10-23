@@ -12,7 +12,7 @@ export interface IntellisenseService {
 declare module '@deepseek-ai/cordis' { interface Context { intellisense: IntellisenseService } }
 
 /** @brief Read static tool signatures and side-effect-free runtime descriptors on demand. */
-export async function intellisense(query: CompletionQuery, entries: ManifestEntry[], runtime: RuntimeHost): Promise<{ kind: string; text: string }> {
+export async function intellisense(query: CompletionQuery, entries: ManifestEntry[], runtime?: RuntimeHost): Promise<{ kind: string; text: string }> {
     query.signal.throwIfAborted();
     const path = /([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*\.?)\s*(?:\([^()]*)?$/.exec(query.prefix)?.[1] ?? '';
     if (path === 'tools' || path.startsWith('tools.')) return { kind: 'members', text: 'The tools namespace is temporarily disabled.' };
@@ -27,6 +27,6 @@ export async function intellisense(query: CompletionQuery, entries: ManifestEntr
         const entryPath = prefix + member;
         return `${entryPath}${entry.path === entryPath ? ' — ' + entry.description : ''}`;
     }))];
-    const description = query.sessionId ? await runtime.describe(query.sessionId, path.replace(/\.$/, ''), query.signal) : '';
+    const description = query.sessionId && runtime ? await runtime.describe(query.sessionId, path.replace(/\.$/, ''), query.signal) : '';
     return { kind: 'members', text: [...names, description].filter(Boolean).join('\n') || 'No additional information.' };
 }

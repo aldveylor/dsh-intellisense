@@ -3,7 +3,7 @@ import {
     LlmAdapter, LlmError, ToolCallId, type ContentBlock, type FinishReason, type GenerateOptions, type StreamChunk, type TokenUsage,
 } from '@deepseek-ai/dsh-llm';
 import { Config, type ProtocolConfig } from './config.js';
-import { continuation, projectRequest } from './projection.js';
+import { continuation, projectRequest, withIntellisense } from './projection.js';
 import { cleanControls, escapeData, execBlocks, joinContinuation, MarkerBuffer, nativeCallStart, proseEnd } from './syntax.js';
 import type { AuditEvents, Position } from './events.js';
 
@@ -18,6 +18,8 @@ export interface CompletionQuery {
 /** @brief Dependencies shared by production session writers and scripted fake-adapter tests. */
 export interface ProtocolHost {
     complete(query: CompletionQuery): Promise<{ kind: string; text: string } | undefined>;
+    /** @brief Persist a native system-prompt update before the continuation reaches the model. */
+    promptUpdated?(text: string): void | Promise<void>;
     audit<K extends keyof AuditEvents>(type: K, event: AuditEvents[K]): void | Promise<void>;
 }
 
@@ -89,7 +91,7 @@ export class TextExecAdapter extends LlmAdapter {
     /** @brief Rewrite logged calls, buffer source and synthesize one executable call only after a normal stop. */
     async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
         if (options.stop?.length) throw new LlmError('Text execution requires an unmodified terminal marker; stop sequences are unsupported', 'UNSUPPORTED_OPTION');
-        const initial = projectRequest(options);
+        let initial = projectRequest(options);
         const controller = new AbortController();
         const signal = controller.signal;
         const abort = (): void => controller.abort(options.signal?.reason);
@@ -201,7 +203,10 @@ export class TextExecAdapter extends LlmAdapter {
                             injected, elapsedMs: performance.now() - started, discardedPrefixLength: discardedPrefix,
                         });
                         signal.throwIfAborted();
-                        request = { ...continuation(initial, buffered, injected, segment), signal };
+                        initial = withIntellisense(initial, injected, segment);
+                        await this.host.promptUpdated?.(injected);
+                        signal.throwIfAborted();
+                        request = { ...continuation(initial, buffered, '', segment), signal };
                         continue;
                     }
                     if (/<\|LINEBREAK(?:\|[\s\S]*?)?\|>\s*$/.test(last.code)) {

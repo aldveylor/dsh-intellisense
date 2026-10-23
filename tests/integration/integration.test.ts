@@ -86,6 +86,8 @@ test('new mode executes through the native loop, audits guarded children and pro
         assert(JSON.stringify(model.requests.at(-1)!.messages).includes('Denied by native guard'));
         await send(['```js:exec\nreturn std.fs.read<|INTELLISENSE|>', '({path:"c"});\n```', 'Read completed.']);
         assert.equal(reads, 2);
+        assert(systemOf(model.requests.at(-2)!).includes('<intellisense-data>'));
+        assert(agent.session.snapshotEvents().some(event => event.type === 'system/message' && JSON.stringify(event.data).includes('<intellisense-data>')));
         await send(['```js:exec\nreturn typeof tools;\n```', 'The tools namespace is disabled.']);
         assert(JSON.stringify(model.requests.at(-1)!.messages).includes('undefined'));
         assert(model.requests.every(request => request.tools?.length === 0));
@@ -94,8 +96,8 @@ test('new mode executes through the native loop, audits guarded children and pro
         assert(systemOf(model.requests[0]!).includes("Use the language of the user's human-authored request"));
         assert(agent.session.snapshotEvents().some(event => event.type === 'system/message' && JSON.stringify(event.data).includes('## 命名空间')));
         const events = agent.session.snapshotEvents();
-        assert(events.some(event => event.type === 'exec/intellisense'));
-        assert(events.some(event => event.type === 'exec/rewrite'));
+        assert(events.some(event => String(event.type) === 'plugin:ts_intellisense/intellisense'));
+        assert(events.some(event => String(event.type) === 'plugin:ts_intellisense/rewrite'));
         assert(events.some(event => event.type === 'tool/ptc-dispatch-start'));
         assert(events.some(event => event.type === 'tool/ptc-dispatch'));
         const routed = await ctx.agentLoop.create(SessionId('routed-text-ptc'), { provider: 'text-ptc', model: 'fake/scripted' });
