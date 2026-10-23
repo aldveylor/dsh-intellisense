@@ -38,37 +38,44 @@
     "build": "tsc -p tsconfig.json && node scripts/build_client.mjs",
     "typecheck": "tsc -p tests/tsconfig.json",
     "test": "npm run build && tsx --test tests/**/*.test.ts",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "lint": "eslint --config scripts/eslint_config.mjs src/llm_text_exec tests/llm_text_exec",
+    "typecheck:text-exec": "tsc -p tests/llm_text_exec/tsconfig.json",
+    "test:text-exec": "node --import tsx --test --test-timeout=10000 tests/llm_text_exec/*.test.ts"
   },
   "license": "MIT",
   "dependencies": {
     "@deepseek-ai/dsh": "0.2.1-rc.2",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-client-ui-primitives": "0.2.1-rc.2",
-    "@deepseek-ai/dsh-client-ui-slots": "^0.2.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-slots": "0.2.1-rc.2",
+    "@eslint/js": "9.39.5",
     "@types/jsdom": "^30.0.0",
     "@types/node": "^24.19.2",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
     "esbuild": "^0.28.2",
+    "eslint": "9.39.5",
     "jsdom": "^30.1.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "tsx": "^4.23.15"
+    "tsx": "^4.23.15",
+    "typescript-eslint": "8.72.0"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "~4.0.5",
+    "@deepseek-ai/cordis": "4.0.5",
     "@deepseek-ai/dsh-agent": "0.2.1-rc.2",
     "@deepseek-ai/dsh-client-connection": "0.2.1-rc.2",
     "@deepseek-ai/dsh-client-locale": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.2.1-rc.2",
     "@deepseek-ai/dsh-llm": "0.2.1-rc.2",
     "@deepseek-ai/dsh-session": "0.2.1-rc.2",
     "@deepseek-ai/dsh-storage": "0.2.1-rc.2",
     "@deepseek-ai/dsh-subagent": "0.2.1-rc.2",
     "@deepseek-ai/dsh-system-prompt": "0.2.1-rc.2",
-    "@deepseek-ai/dsh-tools": "0.2.1-rc.2",
-    "@deepseek-ai/dsh-client-ui-primitives": "0.2.1-rc.2"
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.2"
   }
 }
