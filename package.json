@@ -2,6 +2,7 @@
   "name": "dsh-intellisense",
   "version": "0.1.0",
   "description": "Namespace-based DSML and isolated JavaScript/TypeScript execution with on-demand IntelliSense for DeepSeek Harness",
+  "icon": "./docs/icon.svg",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -15,6 +16,11 @@
       "default": "./dist/client.js"
     },
     "./package.json": "./package.json",
+    "./icon": "./docs/icon.svg",
+    "./client/icon": "./docs/icon.svg",
+    "./preset/icon": "./docs/icon.svg",
+    "./namespace/icon": "./docs/icon.svg",
+    "./presentation/icon": "./docs/icon.svg",
     "./preset": {
       "types": "./dist/integration/preset.d.ts",
       "default": "./dist/integration/preset.js"
@@ -30,6 +36,7 @@
   },
   "files": [
     "dist",
+    "docs/icon.svg",
     "cordis.patch.yml",
     "README.md",
     "presets"

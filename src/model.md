@@ -34,6 +34,8 @@ UI 不再显示 unknown 块。树上方显示当前可用但未挂载的工具�
 
 ## 构建和部署
 
+插件图标使用 `docs/icon.svg`，通过 package.json 的 icon 字段声明并纳入 files 发布清单；根入口与 client、preset、namespace、presentation 子路径均导出对应的 `/icon` 资源，供宿主读取插件显示元数据。
+
 `run.mjs` 与 scripts/local_plugin.mjs 将本包登记为原生 bundle；本地启动按 checkout 和插件目录集合的摘要使用独立开发 profile，不改写共享 web profile。本地注册保留其它 link 依赖和 bundle，冲突时报错，相同配置不重复写 manifest。cordis.patch.yml 注册插件和两个模式，默认 intellisense-ptc。presets/intellisense_ptc 与 presets/intellisense 各自保存 preset.yml 模式元数据和完整的 agent.cordis.yml 插件配置；各自 YAML 显式声明 presentation.config.mode 为 ptc/native，注册入口仅加载、校验并注册，不注入或改写执行模式；默认不加载额外的 YAML 别名，可通过 aliasesFile 显式指定共享别名文件。两个模式分别通过 presentation 配置选择 ptc/native 呈现，并据此生成初始 prompt。
 
 两个模式的 presentation 配置项 ID 统一为 intellisense-presentation，通过 config.mode 的 ptc/native 区分执行方式。保留基础包 ptc-runtime，供其它模式使用。Intellisense PTC 的 presentation 隔离 namespaceRuntime/codeRuntime 服务，并在自身作用域创建 NamespaceRuntime 与 RuntimeHost，不替换全局 ptcRuntime；内置工具也仅注册到两个自定义模式的 presentation 作用域。
