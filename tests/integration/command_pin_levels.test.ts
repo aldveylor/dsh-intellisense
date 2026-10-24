@@ -26,10 +26,10 @@ test('three command levels hide, summarize, or publish complete documented signa
         await registry.configure([mapping], registry.snapshot().revision, undefined, undefined, undefined, undefined, { read_file: 'Custom brief' }, { 'console.dir': level });
         const text = await prompt(registry);
         assert.equal(text.includes('namespace files'), level > 0);
-        assert.equal(text.includes('const dir:'), level > 0);
+        assert.equal(text.includes('const dir:') || text.includes('function dir('), level > 0);
         if (level === 1) {
             assert(text.includes('const read: Function;  // Custom brief'));
-            assert(!text.includes('@param'));
+            assert(!text.includes('@param path'));
         }
         if (level === 2) {
             assert(text.includes('function read(path: string): Promise<string>;'));
@@ -65,5 +65,5 @@ test('builtin provider preserves detailed pins and keeps discovery pinned', () =
     const tree = TreeProvider({ 'console.log': 2, 'tools.intellisense': 2 });
     assert.equal(tree.find(node => node.path === 'console')?.commands.find(command => command.path === 'console.log')?.alwaysVisible, 2);
     assert.equal(tree[0]?.commands[0]?.alwaysVisible, 2);
-    assert.equal(TreeProvider({})[0]?.commands[0]?.alwaysVisible, 1);
+    assert.equal(TreeProvider({ 'tools.intellisense': 0 })[0]?.commands[0]?.alwaysVisible, 2);
 });

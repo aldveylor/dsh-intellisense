@@ -65,7 +65,7 @@ test('PTC discovery uses namespace execution instead of the deployment Node runt
         } finally { await second.dispose(); }
         assert.equal(ctx.get('ptcRuntime')!.run, defaultRuntime.run);
         assert(!namespaces.physical(agent).some(tool => tool.id === ptcToolName));
-        assert(executionInstructions('ptc').includes(`Only ${ptcToolName} is callable directly`));
+        assert(executionInstructions('ptc').includes(`Call ${ptcToolName} with code`));
         const result = await run('const r = await tools.intellisense("", "std.", "tools.", "tools.intellisense"); return r;');
         assert.equal(result.isError, false, JSON.stringify(result));
         assert.match((result.value as { result: string }).result, /namespace tools/);
@@ -105,7 +105,7 @@ test('PTC discovery accepts zero, single, variadic and spread queries through th
             assert.equal(typeof (result.value as { result: unknown }).result, 'string');
             if (queries.includes('')) assert.match((result.value as { result: string }).result, /namespace tools/);
             if (queries.includes('tools.intellisense')) assert.match((result.value as { result: string }).result, /function intellisense\(\.\.\.args: string\[\]\)/);
-            const child = agent.session.snapshotEvents().findLast(event => event.type === 'tool/ptc-dispatch-start');
+            const child = [...agent.session.snapshotEvents()].reverse().find(event => event.type === 'tool/ptc-dispatch-start');
             assert(child?.type === 'tool/ptc-dispatch-start');
             assert.deepEqual(child.data.arguments, { queries });
         }

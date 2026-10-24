@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import ts from 'typescript';
-import type { Context } from '@deepseek-ai/cordis';
+import { Context } from '@deepseek-ai/cordis';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { ProfileSessions } from '../../src/registry/profiles.js';
@@ -10,6 +10,7 @@ import { MemoryStore } from '../../src/storage/store.js';
 import { registerToolCommands } from '../../src/integration/tool_commands.js';
 import { argumentsFor, manifest } from '../../src/integration/namespace.js';
 import { intellisense } from '../../src/integration/intellisense.js';
+import { Session, SessionId } from '@deepseek-ai/dsh-session';
 import { RuntimeHost } from '../../src/runtime/host.js';
 
 /** @brief Exercise native command handlers using a real catalog and session references. */
@@ -22,8 +23,10 @@ async function fixture() {
     const profiles = new ProfileSessions(catalog, new MemoryStore());
     const registry = await profiles.forSession('session');
     registry.refresh([physical]);
-    registerToolCommands(ctx, catalog, profiles, async () => registry, async () => {});
-    const execution = { agent: { id: 'session' }, signal: new AbortController().signal } as ToolRunContext;
+    registerToolCommands(ctx, catalog, profiles, async () => registry, async () => {}, async () => [{ name: physical.id, brief: physical.description }, { name: 'outside_scope', brief: 'Outside this session.' }]);
+    const agentContext = new Context();
+    agentContext.provide('commandNamespaces', { isPtc: () => true } as unknown as Context['commandNamespaces']);
+    const execution = { agent: { id: 'session', ctx: agentContext, session: Session.create(SessionId('session')) }, signal: new AbortController().signal } as ToolRunContext;
     const call = (name: string, args: unknown = {}) => definitions.get(name)!.execute(args, execution);
     return { definitions, registry, catalog, call };
 }
@@ -32,8 +35,8 @@ test('native Profile data tools and optional-name save/load use session defaults
     const { definitions, call, registry } = await fixture();
     assert.deepEqual([...definitions.keys()].sort(), ['tools_profile_annotation', 'tools_profile_commands', 'tools_profile_load', 'tools_profile_save']);
     assert.equal(await call('tools_profile_annotation'), profileAnnotation);
-    assert.deepEqual(await call('tools_profile_commands'), [{ name: 'read_file', brief: 'Read a file.' }]);
-    const profile = { name: 'Ignored', root: { files: { read: { command: 'read_file', simplifiedBrief: 'Read text' } } } };
+    assert.deepEqual(await call('tools_profile_commands'), [{ name: 'read_file', brief: 'Read a file.' }, { name: 'outside_scope', brief: 'Outside this session.' }]);
+    const profile = { name: 'Ignored', root: { type: 'namespace', fixed: false, children: { files: { type: 'namespace', fixed: true, children: { read: { type: 'command', command: 'read_file', fixedLevel: 'fixed-detail', simplifiedBrief: 'Read text' } } } } } };
     await call('tools_profile_save', { profile });
     assert.deepEqual(await call('tools_profile_load'), { ...profile, name: 'Default' });
     await call('tools_profile_save', { name: 'Copy', profile });
