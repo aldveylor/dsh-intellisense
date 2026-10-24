@@ -74,8 +74,7 @@ function parameters(entry: ManifestEntry): Parameter[] | undefined {
 export function argumentsFor(entry: ManifestEntry, values: unknown): unknown {
     if (!Array.isArray(values)) throw new Error('Expected positional arguments');
     if (entry.tool === 'tools_intellisense') {
-        if (values.length !== 1 || !Array.isArray(values[0])) throw new Error('Expected one string array');
-        return nativeArgumentsFor(entry, { queries: values[0] });
+        return nativeArgumentsFor(entry, { queries: values });
     }
     if (entry.tool === 'tools_profile_load') {
         if (values.length > 1) throw new Error('Too many arguments');
@@ -144,7 +143,7 @@ export function declaration(entry: ManifestEntry, nested = true): string {
     const parts = entry.path.split('.');
     const name = parts.pop()!;
     if (!nested) parts.length = 0;
-    if (entry.tool === 'tools_intellisense') return `${parts.length ? `namespace ${parts.join('.')} {\n` : ''}/**\n * @brief Query namespace members and tool signatures.\n * @param args Namespace member paths or exact command paths. Include an empty string ("") to list root namespace members, e.g. [""].\n * @returns Complete TypeScript declarations for the requested paths.\n */\nfunction ${name}(args: string[]): Promise<string>;\n${parts.length ? '}' : ''}`;
+    if (entry.tool === 'tools_intellisense') return `${parts.length ? `namespace ${parts.join('.')} {\n` : ''}/**\n * @brief Query namespace members and tool signatures.\n * @param args Namespace member paths or exact command paths. Include an empty string ("") to list root namespace members, e.g. tools.intellisense("").\n * @returns Complete TypeScript declarations for the requested paths.\n */\nfunction ${name}(...args: string[]): Promise<string>;\n${parts.length ? '}' : ''}`;
     if (entry.tool === 'tools_profile_annotation' || entry.tool === 'tools_profile_commands') return `${parts.length ? `namespace ${parts.join('.')} {\n` : ''}/** @brief ${entry.doc.replaceAll('*/', '* /')} */\nfunction ${name}(): Promise<${entry.tool === 'tools_profile_annotation' ? 'string' : 'CommandBrief[]'}>;\n${parts.length ? '}' : ''}`;
     if (entry.tool === 'tools_profile_load' || entry.tool === 'tools_profile_save') {
         const command = managementCommands.find(item => item.path === (entry.tool === 'tools_profile_load' ? 'tools.profile.load' : 'tools.profile.save'))!;

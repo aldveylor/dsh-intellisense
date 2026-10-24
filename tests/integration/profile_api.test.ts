@@ -51,13 +51,13 @@ test('manifest exposes only the new tools API and projects VM array arguments', 
     const entries = manifest(registry, []);
     assert.deepEqual(entries.map(entry => entry.path).sort(), ['tools.intellisense', 'tools.profile.annotation', 'tools.profile.commands', 'tools.profile.load', 'tools.profile.save']);
     const discovery = entries.find(entry => entry.path === 'tools.intellisense')!;
-    assert.deepEqual(argumentsFor(discovery, [['files.']]), { queries: ['files.'] });
-    assert.throws(() => argumentsFor(discovery, ['files.']));
+    assert.deepEqual(argumentsFor(discovery, ['files.']), { queries: ['files.'] });
+    assert.throws(() => argumentsFor(discovery, [['files.']]));
     assert.deepEqual(argumentsFor(entries.find(entry => entry.path === 'tools.profile.save')!, [{ name: 'Default', root: {} }]), { profile: { name: 'Default', root: {} } });
     const vm = intellisense(['tools.profile.', 'tools.profile.save', 'tools.intellisense'], entries, true);
     assert(vm.includes('const annotation: string'));
     assert(vm.includes('function save(profile: Profile)'));
-    assert(vm.includes('function intellisense(args: string[])'));
+    assert(vm.includes('function intellisense(...args: string[])'));
     const native = intellisense(['tools.profile.annotation'], entries, false);
     assert(native.includes('function annotation()'));
     for (const source of [vm, native]) {

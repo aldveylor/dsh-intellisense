@@ -30,7 +30,7 @@ export const profileValues: readonly BuiltinCommand[] = [
 ];
 
 /** @brief Fixed discovery command available in both native and PTC modes. */
-export const discoveryCommand: BuiltinCommand = { path: 'tools.intellisense', signature: '(args: string[]) => Promise<string>', description: 'Query namespace members and complete TypeScript tool signatures.' };
+export const discoveryCommand: BuiltinCommand = { path: 'tools.intellisense', signature: '(...args: string[]) => Promise<string>', description: 'Query namespace members and complete TypeScript tool signatures. Pass an empty string ("") to query root namespace members.' };
 
 /** @brief Default discovery includes custom commands and excludes standard console methods. */
 export const defaultBuiltinVisible: CommandVisibility = { [discoveryCommand.path]: 2 };

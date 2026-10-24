@@ -33,7 +33,7 @@ PTC 模式调用插件自有的 `tools_run_code`：
 }
 ```
 
-也支持 `tools.intellisense(["std.", "std.cwd"])`。DSML 模式直接调用名为 `tools.intellisense` 的工具，命名参数为：
+PTC 签名为 `function intellisense(...args: string[]): Promise<string>`，查询路径以多个字符串参数传入，例如 `tools.intellisense("std.", "std.cwd")`。接受空字符串参数：`tools.intellisense("")` 查询根命名空间成员。DSML 模式直接调用名为 `tools.intellisense` 的工具，命名参数为：
 
 ```json
 {"queries": ["std.", "std.cwd", "std.fs."]}

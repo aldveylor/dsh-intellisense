@@ -35,7 +35,7 @@ In PTC mode, call the plugin-owned `tools_run_code`:
 }
 ```
 
-`tools.intellisense(["std.", "std.cwd"])` is also supported. In DSML mode, call the tool named `tools.intellisense` with these named arguments:
+The PTC signature is `function intellisense(...args: string[]): Promise<string>`. Pass separate string arguments, for example `tools.intellisense("std.", "std.cwd")`. An empty string is accepted: `tools.intellisense("")` queries root namespace members. In DSML mode, call the tool named `tools.intellisense` with these named arguments:
 
 ```json
 {"queries": ["std.", "std.cwd", "std.fs."]}

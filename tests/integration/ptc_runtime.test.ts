@@ -66,9 +66,10 @@ test('PTC discovery uses namespace execution instead of the deployment Node runt
         assert.equal(ctx.get('ptcRuntime')!.run, defaultRuntime.run);
         assert(!namespaces.physical(agent).some(tool => tool.id === ptcToolName));
         assert(executionInstructions('ptc').includes(`Only ${ptcToolName} is callable directly`));
-        const result = await run('const r = await tools.intellisense(["std.", "tools."]); return r;');
+        const result = await run('const r = await tools.intellisense("", "std.", "tools.", "tools.intellisense"); return r;');
         assert.equal(result.isError, false, JSON.stringify(result));
         assert.match((result.value as { result: string }).result, /namespace tools/);
+        assert.match((result.value as { result: string }).result, /function intellisense\(\.\.\.args: string\[\]\)/);
         const events = agent.session.snapshotEvents();
         assert(events.some(event => String(event.type) === 'plugin:ts_intellisense/intellisense'));
         const child = events.find(event => event.type === 'tool/ptc-dispatch-start');
@@ -76,7 +77,7 @@ test('PTC discovery uses namespace execution instead of the deployment Node runt
         assert.equal(child.data.parentCallId, 'parent-1');
         const denied = ctx.tools.guard(exec => exec.name === 'tools_intellisense' ? 'Denied by native guard' : undefined);
         try {
-            const failure = await run('return await tools.intellisense(["tools."]);');
+            const failure = await run('return await tools.intellisense("tools.");');
             assert.equal(failure.isError, true);
             assert.match(JSON.stringify(failure), /Denied by native guard/);
         } finally { denied(); }

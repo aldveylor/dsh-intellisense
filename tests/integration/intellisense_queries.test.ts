@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import type { Context } from '@deepseek-ai/cordis';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { argumentsFor, nativeArgumentsFor, nativeSchema, type ManifestEntry } from '../../src/integration/namespace.js';
+import { builtinDeclaration, executionInstructions } from '../../src/integration/prompt.js';
+import { discoveryCommand } from '../../src/runtime/builtins.js';
+import { declaration } from '../../src/integration/namespace.js';
 import { intellisense, registerIntellisense } from '../../src/integration/intellisense.js';
 import type { NamespaceComponent } from '../../src/integration/namespace_component.js';
 import { nativeBindings, nativeDiscovery, nativeQueryEntries } from '../../src/integration/native_tools.js';
@@ -26,17 +29,24 @@ test('registered physical discovery tool exposes and validates the queries objec
     await assert.rejects(definition.execute(['std.'], execution), /invalid arguments/i);
 });
 
-test('native discovery keeps queries while PTC repacks an unwrapped string array', () => {
+test('native discovery keeps queries while PTC repacks variadic strings', () => {
     const schema = { type: 'array', items: { type: 'string' }, description: 'Query paths' };
     const entry: ManifestEntry = { path: 'tools.intellisense', tool: 'tools_intellisense', doc: 'Discover',
         schema: { type: 'object', properties: { queries: schema }, required: ['queries'] }, output: { type: 'string' } };
     const queries = ['global.std.', 'std.cwd'];
+    for (const source of [declaration(entry), builtinDeclaration(discoveryCommand), intellisense(['tools.intellisense'], [entry], true)]) {
+        assert.match(source, /function intellisense\(\.\.\.args: string\[\]\): Promise<string>/);
+        assert(source.includes('tools.intellisense("")'));
+    }
+    assert(executionInstructions('ptc').includes('tools.intellisense("")'));
     assert.deepEqual(nativeSchema(entry), entry.schema);
     assert.deepEqual(nativeArgumentsFor(entry, { queries }), { queries });
-    assert.deepEqual(argumentsFor(entry, [queries]), { queries });
-    assert.deepEqual(argumentsFor(entry, [[]]), { queries: [] });
+    assert.deepEqual(argumentsFor(entry, queries), { queries });
+    assert.deepEqual(argumentsFor(entry, []), { queries: [] });
+    assert.deepEqual(argumentsFor(entry, ['']), { queries: [''] });
+    assert.throws(() => argumentsFor(entry, [queries]), /invalid arguments/i);
     assert.throws(() => nativeArgumentsFor(entry, queries), /invalid arguments/i);
-    assert.throws(() => argumentsFor(entry, [[3]]), /invalid arguments/i);
+    assert.throws(() => argumentsFor(entry, [3]), /invalid arguments/i);
 });
 
 test('global prefix preserves native selection, namespace listings and exact contracts', () => {
