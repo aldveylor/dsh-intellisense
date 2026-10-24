@@ -8,7 +8,6 @@ import type { ISessions, SessionSummary } from '@deepseek-ai/dsh-api-session-con
 import { NativePanel } from './locale/native_panel.js';
 import { zh } from './locale/zh.js';
 import { enUs } from './locale/en_us.js';
-import { builtinTraceDefinition } from './trajectory/builtin_trace.js';
 import type { LocaleKey } from './locale/locale.js';
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -23,9 +22,6 @@ export const inject = ['slots', 'locale', 'sessions', 'uiWorkspace', 'conversati
 /** @brief Register global namespace configuration in the native Plugins page. */
 export function apply(ctx: Context): void {
     ctx.effect(() => ctx.locale.register('ts_intellisense', { zh, en: enUs }));
-    ctx.inject(['uiConversation'], ctx => {
-        ctx.uiConversation.events.register(builtinTraceDefinition(key => enUs[key]));
-    });
     ctx.slots.inject('plugins.bundle.config', () => ctx.slots.register({
         name: 'plugins.bundle.config', key: 'dsh-intellisense',
         inject: () => ({ organize: async (prompt: string) => {
