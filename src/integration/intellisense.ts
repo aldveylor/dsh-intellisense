@@ -1,3 +1,4 @@
+import { bilingualDescription } from '../runtime/localization/descriptions.js';
 import { registerBuiltin } from './builtin_trace.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { defineTool } from '@deepseek-ai/dsh-tools';
@@ -76,7 +77,7 @@ export function intellisense(queries: readonly string[], entries: readonly Manif
 export function registerIntellisense(ctx: Context, namespaces: NamespaceComponent): void {
     ctx.effect(() => registerBuiltin(ctx, defineTool({
         name: 'tools_intellisense',
-        description: 'Query namespace members with a trailing dot, or complete tool signatures by exact path. Discovers commands progressively. Call through tools.intellisense.',
+        description: bilingualDescription('Query namespace members with a trailing dot, or complete tool signatures by exact path. Discovers commands progressively. Call through tools.intellisense.'),
         parameters: { queries: { type: 'array', items: { type: 'string' }, required: true } },
         output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
         execute: async ({ queries }, execution) => {
