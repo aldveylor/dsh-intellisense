@@ -11,7 +11,7 @@ import type { ProfileSessions } from '../registry/profiles.js';
 import { declaration, manifest, nativeArgumentsFor, nativeSchema, resultFor, type Aliases, type ManifestEntry } from './namespace.js';
 import { builtinDeclaration, namespaceDirectory, type NamespaceHint } from './prompt.js';
 import { builtinCommands, defaultBuiltinVisible, discoveryCommand, profileValues } from '../runtime/builtins.js';
-import { profileAnnotation } from '../registry/profile_tree.js';
+import { type CommandBrief, profileAnnotation } from '../registry/profile_tree.js';
 import type { z } from 'zod';
 import { registerIntellisense } from './intellisense.js';
 import { registerToolCommands } from './tool_commands.js';
@@ -35,7 +35,7 @@ export class NamespaceComponent {
     /** @brief Register builtin tools in the owning presentation scope. */
     register(ctx: Context): void {
         registerIntellisense(ctx, this);
-        registerToolCommands(ctx, this.registry, this.profiles, agent => this.registryFor(agent), agent => this.configurationChanged(agent));
+        registerToolCommands(ctx, this.registry, this.profiles, agent => this.registryFor(agent), agent => this.configurationChanged(agent), () => this.commandBriefs());
     }
 
     /** @brief Enable namespaces only for an explicitly configured Intellisense scope. */
@@ -88,9 +88,15 @@ export class NamespaceComponent {
     /** @brief Resolve the current enabled namespace independently of prompt visibility. */
     async entries(agent: Agent): Promise<ManifestEntry[]> { return manifest(await this.registryFor(agent), this.aliases); }
 
+    /** @brief List every known command, including commands outside the caller's current context. */
+    async commandBriefs(): Promise<CommandBrief[]> {
+        await this.refresh();
+        return this.registry.tools().filter(tool => !tool.id.startsWith('tools_')).map(tool => ({ name: tool.id, brief: tool.description }));
+    }
+
     /** @brief Preload data-only Profile metadata before guest execution. */
     async values(agent: Agent): Promise<{ [path: string]: string | { name: string; brief: string }[] }> {
-        return { 'tools.profile.annotation': profileAnnotation, 'tools.profile.commands': (await this.registryFor(agent)).tools().filter(tool => !tool.id.startsWith('tools_')).map(tool => ({ name: tool.id, brief: tool.description })) };
+        return { 'tools.profile.annotation': profileAnnotation, 'tools.profile.commands': await this.commandBriefs() };
     }
 
     /** @brief Notify the native system-prompt assembler after session configuration changes. */

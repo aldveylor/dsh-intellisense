@@ -5,10 +5,10 @@ import type { Agent } from '@deepseek-ai/dsh-agent';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import type { SemanticRegistry } from '../registry/registry.js';
 import type { ProfileSessions } from '../registry/profiles.js';
-import { ProfileSchema, profileConfiguration, profileTree, profileAnnotation } from '../registry/profile_tree.js';
+import { type CommandBrief, ProfileSchema, profileConfiguration, profileTree, profileAnnotation } from '../registry/profile_tree.js';
 
 /** @brief Register only Profile load/save and data access. */
-export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, profiles: ProfileSessions, registryFor: (agent: Agent) => Promise<SemanticRegistry>, changed: (agent: Agent) => Promise<void>): void {
+export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, profiles: ProfileSessions, registryFor: (agent: Agent) => Promise<SemanticRegistry>, changed: (agent: Agent) => Promise<void>, commands: () => Promise<CommandBrief[]>): void {
     const queues = new Map<string, Promise<unknown>>();
     /** @brief Serialize configuration changes belonging to one conversation. */
     const register = (definition: Parameters<typeof ctx.tools.register>[0]) => registerBuiltin(ctx, {
@@ -41,7 +41,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
             const registry = await registryFor(execution.agent);
             const profile = ProfileSchema.parse(input);
             const target = name ?? registry.snapshot().profile!;
-            const configuration = profileConfiguration(profile, registry.configuration(), registry.tools().filter(tool => !tool.id.startsWith('tools_')).map(tool => ({ name: tool.id, brief: tool.description })));
+            const configuration = profileConfiguration(profile, registry.configuration(), await commands());
             await catalog.saveProfile(target, configuration);
             await registry.replaceConfiguration(configuration, target);
             await changed(execution.agent);
@@ -55,11 +55,11 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
             ? JSON.stringify(ProfileSchema.toJSONSchema()) : profileAnnotation,
     })));
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_commands', description: 'Return the original physical command names and descriptions available in this conversation.', parameters: {},
+        name: 'tools_profile_commands', description: 'Show all commands, including commands absent from the current context, with their original physical names and descriptions.', parameters: {},
         output: { ...output, schema: { type: 'array', items: { type: 'object', additionalProperties: true } } },
         execute: async (_args, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
-            return (await registryFor(execution.agent)).tools().filter(tool => !tool.id.startsWith('tools_')).map(tool => ({ name: tool.id, brief: tool.description }));
+            return commands();
         },
     })));
 }

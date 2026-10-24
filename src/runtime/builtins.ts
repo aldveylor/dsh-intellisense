@@ -28,7 +28,7 @@ export const managementCommands: readonly BuiltinCommand[] = [
 /** @brief Preloaded Profile values, with visibility preferences stored alongside builtin commands. */
 export const profileValues: readonly BuiltinCommand[] = [
     { path: 'tools.profile.annotation', signature: 'string', description: 'English TypeScript declarations for the Profile data model.' },
-    { path: 'tools.profile.commands', signature: 'CommandBrief[]', description: 'Original physical command names and summaries available to this conversation.' },
+    { path: 'tools.profile.commands', signature: 'CommandBrief[]', description: 'Show all commands, including commands absent from the current context, with their original physical names and summaries.' },
 ];
 
 /** @brief Fixed discovery command available in both native and PTC modes. */
