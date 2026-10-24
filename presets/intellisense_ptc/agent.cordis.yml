@@ -120,6 +120,7 @@
 - id: intellisense-ptc-presentation
   isolate:
     ptcRuntime: true
+    codeRuntime: true
   name: dsh-intellisense/presentation
   config:
     mode: ptc
