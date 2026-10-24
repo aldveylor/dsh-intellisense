@@ -244,7 +244,7 @@ export class SemanticRegistry {
     }
 
     /** @brief Save a configuration; an explicit editor target preserves the default profile even for named copies. */
-    async configure(mappings: Mapping[], revision: number, namespaces?: Namespace[], order?: string[], unmountedVisible?: CommandVisibility, profile?: string, toolComments?: Record<string, string>, builtinVisible?: CommandVisibility, consolePinned?: boolean, editingProfile?: string): Promise<void> {
+    async configure(mappings: Mapping[], revision: number, namespaces?: Namespace[], order?: string[], unmountedVisible?: CommandVisibility, profile?: string, toolComments?: Record<string, string>, builtinVisible?: CommandVisibility, consolePinned?: boolean, editingProfile?: string, activate = true): Promise<void> {
         const detached = structuredClone(mappings);
         await this.transaction(async () => {
             if (revision !== this.state.revision) throw new Error('Registry revision conflict; reload before saving');
@@ -252,7 +252,9 @@ export class SemanticRegistry {
                 this.validateProfileName(profile);
                 if (profile === (this.state.profile ?? 'Default') || Object.hasOwn(this.state.inactiveProfiles ?? {}, profile)) throw new Error('Profile name already exists');
             }
-            const base = this.configuration(editingProfile);
+            const base: RegistryConfiguration = !activate && profile !== undefined && editingProfile === undefined
+                ? { mappings: [], namespaces: [], order: [], unmountedVisible: {}, builtinVisible: { ...defaultBuiltinVisible }, consolePinned: false, toolComments: {} }
+                : this.configuration(editingProfile);
             this.validateMappings(detached);
             this.validateConsolePinned(consolePinned);
             const comments = structuredClone(toolComments ?? base.toolComments ?? {});
@@ -286,8 +288,8 @@ export class SemanticRegistry {
                 unmountedVisible: Object.fromEntries(Object.entries(selected).filter(([id]) => !detached.some(mapping => mapping.id === id))),
             };
             let next = { ...this.state, revision: this.state.revision + 1 };
-            if (editingProfile !== undefined) {
-                const target = profile ?? editingProfile;
+            if (editingProfile !== undefined || !activate) {
+                const target = profile ?? editingProfile ?? this.state.profile ?? 'Default';
                 if (target === (this.state.profile ?? 'Default')) next = { ...next, ...configuration };
                 else next.inactiveProfiles = { ...this.state.inactiveProfiles, [target]: configuration };
             } else {

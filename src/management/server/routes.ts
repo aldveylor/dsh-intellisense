@@ -10,6 +10,7 @@ import { managementHtml } from './page.js';
 const mapping = z.strictObject({ id: z.string().min(1), path: z.string().min(1), aliases: z.array(z.string()), description: z.string().optional(), pinned: z.boolean(), alwaysVisible: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional() });
 const visibility = z.record(z.string(), z.union([z.literal(0), z.literal(1), z.literal(2)]));
 const configuration = {
+    activate: z.boolean().optional(),
     editingProfile: z.string().trim().min(1).max(80).optional(),
     revision: z.number().int().nonnegative(), mappings: z.array(mapping),
     namespaces: z.array(z.strictObject({ path: z.string(), description: z.string(), alwaysVisible: z.boolean() })),
@@ -48,7 +49,7 @@ export function registerManagement(ctx: Context, globalRegistry: SemanticRegistr
             const body = parsed.data;
             const registry = globalRegistry;
             if (body.action === 'profile') await registry.manageProfile(body.operation, body.name, body.revision, body.newName, body.activate);
-            else await registry.configure(body.mappings, body.revision, body.namespaces, body.order, body.unmountedVisible, body.action === 'save_as' ? body.profile : undefined, body.toolComments, body.builtinVisible, body.consolePinned, body.editingProfile);
+            else await registry.configure(body.mappings, body.revision, body.namespaces, body.order, body.unmountedVisible, body.action === 'save_as' ? body.profile : undefined, body.toolComments, body.builtinVisible, body.consolePinned, body.editingProfile, body.activate);
             ctx.emit('system-prompt/change');
             return Response.json({ ok: true }, { headers });
         } catch (error) { return Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: 400, headers }); }

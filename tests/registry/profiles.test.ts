@@ -61,3 +61,13 @@ test('editor profile saves and copies preserve the default profile and enforce r
     await assert.rejects(registry.configure([], 3, [], [], {}, undefined, {}, {}, false, 'Missing'), /does not exist/);
     assert.deepEqual(registry.configuration('Editor').namespaces, namespaces);
 });
+
+test('saving a new local draft does not inherit or change the default profile', async () => {
+    const registry = new SemanticRegistry(new MemoryStore());
+    registry.refresh([{ id: 'read', description: 'Read', parameters: {}, output: {} }]);
+    await registry.configure([{ ...mapping, pinned: true }], 0);
+    await registry.configure([], 1, [], [], {}, 'Draft', {}, {}, false, undefined, false);
+    assert.equal(registry.snapshot().profile, 'Default');
+    assert.equal(registry.configuration().mappings[0]?.pinned, true);
+    assert.deepEqual(registry.configuration('Draft').mappings, []);
+});
