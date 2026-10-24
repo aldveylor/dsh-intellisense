@@ -52,9 +52,7 @@
     "typecheck": "tsc -p tests/tsconfig.json",
     "test": "npm run build && tsx --test tests/**/*.test.ts",
     "prepack": "npm run build",
-    "lint": "eslint --config scripts/eslint_config.mjs src tests",
-    "typecheck:protocol": "tsc -p tests/protocol/tsconfig.json",
-    "test:protocol": "node --import tsx --test --test-timeout=10000 tests/protocol/*.test.ts"
+    "lint": "eslint --config scripts/eslint_config.mjs src tests"
   },
   "license": "MIT",
   "dependencies": {

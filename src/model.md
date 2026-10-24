@@ -42,7 +42,7 @@ UI 不再显示 unknown 块。树上方显示当前可用但未挂载的工具�
 
 ## 验证
 
-构建检查生产源码；旧标记协议测试保留原状，不因本次重构更新或运行。新双模式流程可使用 fake adapter 定向检查，无需真实模型请求。
+构建检查生产源码；已移除引用已删除模块的旧标记协议测试及独立脚本配置。双模式流程可使用 fake adapter 定向检查，无需真实模型请求。
 
 命令固定等级统一为 0（不固定）、1（固定但简略）、2（固定且详细）。Mapping.alwaysVisible 保存等级；builtinVisible、unmountedVisible 为路径或物理 ID 到等级的映射，随 Profile 保存，挂载和移除映射时保留等级。命名空间 alwaysVisible 仍为布尔值。
 

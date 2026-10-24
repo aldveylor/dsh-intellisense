@@ -66,4 +66,4 @@ npm run build
 node node_modules/eslint/bin/eslint.js --config scripts/eslint_config.mjs src
 ```
 
-旧协议测试保留原状；本次重构不更新或运行这些测试。定向验证新模式时使用 fake adapter，无需真实模型。
+已移除旧标记协议测试及其独立脚本配置。定向验证双模式流程时使用 fake adapter，无需真实模型。
