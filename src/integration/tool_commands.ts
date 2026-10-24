@@ -1,3 +1,4 @@
+import { registerBuiltin } from './builtin_trace.js';
 import type { z } from 'zod';
 import type { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
@@ -10,7 +11,7 @@ import { ProfileSchema, profileConfiguration, profileTree, profileAnnotation } f
 export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, profiles: ProfileSessions, registryFor: (agent: Agent) => Promise<SemanticRegistry>, changed: (agent: Agent) => Promise<void>): void {
     const queues = new Map<string, Promise<unknown>>();
     /** @brief Serialize configuration changes belonging to one conversation. */
-    const register = (definition: Parameters<typeof ctx.tools.register>[0]) => ctx.tools.register({
+    const register = (definition: Parameters<typeof ctx.tools.register>[0]) => registerBuiltin(ctx, {
         ...definition,
         execute: (args, execution) => {
             const id = execution.agent?.id ?? '';
@@ -21,7 +22,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
             return work;
         },
     });
-    const output = { schema: { type: 'object', additionalProperties: true } as const, render: (_args: unknown, value: unknown) => [{ type: 'text' as const, text: JSON.stringify(value) }] };
+    const output = { schema: { type: 'object', additionalProperties: true } as const, render: (_args: unknown, value: unknown) => [{ type: 'text' as const, text: typeof value === 'string' ? value : JSON.stringify(value) }] };
     ctx.effect(() => register(defineTool({
         name: 'tools_profile_load', description: 'Load a named Profile into this conversation. With no name, return the current draft.',
         parameters: { name: { type: 'string' } }, output,

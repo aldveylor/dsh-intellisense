@@ -12,8 +12,21 @@ export interface SenseEvent extends Position {
     runtimeEpoch?: number;
 }
 
+/** @brief Replayable builtin contract, arguments and output for trajectory inspection. */
+export interface BuiltinEvent {
+    name: string;
+    callId: string;
+    schema: string;
+    arguments: string;
+    result: string;
+    language: 'typescript' | 'json' | 'text';
+    elapsedMs: number;
+    isError: boolean;
+}
+
 declare module '@deepseek-ai/dsh-session' {
     interface PluginRecordMap {
         'plugin:ts_intellisense/intellisense': SenseEvent;
+        'plugin:ts_intellisense/builtin': BuiltinEvent;
     }
 }

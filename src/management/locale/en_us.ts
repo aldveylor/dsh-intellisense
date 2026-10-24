@@ -1,5 +1,8 @@
 /** @brief American English interface dictionary. */
 export const enUs = {
+    "builtin_schema": "Schema",
+    "builtin_arguments": "Arguments",
+    "builtin_error": "Execution failed",
     "protocol_error": "Protocol execution failed",
     "intellisense_trace": "IntelliSense completion request",
     "intellisense_query": "Query code",

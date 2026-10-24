@@ -1,5 +1,8 @@
 /** @brief Chinese interface dictionary. */
 export const zh = {
+    "builtin_schema": "Schema",
+    "builtin_arguments": "调用参数",
+    "builtin_error": "执行失败",
     "protocol_error": "协议执行失败",
     "intellisense_trace": "IntelliSense 补全调用",
     "intellisense_query": "查询代码",

@@ -1,3 +1,4 @@
+import { registerBuiltin } from './builtin_trace.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import { appendPluginRecord } from '@deepseek-ai/dsh-session';
@@ -73,7 +74,7 @@ export function intellisense(queries: readonly string[], entries: readonly Manif
 
 /** @brief Register batched signature discovery as an ordinary guarded native tool. */
 export function registerIntellisense(ctx: Context, namespaces: NamespaceComponent): void {
-    ctx.effect(() => ctx.tools.register(defineTool({
+    ctx.effect(() => registerBuiltin(ctx, defineTool({
         name: 'tools_intellisense',
         description: 'Query namespace members with a trailing dot, or complete tool signatures by exact path. Discovers commands progressively. Call through tools.intellisense.',
         parameters: { queries: { type: 'array', items: { type: 'string' }, required: true } },
