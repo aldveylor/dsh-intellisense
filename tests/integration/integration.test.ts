@@ -85,13 +85,13 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
                 assert.equal(execution.isError, false, JSON.stringify(execution));
                 assert.deepEqual(execution.value, { logs: [], result: 42 });
             } else {
-                assert.deepEqual(names, ['tools__intellisense']);
+                assert.deepEqual(names, ['ns_tools__intellisense']);
                 assert.equal(agent.ctx.get('codeRuntime'), undefined);
                 assert(!systemOf(request).includes('TypeScript/JavaScript'));
                 const info = JSON.parse(await namespaces.discover(agent, ['std.fs.read']));
-                assert(info.members.some((member: { tool: string }) => member.tool === 'std__fs__read'));
+                assert(info.members.some((member: { tool: string }) => member.tool === 'ns_std__ns_fs__read'));
                 await send();
-                assert(model.requests[1]!.tools?.some(tool => tool.name === 'std__fs__read'));
+                assert(model.requests[1]!.tools?.some(tool => tool.name === 'ns_std__ns_fs__read'));
             }
             assert(!agent.session.snapshotEvents().some(event => String(event.type) === 'plugin:ts_intellisense/rewrite'));
             await mounted.dispose();

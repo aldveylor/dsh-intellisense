@@ -7,13 +7,13 @@ export function nativeBindings(entries: ManifestEntry[], reserved: Iterable<stri
     const used = new Set<string>();
     const counters = new Map<string, number>();
     return entries.map(entry => {
-        const encoded = entry.path.replace(/[^a-zA-Z0-9_-]/g, char => char === '.' ? '__' : `_${char.charCodeAt(0).toString(16)}_`);
-        const base = encoded.length <= 64 ? encoded : createHash('sha256').update(entry.path).digest('hex');
+        const encoded = 'ns_' + entry.path.replace(/[^a-zA-Z0-9_-]/g, char => char === '.' ? '__' : `_${char.charCodeAt(0).toString(16)}_`);
+        const base = encoded.length <= 64 ? encoded : 'ns_' + createHash('sha256').update(entry.path).digest('hex').slice(0, 61);
         let name = base;
         for (let index = counters.get(base) ?? 1; used.has(name) || (physical.has(name) && (name !== entry.tool || !entry.path.startsWith('tools.') || entry.argMap)); index++) {
             const suffix = `_${index}`;
             name = base.length + suffix.length <= 64 ? base + suffix
-                : createHash('sha256').update(`${entry.path}\0${index}`).digest('hex');
+                : 'ns_' + createHash('sha256').update(`${entry.path}\0${index}`).digest('hex').slice(0, 61);
             counters.set(base, index + 1);
         }
         used.add(name);

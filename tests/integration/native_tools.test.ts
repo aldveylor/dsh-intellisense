@@ -13,12 +13,12 @@ import { MemoryStore } from '../../src/storage/store.js';
 test('native names satisfy API limits and avoid path and physical name collisions', () => {
     const paths = ['std.cwd', 'std__cwd', 'std.$cwd', 'std._24_cwd', 'std.' + 'a'.repeat(100)];
     const entries = paths.map(path => ({ path }) as ManifestEntry);
-    const reserved = ['std__cwd', 'std__cwd_1'];
+    const reserved = ['ns_std__cwd', 'ns_std__cwd_1'];
     const names = nativeBindings(entries, reserved).map(binding => binding.name);
     assert.equal(new Set(names).size, paths.length);
-    assert.equal(names[0], 'std__cwd_2');
+    assert.equal(names[0], 'ns_std__cwd_2');
     for (const name of names) {
-        assert.match(name, /^[a-zA-Z0-9_-]{1,64}$/);
+        assert.match(name, /^ns_[a-zA-Z0-9_-]{1,61}$/);
         assert(!reserved.includes(name));
     }
     assert.deepEqual(nativeBindings(entries, reserved).map(binding => binding.name), names);
@@ -40,12 +40,12 @@ test('native aliases publish callable names, map arguments and revoke stale hand
     const discovery = JSON.parse(await component.discover(agent, ['fs.']));
     assert.deepEqual(discovery.members.map((item: { path: string }) => item.path).sort(), ['fs.open', 'fs.read']);
     const names = await component.syncNative(agent);
-    assert.deepEqual(names, ['fs__read', 'fs__open']);
+    assert.deepEqual(names, ['ns_fs__read', 'ns_fs__open']);
     assert.deepEqual(await component.syncNative(agent), names);
     assert.equal(definitions.size, 2);
     const prompt = await component.prompt(agent);
     assert.equal(prompt, '');
-    const open = definitions.get('fs__open')!;
+    const open = definitions.get('ns_fs__open')!;
     assert.deepEqual(open.parameters, { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] });
     component.dispatch = async (_agent, entry, args) => ({ tool: entry.tool, args });
     const parent = { agent } as ToolRunContext;

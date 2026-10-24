@@ -5,7 +5,7 @@ import { executionInstructions, namespaceDirectory } from '../../src/integration
 test('execution guidance selects native named arguments or fresh async PTC execution', () => {
     const native = executionInstructions('native');
     assert(native.includes('native DSML tools with named arguments'));
-    assert(native.includes('tools__intellisense'));
+    assert(native.includes('ns_tools__intellisense'));
     assert(native.includes('{"queries":[""]}'));
     assert(!native.includes('TypeScript/JavaScript'));
     const ptc = executionInstructions('ptc');
