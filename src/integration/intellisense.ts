@@ -1,6 +1,6 @@
 import { registerBuiltin } from './builtin_trace.js';
 import type { Context } from '@deepseek-ai/cordis';
-import { validateJsonSchemaValue, type JsonSchemaNode, type ToolDefinition } from '@deepseek-ai/dsh-tools';
+import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools';
 import { codeBlock } from '../protocol/code_block.js';
 import { appendPluginRecord } from '@deepseek-ai/dsh-session';
 import { declaration, normalizeIntellisenseQueries, type ManifestEntry } from './namespace.js';
@@ -74,12 +74,12 @@ export function intellisense(queries: readonly string[], entries: readonly Manif
 
 /** @brief Register batched signature discovery as an ordinary guarded native tool. */
 export function registerIntellisense(ctx: Context, namespaces: NamespaceComponent): void {
-    const definition: ToolDefinition = {
+    const definition: ToolDefinition = defineTool({
         name: 'tools_intellisense',
         description: 'Query namespace members with a trailing dot, or complete tool signatures by exact path. Discovers commands progressively. Call through tools.intellisense.',
-        parameters: { type: 'array', items: { type: 'string' }, description: 'Namespace member paths or exact command paths. An optional global. prefix is ignored. Include an empty string ("") to list root namespace members, e.g. [""].' },
-        output: { schema: { type: 'string', description: 'TypeScript namespace declarations in PTC mode, or a JSON object containing namespace members and exact tool contracts in native mode.' }, render: (_args, value) => [{ type: 'text', text: String(value) }] },
-        presentCall: queries => ({ card: 'generic', title: 'tools.intellisense', kind: 'read', rawInput: queries }),
+        parameters: { queries: { type: 'array', items: { type: 'string' }, description: 'Namespace member paths or exact command paths. An optional global. prefix is ignored. Include an empty string ("") to list root namespace members, e.g. [""].', required: true } },
+        output: { schema: { type: 'string', description: 'TypeScript namespace declarations in PTC mode, or a JSON object containing namespace members and exact tool contracts in native mode.' }, render: (_args, value) => [{ type: 'text', text: value }] },
+        presentCall: ({ queries }) => ({ card: 'generic', title: 'tools.intellisense', kind: 'read', rawInput: queries }),
         presentResult: (_args, result) => {
             const schema = JSON.stringify({ name: definition.name, description: definition.description, parameters: definition.parameters, output: definition.output.schema }, null, 2);
             const content = result.content.map(block => block.type === 'text'
@@ -87,10 +87,7 @@ export function registerIntellisense(ctx: Context, namespaces: NamespaceComponen
                 : block);
             return { card: 'generic', content: [{ type: 'text', text: `Schema\n\n${codeBlock(schema, 'json')}\n\nResult` }, ...content] };
         },
-        execute: async (args, execution) => {
-            const errors = validateJsonSchemaValue(definition.parameters as JsonSchemaNode, args);
-            if (errors.length) throw new Error(`Invalid arguments: ${errors.join('; ')}`);
-            const queries = args as string[];
+        execute: async ({ queries }, execution) => {
             const agent = execution.agent;
             if (!agent) throw new Error('A live conversation is required');
             execution.signal.throwIfAborted();
@@ -106,6 +103,6 @@ export function registerIntellisense(ctx: Context, namespaces: NamespaceComponen
             });
             return info;
         },
-    };
+    });
     ctx.effect(() => registerBuiltin(ctx, definition));
 }

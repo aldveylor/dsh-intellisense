@@ -12,31 +12,31 @@ const entries: ManifestEntry[] = [
     { path: 'std.fs.read', tool: 'read', doc: 'Read file', schema: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] }, output: { type: 'string' } },
 ];
 
-test('registered physical discovery tool exposes and validates the array contract', async () => {
+test('registered physical discovery tool exposes and validates the queries object contract', async () => {
     let definition!: ToolDefinition;
     const ctx = { effect: (callback: () => unknown) => callback(), tools: {
         register: (tool: ToolDefinition) => { definition = tool; return () => {}; },
     } } as unknown as Context;
     registerIntellisense(ctx, {} as NamespaceComponent);
-    assert.equal(definition.parameters.type, 'array');
-    assert.deepEqual(definition.parameters.items, { type: 'string' });
+    assert.equal(definition.parameters.type, 'object');
+    assert.deepEqual(definition.parameters.required, ['queries']);
     const execution = {} as ToolRunContext;
-    await assert.rejects(definition.execute({ queries: ['std.'] }, execution), /Invalid arguments/);
-    await assert.rejects(definition.execute([3], execution), /Invalid arguments/);
-    await assert.rejects(definition.execute(['std.'], execution), /A live conversation is required/);
+    await assert.rejects(definition.execute({ queries: ['std.'] }, execution), /A live conversation is required/);
+    await assert.rejects(definition.execute([3], execution), /invalid arguments/i);
+    await assert.rejects(definition.execute(['std.'], execution), /invalid arguments/i);
 });
 
-test('discovery accepts an unwrapped string array through native and PTC arguments', () => {
+test('native discovery keeps queries while PTC repacks an unwrapped string array', () => {
     const schema = { type: 'array', items: { type: 'string' }, description: 'Query paths' };
     const entry: ManifestEntry = { path: 'tools.intellisense', tool: 'tools_intellisense', doc: 'Discover',
-        schema, output: { type: 'string' } };
+        schema: { type: 'object', properties: { queries: schema }, required: ['queries'] }, output: { type: 'string' } };
     const queries = ['global.std.', 'std.cwd'];
-    assert.deepEqual(nativeSchema(entry), schema);
-    assert.deepEqual(nativeArgumentsFor(entry, queries), queries);
-    assert.deepEqual(argumentsFor(entry, [queries]), queries);
-    assert.deepEqual(nativeArgumentsFor(entry, []), []);
-    assert.throws(() => nativeArgumentsFor(entry, { queries }), /Invalid arguments/);
-    assert.throws(() => nativeArgumentsFor(entry, [3]), /Invalid arguments/);
+    assert.deepEqual(nativeSchema(entry), entry.schema);
+    assert.deepEqual(nativeArgumentsFor(entry, { queries }), { queries });
+    assert.deepEqual(argumentsFor(entry, [queries]), { queries });
+    assert.deepEqual(argumentsFor(entry, [[]]), { queries: [] });
+    assert.throws(() => nativeArgumentsFor(entry, queries), /invalid arguments/i);
+    assert.throws(() => argumentsFor(entry, [[3]]), /invalid arguments/i);
 });
 
 test('global prefix preserves native selection, namespace listings and exact contracts', () => {

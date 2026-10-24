@@ -75,7 +75,7 @@ export function argumentsFor(entry: ManifestEntry, values: unknown): unknown {
     if (!Array.isArray(values)) throw new Error('Expected positional arguments');
     if (entry.tool === 'tools_intellisense') {
         if (values.length !== 1 || !Array.isArray(values[0])) throw new Error('Expected one string array');
-        return nativeArgumentsFor(entry, values[0]);
+        return nativeArgumentsFor(entry, { queries: values[0] });
     }
     if (entry.tool === 'tools_profile_load') {
         if (values.length > 1) throw new Error('Too many arguments');
