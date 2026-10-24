@@ -57,7 +57,7 @@ Runtime budgets include `timeoutMs`, `syncTimeoutMs`, `maxOutputBytes`, `maxMess
 
 ## Profiles and management UI
 
-Manage named profiles, namespaces, aliases, tool annotations, ordering, and pinned hints on the **dsh-intellisense** plugin's configuration page or through `/api/ts-intellisense`. `presets/intellisense_ptc/aliases.yml` provides shared physical tool aliases and argument-name mappings. DSML uses mapped named arguments; PTC uses the positional arguments shown in query signatures.
+Manage named profiles, namespaces, aliases, tool annotations, ordering, and pinned hints on the **dsh-intellisense** plugin's configuration page or through `/api/ts-intellisense`. No additional YAML aliases are loaded by default; use `aliasesFile` to specify a file of shared physical tool aliases and argument-name mappings. DSML uses mapped named arguments; PTC uses the positional arguments shown in query signatures.
 
 The built-in `tools.intellisense` command cannot be renamed, moved, deleted, or unpinned. `tools.profile.load`, `tools.profile.save`, `tools.profile.annotation`, and `tools.profile.commands` provide operations on the current profile; legacy management commands have been removed. Before calling unmounted tools, configure their paths in the management page or provide YAML aliases. Unavailable tools are excluded from execution and query lists. Each session holds its own profile reference.
 
