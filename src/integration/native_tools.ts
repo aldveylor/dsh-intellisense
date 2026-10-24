@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { nativeSchema, type ManifestEntry } from './namespace.js';
+import { nativeSchema, normalizeIntellisenseQueries, type ManifestEntry } from './namespace.js';
 
 /** @brief Bind namespace paths to unique API-safe names without shadowing physical tools. */
 export function nativeBindings(entries: ManifestEntry[], reserved: Iterable<string>): { entry: ManifestEntry; name: string }[] {
@@ -20,9 +20,7 @@ export function nativeBindings(entries: ManifestEntry[], reserved: Iterable<stri
 
 /** @brief Select exact commands or immediate namespace members without expanding descendants. */
 export function nativeQueryEntries(queries: readonly string[], entries: readonly ManifestEntry[]): ManifestEntry[] {
-    for (const query of queries) {
-        if (query !== '' && !/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*\.?$/.test(query)) throw new Error(`Invalid IntelliSense query: ${query}`);
-    }
+    queries = normalizeIntellisenseQueries(queries);
     return entries.filter(entry => queries.some(query => {
         if (query === entry.path) return true;
         const prefix = query ? query.replace(/\.$/, '') + '.' : '';
@@ -33,6 +31,7 @@ export function nativeQueryEntries(queries: readonly string[], entries: readonly
 /** @brief Render shallow native discovery and exact named-argument contracts as JSON. */
 export function nativeDiscovery(queries: readonly string[], bindings: readonly { entry: ManifestEntry; name: string }[]): string {
     const selected = new Set(nativeQueryEntries(queries, bindings.map(binding => binding.entry)).map(entry => entry.path));
+    queries = normalizeIntellisenseQueries(queries);
     const members = new Map<string, unknown>();
     for (const { entry, name } of bindings) {
         if (selected.has(entry.path)) members.set(entry.path, {

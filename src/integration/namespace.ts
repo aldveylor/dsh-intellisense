@@ -18,6 +18,15 @@ export const Aliases = z.array(z.strictObject({ path: z.string().regex(/^[A-Za-z
 /** @brief Trusted host-side namespace manifest entry. */
 export interface ManifestEntry { path: string; tool: string; argMap?: Record<string, string>; schema: Record<string, unknown>; output: unknown; doc: string }
 
+/** @brief Ignore the ambient global namespace prefix and validate discovery paths. */
+export function normalizeIntellisenseQueries(queries: readonly string[]): string[] {
+    return queries.map(query => {
+        const path = query.replace(/^global\./, '');
+        if (path !== '' && !/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*\.?$/.test(path)) throw new Error(`Invalid IntelliSense query: ${query}`);
+        return path;
+    });
+}
+
 /** @brief Build deterministic, scoped aliases from the current Profile and physical tool catalog. */
 export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Aliases>): ManifestEntry[] {
     const entries = new Map<string, ManifestEntry>();
@@ -66,7 +75,7 @@ export function argumentsFor(entry: ManifestEntry, values: unknown): unknown {
     if (!Array.isArray(values)) throw new Error('Expected positional arguments');
     if (entry.tool === 'tools_intellisense') {
         if (values.length !== 1 || !Array.isArray(values[0])) throw new Error('Expected one string array');
-        return nativeArgumentsFor(entry, { queries: values[0] });
+        return nativeArgumentsFor(entry, values[0]);
     }
     if (entry.tool === 'tools_profile_load') {
         if (values.length > 1) throw new Error('Too many arguments');
