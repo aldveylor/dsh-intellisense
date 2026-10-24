@@ -25,7 +25,7 @@ export class ProfileSessions {
         const state = this.catalog.snapshot();
         const initial: RegistryState = { version: 1, revision: 0, ...this.catalog.configuration(), profile: state.profile };
         const registry = new SemanticRegistry({
-            load: async <T>() => (await this.store.load<T>(key)) ?? structuredClone(initial) as T,
+            load: async <T>() => (await this.store.load<T>(key)) ?? (structuredClone(initial) as T),
             save: async <T>(_key: string, value: T) => { await this.store.save(key, value); },
             remove: async () => { await this.store.remove(key); },
         });
@@ -58,6 +58,9 @@ export class ProfileSessions {
             if (this.sessions.get(session) === pending) this.sessions.delete(session);
         }
     }
+
+    /** @brief Release all working snapshots owned by the namespace component. */
+    async dispose(): Promise<void> { await Promise.all([...this.sessions.keys()].map(session => this.release(session))); }
 
     /** @brief Hash session identities into safe storage keys. */
     private hash(value: string): string { return createHash('sha256').update(value).digest('hex'); }
