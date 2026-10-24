@@ -11,12 +11,16 @@ export const inject = ['agentPresets'];
 export async function apply(ctx: Context): Promise<void> {
     for (const directory of ['intellisense_ptc', 'intellisense']) {
         const metadata = z.strictObject({ id: z.string(), name: z.string(), description: z.string(), order: z.number() }).parse(parse(await readFile(new URL(`../../presets/${directory}/preset.yml`, import.meta.url), 'utf8')));
-        const plugins: unknown = parse(await readFile(new URL(`../../presets/${directory}/agent.cordis.yml`, import.meta.url), 'utf8'), {
+        const plugins: unknown = parse(await readFile(new URL('../../presets/agent.cordis.yml', import.meta.url), 'utf8'), {
             customTags: [{ tag: 'tag:yaml.org,2002:js', resolve: (value: string) => ({ __jsExpr: value }) }],
         });
         const problem = entryListProblem(plugins);
         if (problem) throw new Error(`Invalid ${metadata.name} composition: ${problem}`);
-        const dispose = await ctx.agentPresets.register({ ...metadata, plugins: plugins as PresetDefinition['plugins'] });
+        const composition = plugins as PresetDefinition['plugins'];
+        const presentation = composition.find(entry => entry.id === 'intellisense-presentation');
+        if (!presentation) throw new Error('Missing Intellisense presentation');
+        presentation.config = { mode: directory === 'intellisense_ptc' ? 'ptc' : 'native' };
+        const dispose = await ctx.agentPresets.register({ ...metadata, plugins: composition });
         ctx.effect(() => dispose);
     }
 }
