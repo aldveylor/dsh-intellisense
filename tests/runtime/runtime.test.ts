@@ -7,8 +7,8 @@ import { verifySandbox } from '../../src/runtime/sandbox.js';
 const signal = () => new AbortController().signal;
 const unused = async () => null;
 
-test('Node permissions initialize without Python configuration', () => {
-    assert.equal(RuntimeConfig.safeParse({ python: 'python3' }).success, false);
+test('Node permissions initialize and runtime configuration rejects unknown fields', () => {
+    assert.equal(RuntimeConfig.safeParse({ unknownOption: true }).success, false);
     assert.doesNotThrow(() => verifySandbox());
 });
 

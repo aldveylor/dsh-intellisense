@@ -38,7 +38,7 @@ UI 不再显示 unknown 块。树上方显示当前可用但未挂载的工具�
 
 两个模式的 presentation 配置项 ID 统一为 intellisense-presentation，通过 config.mode 的 ptc/native 区分执行方式。保留基础包 ptc-runtime，供其它模式使用。Intellisense PTC 的 presentation 隔离 namespaceRuntime/codeRuntime 服务，并在自身作用域创建 NamespaceRuntime 与 RuntimeHost，不替换全局 ptcRuntime；内置工具也仅注册到两个自定义模式的 presentation 作用域。
 
-构建清理 dist 并编译生产源码、管理客户端及 worker。dist/build 生成物不提交。受限运行时需要 Node >=24，直接使用 --permission，加载时实测文件读取与子进程创建被拒绝；不依赖 Python、libseccomp 或 Linux。Node 24 权限模型不限制网络，不提供系统调用级网络封锁。
+构建清理 dist 并编译生产源码、管理客户端及 worker。dist/build 生成物不提交。受限运行时需要 Node >=24，直接使用 --permission，加载时实测文件读取与子进程创建被拒绝。Node 24 权限模型不限制网络，不提供系统调用级网络封锁。
 
 ## 验证
 
