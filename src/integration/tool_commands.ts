@@ -51,7 +51,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
     ctx.effect(() => register(defineTool({
         name: 'tools_profile_annotation', description: 'Return the editable Profile data model documentation.', parameters: {},
         output: { ...output, schema: { type: 'string' } },
-        execute: async (_args, execution) => execution.agent && !execution.agent.ctx.commandNamespaces.isPtc(execution.agent)
+        execute: async (_args, execution) => execution.agent && !execution.agent.ctx.get('commandNamespaces')!.isPtc(execution.agent)
             ? JSON.stringify(ProfileSchema.toJSONSchema()) : profileAnnotation,
     })));
     ctx.effect(() => register(defineTool({

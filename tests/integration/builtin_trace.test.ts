@@ -1,8 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Context } from '@deepseek-ai/cordis';
+import { Context } from '@deepseek-ai/cordis';
 import { defineTool, type ToolDefinition, type ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
+import type { NamespaceComponent } from '../../src/integration/namespace_component.js';
+import { registerToolCommands } from '../../src/integration/tool_commands.js';
+import { SemanticRegistry } from '../../src/registry/registry.js';
+import { ProfileSessions } from '../../src/registry/profiles.js';
+import { ProfileSchema, profileAnnotation } from '../../src/registry/profile_tree.js';
+import { MemoryStore } from '../../src/storage/store.js';
 import { registerBuiltin } from '../../src/integration/builtin_trace.js';
 
 test('builtin recording captures the actual contract and preserves canonical results and failures', async () => {
@@ -10,7 +16,7 @@ test('builtin recording captures the actual contract and preserves canonical res
     const session = Session.create(SessionId('builtin-trace'));
     const records = (): { type: string; data: Record<string, unknown> }[] => session.snapshotEvents() as unknown as { type: string; data: Record<string, unknown> }[];
     const ctx = { tools: { register: (definition: ToolDefinition) => { registered = definition; return () => {}; } } } as unknown as Context;
-    const execution = { callId: 'call-1', agent: { ctx: { commandNamespaces: { isPtc: () => true } }, session } } as unknown as ToolRunContext;
+    const execution = { callId: 'call-1', agent: { ctx: { get: () => ({ isPtc: () => true }) }, session } } as unknown as ToolRunContext;
     registerBuiltin(ctx, defineTool({ name: 'tools_profile_annotation', description: 'Profile declarations', parameters: {}, output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] }, execute: async () => 'interface Profile {}' }));
     assert.equal(await registered!.execute({}, execution), 'interface Profile {}');
     assert.equal(records()[0]!.type, 'plugin:ts_intellisense/builtin');
@@ -23,4 +29,44 @@ test('builtin recording captures the actual contract and preserves canonical res
     assert.equal(records()[1]!.data.isError, true);
     assert.equal(records()[1]!.data.result, 'save failed');
     assert.equal(records()[1]!.data.language, 'text');
+});
+
+for (const ptc of [false, true]) test(`builtin discovery and Profile annotation support uninjected caller contexts in ${ptc ? 'ptc' : 'native'} mode`, async () => {
+    const ctx = new Context();
+    const definitions = new Map<string, ToolDefinition>();
+    const session = Session.create(SessionId(`builtin-injection-${ptc}`));
+    const catalog = new SemanticRegistry(new MemoryStore());
+    const provider = await ctx.plugin({ apply: (scope: Context) => {
+        scope.provide('commandNamespaces', { isPtc: () => ptc } as unknown as NamespaceComponent);
+    } });
+    ctx.provide('tools', { register: (definition: ToolDefinition) => {
+        definitions.set(definition.name, definition);
+        return () => { definitions.delete(definition.name); };
+    } } as unknown as Context['tools']);
+    let caller: Context;
+    const mounted = await ctx.plugin({
+        inject: ['tools'],
+        apply: (scope: Context) => {
+            caller = scope;
+            registerBuiltin(scope, defineTool({
+                name: 'tools_intellisense', description: 'Discover commands', parameters: {},
+                output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
+                execute: async () => 'discovered commands',
+            }));
+            registerToolCommands(scope, catalog, new ProfileSessions(catalog, new MemoryStore()), async () => catalog, async () => {}, async () => []);
+        },
+    });
+    try {
+        assert.throws(() => caller.commandNamespaces, /without inject/);
+        const execution = { callId: 'call-1', agent: { ctx: caller!, session }, signal: new AbortController().signal } as unknown as ToolRunContext;
+        assert.equal(await definitions.get('tools_intellisense')!.execute({}, execution), 'discovered commands');
+        assert.equal(await definitions.get('tools_profile_annotation')!.execute({}, execution), ptc ? profileAnnotation : JSON.stringify(ProfileSchema.toJSONSchema()));
+        const records = session.snapshotEvents() as unknown as { type: string; data: Record<string, unknown> }[];
+        assert.equal(records.length, 2);
+        for (const record of records) {
+            assert.equal(record.type, 'plugin:ts_intellisense/builtin');
+            assert.equal(record.data.language, ptc ? 'typescript' : 'json');
+            assert.equal(record.data.isError, false);
+        }
+    } finally { await mounted.dispose(); await provider.dispose(); }
 });
