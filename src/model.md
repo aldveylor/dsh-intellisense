@@ -34,7 +34,7 @@ UI 不再显示 unknown 块。树上方显示当前可用但未挂载的工具�
 
 ## 构建和部署
 
-`run.mjs` 与 scripts/local_plugin.mjs 将本包登记为原生 bundle；本地注册按真实目录移除同目录的旧包名 link 依赖及 bundle，并去重 bundle 列表，避免包重命名后重复加载。cordis.patch.yml 注册插件和两个模式，默认 intellisense-ptc。presets/intellisense_ptc 与 presets/intellisense 保存各自模式元数据；共享能力清单位于 presets/agent.cordis.yml，预设加载时注入对应 presentation mode；共享 YAML 别名位于 presets/intellisense_ptc/aliases.yml。两个模式分别通过 presentation 配置选择 ptc/native 呈现，并据此生成初始 prompt。
+`run.mjs` 与 scripts/local_plugin.mjs 将本包登记为原生 bundle；本地启动按 checkout 和插件目录集合的摘要使用独立开发 profile，不改写共享 web profile。本地注册保留其它 link 依赖和 bundle，冲突时报错，相同配置不重复写 manifest。cordis.patch.yml 注册插件和两个模式，默认 intellisense-ptc。presets/intellisense_ptc 与 presets/intellisense 保存各自模式元数据；共享能力清单位于 presets/agent.cordis.yml，预设加载时注入对应 presentation mode；共享 YAML 别名位于 presets/intellisense_ptc/aliases.yml。两个模式分别通过 presentation 配置选择 ptc/native 呈现，并据此生成初始 prompt。
 
 两个模式的 presentation 配置项 ID 统一为 intellisense-presentation，通过 config.mode 的 ptc/native 区分执行方式。保留基础包 ptc-runtime，供其它模式使用。Intellisense PTC 的 presentation 隔离 namespaceRuntime/codeRuntime 服务，并在自身作用域创建 NamespaceRuntime 与 RuntimeHost，不替换全局 ptcRuntime；内置工具也仅注册到两个自定义模式的 presentation 作用域。
 

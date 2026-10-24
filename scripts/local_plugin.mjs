@@ -1,5 +1,5 @@
-import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, symlinkSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { lstatSync, mkdirSync, readFileSync, realpathSync, symlinkSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { readProfileManifest, writeProfileManifest } from '@deepseek-ai/dsh-app-boot';
 
 /** @brief Register a local package as a selected native profile bundle without copying its build. */
@@ -23,16 +23,12 @@ export function registerLocalPlugin(profileDir, pluginDir) {
         symlinkSync(directory, target, 'dir');
     }
     const profile = readProfileManifest('dsh', profileDir);
-    for (const [name, specifier] of Object.entries(profile.dependencies ?? {})) {
-        if (name === manifest.name || !specifier.startsWith('link:')) continue;
-        const linked = resolve(profileDir, specifier.slice(5));
-        if (!existsSync(linked) || realpathSync(linked) !== directory) continue;
-        delete profile.dependencies[name];
-        profile.dsh.profile.bundles = profile.dsh.profile.bundles.filter(bundle => bundle !== name);
-    }
+    const previous = JSON.stringify(profile);
+    const dependency = profile.dependencies?.[manifest.name];
+    if (dependency !== undefined && dependency !== `link:${directory}`) throw new Error(`Local plugin conflicts with profile dependency: ${manifest.name}`);
     profile.dependencies = { ...profile.dependencies, [manifest.name]: `link:${directory}` };
     const bundles = profile.dsh.profile.bundles = [...new Set(profile.dsh.profile.bundles)];
     if (!bundles.includes(manifest.name)) bundles.push(manifest.name);
-    writeProfileManifest(profileDir, profile);
+    if (JSON.stringify(profile) !== previous) writeProfileManifest(profileDir, profile);
     return manifest.name;
 }

@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, realpathSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -34,7 +35,10 @@ console.log(`Workspace: ${workspaceDir}\nDSH_HOME: ${process.env.DSH_HOME}`);
 
 const { initProfile, loadLayeredEnv, PROFILE_TEMPLATES, resolveProfileDir } = await import('@deepseek-ai/dsh-app-boot');
 const { registerLocalPlugin } = await import('./scripts/local_plugin.mjs');
-const profileDir = resolveProfileDir('web');
+// Each checkout and local plugin selection owns a separate development profile.
+const profileName = `intellisense_${createHash('sha256').update(JSON.stringify([...plugins].map(directory => realpathSync(directory)).sort())).digest('hex').slice(0, 16)}`;
+const profileDir = resolveProfileDir(profileName);
+console.log(`Development profile: ${profileName}`);
 initProfile(profileDir, PROFILE_TEMPLATES.web.bundles);
 for (const directory of plugins) {
     console.log(`Local plugin: ${registerLocalPlugin(profileDir, directory)}`);
@@ -42,7 +46,7 @@ for (const directory of plugins) {
 const { runProfile } = await import('@deepseek-ai/dsh/profile-boot');
 const { ctx, shutdown } = await runProfile({
     environment: loadLayeredEnv('dsh'),
-    profile: 'web',
+    profile: profileName,
     patchFiles: [],
     args,
 });
