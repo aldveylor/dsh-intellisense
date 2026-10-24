@@ -117,7 +117,7 @@
 - id: tool-plugin-market
   name: '@deepseek-ai/dsh-plugin-market/tools'
   disabled: true
-- id: intellisense-ptc-presentation
+- id: intellisense-presentation
   name: dsh-intellisense/presentation
   config:
     mode: ptc
