@@ -1,0 +1,75 @@
+name: Publish release branch
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Prepare release files
+        shell: bash
+        run: |
+          release_dir="$RUNNER_TEMP/release_files"
+          mkdir -p "$release_dir"
+          cp -a cordis.patch.yml package.json dist presets README.md docs "$release_dir/"
+          RELEASE_DIR="$release_dir" node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          import { join } from 'node:path';
+
+          const path = join(process.env.RELEASE_DIR, 'package.json');
+          const manifest = JSON.parse(readFileSync(path, 'utf8'));
+          delete manifest.scripts;
+          delete manifest.devDependencies;
+          manifest.files = ['cordis.patch.yml', 'dist', 'presets', 'README.md', 'docs'];
+          writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`);
+          NODE
+
+      - name: Publish release branch
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          # Build an independent tree without staging changes in the source checkout.
+          export GIT_INDEX_FILE="$RUNNER_TEMP/release.index"
+          git read-tree --empty
+          git --work-tree="$RUNNER_TEMP/release_files" add --all --force
+          tree=$(git write-tree)
+
+          # Keep release history without including source commits or force-pushing.
+          parents=()
+          if [[ -n "$(git ls-remote --heads origin refs/heads/release)" ]]; then
+            git fetch --no-tags origin refs/heads/release
+            if [[ "$tree" == "$(git rev-parse 'FETCH_HEAD^{tree}')" ]]; then
+              echo 'Release files are unchanged.'
+              exit 0
+            fi
+            parents=(-p "$(git rev-parse FETCH_HEAD)")
+          fi
+          commit=$(git commit-tree "$tree" "${parents[@]}" -m "chore: publish release from $GITHUB_SHA")
+          git push origin "$commit:refs/heads/release"
