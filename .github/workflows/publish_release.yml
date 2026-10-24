@@ -1,4 +1,4 @@
-name: Publish release branch
+name: Publish release
 
 on:
   push:
@@ -49,27 +49,34 @@ jobs:
           writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`);
           NODE
 
-      - name: Publish release branch
+      - name: Package release
         shell: bash
+        run: tar -czf "$RUNNER_TEMP/dsh_intellisense.tar.gz" -C "$RUNNER_TEMP/release_files" .
+
+      - name: Publish release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-
-          # Build an independent tree without staging changes in the source checkout.
-          export GIT_INDEX_FILE="$RUNNER_TEMP/release.index"
-          git read-tree --empty
-          git --work-tree="$RUNNER_TEMP/release_files" add --all --force
-          tree=$(git write-tree)
-
-          # Keep release history without including source commits or force-pushing.
-          parents=()
-          if [[ -n "$(git ls-remote --heads origin refs/heads/release)" ]]; then
-            git fetch --no-tags origin refs/heads/release
-            if [[ "$tree" == "$(git rev-parse 'FETCH_HEAD^{tree}')" ]]; then
-              echo 'Release files are unchanged.'
-              exit 0
-            fi
-            parents=(-p "$(git rev-parse FETCH_HEAD)")
+          release_tag='release'
+          existing_release=$(gh api --paginate "repos/$GH_REPO/releases" --jq ".[] | select(.tag_name == \"$release_tag\") | .id")
+          if [[ -n "$existing_release" ]]; then
+            gh release delete "$release_tag" --yes --cleanup-tag
           fi
-          commit=$(git commit-tree "$tree" "${parents[@]}" -m "chore: publish release from $GITHUB_SHA")
-          git push origin "$commit:refs/heads/release"
+          gh release create "$release_tag" "$RUNNER_TEMP/dsh_intellisense.tar.gz" \
+            --target "$GITHUB_SHA" \
+            --title 'Release' \
+            --notes "Built from $GITHUB_SHA." \
+            --latest
+
+      - name: Remove legacy release branch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          release_branch=$(gh api "repos/$GH_REPO/git/matching-refs/heads/release" --jq '.[] | select(.ref == "refs/heads/release") | .ref')
+          if [[ -n "$release_branch" ]]; then
+            gh api --method DELETE "repos/$GH_REPO/git/refs/heads/release"
+          fi
