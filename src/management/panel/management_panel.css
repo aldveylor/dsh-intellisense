@@ -31,6 +31,6 @@
 .ts-management-dialog{color:inherit;background:var(--dsw-menu-surface-fill,var(--dsw-alias-bg-base,#202020));border:1px solid var(--ts-border);border-radius:var(--dsw-radius-lg,10px);padding:24px;width:400px;max-width:85vw}.ts-management-dialog::backdrop{background:#0008}.ts-management-dialog h2{margin:0 0 20px}.ts-management-dialog label{display:flex;flex-direction:column;gap:8px}.ts-management-dialog input{width:100%;min-width:0}.ts-dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:24px}
 .ts-error-message{white-space:pre-wrap;overflow-wrap:anywhere}
 
-.ts-default-profile,.ts-namespace-heading{display:flex;align-items:center;gap:8px}.ts-namespace-heading{justify-content:space-between;gap:24px}.ts-namespace-heading h2{flex:0 0 auto}.ts-namespace-profile{margin-left:auto;min-width:0}.ts-default-profile>span{white-space:nowrap}
+.ts-default-profile,.ts-namespace-heading{display:flex;align-items:center;gap:8px}.ts-namespace-heading{justify-content:space-between;gap:24px}.ts-intellisense .ts-namespace-heading h2{flex:0 0 auto;font-size:19px}.ts-namespace-profile{margin-left:auto;min-width:0}.ts-default-profile>span{white-space:nowrap}
 
 .ts-remove svg,.ts-pin svg{display:block;flex-shrink:0}
