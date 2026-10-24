@@ -45,7 +45,7 @@ test('browser locale matching, interpolation and namespace errors use the reques
 
 test('standalone page selects Chinese or American English and updates document metadata', async () => {
     const script = await readFile(new URL('../../dist/management/standalone.js', import.meta.url), 'utf8');
-    for (const [language, title, lang] of [['zh-CN', '工具命名空间表', 'zh-CN'], ['en-US', 'TypeScript Tool Registry', 'en-US']]) {
+    for (const [language, title, lang] of [['zh-CN', '工具命名空间表', 'zh-CN'], ['en-US', 'Tool Namespace Table', 'en-US']]) {
         const dom = browser();
         try {
             Object.defineProperty(dom.window.navigator, 'languages', { value: [language] });
@@ -89,7 +89,7 @@ test('host language switches update an open editor while preserving its unsaved 
         Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value')!.set!.call(input, 'Unsaved profile');
         input.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
         (dom.window as unknown as { switchLanguage(): void }).switchLanguage();
-        await until(() => document.querySelector('h1')?.textContent === 'TypeScript Tool Registry');
+        await until(() => document.querySelector('h1')?.textContent === 'Tool Namespace Table');
         assert.equal(document.querySelector<HTMLInputElement>('input[aria-label="Profile name"]')?.value, 'Unsaved profile');
         assert(document.body.textContent?.includes('Native console output'));
         assert(document.body.textContent?.includes('1 unmounted tools'));
