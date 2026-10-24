@@ -25,7 +25,7 @@ export class NamespaceComponent {
     private nativeTools = new Map<string, { fingerprint: string; disposers: (() => void)[] }>();
 
     constructor(private ctx: Context, private registry: SemanticRegistry, readonly profiles: ProfileSessions, private aliases: z.infer<typeof Aliases>) {
-        ctx.effect(() => async () => { await Promise.all([...this.nativeTools.keys()].map(id => this.release(id))); });
+        ctx.effect(() => async () => { await Promise.all([...new Set([...this.nativeTools.keys(), ...this.positions.keys(), ...this.discovered.keys()])].map(id => this.release(id))); });
         ctx.on('agent/request', async (payload, next) => {
             if (this.enabled(payload.agent)) this.positions.set(payload.agent.id, { turn: payload.turn, step: payload.step });
             return next();
@@ -59,7 +59,16 @@ export class NamespaceComponent {
     /** @brief Read only the native tool catalog visible to this agent. */
     physical(agent?: Agent, scope: ScopeKey | undefined = agent): PhysicalTool[] {
         const tools = agent?.ctx.tools ?? this.ctx.tools;
-        return tools.schemas(scope).filter(tool => !['exec', 'run_code', ptcToolName].includes(tool.name) && !this.generatedTools.has(tools.get(tool.name, scope)!)).map(tool => ({ id: tool.name, description: tool.description, parameters: tool.parameters, output: tools.get(tool.name, scope)!.output.schema }));
+        return tools.schemas(scope).flatMap(tool => {
+            if (['exec', 'run_code', ptcToolName].includes(tool.name)) return [];
+            const definition = tools.get(tool.name, scope);
+            if (!definition) {
+                this.ctx.logger.warn(`Tool schema has no definition: ${tool.name}`);
+                return [];
+            }
+            if (this.generatedTools.has(definition)) return [];
+            return [{ id: tool.name, description: tool.description, parameters: tool.parameters, output: definition.output.schema }];
+        });
     }
 
     /** @brief Include standing preset tools in the editor catalog even without live conversations. */
@@ -132,6 +141,8 @@ export class NamespaceComponent {
         const registry = await this.registryFor(agent);
         const state = registry.snapshot();
         const discovered = this.discovered.get(agent.id);
+        const available = new Set(manifest(registry, this.aliases).map(entry => entry.path));
+        for (const path of discovered ?? []) if (!available.has(path)) discovered!.delete(path);
         return manifest(registry, this.aliases).filter(entry => entry.path === discoveryCommand.path || discovered?.has(entry.path)
             || registry.effective().some(mapping => mapping.id === entry.tool && mapping.alwaysVisible)
             || state.builtinVisible?.[entry.path]);
@@ -140,10 +151,15 @@ export class NamespaceComponent {
     /** @brief Expand native tools for this conversation and invalidate the assembled system prompt. */
     async discover(agent: Agent, queries: readonly string[]): Promise<string> {
         const entries = await this.entries(agent);
+        if (this.isPtc(agent)) return nativeDiscovery(queries, nativeBindings(entries, this.physical(agent).map(tool => tool.id)));
         const selected = nativeQueryEntries(queries, entries);
         let discovered = this.discovered.get(agent.id);
         if (!discovered) this.discovered.set(agent.id, discovered = new Set());
-        for (const entry of selected) discovered.add(entry.path);
+        for (const entry of selected) {
+            discovered.delete(entry.path);
+            discovered.add(entry.path);
+        }
+        while (discovered.size > 256) discovered.delete(discovered.values().next().value!);
         await this.syncNative(agent);
         this.ctx.emit('system-prompt/change');
         return nativeDiscovery(queries, nativeBindings(entries, this.physical(agent).map(tool => tool.id)));
@@ -204,6 +220,6 @@ export class NamespaceComponent {
         this.nativeTools.delete(owner);
         this.positions.delete(owner);
         this.discovered.delete(owner);
-        this.profiles.release(owner);
+        await this.profiles.release(owner);
     }
 }

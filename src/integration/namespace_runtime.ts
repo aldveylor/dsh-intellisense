@@ -1,5 +1,4 @@
 import { Service, type Context } from '@deepseek-ai/cordis';
-import type { Agent } from '@deepseek-ai/dsh-agent';
 import { CodeRunFailedError, defineTool, type ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { argumentsFor } from './namespace.js';
 import type {} from './namespace_plugin.js';
@@ -28,13 +27,13 @@ export class NamespaceRuntime extends Service {
     static inject = ['codeRuntimeOptions', 'commandNamespaces', 'tools'];
     private sequence = 0;
     private runtime: RuntimeHost;
-    private owners = new WeakSet<Agent>();
 
     constructor(ctx: Context) {
         super(ctx, 'namespaceRuntime');
         this.runtime = new RuntimeHost(ctx.codeRuntimeOptions);
         ctx.provide('codeRuntime', this.runtime);
         ctx.effect(() => () => this.runtime.dispose());
+        ctx.on('agent/disposed', async ({ agent }) => { await this.runtime.release(agent.id); });
         ctx.tools.register(defineTool({
             name: ptcToolName,
             description: 'Execute an async TypeScript/JavaScript function body with namespace commands such as std.cwd() and tools.intellisense("std."). Pass query strings as separate arguments; tools.intellisense("") queries root namespace members. Use await and explicit return. Each execution starts in a fresh isolated context; globalThis is unavailable.',
@@ -62,16 +61,12 @@ export class NamespaceRuntime extends Service {
         if (!agent || !namespaces.isPtc(agent)) throw new Error('An Intellisense PTC conversation is required');
         if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new Error('Expected a positive finite timeoutMs');
         parent.signal.throwIfAborted();
-        if (!this.owners.has(agent)) {
-            agent.ctx.effect(() => () => this.runtime.release(agent.id));
-            this.owners.add(agent);
-        }
         const controller = new AbortController();
-        const abort = (): void => controller.abort(parent.signal.reason);
+        const abort = (): void => { if (!controller.signal.aborted) controller.abort(parent.signal.reason); };
         parent.signal.addEventListener('abort', abort, { once: true });
         if (parent.signal.aborted) abort();
         let timedOut = false;
-        const timer = setTimeout(() => { timedOut = true; controller.abort(new Error('Runtime execution timed out')); }, Math.min(timeoutMs, this.runtime.config.timeoutMs));
+        const timer = setTimeout(() => { if (!controller.signal.aborted) { timedOut = true; controller.abort(new Error('Runtime execution timed out')); } }, Math.min(timeoutMs, this.runtime.config.timeoutMs));
         const pending = new Set<Promise<unknown>>();
         let sequence = 0;
         try {

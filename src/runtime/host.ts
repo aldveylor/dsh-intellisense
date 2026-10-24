@@ -36,6 +36,7 @@ export class RuntimeHost {
     private epochs = new Map<string, number>();
     private queues = new Map<string, Promise<unknown>>();
     private disposed = false;
+    private releasing = new Set<string>();
     private bootstrap?: Promise<string>;
 
     constructor(config: unknown = {}) { this.config = RuntimeConfig.parse(config); verifySandbox(this.config.sandboxProbeTimeoutMs); }
@@ -45,13 +46,13 @@ export class RuntimeHost {
 
     /** @brief Launch one restricted owner process without granting source-file access. */
     private async process(owner: string): Promise<ProcessState> {
-        if (this.disposed) throw new Error('Runtime host is disposed');
+        if (this.disposed || this.releasing.has(owner)) throw new Error('Runtime owner is disposed');
         const current = this.processes.get(owner);
         if (current && !current.closed) return current;
         const local = new URL('./worker_bundle.mjs', import.meta.url);
         this.bootstrap ??= readFile(existsSync(local) ? local : new URL('../../dist/runtime/worker_bundle.mjs', import.meta.url), 'utf8');
         const javascript = await this.bootstrap;
-        if (this.disposed) throw new Error('Runtime host is disposed');
+        if (this.disposed || this.releasing.has(owner)) throw new Error('Runtime owner is disposed');
         const child = spawn(process.execPath, ['--permission', `--max-old-space-size=${this.config.heapMb}`, '--input-type=module', '-'], {
             env: {}, stdio: ['pipe', 'ignore', 'pipe', 'ipc'], serialization: 'advanced',
         });
@@ -118,6 +119,7 @@ export class RuntimeHost {
         const previous = this.queues.get(owner) ?? Promise.resolve();
         const work = previous.catch(() => { /* A previous failed run does not prevent a new explicit execution. */ }).then(async () => {
             signal.throwIfAborted();
+            if (this.releasing.has(owner)) throw new Error('Runtime owner is disposed');
             const state = await this.process(owner);
             const controller = new AbortController();
             const abort = (): void => this.close(owner, state, new Error('Runtime execution cancelled; state was reset'));
@@ -165,16 +167,22 @@ export class RuntimeHost {
 
     /** @brief Release one owner without restoring or replaying its program state. */
     async release(owner: string): Promise<void> {
-        const state = this.processes.get(owner);
-        if (!state) return;
-        const exited = !state.child.pid || state.child.exitCode !== null || state.child.signalCode !== null ? Promise.resolve() : new Promise<void>(resolve => state.child.once('exit', () => resolve()));
-        this.close(owner, state, new Error('Runtime owner released'));
-        await Promise.allSettled([...state.calls]);
-        await exited;
-        if (this.processes.get(owner) === state) this.processes.delete(owner);
-        this.queues.delete(owner);
+        this.releasing.add(owner);
+        try {
+            const state = this.processes.get(owner);
+            if (state) {
+                const exited = !state.child.pid || state.child.exitCode !== null || state.child.signalCode !== null ? Promise.resolve() : new Promise<void>(resolve => state.child.once('exit', () => resolve()));
+                this.close(owner, state, new Error('Runtime owner released'));
+                await Promise.allSettled([...state.calls]);
+                await exited;
+            }
+            await this.queues.get(owner)?.catch(() => {});
+            this.processes.delete(owner);
+            this.queues.delete(owner);
+            this.epochs.delete(owner);
+        } finally { this.releasing.delete(owner); }
     }
 
     /** @brief Unload all processes and pending requests before the plugin disappears. */
-    async dispose(): Promise<void> { this.disposed = true; await Promise.all([...this.processes.keys()].map(owner => this.release(owner))); }
+    async dispose(): Promise<void> { this.disposed = true; await Promise.all([...new Set([...this.processes.keys(), ...this.queues.keys(), ...this.epochs.keys()])].map(owner => this.release(owner))); }
 }
