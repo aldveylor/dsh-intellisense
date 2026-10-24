@@ -1,3 +1,4 @@
+import { builtinDeclaration, namespaceDeclaration } from './namespace_declaration.js';
 import { decodeHTML } from 'entities';
 import { z } from 'zod';
 import { jsonSchemaToTs, validateJsonSchemaValue, type JsonSchemaNode } from '@deepseek-ai/dsh-tools';
@@ -136,15 +137,14 @@ export function resultFor(entry: ManifestEntry, value: unknown): unknown {
 
 /** @brief Emit positional signatures and scalar results with decoded Doxygen parameter documentation. */
 export function declaration(entry: ManifestEntry, nested = true): string {
-    const parts = entry.path.split('.');
-    const name = parts.pop()!;
-    if (!nested) parts.length = 0;
+    return namespaceDeclaration([{ path: nested ? entry.path : entry.path.split('.').at(-1)!, declaration: commandDeclaration(entry) }], false);
+}
+
+/** @brief Project one manifest contract into a leaf declaration for the shared namespace tree. */
+function commandDeclaration(entry: ManifestEntry): string {
+    const name = entry.path.split('.').at(-1)!;
     const command = builtinTool(entry.tool);
-    if (command) {
-        const signatures = command.preload ? [`() => Promise<${command.signature}>`] : [command.signature, ...command.overloads ?? []];
-        const functions = signatures.map(signature => `function ${name}${signature.replace(' => ', ': ')};`).join('\n');
-        return `${parts.length ? `namespace ${parts.join('.')} {\n` : ''}/** @brief ${command.description.replaceAll('*/', '* /')} */\n${functions}\n${parts.length ? '}' : ''}`;
-    }
+    if (command) return builtinDeclaration(command);
     const doc = (text: string): string => decodeHTML(text).replaceAll('*/', '* /');
     const types: string[] = [];
     /** @brief Keep complex field types out of the callable signature. */
@@ -162,5 +162,5 @@ export function declaration(entry: ManifestEntry, nested = true): string {
     const field = resultField(entry);
     const result = typeName(field?.[1] ?? entry.output, 'result');
     const optionalResult = field && !(entry.output as JsonSchemaNode).required?.includes(field[0]) ? ' | undefined' : '';
-    return `${parts.length ? `namespace ${parts.join('.')} {\n` : ''}${types.length ? types.join('\n') + '\n\n' : ''}/**\n * @brief ${doc(entry.doc)}\n${parameterDocs ? parameterDocs + '\n' : ''} * @returns ${field?.[1].description ? doc(field[1].description) : 'Tool result'}\n */\nfunction ${name}(${args}): Promise<${result}${optionalResult}>;\n${parts.length ? '}' : ''}`;
+    return `${types.length ? types.join('\n') + '\n\n' : ''}/**\n * @brief ${doc(entry.doc)}\n${parameterDocs ? parameterDocs + '\n' : ''} * @returns ${field?.[1].description ? doc(field[1].description) : 'Tool result'}\n */\nfunction ${name}(${args}): Promise<${result}${optionalResult}>;\n`;
 }

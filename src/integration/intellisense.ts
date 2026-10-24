@@ -1,3 +1,4 @@
+import { builtinDeclaration, namespaceDeclaration, type NamespaceDeclaration } from './namespace_declaration.js';
 import { registerBuiltin } from './builtin_trace.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools';
@@ -8,68 +9,37 @@ import { builtinCommands, profileValues } from '../runtime/builtins.js';
 import { profileAnnotation } from '../registry/profile_tree.js';
 import type { NamespaceComponent } from './namespace_component.js';
 
-/** @brief A merged declaration node; an exact query expands a callable's complete signature. */
-interface DeclarationNode { children: Map<string, DeclarationNode>; entry?: ManifestEntry; detailed?: boolean; signature?: string; description?: string; valueType?: string }
-
-/** @brief Render queried members and signatures as one valid ambient TypeScript namespace tree. */
+/** @brief Render queried members and signatures through the shared namespace declaration model. */
 export function intellisense(queries: readonly string[], entries: readonly ManifestEntry[], runtime = false): string {
-    const root: DeclarationNode = { children: new Map() };
+    const selected = new Map<string, NamespaceDeclaration>();
     const commands = runtime ? builtinCommands : builtinCommands.filter(command => command.path.startsWith('tools.'));
     const visibleEntries = runtime ? entries.filter(entry => !['tools_profile_annotation', 'tools_profile_commands'].includes(entry.tool)) : entries;
-    /** @brief Merge overlapping queries without repeating declarations. */
-    function nodeFor(path: string): DeclarationNode {
-        let node = root;
-        for (const part of path.split('.').filter(Boolean)) {
-            if (!node.children.has(part)) node.children.set(part, { children: new Map() });
-            node = node.children.get(part)!;
-        }
-        return node;
+    /** @brief Keep exact contracts when a later overlapping query requests shallow members. */
+    function insert(item: NamespaceDeclaration): void {
+        const previous = selected.get(item.path);
+        selected.set(item.path, { ...item, ...previous, ...(previous?.declaration || previous?.valueType ? { namespace: false } : {}) });
     }
     for (const query of normalizeIntellisenseQueries(queries)) {
         const value = runtime ? profileValues.find(item => item.path === query) : undefined;
-        if (value) { Object.assign(nodeFor(query), { valueType: value.signature, description: value.description }); continue; }
+        if (value) { selected.set(query, { path: query, valueType: value.signature, description: value.description }); continue; }
         const exact = query.endsWith('.') ? undefined : visibleEntries.find(entry => entry.path === query);
         const fixed = query.endsWith('.') ? undefined : commands.find(command => command.path === query);
         if (exact || fixed) {
-            Object.assign(nodeFor(query), { ...(exact ? { entry: exact } : { signature: fixed!.signature, description: fixed!.description }), detailed: true });
+            selected.set(query, { path: query, declaration: exact ? declaration(exact, false) : builtinDeclaration(fixed!) });
             continue;
         }
         const prefix = query ? query.replace(/\.$/, '') + '.' : '';
-        nodeFor(prefix.replace(/\.$/, ''));
+        if (prefix) insert({ path: prefix.slice(0, -1), namespace: true });
         for (const command of [...visibleEntries, ...commands, ...(runtime ? profileValues : [])]) {
             if (!command.path.startsWith(prefix)) continue;
-            const name = command.path.slice(prefix.length).split('.')[0]!;
-            const path = prefix + name;
-            const node = nodeFor(path);
-            if (path === command.path) {
-                if ('tool' in command) node.entry = command;
-                else if (runtime && profileValues.some(item => item.path === command.path)) { node.valueType = command.signature; node.description = command.description; }
-                else { node.signature = command.signature; node.description = command.description; }
-            }
+            const path = prefix + command.path.slice(prefix.length).split('.')[0]!;
+            insert(path !== command.path ? { path, namespace: true } : {
+                path, description: 'tool' in command ? command.doc : command.description,
+                ...(runtime && profileValues.some(item => item.path === path) && 'signature' in command ? { valueType: command.signature } : {}),
+            });
         }
     }
-    const lines = [profileAnnotation, '', 'declare namespace global {'];
-    /** @brief Keep brief documentation on one comment line. */
-    const brief = (text: string): string => text.replace(/[\r\n\u2028\u2029]/g, ' ').replaceAll('*/', '* /');
-    /** @brief Emit nested namespaces, full signatures and shallow member hints deterministically. */
-    function visit(node: DeclarationNode, indent: string): void {
-        for (const [name, child] of [...node.children].sort(([a], [b]) => a.localeCompare(b))) {
-            if (child.valueType) { lines.push(`${indent}/** @brief ${brief(child.description ?? '')} */`, `${indent}const ${name}: ${child.valueType};`); }
-            else if (child.entry || child.signature) {
-                if (child.detailed) {
-                    const text = child.entry ? declaration({ ...child.entry, path: name }) : `/** @brief ${brief(child.description!)} */\nfunction ${name}${child.signature!.replace(' => ', ': ')};`;
-                    lines.push(...text.trim().split('\n').map(line => indent + line));
-                } else lines.push(`${indent}const ${name}: Function; // ${brief(child.entry?.doc ?? child.description ?? '')}`);
-            } else {
-                lines.push(`${indent}namespace ${name} {`);
-                visit(child, indent + '    ');
-                lines.push(`${indent}}`);
-            }
-        }
-    }
-    visit(root, '    ');
-    lines.push('}');
-    return lines.join('\n');
+    return profileAnnotation + '\n\n' + namespaceDeclaration([...selected.values()]);
 }
 
 /** @brief Register batched signature discovery as an ordinary guarded native tool. */
