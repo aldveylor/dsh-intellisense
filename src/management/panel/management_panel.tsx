@@ -414,7 +414,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
                 select={name => manageProfile('select', name)} create={name => manageProfile('create', name)}
                 rename={(name, newName) => manageProfile('rename', name, newName)} remove={name => manageProfile('delete', name)}
                 save={profile => void action('saving', async () => {
-                    await request(api, { action: 'configure', profile, revision: view!.state.revision, namespaces, unmountedVisible, builtinVisible, consolePinned, toolComments, order: orderedPaths([...paths, ...mappings.flatMap(m => [m.path, ...m.aliases])], order), mappings: mappings.map(m => ({ ...m, path: m.path.trim(), aliases: m.aliases.map(alias => alias.trim()).filter(Boolean) })) });
+                    await request(api, { action: profile === undefined ? 'configure' : 'save_as', ...(profile === undefined ? {} : { profile }), revision: view!.state.revision, namespaces, unmountedVisible, builtinVisible, consolePinned, toolComments, order: orderedPaths([...paths, ...mappings.flatMap(m => [m.path, ...m.aliases])], order), mappings: mappings.map(m => ({ ...m, path: m.path.trim(), aliases: m.aliases.map(alias => alias.trim()).filter(Boolean) })) });
                     await reload();
                 })} />
             <button disabled={busy || !organize} onClick={() => void action('organizing', async () => {
