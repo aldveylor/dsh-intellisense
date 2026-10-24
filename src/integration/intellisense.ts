@@ -77,7 +77,7 @@ export function registerIntellisense(ctx: Context, namespaces: NamespaceComponen
     ctx.effect(() => registerBuiltin(ctx, defineTool({
         name: 'tools_intellisense',
         description: 'Query namespace members with a trailing dot, or complete tool signatures by exact path. Discovers commands progressively. Call through tools.intellisense.',
-        parameters: { queries: { type: 'array', items: { type: 'string' }, required: true } },
+        parameters: { queries: { type: 'array', items: { type: 'string' }, description: 'Namespace member paths or exact command paths. Include an empty string ("") to list root namespace members, e.g. [""].', required: true } },
         output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
         execute: async ({ queries }, execution) => {
             const agent = execution.agent;

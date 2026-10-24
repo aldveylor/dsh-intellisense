@@ -73,7 +73,7 @@ export function builtinDeclaration(command: BuiltinCommand): string {
     const descriptions: Record<string, string> = {
         data: 'Values to format or display.', value: 'Object to inspect.', options: 'Inspection depth, colors and hidden-property options.',
         label: 'Timer or counter label.', condition: 'Condition to check.', properties: 'Properties to include in the table.',
-        queries: 'Namespace member paths or exact command paths.',
+        queries: 'Namespace member paths or exact command paths. Include an empty string ("") to list root namespace members, e.g. [""].',
     };
     /** @brief Keep builtin documentation inside its comment and prompt fence. */
     const clean = (text: string): string => decodeHTML(text).replaceAll('*/', '* /').replace(/[`\r\n\u2028\u2029]/g, ' ').replace(/<\|/g, '< |');

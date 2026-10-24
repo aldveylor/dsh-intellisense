@@ -135,7 +135,7 @@ export function declaration(entry: ManifestEntry, nested = true): string {
     const parts = entry.path.split('.');
     const name = parts.pop()!;
     if (!nested) parts.length = 0;
-    if (entry.tool === 'tools_intellisense') return `${parts.length ? `namespace ${parts.join('.')} {\n` : ''}/**\n * @brief Query namespace members and tool signatures.\n * @param args Namespace member paths or exact command paths.\n * @returns Complete TypeScript declarations for the requested paths.\n */\nfunction ${name}(args: string[]): Promise<string>;\n${parts.length ? '}' : ''}`;
+    if (entry.tool === 'tools_intellisense') return `${parts.length ? `namespace ${parts.join('.')} {\n` : ''}/**\n * @brief Query namespace members and tool signatures.\n * @param args Namespace member paths or exact command paths. Include an empty string ("") to list root namespace members, e.g. [""].\n * @returns Complete TypeScript declarations for the requested paths.\n */\nfunction ${name}(args: string[]): Promise<string>;\n${parts.length ? '}' : ''}`;
     if (entry.tool === 'tools_profile_annotation' || entry.tool === 'tools_profile_commands') return `${parts.length ? `namespace ${parts.join('.')} {\n` : ''}/** @brief ${entry.doc.replaceAll('*/', '* /')} */\nfunction ${name}(): Promise<${entry.tool === 'tools_profile_annotation' ? 'string' : 'CommandBrief[]'}>;\n${parts.length ? '}' : ''}`;
     if (entry.tool === 'tools_profile_load' || entry.tool === 'tools_profile_save') {
         const command = managementCommands.find(item => item.path === (entry.tool === 'tools_profile_load' ? 'tools.profile.load' : 'tools.profile.save'))!;
