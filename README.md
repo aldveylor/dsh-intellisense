@@ -55,7 +55,7 @@ PTC 模式调用原生 `run_code`：
 
 在插件 **dsh-intellisense** 的配置页，或 `/api/ts-intellisense` 管理具名 Profile、命名空间、别名、工具注释、排序与固定提示。`presets/intellisense_ptc/aliases.yml` 提供共享的物理工具别名及参数名映射。DSML 使用映射后的命名参数，PTC 使用查询签名中的位置参数。
 
-`tools.intellisense` 是不可改名、移动、删除或取消固定提示的内置命令。其他 `tools_*` 管理命令仍暂时禁用。未挂载的工具需通过管理页面配置路径或提供 YAML 别名后调用。失效工具不进入执行或查询清单；每会话持有独立 Profile 引用。
+`tools.intellisense` 是不可改名、移动、删除或取消固定提示的内置命令。`tools.profile.load`、`tools.profile.save`、`tools.profile.annotation` 和 `tools.profile.commands` 提供当前 Profile 操作；旧管理命令已移除。未挂载的工具需通过管理页面配置路径或提供 YAML 别名后调用。失效工具不进入执行或查询清单；每会话持有独立 Profile 引用。
 
 原生 DSML 代理在执行时重新验证实际调用者的工具可见性，并经过实际工具的原生权限检查。会话释放或插件卸载都会移除代理。`dsh-intellisense/namespace` 可独立挂载原生命名空间模式，不创建 JS 运行时。
 

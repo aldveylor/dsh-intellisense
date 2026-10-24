@@ -40,8 +40,6 @@ export interface RegistryState { version: 1; revision: number; mappings: Mapping
 export interface RegistryConfiguration { mappings: Mapping[]; namespaces: Namespace[]; order: string[]; unmountedVisible: CommandVisibility; builtinVisible?: CommandVisibility; consolePinned?: boolean; toolComments?: Record<string, string> }
 /** @brief Only inactive configurations are archived, so the active configuration has one source of truth. */
 interface StoredRegistryState extends RegistryState { inactiveProfiles?: Record<string, RegistryConfiguration> }
-/** @brief Structured maintenance proposal; execution policy remains owned by DSH. */
-export interface Proposal { revision: number; changes: Array<{ id: string; path: string; aliases?: string[]; description?: string }> }
 
 /** @brief Transactional semantic registry; unconfigured identities use encoded tools paths. */
 export class SemanticRegistry {
@@ -294,22 +292,6 @@ export class SemanticRegistry {
             await this.store.save('registry', next);
             this.state = next;
         });
-    }
-
-    async applyProposal(proposal: Proposal): Promise<void> {
-        if (!proposal || !Number.isInteger(proposal.revision) || !Array.isArray(proposal.changes)) throw new Error('Invalid organization proposal');
-        const current = this.snapshot();
-        const mappings = new Map(current.mappings.map(m => [m.id, m]));
-        const seen = new Set<string>();
-        for (const change of proposal.changes) {
-            if (!change || seen.has(change.id) || !this.physical.has(change.id) || Object.keys(change).some(k => !['id', 'path', 'aliases', 'description'].includes(k))) throw new Error('Invalid proposal identity or fields');
-            seen.add(change.id);
-            const old = mappings.get(change.id);
-            if (old && (old.pinned || old.path !== change.path)) throw new Error(`Stable mapping cannot move: ${change.id}`);
-            if (old && change.aliases && old.aliases.some(alias => !change.aliases!.includes(alias))) throw new Error(`Stable alias cannot be removed: ${change.id}`);
-            mappings.set(change.id, { enabled: true, pinned: false, aliases: [], ...old, ...change });
-        }
-        await this.configure([...mappings.values()], proposal.revision);
     }
 
     declarations(allowed?: Set<string>): string {

@@ -15,8 +15,6 @@ interface View {
     state: RegistryState;
     tools: PhysicalTool[];
     effective: Array<Mapping & { tool: PhysicalTool }>;
-    declarations: string;
-    sessions: Array<{ id: string }>;
 }
 
 /** @brief Shared editor inputs; the mounting surface supplies its authenticated API URL. */
@@ -225,7 +223,7 @@ function NamespaceNode({ path, tree, fixed = false, provided }: { path: string; 
     </li>;
 }
 
-/** @brief React registry editor with versioned drafts, schema inspection and explicit proposal approval. */
+/** @brief React registry editor with versioned drafts and conversation-based organization. */
 export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPanelProps) {
     const t = useTranslation();
     const [view, setView] = useState<View>();
