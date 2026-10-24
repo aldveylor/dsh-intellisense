@@ -1,4 +1,4 @@
-name: Publish release
+name: Publish artifact tag
 
 on:
   push:
@@ -49,34 +49,22 @@ jobs:
           writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`);
           NODE
 
-      - name: Package release
+      - name: Publish artifact tag
         shell: bash
-        run: tar -czf "$RUNNER_TEMP/dsh_intellisense.tar.gz" -C "$RUNNER_TEMP/release_files" .
-
-      - name: Publish release
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
         run: |
-          release_tag='release'
-          existing_release=$(gh api --paginate "repos/$GH_REPO/releases" --jq ".[] | select(.tag_name == \"$release_tag\") | .id")
-          if [[ -n "$existing_release" ]]; then
-            gh release delete "$release_tag" --yes --cleanup-tag
-          fi
-          gh release create "$release_tag" "$RUNNER_TEMP/dsh_intellisense.tar.gz" \
-            --target "$GITHUB_SHA" \
-            --title 'Release' \
-            --notes "Built from $GITHUB_SHA." \
-            --latest
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
-      - name: Remove legacy release branch
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          release_branch=$(gh api "repos/$GH_REPO/git/matching-refs/heads/release" --jq '.[] | select(.ref == "refs/heads/release") | .ref')
-          if [[ -n "$release_branch" ]]; then
-            gh api --method DELETE "repos/$GH_REPO/git/refs/heads/release"
+          # Store only build artifacts in an independent root commit.
+          export GIT_INDEX_FILE="$RUNNER_TEMP/release.index"
+          git read-tree --empty
+          git --work-tree="$RUNNER_TEMP/release_files" add --all --force
+          tree=$(git write-tree)
+          commit=$(git commit-tree "$tree" -m "chore: publish artifacts from $GITHUB_SHA")
+
+          # Replace the fixed tag and remove the legacy branch in one transaction.
+          branch_deletion=()
+          if [[ -n "$(git ls-remote --heads origin refs/heads/release)" ]]; then
+            branch_deletion=(':refs/heads/release')
           fi
+          git push --atomic origin "+$commit:refs/tags/release" "${branch_deletion[@]}"
