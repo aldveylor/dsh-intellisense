@@ -11,7 +11,7 @@
 
 ## 启动
 
-需要 Node.js >=24。运行时使用 Node.js 原生权限（`--permission`），不依赖 Python 或 libseccomp。Node.js 24 权限模型不限制网络访问。运行时加载时验证隔离条件。以下命令均在项目根目录执行。
+需要 Node.js >=24。运行时使用 Node.js 原生权限（`--permission`）。Node.js 24 权限模型不限制网络访问。运行时加载时验证隔离条件。以下命令均在项目根目录执行。
 
 ```sh
 npm ci

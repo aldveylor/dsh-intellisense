@@ -11,7 +11,7 @@ Both Agent Modes use the same namespace configuration:
 
 ## Getting started
 
-Requires Node.js >=24. The runtime uses Node.js native permissions (`--permission`); Python and libseccomp are not required. Node.js 24 permissions do not restrict network access. Isolation requirements are checked when the runtime loads.
+Requires Node.js >=24. The runtime uses Node.js native permissions (`--permission`). Node.js 24 permissions do not restrict network access. Isolation requirements are checked when the runtime loads.
 
 Run these commands from the project root:
 
