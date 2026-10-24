@@ -20,7 +20,7 @@ interface View {
 }
 
 /** @brief Shared editor inputs; the mounting surface supplies its authenticated API URL. */
-export interface ManagementPanelProps { api: string; ProfileSelect?: ComponentType<ProfileSelectProps> }
+export interface ManagementPanelProps { api: string; ProfileSelect?: ComponentType<ProfileSelectProps>; organize?: (prompt: string) => Promise<void> }
 
 /** @brief Make an authenticated same-origin request and preserve server error details. */
 async function request<T>(api: string, body?: unknown, signal?: AbortSignal): Promise<T> {
@@ -226,7 +226,7 @@ function NamespaceNode({ path, tree, fixed = false, provided }: { path: string; 
 }
 
 /** @brief React registry editor with versioned drafts, schema inspection and explicit proposal approval. */
-export function ManagementPanel({ api, ProfileSelect }: ManagementPanelProps) {
+export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPanelProps) {
     const t = useTranslation();
     const [view, setView] = useState<View>();
     const [mappings, setMappings] = useState<Mapping[]>([]);
@@ -241,7 +241,6 @@ export function ManagementPanel({ api, ProfileSelect }: ManagementPanelProps) {
     const [toolPicker, setToolPicker] = useState<{ parent: string; unmountedOnly?: boolean }>();
     const [status, setStatus] = useState('loading');
     const [busy, setBusy] = useState(false);
-    const [proposal, setProposal] = useState<{ id: string; proposal: unknown }>();
 
     /** @brief Replace drafts only after a successful snapshot load. */
     async function reload(signal?: AbortSignal): Promise<void> {
@@ -420,8 +419,8 @@ export function ManagementPanel({ api, ProfileSelect }: ManagementPanelProps) {
                     await request(api, { action: 'configure', profile, revision: view!.state.revision, namespaces, unmountedVisible, builtinVisible, consolePinned, toolComments, order: orderedPaths([...paths, ...mappings.flatMap(m => [m.path, ...m.aliases])], order), mappings: mappings.map(m => ({ ...m, path: m.path.trim(), aliases: m.aliases.map(alias => alias.trim()).filter(Boolean) })) });
                     await reload();
                 })} />
-            <button disabled={busy || !view?.sessions.length} onClick={() => void action('organizing', async () => {
-                setProposal(await request(api, { action: 'organize' })); setStatus('proposal_ready');
+            <button disabled={busy || !organize} onClick={() => void action('organizing', async () => {
+                await organize!(t('organization_prompt')); setStatus('');
             })}>{t('generate_proposal')}</button>
         </div></div>
         <main><section className="ts-namespaces"><h2>{t('namespace_tree')}</h2>
@@ -464,13 +463,6 @@ export function ManagementPanel({ api, ProfileSelect }: ManagementPanelProps) {
                     <button type="button" onClick={() => setDescriptionEditor({ id: descriptionEditor.id })}>{t('reset')}</button>
                     <button type="button" onClick={() => setDescriptionEditor(undefined)}>{t('cancel')}</button></div>
             </form>
-        </section></div>}
-        {proposal && <div className="ts-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="ts-proposal-title">
-            <h2 id="ts-proposal-title">{t('proposal')}</h2><pre>{JSON.stringify(proposal.proposal, null, 2)}</pre>
-            <p>{t('proposal_hint')}</p>
-            <div className="ts-actions"><button disabled={busy} onClick={() => void action('applying_proposal', async () => {
-                await request(api, { action: 'approve', id: proposal.id }); setProposal(undefined); await reload();
-            })}>{t('validate_apply')}</button><button disabled={busy} onClick={() => setProposal(undefined)}>{t('cancel')}</button></div>
         </section></div>}
     </div>;
 }

@@ -9,11 +9,10 @@ import { ProfileSessions } from '../registry/profiles.js';
 import { NamespaceComponent } from './namespace_component.js';
 import { Aliases } from './namespace.js';
 import { registerManagement } from '../management/server/routes.js';
-import { OrganizationService } from './organization.js';
 import { executionInstructions } from './prompt.js';
 
 export const name = 'command-namespaces';
-export const inject = ['llm', 'tools', 'agents', 'systemPrompt', 'storage', storageBackendServiceKey('json'), 'subagents', 'connection'];
+export const inject = ['llm', 'tools', 'agents', 'systemPrompt', 'storage', storageBackendServiceKey('json'), 'connection'];
 /** @brief Namespace discovery budgets do not require or configure a runtime. */
 export const Config = z.object({ mode: z.enum(['native', 'ptc']).default('native'), aliasesFile: z.string().optional() }).prefault({});
 
@@ -33,7 +32,7 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
     const profiles = new ProfileSessions(registry, store);
     const namespaces = new NamespaceComponent(ctx, registry, profiles, aliases, config.mode);
     ctx.provide('commandNamespaces', namespaces);
-    registerManagement(ctx, registry, namespaces, new OrganizationService(ctx, registry));
+    registerManagement(ctx, registry, namespaces);
     ctx.on('agent/created', async ({ agent }) => { await namespaces.configure(agent); });
     ctx.on('agent/disposed', async ({ agent }) => { await namespaces.release(agent.id); });
     ctx.on('system-prompt/assemble', async (_assembly, context, next) => {
