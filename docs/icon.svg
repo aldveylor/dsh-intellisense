@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">DSH IntelliSense</title>
+  <desc id="desc">A gradient code editor with syntax highlighting, a cursor, and an autocomplete suggestion.</desc>
+  <defs>
+    <linearGradient id="frame" x1="10" y1="9" x2="53" y2="57" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#65A9FF"/>
+      <stop offset=".48" stop-color="#8170ED"/>
+      <stop offset="1" stop-color="#C966A7"/>
+    </linearGradient>
+    <linearGradient id="completion" x1="30" y1="34" x2="51" y2="48" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#58D9EF"/>
+      <stop offset="1" stop-color="#25C8A2"/>
+    </linearGradient>
+  </defs>
+  <path d="M16 8h32a8 8 0 0 1 8 8v32a8 8 0 0 1-8 8H16a8 8 0 0 1-8-8V16a8 8 0 0 1 8-8Z" fill="#1B2532"/>
+  <rect x="10.5" y="10.5" width="43" height="43" rx="5.5" stroke="url(#frame)" stroke-width="5"/>
+  <circle cx="19" cy="20" r="2" fill="#FFB85B"/>
+  <circle cx="26" cy="20" r="2" fill="#55D4CC"/>
+  <path d="M18 30h9" stroke="#A78BFA" stroke-width="4" stroke-linecap="round"/>
+  <path d="M35 30h10" stroke="#FFB85B" stroke-width="4" stroke-linecap="round"/>
+  <path d="M18 39h5M18 47h5" stroke="#6EAAFF" stroke-width="4" stroke-linecap="round"/>
+  <rect x="29" y="36" width="21" height="14" rx="4" fill="url(#completion)"/>
+  <path d="m34 43 2.5 2.5L41 41" stroke="#163A4A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M45 41v4" stroke="#163A4A" stroke-width="2" stroke-linecap="round"/>
+</svg>
