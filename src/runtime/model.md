@@ -17,5 +17,3 @@
 插件自有 tools_run_code 通过 integration/namespace_runtime.ts 使用本运行时。命名空间调用按实际调用者 manifest 投影参数和返回值，通过 NamespaceComponent.dispatch 进入原生工具权限与执行流水线，不依赖全局 ptcRuntime。worker 内的 ToolCallError 属于 guest realm，包含失败命名空间路径 toolName。
 
 init 消息携带 data-only values，VM realm 内解析并递归冻结，执行前预加载 tools.profile.annotation 与 tools.profile.commands；不传递宿主对象。每次运行刷新这些值，工具仍通过原生 PTC 闭包派发。
-
-global 仅用于声明中的环境命名空间，不作为 VM 顶层命名空间暴露；每次完成工具与数据注入后显式删除 VM 的 global 属性，包含配置或预加载数据创建的同名属性。worker 中持有的 global 变量仅为宿主闭包引用。

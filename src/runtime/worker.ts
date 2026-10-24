@@ -83,7 +83,6 @@ function initialize(paths: string[], values: Record<string, unknown>): void {
         if(!Object.hasOwn(root,'console')||Object.getOwnPropertyDescriptor(root,'console').configurable)Object.defineProperty(root,'console',{value:Object.freeze(logger),configurable:false});
     })`, context, { timeout: syncTimeoutMs }) as (root: object, call: typeof hostCall, print: typeof hostPrint, paths: string, methods: string, values: string) => void;
     install(global, hostCall, hostPrint, JSON.stringify(paths), JSON.stringify(Object.keys(console).filter(name => !name.startsWith('_'))), JSON.stringify(values));
-    Reflect.deleteProperty(global, 'global');
 }
 
 /** @brief Traverse only own data descriptors; accessors and proxies never run during completion. */
