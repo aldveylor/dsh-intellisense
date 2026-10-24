@@ -1,19 +1,25 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { RuntimeHost } from '../../src/runtime/host.js';
+import { RuntimeConfig, RuntimeHost } from '../../src/runtime/host.js';
 import { HostMessage, WorkerMessage } from '../../src/runtime/protocol.js';
+import { verifySandbox } from '../../src/runtime/sandbox.js';
 
 const signal = () => new AbortController().signal;
 const unused = async () => null;
 
-test('strict AsyncFunction keeps only explicit globalThis state, supports TS and native console', async () => {
+test('Node permissions initialize without Python configuration', () => {
+    assert.equal(RuntimeConfig.safeParse({ python: 'python3' }).success, false);
+    assert.doesNotThrow(() => verifySandbox());
+});
+
+test('strict AsyncFunction supports TS and native console with a fresh context per execution', async () => {
     const host = new RuntimeHost({ timeoutMs: 3000 });
     try {
-        const first = await host.execute('session', 'one', 'const local: number=3; globalThis.count=4; console.log("%s=%d", "count",globalThis.count); return local;', [], unused, signal());
+        const first = await host.execute('session', 'one', 'const local: number=3; var count=4; Object.prototype.savedCount=count; console.log("%s=%d", "count",count); return local;', [], unused, signal());
         assert.equal(first.value, 3); assert.deepEqual(first.logs, ['count=4']);
-        const second = await host.execute('session', 'two', 'return [typeof local,globalThis.count];', [], unused, signal());
-        assert.deepEqual(second.value, ['undefined', 4]);
-        const separate = await host.execute('other', 'three', 'return typeof globalThis.count;', [], unused, signal());
+        const second = await host.execute('session', 'two', 'return [typeof local,typeof count,typeof globalThis,typeof ({}).savedCount];', [], unused, signal());
+        assert.deepEqual(second.value, ['undefined', 'undefined', 'undefined', 'undefined']);
+        const separate = await host.execute('other', 'three', 'return typeof count;', [], unused, signal());
         assert.equal(separate.value, 'undefined');
     } finally { await host.dispose(); }
 });
@@ -48,11 +54,11 @@ test('RPC values and rejections cross IPC without exposing host objects', async 
 });
 
 test('timeout and cancellation terminate a process, abort pending RPC and advance epoch', async () => {
-    const host = new RuntimeHost({ timeoutMs: 250, syncTimeoutMs: 50 });
+    const host = new RuntimeHost({ timeoutMs: 3000, syncTimeoutMs: 50 });
     try {
-        const timeout = await host.execute('timeout', 'one', 'globalThis.stale=1;while(true){}', [], unused, signal());
+        const timeout = await host.execute('timeout', 'one', 'var stale=1;while(true){}', [], unused, signal());
         assert(timeout.error?.includes('timed out'));
-        const next = await host.execute('timeout', 'two', 'return typeof globalThis.stale;', [], unused, signal());
+        const next = await host.execute('timeout', 'two', 'return typeof stale;', [], unused, signal());
         assert.equal(next.epoch, 2); assert.equal(next.value, 'undefined');
         const controller = new AbortController();
         let started: () => void = () => {};
