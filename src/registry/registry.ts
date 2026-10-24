@@ -145,7 +145,7 @@ export class SemanticRegistry {
     }
 
     /** @brief Atomically manage named configurations under the same global revision as ordinary saves. */
-    async manageProfile(action: 'create' | 'select' | 'rename' | 'delete', name: string, revision: number, newName?: string): Promise<void> {
+    async manageProfile(action: 'create' | 'select' | 'rename' | 'delete', name: string, revision: number, newName?: string, activate = true): Promise<void> {
         await this.transaction(async () => {
             if (revision !== this.state.revision) throw new Error('Registry revision conflict; reload before saving');
             this.validateProfileName(name);
@@ -155,8 +155,11 @@ export class SemanticRegistry {
             let next = { ...this.state, revision: revision + 1, inactiveProfiles: archive };
             if (action === 'create') {
                 if (exists(name)) throw new Error('Profile name already exists');
-                archive[active] = this.configuration();
-                next = { ...next, profile: name, mappings: [], namespaces: [], order: [], unmountedVisible: {}, consolePinned: false, builtinVisible: { ...defaultBuiltinVisible }, toolComments: {} };
+                const empty: RegistryConfiguration = { mappings: [], namespaces: [], order: [], unmountedVisible: {}, consolePinned: false, builtinVisible: { ...defaultBuiltinVisible }, toolComments: {} };
+                if (activate) {
+                    archive[active] = this.configuration();
+                    next = { ...next, ...empty, profile: name };
+                } else archive[name] = empty;
             } else {
                 if (!exists(name)) throw new Error('Profile does not exist');
                 if (action === 'rename') {
@@ -240,8 +243,8 @@ export class SemanticRegistry {
         if (!ids || typeof ids !== 'object' || Array.isArray(ids) || Object.entries(ids).some(([id, level]) => !id || ![0, 1, 2].includes(level))) throw new Error('Invalid tool visibility');
     }
 
-    /** @brief Save a configuration, optionally archiving the active profile and selecting a new named copy. */
-    async configure(mappings: Mapping[], revision: number, namespaces?: Namespace[], order?: string[], unmountedVisible?: CommandVisibility, profile?: string, toolComments?: Record<string, string>, builtinVisible?: CommandVisibility, consolePinned?: boolean): Promise<void> {
+    /** @brief Save a configuration; an explicit editor target preserves the default profile even for named copies. */
+    async configure(mappings: Mapping[], revision: number, namespaces?: Namespace[], order?: string[], unmountedVisible?: CommandVisibility, profile?: string, toolComments?: Record<string, string>, builtinVisible?: CommandVisibility, consolePinned?: boolean, editingProfile?: string): Promise<void> {
         const detached = structuredClone(mappings);
         await this.transaction(async () => {
             if (revision !== this.state.revision) throw new Error('Registry revision conflict; reload before saving');
@@ -249,41 +252,50 @@ export class SemanticRegistry {
                 this.validateProfileName(profile);
                 if (profile === (this.state.profile ?? 'Default') || Object.hasOwn(this.state.inactiveProfiles ?? {}, profile)) throw new Error('Profile name already exists');
             }
+            const base = this.configuration(editingProfile);
             this.validateMappings(detached);
             this.validateConsolePinned(consolePinned);
-            const comments = structuredClone(toolComments ?? this.state.toolComments ?? {});
+            const comments = structuredClone(toolComments ?? base.toolComments ?? {});
             this.validateComments(comments);
-            const builtins = structuredClone(builtinVisible ?? this.state.builtinVisible ?? defaultBuiltinVisible);
+            const builtins = structuredClone(builtinVisible ?? base.builtinVisible ?? defaultBuiltinVisible);
             this.validateVisibility(builtins);
-            const selected = structuredClone(unmountedVisible ?? this.state.unmountedVisible ?? {});
+            const selected = structuredClone(unmountedVisible ?? base.unmountedVisible ?? {});
             this.validateVisibility(selected);
             for (const mapping of detached) {
-                if (!this.state.mappings.some(old => old.id === mapping.id) && selected[mapping.id] && mapping.alwaysVisible === undefined) mapping.alwaysVisible = selected[mapping.id];
+                if (!base.mappings.some(old => old.id === mapping.id) && selected[mapping.id] && mapping.alwaysVisible === undefined) mapping.alwaysVisible = selected[mapping.id];
             }
-            if (unmountedVisible === undefined) for (const old of this.state.mappings) {
+            if (unmountedVisible === undefined) for (const old of base.mappings) {
                 if (old.alwaysVisible && !detached.some(mapping => mapping.id === old.id)) selected[old.id] = old.alwaysVisible;
             }
-            const metadata = structuredClone(namespaces ?? this.state.namespaces ?? []);
+            const metadata = structuredClone(namespaces ?? base.namespaces ?? []);
             this.validateNamespaces(metadata, detached);
             for (const m of detached) {
-                if (!this.physical.has(m.id) && !this.state.mappings.some(old => old.id === m.id)) throw new Error(`Unknown physical identity: ${m.id}`);
-                const old = this.state.mappings.find(o => o.id === m.id);
+                if (!this.physical.has(m.id) && !base.mappings.some(old => old.id === m.id)) throw new Error(`Unknown physical identity: ${m.id}`);
+                const old = base.mappings.find(o => o.id === m.id);
                 if (old?.pinned && (old.path !== m.path || JSON.stringify(old.aliases) !== JSON.stringify(m.aliases))) throw new Error(`Pinned mapping: ${m.id}`);
             }
-            for (const old of this.state.mappings) {
+            for (const old of base.mappings) {
                 if (old.pinned && !detached.some(m => m.id === old.id)) throw new Error(`Pinned mapping: ${old.id}`);
             }
-            const requestedOrder = order ?? this.state.order ?? [];
+            const requestedOrder = order ?? base.order ?? [];
             if (!Array.isArray(requestedOrder) || requestedOrder.some(path => typeof path !== 'string')) throw new Error('Invalid tree order');
             const known = new Set([...metadata.map(n => n.path), ...detached.flatMap(m => [m.path, ...m.aliases])]
                 .flatMap(path => path.split('.').map((_, i, parts) => parts.slice(0, i + 1).join('.'))));
             const treeOrder = [...new Set([...requestedOrder, ...known])].filter(path => known.has(path));
-            const next = { ...this.state, revision: this.state.revision + 1, mappings: detached, namespaces: metadata, order: treeOrder, toolComments: comments, builtinVisible: builtins, consolePinned: consolePinned ?? this.state.consolePinned ?? false,
+            const configuration = { mappings: detached, namespaces: metadata, order: treeOrder, toolComments: comments, builtinVisible: builtins, consolePinned: consolePinned ?? base.consolePinned ?? false,
                 unmountedVisible: Object.fromEntries(Object.entries(selected).filter(([id]) => !detached.some(mapping => mapping.id === id))),
             };
-            if (profile !== undefined) {
-                next.inactiveProfiles = { ...this.state.inactiveProfiles, [this.state.profile ?? 'Default']: this.configuration() };
-                next.profile = profile;
+            let next = { ...this.state, revision: this.state.revision + 1 };
+            if (editingProfile !== undefined) {
+                const target = profile ?? editingProfile;
+                if (target === (this.state.profile ?? 'Default')) next = { ...next, ...configuration };
+                else next.inactiveProfiles = { ...this.state.inactiveProfiles, [target]: configuration };
+            } else {
+                next = { ...next, ...configuration };
+                if (profile !== undefined) {
+                    next.inactiveProfiles = { ...this.state.inactiveProfiles, [this.state.profile ?? 'Default']: this.configuration() };
+                    next.profile = profile;
+                }
             }
             await this.store.save('registry', next);
             this.state = next;

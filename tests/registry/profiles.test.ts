@@ -44,3 +44,20 @@ test('invalid profile changes and failed persistence leave active configuration 
     await assert.rejects(registry.manageProfile('select', 'Default', 1), /Disk failed/);
     assert.deepEqual(registry.snapshot(), before);
 });
+
+test('editor profile saves and copies preserve the default profile and enforce revisions', async () => {
+    const registry = new SemanticRegistry(new MemoryStore());
+    await registry.manageProfile('create', 'Editor', 0, undefined, false);
+    assert.equal(registry.snapshot().profile, 'Default');
+    const namespaces = [{ path: 'editor', description: 'Editor namespace', alwaysVisible: false }];
+    await registry.configure([], 1, namespaces, [], {}, undefined, {}, {}, false, 'Editor');
+    assert.equal(registry.snapshot().profile, 'Default');
+    assert.deepEqual(registry.configuration().namespaces, []);
+    assert.deepEqual(registry.configuration('Editor').namespaces, namespaces);
+    await registry.configure([], 2, namespaces, [], {}, 'Copy', {}, {}, false, 'Editor');
+    assert.equal(registry.snapshot().profile, 'Default');
+    assert.deepEqual(registry.configuration('Copy').namespaces, namespaces);
+    await assert.rejects(registry.configure([], 2, [], [], {}, undefined, {}, {}, false, 'Editor'), /revision conflict/);
+    await assert.rejects(registry.configure([], 3, [], [], {}, undefined, {}, {}, false, 'Missing'), /does not exist/);
+    assert.deepEqual(registry.configuration('Editor').namespaces, namespaces);
+});
