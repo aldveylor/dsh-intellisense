@@ -11,7 +11,7 @@ Use native DSML tools with named arguments. Treat __ as a namespace dot: tools__
 Only run_code is callable directly. It takes code (an async TypeScript/JavaScript function body) and description (a concise description of the program). Call namespace commands directly inside code, such as std.cwd() and tools.intellisense(["std.", "std.cwd", "std.fs."]). Do not wrap commands in an extra tools object.
 Example native tool arguments for run_code:
 ${JSON.stringify({ code: 'return await tools.intellisense(["std.", "std.cwd", "std.fs."]);', description: 'Inspect available namespace commands' })}
-Use top-level await and explicit return. Local declarations do not persist. globalThis is unavailable. Native Node.js variables provided by the isolated runtime, including console, are available even when absent from the namespace tree. Use native console methods for output. await vm.restart() terminates execution and clears runtime state. tools.profile.annotation and tools.profile.commands are preloaded constants. Use tools.profile.load(name?) and tools.profile.save(name, profile), or tools.profile.save(profile). Tool-call rejections are ToolCallError instances with a toolName property.`;
+Use top-level await and explicit return. Each execution starts in a fresh context; do not rely on environment continuity. globalThis is unavailable. Native Node.js variables provided by the isolated runtime, including console, are available even when absent from the namespace tree. Use native console methods for output. tools.profile.annotation and tools.profile.commands are preloaded constants. Use tools.profile.load(name?) and tools.profile.save(name, profile), or tools.profile.save(profile). Tool-call rejections are ToolCallError instances with a toolName property.`;
 }
 
 /** @brief One prompt-visible namespace or command with a Profile-owned brief. */
@@ -78,6 +78,6 @@ export function builtinDeclaration(command: BuiltinCommand): string {
     /** @brief Keep builtin documentation inside its comment and prompt fence. */
     const clean = (text: string): string => decodeHTML(text).replaceAll('*/', '* /').replace(/[`\r\n\u2028\u2029]/g, ' ').replace(/<\|/g, '< |');
     const docs = [` * @brief ${clean(command.description)}`, ...names.map(name => ` * @param ${name} ${descriptions[name] ?? 'Command arguments.'}`),
-        ` * @returns ${command.path === 'vm.restart' ? 'Does not return; the VM is terminated.' : command.path === 'tools.intellisense' ? 'Complete TypeScript declarations for the requested paths.' : 'No return value.'}`];
+        ` * @returns ${command.path === 'tools.intellisense' ? 'Complete TypeScript declarations for the requested paths.' : 'No return value.'}`];
     return `${command.path === 'tools.profile.save' ? 'function save(profile: Profile): Promise<void>;\n' : ''}/**\n${docs.join('\n')}\n */\nfunction ${command.path.split('.').at(-1)}${command.signature.replace(' => ', ': ')};`;
 }

@@ -1,5 +1,5 @@
 import type { Mapping, PhysicalTool, PinLevel, CommandVisibility } from '../../registry/registry.js';
-import { vmCommands, consoleCommands, managementCommands, defaultBuiltinVisible, discoveryCommand, profileValues } from '../../runtime/builtins.js';
+import { consoleCommands, managementCommands, defaultBuiltinVisible, discoveryCommand, profileValues } from '../../runtime/builtins.js';
 
 /** @brief Provider command metadata supplies interaction rules independently of its name. */
 export interface ProvidedCommand {
@@ -22,9 +22,7 @@ export function TreeProvider(visible: CommandVisibility = defaultBuiltinVisible)
         commands: [{ ...discoveryCommand, id: 'tools_intellisense', fixed: true, draggable: false, alwaysVisible: 2 }],
         children: [{ path: 'tools.profile', description: 'Profile data and configuration', fixed: true, commands: [...managementCommands, ...profileValues].map(command => ({ ...command, fixed: true, draggable: false, alwaysVisible: visible[command.path] ?? 0 })) }] },
         { path: 'console', description: 'Native console output', fixed: true,
-        commands: consoleCommands.map(command => ({ ...command, fixed: true, draggable: false, alwaysVisible: visible[command.path] ?? 0 })) },
-        { path: 'vm', description: 'Built-in VM commands', fixed: true,
-        commands: vmCommands.map(command => ({ ...command, fixed: true, draggable: false, alwaysVisible: visible[command.path] ?? 0 })) }];
+        commands: consoleCommands.map(command => ({ ...command, fixed: true, draggable: false, alwaysVisible: visible[command.path] ?? 0 })) }];
 }
 
 /** @brief Resolve fixed runtime namespaces and their descendants. */

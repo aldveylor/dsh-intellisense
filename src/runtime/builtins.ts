@@ -3,11 +3,6 @@ import type { CommandVisibility } from '../registry/registry.js';
 /** @brief Fixed command metadata shared by runtime declarations, completion and the read-only UI. */
 export interface BuiltinCommand { path: string; signature: string; description: string }
 
-/** @brief VM lifecycle commands; intermediate output is provided by the native console. */
-export const vmCommands: readonly BuiltinCommand[] = [
-    { path: 'vm.restart', signature: '() => Promise<never>', description: 'Restart the entire VM, terminating running work and clearing all global state.' },
-];
-
 /** @brief Native Node Console methods with their public signatures and English documentation. */
 export const consoleCommands: readonly BuiltinCommand[] = [
     ...['log', 'info', 'debug', 'warn', 'error', 'dirxml'].map(name => ({ path: `console.${name}`, signature: '(...data: unknown[]) => void', description: 'Format and write values to the execution output.' })),
@@ -35,7 +30,7 @@ export const profileValues: readonly BuiltinCommand[] = [
 export const discoveryCommand: BuiltinCommand = { path: 'tools.intellisense', signature: '(args: string[]) => Promise<string>', description: 'Query namespace members and complete TypeScript tool signatures.' };
 
 /** @brief Default discovery includes custom commands and excludes standard console methods. */
-export const defaultBuiltinVisible: CommandVisibility = Object.fromEntries([...vmCommands.map(command => command.path), discoveryCommand.path].map(path => [path, path === discoveryCommand.path ? 2 : 1]));
+export const defaultBuiltinVisible: CommandVisibility = { [discoveryCommand.path]: 2 };
 
 /** @brief Callable runtime commands and permanently visible signature discovery. */
-export const builtinCommands = [...vmCommands, ...consoleCommands, discoveryCommand, ...managementCommands];
+export const builtinCommands = [...consoleCommands, discoveryCommand, ...managementCommands];

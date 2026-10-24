@@ -4,10 +4,9 @@ import { Writable } from 'node:stream';
 import { isProxy } from 'node:util/types';
 import { HostMessage, RpcId, WorkerMessage, RunResult, type ExecutionResult } from './protocol.js';
 
-const context = vm.createContext(Object.create(null), { codeGeneration: { strings: false, wasm: false } });
-const global = vm.runInContext('globalThis', context) as object;
+let context = vm.createContext(Object.create(null), { codeGeneration: { strings: false, wasm: false } });
+let global = vm.runInContext('globalThis', context) as object;
 Object.defineProperty(global, 'globalThis', { value: undefined, writable: false, configurable: false });
-const installedRoots = new Set<string>();
 const standardGlobals = new Set([...Object.getOwnPropertyNames(global), ...Object.getOwnPropertyNames(globalThis)]);
 const outstanding = new Map<number, { resolve(value: string): void; reject(error: Error): void }>();
 let execution: string | undefined;
@@ -32,9 +31,9 @@ function send(message: unknown): void { process.send?.(WorkerMessage.parse(messa
 
 /** @brief Install only VM-realm wrapper functions; the captured host callbacks are never visible as guest properties. */
 function initialize(paths: string[], values: Record<string, unknown>): void {
-    for (const root of installedRoots) delete context[root];
-    installedRoots.clear();
-    for (const path of [...paths, ...Object.keys(values)]) installedRoots.add(path.split('.')[0]!);
+    context = vm.createContext(Object.create(null), { codeGeneration: { strings: false, wasm: false } });
+    global = vm.runInContext('globalThis', context) as object;
+    Object.defineProperty(global, 'globalThis', { value: undefined, writable: false, configurable: false });
     const hostCall = (path: string, json: string): Promise<string> => {
         if (!execution) return Promise.reject(new Error('No active execution'));
         const id = RpcId.parse(++sequence);
