@@ -3,7 +3,7 @@
       name: dsh-intellisense
       config:
         timeoutMs: 120000
-    - id: preset-intellisense
+    - id: intellisense-preset
       name: dsh-intellisense/preset
 - id: agent-preset-registry
   config:
