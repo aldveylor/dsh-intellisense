@@ -87,6 +87,34 @@ test('PTC discovery uses namespace execution instead of the deployment Node runt
     } finally { await dispose(); }
 });
 
+test('PTC discovery accepts zero, single, variadic and spread queries through the real worker', async () => {
+    const { agent, namespaces, run, dispose } = await fixture();
+    try {
+        const prompt = await namespaces.prompt(agent);
+        assert.match(prompt, /function intellisense\(\.\.\.args: string\[\]\): Promise<string>/);
+        const cases = [
+            { code: 'return await tools.intellisense();', queries: [] },
+            { code: 'return await tools.intellisense("");', queries: [''] },
+            { code: 'return await tools.intellisense("tools.intellisense");', queries: ['tools.intellisense'] },
+            { code: 'return await tools.intellisense("", "tools.intellisense", "tools.profile.");', queries: ['', 'tools.intellisense', 'tools.profile.'] },
+            { code: 'const queries = ["", "tools.intellisense"]; return await tools.intellisense(...queries);', queries: ['', 'tools.intellisense'] },
+        ];
+        for (const { code, queries } of cases) {
+            const result = await run(code);
+            assert.equal(result.isError, false, JSON.stringify(result));
+            assert.equal(typeof (result.value as { result: unknown }).result, 'string');
+            if (queries.includes('')) assert.match((result.value as { result: string }).result, /namespace tools/);
+            if (queries.includes('tools.intellisense')) assert.match((result.value as { result: string }).result, /function intellisense\(\.\.\.args: string\[\]\)/);
+            const child = agent.session.snapshotEvents().findLast(event => event.type === 'tool/ptc-dispatch-start');
+            assert(child?.type === 'tool/ptc-dispatch-start');
+            assert.deepEqual(child.data.arguments, { queries });
+        }
+        const array = await run('return await tools.intellisense(["tools."]);');
+        assert.equal(array.isError, true);
+        assert.match(JSON.stringify(array), /Invalid arguments/i);
+    } finally { await dispose(); }
+});
+
 test('PTC cancellation drains native children and timeout permits the next execution', { timeout: 10_000 }, async () => {
     const { ctx, agent, namespaces, run, dispose } = await fixture();
     try {
