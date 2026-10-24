@@ -55,12 +55,12 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
-          # Store only build artifacts in an independent root commit.
+          # Store only build artifacts while preserving the source commit as parent.
           export GIT_INDEX_FILE="$RUNNER_TEMP/release.index"
           git read-tree --empty
           git --work-tree="$RUNNER_TEMP/release_files" add --all --force
           tree=$(git write-tree)
-          commit=$(git commit-tree "$tree" -m "chore: publish artifacts from $GITHUB_SHA")
+          commit=$(git commit-tree "$tree" -p "$GITHUB_SHA" -m "chore: publish artifacts from $GITHUB_SHA")
 
           # Replace the fixed tag and remove the legacy branch in one transaction.
           branch_deletion=()
