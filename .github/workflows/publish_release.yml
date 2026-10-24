@@ -19,6 +19,10 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v6
 
+      - name: Create temporary build branch
+        shell: bash
+        run: git switch --create release_build "$GITHUB_SHA"
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
@@ -31,40 +35,24 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Prepare release files
-        shell: bash
-        run: |
-          release_dir="$RUNNER_TEMP/release_files"
-          mkdir -p "$release_dir"
-          cp -a cordis.patch.yml package.json dist presets README.md docs "$release_dir/"
-          RELEASE_DIR="$release_dir" node --input-type=module <<'NODE'
-          import { readFileSync, writeFileSync } from 'node:fs';
-          import { join } from 'node:path';
-
-          const path = join(process.env.RELEASE_DIR, 'package.json');
-          const manifest = JSON.parse(readFileSync(path, 'utf8'));
-          delete manifest.scripts;
-          delete manifest.devDependencies;
-          manifest.files = ['cordis.patch.yml', 'dist', 'presets', 'README.md', 'docs'];
-          writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`);
-          NODE
-
-      - name: Publish artifact tag
+      - name: Commit build and tag release
         shell: bash
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
-          # Store only build artifacts while preserving the source commit as parent.
-          export GIT_INDEX_FILE="$RUNNER_TEMP/release.index"
-          git read-tree --empty
-          git --work-tree="$RUNNER_TEMP/release_files" add --all --force
-          tree=$(git write-tree)
-          commit=$(git commit-tree "$tree" -p "$GITHUB_SHA" -m "chore: publish artifacts from $GITHUB_SHA")
+          # Keep the complete checkout and generated artifacts, excluding dependencies and agent files.
+          git add --all --force -- . ':!node_modules' ':!AGENTS' ':!AGENTS.md' ':!*.agent.md'
+          git commit --allow-empty -m "chore: build release from $GITHUB_SHA"
+          git tag --force release
+          git switch --detach
+          git branch --delete --force release_build
 
-          # Replace the fixed tag and remove the legacy branch in one transaction.
+      - name: Push release tag
+        shell: bash
+        run: |
           branch_deletion=()
           if [[ -n "$(git ls-remote --heads origin refs/heads/release)" ]]; then
             branch_deletion=(':refs/heads/release')
           fi
-          git push --atomic origin "+$commit:refs/tags/release" "${branch_deletion[@]}"
+          git push --atomic origin '+refs/tags/release:refs/tags/release' "${branch_deletion[@]}"
