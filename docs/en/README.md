@@ -6,7 +6,7 @@ Shared profiles, namespace-based tool calls, and on-demand TypeScript signatures
 
 Both Agent Modes use the same namespace configuration:
 
-- **Intellisense PTC** (`intellisense-ptc`): execute TS/JS through native `run_code` and call commands such as `std.cwd()` and `std.fs.read(...)` from code.
+- **Intellisense PTC** (`intellisense-ptc`): execute TS/JS through the plugin-owned `tools_run_code` and call commands such as `std.cwd()` and `std.fs.read(...)` from code.
 - **Intellisense** (`intellisense`): call namespace tools such as `std.cwd`, `std.fs.read`, and `tools.intellisense` directly through native DSML.
 
 ## Getting started
@@ -26,7 +26,7 @@ npm ci
 
 `tools.intellisense` always points to the built-in `tools_intellisense` command and appears in the initial namespace prompt. It accepts a list of queries and returns a merged TypeScript `declare namespace global` declaration. A query ending in a dot returns immediate children; a complete command path returns its detailed signature and documentation. Overlapping queries do not produce duplicate declarations.
 
-In PTC mode, call native `run_code`:
+In PTC mode, call the plugin-owned `tools_run_code`:
 
 ```json
 {
@@ -45,13 +45,13 @@ Query an unknown command's signature before calling it directly. Queries are ord
 
 ## PTC execution
 
-The native tool presentation layer provides `run_code`, with `code` and a short `description` as arguments. Code runs as a strict async function body supporting TS type annotations, top-level await, and explicit return. Each execution creates an independent VM context; state persistence is not guaranteed. `globalThis`, a `vm` namespace, and restart commands are unavailable. Use `console` to log output; execution results return through in-memory streams and IPC. Failed namespace calls throw a `ToolCallError` carrying `toolName`.
+The scoped namespace plugin provides `tools_run_code`, with `code` and a short `description` as arguments. Code runs as a strict async function body supporting TS type annotations, top-level await, and explicit return. Each execution creates an independent VM context; state persistence is not guaranteed. `globalThis`, a `vm` namespace, and restart commands are unavailable. Use `console` to log output; execution results return through in-memory streams and IPC. Failed namespace calls throw a `ToolCallError` carrying `toolName`.
 
-Native `run_code` handles tool dispatch, guards, parent/child call records, and forwarding of additional context. The plugin's `NamespaceRuntime` converts positional namespace arguments into actual tool arguments and executes through native bindings without duplicating the native execution pipeline. Cancellation and timeouts terminate the restricted process; side effects are not automatically replayed.
+The plugin's `NamespaceRuntime` converts positional namespace arguments into actual tool arguments and dispatches through the native guard and execution pipeline, preserving parent/child call records and forwarding additional context. The execution tool uses the plugin's isolated runtime directly, leaving the deployment's default PTC backend available to other modes. Cancellation and timeouts terminate the restricted process; side effects are not automatically replayed.
 
 ## Configuration and initial prompts
 
-The main plugin's `Config.mode` is either `ptc` (default) or `native`. Both presets explicitly override the default through `config.mode` in `dsh-intellisense/presentation`. Their implementation follows `@deepseek-ai/dsh-agent-tool-presentation` and calls `tools.presentAs()` within each scope. Initial prompts and actual tool schemas share the same configuration source: PTC exposes only `run_code`, while native mode exposes the current namespace proxies.
+The main plugin's `Config.mode` is either `ptc` (default) or `native`. Both presets explicitly override the default through `config.mode` in `dsh-intellisense/presentation`. Both modes select native tool presentation within their scope; the plugin filters the model's tool schemas according to the selected mode. Initial prompts and actual tool schemas share the same configuration source: PTC exposes only `tools_run_code`, while native mode exposes the current namespace proxies.
 
 Runtime budgets include `timeoutMs`, `syncTimeoutMs`, `maxOutputBytes`, `maxMessageBytes`, `maxPendingCalls`, `heapMb`, `python`, `sandboxProbeTimeoutMs`, and `diagnosticChars`. You can also configure `aliasesFile`.
 

@@ -8,7 +8,7 @@
 
 `integration/namespace_component.ts` 管理 Profile、工具目录与共享 manifest。Intellisense 模式按会话渐进注册原生工具，初始仅提供 tools.intellisense 和固定命令，查询后添加直接成员；名称以双下划线 __ 替换点号，不加 ns_ 前缀。执行时根据实际调用者重新验证可见性，并通过原生 guard/execute 流水线派发。代理不进入物理工具目录，卸载时清理。
 
-Intellisense PTC 模式仅向模型提供原生 run_code 工具。`integration/namespace_runtime.ts` 实现 PtcRuntime seam，将受限 RuntimeHost 和 manifest 命名空间接入原生 transport 的工具绑定；原生层拥有调度、权限、父子审计及工具结果历史。本插件不拦截模型流，不再解析代码围栏或提供源码续写。
+Intellisense PTC 模式仅向模型提供插件自有 tools_run_code 工具。`integration/namespace_runtime.ts` 将已有受限 RuntimeHost 和 manifest 命名空间接入作用域执行入口，避免原生共享 run_code 选择部署的全局后端。两个模式在原生工具层均呈现 native，由插件组装器选择模型工具集合。子调用仍通过原生权限与执行流水线派发，保留父子审计、附加上下文和普通工具结果历史。本插件不拦截模型流，不解析代码围栏或提供源码续写。
 
 `integration/intellisense.ts` 注册 tools_intellisense，固定映射 tools.intellisense。查询列表包含尾点成员查询与精确签名查询，PTC 合并返回 TypeScript global 命名空间声明；DSML 返回 JSON 成员与命名参数 schema，并更新系统提示词中的工具集合，不提示 TS/JS。PTC 使用 tools.intellisense(["std.", "std.cwd", "std.fs."])；DSML 调用同名工具，参数为 queries 数组。结果通过普通工具历史返回，并保存 plugin:ts_intellisense/intellisense 审计。
 
@@ -26,7 +26,7 @@ tools.intellisense 固定映射到内置 tools_intellisense，强制固定等级
 
 `management/panel/management_panel.tsx` 和 `management/panel/tree_provider.ts` 显示 console、tools 固定树与可配置命名空间；内置命令描述固定英文，界面中文集中到翻译表，其余 UI 支持中英文。内置命令不可改名、拖动或删除，tools.intellisense 强制固定等级 2、禁用图钉切换，tools.profile 显示嵌套子树，其余可用命令的图钉按 0 → 1 → 2 → 0 切换，等级 2 使用黄色图标，并按当前 Profile 草稿保存。
 
-UI 不再显示 unknown 块。树上方显示当前可用但未挂载的工具数量，点击打开只含未挂载工具的选择器；数量随挂载、移除映射和切换 Profile 更新。失效工具不计入，已挂载但禁用的工具仍算已挂载；内置管理工具和 run_code 不计入未挂载工具。
+UI 不再显示 unknown 块。树上方显示当前可用但未挂载的工具数量，点击打开只含未挂载工具的选择器；数量随挂载、移除映射和切换 Profile 更新。失效工具不计入，已挂载但禁用的工具仍算已挂载；内置管理工具、run_code 和 tools_run_code 不计入未挂载工具。
 
 `management/panel/namespace_tree.ts` 处理路径、树迁移和混合拖动排序，固定内置节点禁止落入或移动。工具选择器仍可搜索普通可用工具并挂入根或指定命名空间。`management/profile_picker/` 实现 Profile 切换、创建、删除、重命名、保存和另存为；草稿名称带 *。`management/locale/` 保留本地化与原生语言桥接。运行时预算由 zod Config 管理；旧历史偏好接口及控件已移除。
 
@@ -36,7 +36,7 @@ UI 不再显示 unknown 块。树上方显示当前可用但未挂载的工具�
 
 `run.mjs` 与 scripts/local_plugin.mjs 将本包登记为原生 bundle；本地注册按真实目录移除同目录的旧包名 link 依赖及 bundle，并去重 bundle 列表，避免包重命名后重复加载。cordis.patch.yml 注册插件和两个模式，默认 intellisense-ptc。presets/intellisense_ptc 与 presets/intellisense 保存各自模式元数据和 Agent 能力清单；共享 YAML 别名位于 presets/intellisense_ptc/aliases.yml。两个模式分别通过 presentation 配置选择 ptc/native 呈现，并据此生成初始 prompt。
 
-保留基础包 ptc-runtime，供其它模式使用。Intellisense PTC 的 presentation 隔离 ptcRuntime 服务，并在自身作用域创建 NamespaceRuntime 与 RuntimeHost；内置工具也仅注册到两个自定义模式的 presentation 作用域。
+保留基础包 ptc-runtime，供其它模式使用。Intellisense PTC 的 presentation 隔离 namespaceRuntime/codeRuntime 服务，并在自身作用域创建 NamespaceRuntime 与 RuntimeHost，不替换全局 ptcRuntime；内置工具也仅注册到两个自定义模式的 presentation 作用域。
 
 构建清理 dist 并编译生产源码、管理客户端及 worker。dist/build 生成物不提交。受限运行时需要 Linux、Python3、libseccomp 和 Node >=24，加载时实测隔离条件。
 

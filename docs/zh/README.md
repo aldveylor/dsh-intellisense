@@ -6,7 +6,7 @@
 
 两个 Agent Mode 使用相同的命名空间配置：
 
-- **Intellisense PTC**（`intellisense-ptc`）：通过原生 `run_code` 执行 TS/JS，在程序中调用 `std.cwd()`、`std.fs.read(...)` 等命令。
+- **Intellisense PTC**（`intellisense-ptc`）：通过插件自有的 `tools_run_code` 执行 TS/JS，在程序中调用 `std.cwd()`、`std.fs.read(...)` 等命令。
 - **Intellisense**（`intellisense`）：通过原生 DSML 直接调用 `std.cwd`、`std.fs.read`、`tools.intellisense` 等命名空间工具。
 
 ## 启动
@@ -24,7 +24,7 @@ npm ci
 
 `tools.intellisense` 固定指向内置 `tools_intellisense`，始终出现在初始命名空间提示中。参数是查询列表，结果是一个合并后的 TypeScript `declare namespace global` 声明：尾点查询返回直接子项，完整命令路径返回详细签名和文档。重叠查询不会产生重复声明。
 
-PTC 模式调用原生 `run_code`：
+PTC 模式调用插件自有的 `tools_run_code`：
 
 ```json
 {
@@ -43,13 +43,13 @@ PTC 模式调用原生 `run_code`：
 
 ## PTC 执行
 
-`run_code` 由原生工具呈现层提供，参数包含 `code` 和简短的 `description`。程序是严格 async 函数体，支持 TS 类型标注、顶层 await 和显式 return。每次执行创建独立 VM 上下文，不保证环境连续，不支持 `globalThis`，也不提供 `vm` 命名空间或重启命令。使用 `console` 记录输出，通过内存流及 IPC 返回执行结果。命名空间调用失败时抛出带 `toolName` 的 `ToolCallError`。
+`tools_run_code` 由命名空间插件在 presentation 作用域提供，参数包含 `code` 和简短的 `description`。程序是严格 async 函数体，支持 TS 类型标注、顶层 await 和显式 return。每次执行创建独立 VM 上下文，不保证环境连续，不支持 `globalThis`，也不提供 `vm` 命名空间或重启命令。使用 `console` 记录输出，通过内存流及 IPC 返回执行结果。命名空间调用失败时抛出带 `toolName` 的 `ToolCallError`。
 
-原生 `run_code` 拥有工具调度、guard、父子调用记录和附加上下文转发。插件的 `NamespaceRuntime` 将命名空间位置参数转换为实际工具参数，并沿用原生绑定执行，不复制原生执行流水线。取消和超时会终止受限进程，副作用不会自动重放。
+插件的 `NamespaceRuntime` 将命名空间位置参数转换为实际工具参数，通过原生 guard 和执行流水线派发，保留父子调用记录和附加上下文转发。执行入口直接使用插件的受限运行时，部署的全局 PTC 后端仍供其它模式使用。取消和超时会终止受限进程，副作用不会自动重放。
 
 ## 配置与初始提示词
 
-主插件 `Config.mode` 为 `ptc`（默认）或 `native`。两个 preset 通过 `dsh-intellisense/presentation` 的 `config.mode` 显式覆盖默认值；其实现参考 `@deepseek-ai/dsh-agent-tool-presentation`，按作用域调用 `tools.presentAs()`。初始提示词与实际工具 schema 使用同一配置来源：PTC 仅暴露 `run_code`，native 暴露当前命名空间代理。
+主插件 `Config.mode` 为 `ptc`（默认）或 `native`。两个 preset 通过 `dsh-intellisense/presentation` 的 `config.mode` 显式覆盖默认值；两个模式均在作用域内选择原生工具呈现，由插件按模式过滤模型工具 schema。初始提示词与实际工具 schema 使用同一配置来源：PTC 仅暴露 `tools_run_code`，native 暴露当前命名空间代理。
 
 运行时预算包括 `timeoutMs`、`syncTimeoutMs`、`maxOutputBytes`、`maxMessageBytes`、`maxPendingCalls`、`heapMb`、`python`、`sandboxProbeTimeoutMs` 和 `diagnosticChars`，另可配置 `aliasesFile`。
 

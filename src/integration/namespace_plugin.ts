@@ -9,6 +9,7 @@ import { ProfileSessions } from '../registry/profiles.js';
 import { NamespaceComponent } from './namespace_component.js';
 import { Aliases } from './namespace.js';
 import { registerManagement } from '../management/server/routes.js';
+import { ptcToolName } from '../runtime/builtins.js';
 import { executionInstructions } from './prompt.js';
 
 export const name = 'command-namespaces';
@@ -46,7 +47,7 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
                 assembled.tools = agent.ctx.tools.schemas(agent).filter(tool => names.has(tool.name));
             } else {
                 assembled.sections = assembled.sections.filter(section => !section.name.startsWith('tool:') && !section.name.startsWith('tools:'));
-                assembled.tools = assembled.tools.filter(tool => tool.name === 'run_code');
+                assembled.tools = agent.ctx.tools.schemas(agent).filter(tool => tool.name === ptcToolName);
             }
             assembled.sections.push({ name: 'namespaces:execution', text: executionInstructions(namespaces.isPtc(agent) ? 'ptc' : 'native'), interpolate: false });
         }

@@ -6,4 +6,4 @@
 
 `plugin:ts_intellisense/intellisense` 查询审计仍保留 Profile revision 与 runtime epoch；轨迹统一使用 builtin 审计展示，移除旧补全投影及其记录读取器。
 
-注册由客户端 uiConversation 依赖作用域管理，卸载时清理。内置工具仅在项目两个自定义 presentation 作用域注册，标准模式不产生这些记录。原生 DSML 和 run_code 继续负责普通工具执行结果展示。
+注册由客户端 uiConversation 依赖作用域管理，卸载时清理。内置工具仅在项目两个自定义 presentation 作用域注册，标准模式不产生这些记录。原生 DSML 和 tools_run_code 继续负责普通工具执行结果展示。

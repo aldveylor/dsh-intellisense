@@ -2,13 +2,12 @@ import type { Context } from '@deepseek-ai/cordis';
 import { scopeChainOf, scopeOf, type ScopeKey } from '@deepseek-ai/dsh-scope';
 import { z } from 'zod';
 import '@deepseek-ai/dsh-tools';
-import '@deepseek-ai/dsh-ptc-runtime';
 import type {} from './namespace_plugin.js';
 import { NamespaceRuntime } from './namespace_runtime.js';
 
 export const name = 'intellisense-presentation';
 export const inject = ['tools', 'commandNamespaces'];
-/** @brief Select native namespace calls or the native PTC run_code transport. */
+/** @brief Select native namespace calls or the plugin-owned namespace execution tool. */
 export const Config = z.strictObject({ mode: z.enum(['native', 'ptc']) });
 /** @brief The configured execution form shared by tool presentation and initial prompts. */
 export type PresentationMode = z.infer<typeof Config>['mode'];
@@ -29,7 +28,6 @@ export async function apply(ctx: Context, options: z.input<typeof Config>): Prom
     if (!scope) throw new Error('Intellisense presentation requires an agent or preset scope');
     ctx.effect(() => { modes.set(scope, config.mode); return () => { modes.delete(scope); }; });
     ctx.commandNamespaces.register(ctx);
-    if (config.mode === 'ptc') await ctx.plugin(NamespaceRuntime);
-    if (config.mode === 'native') ctx.tools.presentAs('native');
-    else ctx.inject(['ptcRuntime'], runtimeCtx => { runtimeCtx.tools.presentAs('ptc'); });
+    if (config.mode === 'ptc') await ctx.isolate('namespaceRuntime').isolate('codeRuntime').plugin(NamespaceRuntime);
+    ctx.tools.presentAs('native');
 }

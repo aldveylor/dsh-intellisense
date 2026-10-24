@@ -2,7 +2,7 @@
 
 Shared profiles, namespace-based tool calls, and on-demand TypeScript signatures for DeepSeek Harness.
 
-- **Intellisense PTC**: run isolated TypeScript/JavaScript with native `run_code` and call tools through namespaces.
+- **Intellisense PTC**: run isolated TypeScript/JavaScript with the plugin-owned `tools_run_code` and call tools through namespaces.
 - **Intellisense**: call namespace tools directly through native DSML.
 
 Requires Node.js >=24, Linux, Python 3, and libseccomp.

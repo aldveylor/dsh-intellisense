@@ -1,12 +1,13 @@
-import type { Context } from '@deepseek-ai/cordis';
+import { Service, type Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
-import PtcRuntime, { type PtcRunRequest, type PtcRunSpec, type PtcRunResult } from '@deepseek-ai/dsh-ptc-runtime';
-import { argumentsFor, resultFor } from './namespace.js';
+import { CodeRunFailedError, defineTool, type ToolRunContext } from '@deepseek-ai/dsh-tools';
+import { argumentsFor } from './namespace.js';
 import type {} from './namespace_plugin.js';
 import { RuntimeHost, type RuntimeConfig } from '../runtime/host.js';
+import { ptcToolName } from '../runtime/builtins.js';
 import type { z } from 'zod';
 
-/** @brief Settle an IPC callback on cancellation; native run_code still owns and drains the actual tool call. */
+/** @brief Release an IPC callback on cancellation before draining the actual native child call. */
 async function bindingResult<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
     signal.throwIfAborted();
     let abort: () => void = () => {};
@@ -18,68 +19,78 @@ async function bindingResult<T>(work: Promise<T>, signal: AbortSignal): Promise<
     finally { signal.removeEventListener('abort', abort); }
 }
 
-/** @brief The isolated process runtime consumed by the native run_code transport. */
-declare module '@deepseek-ai/cordis' { interface Context { codeRuntime: RuntimeHost; codeRuntimeOptions: z.infer<typeof RuntimeConfig> } }
+/** @brief Scoped namespace execution services, independent of the deployment's default PTC backend. */
+declare module '@deepseek-ai/cordis' { interface Context { namespaceRuntime: NamespaceRuntime; codeRuntime: RuntimeHost; codeRuntimeOptions: z.infer<typeof RuntimeConfig> } }
 
-/** @brief Adapt native PTC bindings to Profile namespaces while preserving native dispatch scheduling. */
-export class NamespaceRuntime extends PtcRuntime {
-    static inject = ['codeRuntimeOptions'];
-    readonly language = 'typescript';
-    readonly isolation = 'process';
+/** @brief Execute namespace programs in isolated processes and dispatch children through native tool guards. */
+export class NamespaceRuntime extends Service {
+    static inject = ['codeRuntimeOptions', 'commandNamespaces', 'tools'];
     private sequence = 0;
     private runtime: RuntimeHost;
+    private owners = new WeakSet<Agent>();
 
     constructor(ctx: Context) {
-        super(ctx);
+        super(ctx, 'namespaceRuntime');
         this.runtime = new RuntimeHost(ctx.codeRuntimeOptions);
         ctx.provide('codeRuntime', this.runtime);
         ctx.effect(() => () => this.runtime.dispose());
+        ctx.tools.register(defineTool({
+            name: ptcToolName,
+            description: 'Execute an async TypeScript/JavaScript function body with namespace commands such as std.cwd() and tools.intellisense(["std."]). Use await and explicit return. Each execution starts in a fresh isolated context; globalThis is unavailable.',
+            parameters: {
+                code: { type: 'string', required: true, description: 'The async function body to execute.' },
+                description: { type: 'string', required: true, description: 'A concise description of the program.' },
+                timeoutMs: { type: 'number', description: `Positive elapsed-time budget, capped at ${this.runtime.config.timeoutMs} milliseconds.` },
+            },
+            output: {
+                schema: { type: 'object', additionalProperties: true },
+                render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
+            },
+            execute: ({ code, timeoutMs }, execution) => this.execute(code, execution, timeoutMs),
+        }));
     }
 
-    override get executionInstructions(): string { return 'Use namespace commands directly, such as std.cwd() and tools.intellisense(["std."]). Each run is an async function body; use await and return. Each execution starts in a fresh context; do not rely on environment continuity. globalThis is unavailable.'; }
-
-    override get timeout(): { defaultMs: number; maxMs: number } {
-        const timeoutMs = this.runtime.config.timeoutMs;
-        return { defaultMs: timeoutMs, maxMs: timeoutMs };
-    }
-
-    /** @brief Validate explicit choices and retain the native transport's owner and binding closures. */
-    resolve(request: PtcRunRequest): PtcRunSpec {
-        if (request.sandboxPolicy) throw new Error('Namespace runtime does not accept file-policy overrides');
-        if (request.timeoutMs !== undefined && (request.timeoutMs === null || !Number.isFinite(request.timeoutMs) || request.timeoutMs <= 0)) throw new Error('Expected a positive finite timeoutMs');
-        if (!request.stateOwner) throw new Error('run_code requires a live conversation');
-        return { ...request, cwd: request.cwd ?? process.cwd(), timeoutMs: Math.min(request.timeoutMs ?? this.timeout.defaultMs, this.timeout.maxMs) };
-    }
-
-    /** @brief Run a complete TS/JS function body with guarded physical-tool binding closures. */
-    async run(spec: PtcRunSpec): Promise<PtcRunResult> {
-        const agent = spec.stateOwner as Agent;
-        const runtime = this.runtime;
-        const namespaces = this.ctx.get('commandNamespaces');
+    /** @brief Run one program, propagate cancellation and await all native child executions before settling. */
+    private async execute(code: string, parent: ToolRunContext, timeoutMs = this.runtime.config.timeoutMs): Promise<{ logs: string[]; result?: z.infer<ReturnType<typeof z.json>> }> {
+        const agent = parent.agent;
+        const namespaces = this.ctx.commandNamespaces;
+        if (!agent || !namespaces.isPtc(agent)) throw new Error('An Intellisense PTC conversation is required');
+        if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new Error('Expected a positive finite timeoutMs');
+        parent.signal.throwIfAborted();
+        if (!this.owners.has(agent)) {
+            agent.ctx.effect(() => () => this.runtime.release(agent.id));
+            this.owners.add(agent);
+        }
         const controller = new AbortController();
-        const abort = (): void => controller.abort(spec.signal?.reason);
-        spec.signal?.addEventListener('abort', abort, { once: true });
-        if (spec.signal?.aborted) abort();
+        const abort = (): void => controller.abort(parent.signal.reason);
+        parent.signal.addEventListener('abort', abort, { once: true });
+        if (parent.signal.aborted) abort();
         let timedOut = false;
-        const timer = setTimeout(() => { timedOut = true; controller.abort(new Error('Runtime execution timed out')); }, spec.timeoutMs!);
+        const timer = setTimeout(() => { timedOut = true; controller.abort(new Error('Runtime execution timed out')); }, Math.min(timeoutMs, this.runtime.config.timeoutMs));
+        const pending = new Set<Promise<unknown>>();
+        let sequence = 0;
         try {
-            if (!namespaces) throw new Error('Namespace service is unavailable');
-            if (!agent?.id || !agent.ctx || !agent.session) throw new Error('run_code requires a live conversation');
-            const bindings = spec.bindings.find(binding => binding.global === 'tools')?.functions;
-            if (!bindings) throw new Error('Native PTC tool bindings are required');
             const entries = (await namespaces.entries(agent)).filter(entry => !['tools_profile_annotation', 'tools_profile_commands'].includes(entry.tool));
-            const result = await runtime.execute(agent.id, `run-code-${++this.sequence}`, spec.program, entries.map(entry => entry.path), async (path, input, signal) => {
+            const result = await this.runtime.execute(agent.id, `run-code-${++this.sequence}`, code, entries.map(entry => entry.path), async (path, input, signal) => {
                 signal.throwIfAborted();
                 const entry = (await namespaces.entries(agent)).find(entry => entry.path === path);
-                if (!entry || !Object.hasOwn(bindings, entry.tool)) throw new Error(`Execution denied: ${path}`);
-                return resultFor(entry, await bindingResult(bindings[entry.tool]!(argumentsFor(entry, input)), signal));
+                signal.throwIfAborted();
+                if (!entry) throw new Error(`Execution denied: ${path}`);
+                const work = namespaces.dispatch(agent, entry, argumentsFor(entry, input), { ...parent, signal: controller.signal }, ++sequence);
+                pending.add(work);
+                void work.finally(() => { pending.delete(work); }).catch(() => {});
+                return bindingResult(work, signal);
             }, controller.signal, await namespaces.values(agent));
-            return { logs: result.logs, ...(result.value === undefined ? {} : { value: result.value }), ...(result.error ? { error: { kind: 'exception' as const, message: result.error } } : {}) };
+            if (result.error) throw new Error(result.error + (result.logs.length ? `\nCaptured output:\n${result.logs.join('\n')}` : ''));
+            return { logs: result.logs, ...(result.value === undefined ? {} : { result: result.value }) };
         } catch (error) {
-            return { logs: [], error: { kind: timedOut ? 'timeout' : spec.signal?.aborted ? 'abort' : 'exception', message: error instanceof Error ? error.message : String(error) } };
-        } finally { clearTimeout(timer); spec.signal?.removeEventListener('abort', abort); }
+            const kind = timedOut ? 'timeout' : parent.signal.aborted ? 'abort' : 'exception';
+            throw new CodeRunFailedError(`code run failed (${kind}): ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            clearTimeout(timer);
+            parent.signal.removeEventListener('abort', abort);
+            controller.abort(new Error('Namespace program settled'));
+            await Promise.allSettled([...pending]);
+        }
     }
-
-    /** @brief Release the exact session owner's retained process. */
-    override async release(owner: object): Promise<void> { await this.runtime.release((owner as Agent).id); }
 }

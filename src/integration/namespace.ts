@@ -1,7 +1,7 @@
 import { decodeHTML } from 'entities';
 import { z } from 'zod';
 import { jsonSchemaToTs, validateJsonSchemaValue, type JsonSchemaNode } from '@deepseek-ai/dsh-tools';
-import { managementCommands } from '../runtime/builtins.js';
+import { managementCommands, ptcToolName } from '../runtime/builtins.js';
 import type { SemanticRegistry } from '../registry/registry.js';
 
 /** @brief YAML aliases reference physical tools and rename argument fields without reimplementing tools. */
@@ -31,7 +31,7 @@ export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Ali
         for (const path of entries.keys()) if (path.startsWith(entry.path + '.') || entry.path.startsWith(path + '.')) throw new Error(`Namespace overlaps a callable path: ${entry.path}`);
         entries.set(entry.path, entry);
     };
-    for (const mapping of registry.effective().filter(mapping => mapping.enabled && !['exec', 'run_code'].includes(mapping.id))) {
+    for (const mapping of registry.effective().filter(mapping => mapping.enabled && !['exec', 'run_code', ptcToolName].includes(mapping.id))) {
         const physical = mapping.tool;
         const paths = mapping.id.startsWith('tools_') ? [`tools.${mapping.id.slice(6)}`] : [mapping.path, ...mapping.aliases];
         for (const path of paths) insert({ path, tool: mapping.id, schema: physical.parameters, output: physical.output, doc: physical.description });

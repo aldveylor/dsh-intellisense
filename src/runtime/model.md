@@ -14,6 +14,6 @@
 
 工具包装使用 ...args 位置参数，通过 [present, value] 元组跨 IPC 传递每个值，保留可选参数中的 undefined 与显式 null 的区别；返回值也保留 undefined。宿主将位置参数交给命名空间契约重封装为原生对象，单字段原生响应由命名空间层解包后返回 VM。
 
-原生 run_code 通过 integration/namespace_runtime.ts 的 PtcRuntime seam 使用本运行时。工具调用闭包由原生 transport 提供，位置参数和返回值按 manifest 投影。worker 内的 ToolCallError 属于 guest realm，包含失败命名空间路径 toolName。
+插件自有 tools_run_code 通过 integration/namespace_runtime.ts 使用本运行时。命名空间调用按实际调用者 manifest 投影参数和返回值，通过 NamespaceComponent.dispatch 进入原生工具权限与执行流水线，不依赖全局 ptcRuntime。worker 内的 ToolCallError 属于 guest realm，包含失败命名空间路径 toolName。
 
 init 消息携带 data-only values，VM realm 内解析并递归冻结，执行前预加载 tools.profile.annotation 与 tools.profile.commands；不传递宿主对象。每次运行刷新这些值，工具仍通过原生 PTC 闭包派发。

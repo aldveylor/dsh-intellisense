@@ -10,7 +10,7 @@ import type { PhysicalTool, SemanticRegistry } from '../registry/registry.js';
 import type { ProfileSessions } from '../registry/profiles.js';
 import { declaration, manifest, nativeArgumentsFor, nativeSchema, resultFor, type Aliases, type ManifestEntry } from './namespace.js';
 import { builtinDeclaration, namespaceDirectory, type NamespaceHint } from './prompt.js';
-import { builtinCommands, defaultBuiltinVisible, discoveryCommand, profileValues } from '../runtime/builtins.js';
+import { builtinCommands, defaultBuiltinVisible, discoveryCommand, profileValues, ptcToolName } from '../runtime/builtins.js';
 import { type CommandBrief, profileAnnotation } from '../registry/profile_tree.js';
 import type { z } from 'zod';
 import { registerIntellisense } from './intellisense.js';
@@ -59,7 +59,7 @@ export class NamespaceComponent {
     /** @brief Read only the native tool catalog visible to this agent. */
     physical(agent?: Agent, scope: ScopeKey | undefined = agent): PhysicalTool[] {
         const tools = agent?.ctx.tools ?? this.ctx.tools;
-        return tools.schemas(scope).filter(tool => !['exec', 'run_code'].includes(tool.name) && !this.generatedTools.has(tools.get(tool.name, scope)!)).map(tool => ({ id: tool.name, description: tool.description, parameters: tool.parameters, output: tools.get(tool.name, scope)!.output.schema }));
+        return tools.schemas(scope).filter(tool => !['exec', 'run_code', ptcToolName].includes(tool.name) && !this.generatedTools.has(tools.get(tool.name, scope)!)).map(tool => ({ id: tool.name, description: tool.description, parameters: tool.parameters, output: tools.get(tool.name, scope)!.output.schema }));
     }
 
     /** @brief Include standing preset tools in the editor catalog even without live conversations. */
@@ -170,7 +170,7 @@ export class NamespaceComponent {
                     if (!caller) throw new Error('A live conversation is required');
                     const current = (await this.entries(caller)).find(candidate => candidate.path === entry.path && candidate.tool === entry.tool);
                     if (!current) throw new Error(`Execution denied: ${entry.path}`);
-                    return this.dispatch(caller, current, nativeArgumentsFor(current, args), parent, 1);
+                    return await this.dispatch(caller, current, nativeArgumentsFor(current, args), parent, 1) ?? null;
                 },
             };
             this.generatedTools.add(definition);
@@ -190,7 +190,7 @@ export class NamespaceComponent {
         for (const context of settled.additionalContexts ?? []) parent.deferContext(context);
         if (settled.concludesTurn) parent.concludeTurn();
         if (settled.isError) throw new Error(settled.error.message);
-        return resultFor(entry, settled.value) ?? null;
+        return resultFor(entry, settled.value);
     }
 
     /** @brief Release scoped aliases and the live Profile reference. */

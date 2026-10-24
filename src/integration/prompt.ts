@@ -1,4 +1,4 @@
-import type { BuiltinCommand } from '../runtime/builtins.js';
+import { ptcToolName, type BuiltinCommand } from '../runtime/builtins.js';
 
 import { decodeHTML } from 'entities';
 
@@ -8,8 +8,8 @@ export function executionInstructions(mode: 'native' | 'ptc'): string {
     if (mode === 'native') return `${shared}
 The current tools are organized by namespace. Use native DSML tools with named arguments; __ is the namespace separator in callable tool names, corresponding to a dot in namespace paths. For example, a.b corresponds to a__b, tools.intellisense to tools__intellisense, and std.cwd to std__cwd. Use tools.intellisense (called tools__intellisense in native DSML) for namespace discovery: pass a. to list immediate members of the a__ namespace, or a.b to inspect the complete contract of a__b. Likewise, pass std., std.cwd, or std.fs. to tools.intellisense to discover namespace members and command contracts. Use the callable tool names and argument schemas provided by the available tool schemas. Keep dotted namespace paths when querying tools.intellisense.`;
     return `${shared}
-Only run_code is callable directly. It takes code (an async TypeScript/JavaScript function body) and description (a concise description of the program). Call namespace commands directly inside code, such as std.cwd() and tools.intellisense(["std.", "std.cwd", "std.fs."]). Do not wrap commands in an extra tools object.
-Example native tool arguments for run_code:
+Only ${ptcToolName} is callable directly. It takes code (an async TypeScript/JavaScript function body) and description (a concise description of the program). Call namespace commands directly inside code, such as std.cwd() and tools.intellisense(["std.", "std.cwd", "std.fs."]). Do not wrap commands in an extra tools object.
+Example native tool arguments for ${ptcToolName}:
 ${JSON.stringify({ code: 'return await tools.intellisense(["std.", "std.cwd", "std.fs."]);', description: 'Inspect available namespace commands' })}
 Use top-level await and explicit return. Each execution starts in a fresh context; do not rely on environment continuity. globalThis is unavailable. Native Node.js variables provided by the isolated runtime, including console, are available even when absent from the namespace tree. Use native console methods for output. tools.profile.annotation and tools.profile.commands are preloaded constants. Use tools.profile.load(name?) and tools.profile.save(name, profile), or tools.profile.save(profile). Tool-call rejections are ToolCallError instances with a toolName property.`;
 }
