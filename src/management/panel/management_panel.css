@@ -27,3 +27,6 @@
 .ts-intellisense .ts-unmounted-count{display:block;margin-top:12px;color:var(--dsw-alias-label-secondary,#bdbdbd)}
 
 .ts-intellisense .ts-pin[data-level="2"],.ts-intellisense .ts-pin[data-level="2"]:hover{color:#eab308}
+
+.ts-management-dialog{color:inherit;background:var(--dsw-menu-surface-fill,var(--dsw-alias-bg-base,#202020));border:1px solid var(--ts-border);border-radius:var(--dsw-radius-lg,10px);padding:24px;width:400px;max-width:85vw}.ts-management-dialog::backdrop{background:#0008}.ts-management-dialog h2{margin:0 0 20px}.ts-management-dialog label{display:flex;flex-direction:column;gap:8px}.ts-management-dialog input{width:100%;min-width:0}.ts-dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:24px}
+.ts-error-message{white-space:pre-wrap;overflow-wrap:anywhere}

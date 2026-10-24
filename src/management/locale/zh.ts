@@ -39,6 +39,7 @@ export const zh = {
     "title": "工具命名空间表",
     "refreshing": "正在刷新…",
     "refresh": "刷新",
+    "operation_failed": "操作失败",
     "saving": "正在保存…",
     "save": "保存",
     "save_as": "另存为",

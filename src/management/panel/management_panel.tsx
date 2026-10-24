@@ -1,5 +1,6 @@
 import { useTranslation } from '../locale/locale.js';
 import styles from './management_panel.css';
+import { ErrorDialog } from './error_dialog.js';
 import { useEffect, useState, type ComponentType, type DragEvent } from 'react';
 import type { Namespace, Mapping, PhysicalTool, RegistryState, PinLevel, CommandVisibility, RegistryConfiguration } from '../../registry/registry.js';
 import { defaultBuiltinVisible } from '../../runtime/builtins.js';
@@ -420,13 +421,15 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
     return <div className="ts-intellisense" ref={drag.container} onPointerDownCapture={drag.pointerDown} onDragStartCapture={drag.preventNativeDrag}>
         <style>{styles}</style>
         <header><h1>{t('title')}</h1></header>
-        {status && <p role="status" aria-live="polite">{t(status)}</p>}
+        {status && (['loading', 'updating_profile', 'organizing'].includes(status)
+            ? <p role="status" aria-live="polite">{t(status)}</p>
+            : <ErrorDialog message={t(status)} close={() => setStatus('')} />)}
         <div className="ts-toolbar"><div className="ts-actions">
             <ProfilePicker name={view?.state.profile ?? 'Default'} profiles={view?.state.profiles ?? ['Default']} dirty={dirty} busy={busy || !view} Select={ProfileSelect}
                 refresh={() => void action('', reload)} refreshDisabled={busy}
                 select={name => manageProfile('select', name)} create={name => manageProfile('create', name)}
                 rename={(name, newName) => manageProfile('rename', name, newName)} remove={name => manageProfile('delete', name)}
-                save={profile => void action('saving', async () => {
+                save={profile => void action('', async () => {
                     await request(api, { action: profile === undefined ? 'configure' : 'save_as', ...(profile === undefined ? {} : { profile }), revision: view!.state.revision, ...draft });
                     await reload();
                 })} />

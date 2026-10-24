@@ -39,6 +39,7 @@ export const enUs = {
     "title": "Tool Namespace Table",
     "refreshing": "Refreshing…",
     "refresh": "Refresh",
+    "operation_failed": "Operation failed",
     "saving": "Saving…",
     "save": "Save",
     "save_as": "Save as",
