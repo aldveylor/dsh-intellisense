@@ -18,7 +18,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     }
 }
 
-export const inject = ['slots', 'locale', 'sessions', 'uiWorkspace', 'conversation'];
+export const inject = ['slots', 'locale', 'sessions', 'uiWorkspace', 'conversation', 'layout'];
 
 /** @brief Register global namespace configuration in the native Plugins page. */
 export function apply(ctx: Context): void {
