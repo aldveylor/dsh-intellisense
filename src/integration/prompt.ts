@@ -52,7 +52,7 @@ export function namespaceDirectory(hints: readonly (string | NamespaceHint)[]): 
     }
     visit(root, '  ');
     lines.push('}');
-    return `## Namespaces\n\nCurrent partial namespace structure:\n\nQuery tools.intellisense using the configured calling convention to view namespace members and command signatures.\n\n\x60\x60\x60ts:namespace\n${lines.join('\n')}\n\x60\x60\x60`;
+    return `Current partial namespace structure:\n\nQuery tools.intellisense using the configured calling convention to view namespace members and command signatures.\n\n\x60\x60\x60ts:namespace\n${lines.join('\n')}\n\x60\x60\x60`;
 }
 
 /** @brief Build documented builtin declarations from their shared runtime signatures. */
