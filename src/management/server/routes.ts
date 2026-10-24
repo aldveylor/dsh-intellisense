@@ -10,6 +10,7 @@ import { managementHtml } from './page.js';
 const mapping = z.strictObject({ id: z.string().min(1), path: z.string().min(1), aliases: z.array(z.string()), description: z.string().optional(), pinned: z.boolean(), alwaysVisible: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional() });
 const visibility = z.record(z.string(), z.union([z.literal(0), z.literal(1), z.literal(2)]));
 const configuration = {
+    editingProfile: z.string().trim().min(1).max(80).optional(),
     revision: z.number().int().nonnegative(), mappings: z.array(mapping),
     namespaces: z.array(z.strictObject({ path: z.string(), description: z.string(), alwaysVisible: z.boolean() })),
     order: z.array(z.string()), unmountedVisible: visibility, builtinVisible: visibility,
@@ -18,7 +19,7 @@ const configuration = {
 const managementRequest = z.discriminatedUnion('action', [
     z.strictObject({ action: z.literal('configure'), ...configuration }),
     z.strictObject({ action: z.literal('save_as'), profile: z.string().trim().min(1).max(80), ...configuration }),
-    z.strictObject({ action: z.literal('profile'), revision: z.number().int().nonnegative(), operation: z.enum(['create', 'select', 'rename', 'delete']), name: z.string().min(1), newName: z.string().min(1).optional() })
+    z.strictObject({ action: z.literal('profile'), revision: z.number().int().nonnegative(), operation: z.enum(['create', 'select', 'rename', 'delete']), name: z.string().min(1), newName: z.string().min(1).optional(), activate: z.boolean().optional() })
         .refine(body => body.operation !== 'rename' || body.newName !== undefined),
 ]);
 
@@ -32,7 +33,9 @@ export function registerManagement(ctx: Context, globalRegistry: SemanticRegistr
             await adapter.refresh();
             if (request.method === 'GET') {
                 const registry = globalRegistry;
-                return Response.json({ state: registry.snapshot(), tools: registry.tools(), effective: registry.effective() }, { headers });
+                const state = registry.snapshot();
+                const profile = new URL(request.url).searchParams.get('profile') ?? state.profile!;
+                return Response.json({ defaultProfile: state.profile, state: { ...state, ...registry.configuration(profile), profile }, tools: registry.tools(), effective: registry.effective() }, { headers });
             }
             if (!request.headers.get('content-type')?.startsWith('application/json')) return Response.json({ error: 'Expected application/json' }, { status: 415, headers });
             const bodyText = await request.text();
@@ -44,8 +47,8 @@ export function registerManagement(ctx: Context, globalRegistry: SemanticRegistr
             if (!parsed.success) return Response.json({ error: 'Invalid management request' }, { status: 400, headers });
             const body = parsed.data;
             const registry = globalRegistry;
-            if (body.action === 'profile') await registry.manageProfile(body.operation, body.name, body.revision, body.newName);
-            else await registry.configure(body.mappings, body.revision, body.namespaces, body.order, body.unmountedVisible, body.action === 'save_as' ? body.profile : undefined, body.toolComments, body.builtinVisible, body.consolePinned);
+            if (body.action === 'profile') await registry.manageProfile(body.operation, body.name, body.revision, body.newName, body.activate);
+            else await registry.configure(body.mappings, body.revision, body.namespaces, body.order, body.unmountedVisible, body.action === 'save_as' ? body.profile : undefined, body.toolComments, body.builtinVisible, body.consolePinned, body.editingProfile);
             ctx.emit('system-prompt/change');
             return Response.json({ ok: true }, { headers });
         } catch (error) { return Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: 400, headers }); }
