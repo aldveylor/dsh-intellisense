@@ -6,7 +6,7 @@ export function nativeBindings(entries: ManifestEntry[], reserved: Iterable<stri
     const physical = new Set(reserved);
     const used = new Set<string>();
     return entries.map(entry => {
-        const encoded = entry.path.replace(/[^a-zA-Z0-9_-]/g, char => char === '.' ? '_' : `_${char.charCodeAt(0).toString(16)}_`);
+        const encoded = entry.path.replace(/[^a-zA-Z0-9_-]/g, char => char === '.' ? '__' : `_${char.charCodeAt(0).toString(16)}_`);
         const base = encoded.length <= 64 ? encoded : createHash('sha256').update(entry.path).digest('hex');
         let name = base;
         for (let index = 1; used.has(name) || (physical.has(name) && (name !== entry.tool || !entry.path.startsWith('tools.') || entry.argMap)); index++) {
