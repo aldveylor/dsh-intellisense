@@ -8,7 +8,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: publish-release
+  group: publish-build
   cancel-in-progress: false
 
 jobs:
@@ -21,7 +21,7 @@ jobs:
 
       - name: Create temporary build branch
         shell: bash
-        run: git switch --create release_build "$GITHUB_SHA"
+        run: git switch --create build_build "$GITHUB_SHA"
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -35,7 +35,7 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Commit build and tag release
+      - name: Commit build and tag build
         shell: bash
         run: |
           git config user.name 'github-actions[bot]'
@@ -43,16 +43,16 @@ jobs:
 
           # Keep the complete checkout and generated artifacts, excluding dependencies and agent files.
           git add --all --force -- . ':!node_modules' ':!AGENTS' ':!AGENTS.md' ':!*.agent.md'
-          git commit --allow-empty -m "chore: build release from $GITHUB_SHA"
-          git tag --force release
+          git commit --allow-empty -m "chore: build from $GITHUB_SHA"
+          git tag --force build
           git switch --detach
-          git branch --delete --force release_build
+          git branch --delete --force build_build
 
-      - name: Push release tag
+      - name: Push build tag
         shell: bash
         run: |
           branch_deletion=()
-          if [[ -n "$(git ls-remote --heads origin refs/heads/release)" ]]; then
-            branch_deletion=(':refs/heads/release')
+          if [[ -n "$(git ls-remote --heads origin refs/heads/build)" ]]; then
+            branch_deletion=(':refs/heads/build')
           fi
-          git push --atomic origin '+refs/tags/release:refs/tags/release' "${branch_deletion[@]}"
+          git push --atomic origin '+refs/tags/build:refs/tags/build' "${branch_deletion[@]}"
