@@ -37,8 +37,8 @@ test('browser locale matching, interpolation and namespace errors use the reques
     assert.equal(browserLanguage(['zh-TW', 'en-US']), 'zh');
     assert.equal(browserLanguage(['ja']), 'en');
     assert.equal(translate('en-US')('mapping_name', { path: 'std.read' }), 'Mapping name std.read');
-    assert.equal(translate('en-US')('不能拖入自身或子命名空间。'), 'Cannot move a namespace into itself or a descendant.');
-    assert.equal(translate('zh-CN')('save'), '保存配置');
+    assert.equal(translate('en-US')('namespace_cycle'), 'Cannot move a namespace into itself or a descendant.');
+    assert.equal(translate('zh-CN')('save'), '保存');
     assert.equal(translate('en-US')('<b>工具原始说明</b>'), '<b>工具原始说明</b>');
     assert.equal(translate('en-US')('toString'), 'toString');
 });
@@ -91,8 +91,8 @@ test('host language switches update an open editor while preserving its unsaved 
         (dom.window as unknown as { switchLanguage(): void }).switchLanguage();
         await until(() => document.querySelector('h1')?.textContent === 'TypeScript Tool Registry');
         assert.equal(document.querySelector<HTMLInputElement>('input[aria-label="Profile name"]')?.value, 'Unsaved profile');
-        assert(document.body.textContent?.includes('Built-in VM commands'));
-        assert(document.body.textContent?.includes('Unmapped tools'));
+        assert(document.body.textContent?.includes('Native console output'));
+        assert(document.body.textContent?.includes('1 unmounted tools'));
         (dom.window as unknown as { switchLanguage(): void }).switchLanguage();
         await until(() => document.querySelector('h1')?.textContent === 'TypeScript 工具注册表');
         assert.equal(document.querySelector<HTMLInputElement>('input[aria-label="Profile 名称"]')?.value, 'Unsaved profile');

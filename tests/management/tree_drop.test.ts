@@ -38,7 +38,7 @@ test('namespace moves migrate entire subtrees and reject cycles and collisions',
     assert.equal(next.namespaces.find(n => n.path === 'right.child')!.description, 'Child');
     assert.equal(next.namespaces.find(n => n.path === 'right.child')!.alwaysVisible, true);
     assert.equal(start.mappings[0]!.path, 'left.child.read');
-    assert.throws(() => dropTree(start, { namespace: true, path: 'left' }, { path: 'left.child', position: 'inside' }), /自身/);
+    assert.throws(() => dropTree(start, { namespace: true, path: 'left' }, { path: 'left.child', position: 'inside' }), /namespace_cycle/);
     const conflict = { ...start, namespaces: [...start.namespaces, { path: 'right.child', alwaysVisible: false, description: '' }] };
-    assert.throws(() => dropTree(conflict, { namespace: true, path: 'left.child' }, { path: 'right', position: 'inside' }), /冲突/);
+    assert.throws(() => dropTree(conflict, { namespace: true, path: 'left.child' }, { path: 'right', position: 'inside' }), /namespace_name_conflict/);
 });

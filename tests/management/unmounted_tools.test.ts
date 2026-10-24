@@ -31,7 +31,8 @@ test('unmounted count excludes unavailable identities and counts disabled mounte
     ];
     assert.deepEqual(unmountedTools(tools(), mappings).map(tool => tool.id), ['read', 'search']);
     assert(!TreeProvider().some(namespace => namespace.path === 'unknown'));
-    assert(TreeProvider().some(namespace => namespace.path === 'vm'));
+    assert(!TreeProvider().some(namespace => namespace.path === 'vm'));
+    assert(TreeProvider().some(namespace => namespace.path === 'tools'));
 });
 
 test('unknown is absent; count follows mounting, unmounting, saving and profile switching in both languages', async () => {
@@ -135,7 +136,7 @@ test('built-in namespace and command descriptions stay English in a Chinese inte
     } finally { dom.window.close(); }
 });
 
-test('enabled built-in pins remain editable, tools pins are disabled and preferences survive Profile changes', async () => {
+test('built-in pins cycle through three levels, discovery stays detailed and preferences survive Profile changes', async () => {
     const registry = new SemanticRegistry(new MemoryStore());
     registry.refresh([]);
     const console = new VirtualConsole();
@@ -149,7 +150,7 @@ test('enabled built-in pins remain editable, tools pins are disabled and prefere
             if (options?.body) {
                 const body = JSON.parse(String(options.body));
                 if (body.action === 'profile') await registry.manageProfile(body.operation, body.name, body.revision, body.newName);
-                else await registry.configure(body.mappings, body.revision, body.namespaces, body.order, body.unmountedVisible, body.profile, body.toolComments, body.builtinVisible);
+                else await registry.configure(body.mappings, body.revision, body.namespaces, body.order, body.unmountedVisible, body.profile, body.toolComments, body.builtinVisible, body.consolePinned);
                 return Response.json({ ok: true });
             }
             return Response.json({ state: registry.snapshot(), tools: [], effective: [], declarations: '', sessions: [] });
@@ -157,30 +158,29 @@ test('enabled built-in pins remain editable, tools pins are disabled and prefere
         window.eval(await readFile(new URL('../../dist/management/standalone.js', import.meta.url), 'utf8'));
         const { document } = window;
         await until(() => !!document.querySelector('[data-unmounted-count]'));
-        for (const path of ['console', 'vm', 'tools']) document.querySelector<HTMLButtonElement>(`[data-namespace-path="${path}"] .ts-disclosure`)!.click();
+        for (const path of ['console', 'tools']) document.querySelector<HTMLButtonElement>(`[data-namespace-path="${path}"] .ts-disclosure`)!.click();
         const pin = (path: string) => document.querySelector<HTMLButtonElement>(`[data-tree-path="${path}"] .ts-pin`)!;
-        await until(() => !!pin('console.log') && !!pin('vm.restart'));
-        assert(!pin('console.log').disabled); assert(!pin('vm.restart').disabled);
-        await until(() => !!pin('tools.mount'));
-        assert(pin('tools.mount').disabled);
-        assert.equal(pin('tools.mount').getAttribute('aria-pressed'), 'false');
-        assert.equal(document.querySelector('[data-tree-path="tools.mount"]')?.getAttribute('aria-disabled'), 'true');
-        assert.equal(pin('console.log').getAttribute('aria-pressed'), 'false');
-        assert.equal(pin('vm.restart').getAttribute('aria-pressed'), 'true');
-        pin('console.log').click(); pin('vm.restart').click();
-        await until(() => pin('console.log').getAttribute('aria-pressed') === 'true' && pin('vm.restart').getAttribute('aria-pressed') === 'false');
+        await until(() => !!pin('console.log') && !!pin('tools.intellisense'));
+        assert(!pin('console.log').disabled);
+        assert(pin('tools.intellisense').disabled);
+        assert.equal(pin('tools.intellisense').dataset.level, '2');
+        assert.equal(pin('console.log').dataset.level, '0');
+        for (const level of [1, 2, 0, 1, 2]) {
+            pin('console.log').click();
+            await until(() => pin('console.log').dataset.level === String(level));
+        }
+        assert.equal(document.querySelector('[data-tree-path="tools.mount"]'), null);
         const button = (label: string) => Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === label)!;
         button('Save').click();
-        await until(() => !!registry.snapshot().builtinVisible?.includes('console.log') && !button('Save').disabled);
-        assert(!registry.snapshot().builtinVisible?.includes('vm.restart'));
-        assert(!registry.snapshot().builtinVisible?.includes('tools.mount'));
+        await until(() => registry.snapshot().builtinVisible?.['console.log'] === 2 && !button('Save').disabled);
+        assert.equal(registry.snapshot().builtinVisible?.['tools.intellisense'], 2);
         button('Refresh').click();
         await until(() => !button('Refresh').disabled && pin('console.log').getAttribute('aria-pressed') === 'true');
-        assert.equal(pin('vm.restart').getAttribute('aria-pressed'), 'false');
+        assert.equal(pin('console.log').dataset.level, '2');
         const initial = registry.configuration();
         await registry.manageProfile('create', 'Other', registry.snapshot().revision);
-        assert(!registry.configuration().builtinVisible?.includes('console.log'));
-        assert(registry.configuration().builtinVisible?.includes('vm.restart'));
+        assert.equal(registry.configuration().builtinVisible?.['console.log'] ?? 0, 0);
+        assert.equal(registry.configuration().builtinVisible?.['tools.intellisense'], 2);
         await registry.manageProfile('select', 'Default', registry.snapshot().revision);
         assert.deepEqual(registry.configuration().builtinVisible, initial.builtinVisible);
     } finally { dom.window.close(); }

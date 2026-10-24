@@ -7,7 +7,7 @@ function draft(): TreeDraft {
     return {
         namespaces: [{ path: 'files', alwaysVisible: true, description: 'Files' }, { path: 'files.disk', alwaysVisible: false, description: 'Disk' }],
         mappings: [
-            { id: 'read', path: 'files.disk.read', aliases: ['other.read'], enabled: true, pinned: false, alwaysVisible: true },
+            { id: 'read', path: 'files.disk.read', aliases: ['other.read'], enabled: true, pinned: false, alwaysVisible: 2 },
             { id: 'write', path: 'files.write', aliases: [], enabled: true, pinned: false },
         ],
         order: ['files', 'files.write', 'files.disk', 'files.disk.read', 'other', 'other.read'],
@@ -23,10 +23,10 @@ test('namespace rename migrates descendants, mappings, pin state and order witho
     assert.equal(next.mappings[0]!.id, 'read');
     assert.equal(next.mappings[0]!.path, 'workspace.disk.read');
     assert.deepEqual(next.mappings[0]!.aliases, ['other.read']);
-    assert.equal(next.mappings[0]!.alwaysVisible, true);
+    assert.equal(next.mappings[0]!.alwaysVisible, 2);
     assert.deepEqual(next.order.slice(0, 4), ['workspace', 'workspace.write', 'workspace.disk', 'workspace.disk.read']);
     assert.equal(original.mappings[0]!.path, 'files.disk.read');
-    assert.throws(() => renameNamespace(original, 'files', 'other'), /冲突/);
+    assert.throws(() => renameNamespace(original, 'files', 'other'), /namespace_name_conflict/);
     assert.throws(() => renameNamespace(original, 'files', 'Promise'), /reserved/);
 });
 
@@ -36,7 +36,7 @@ test('namespace deletion removes the subtree while retaining outside mappings an
     assert.equal(next.mappings.length, 1);
     assert.equal(next.mappings[0]!.id, 'read');
     assert.equal(next.mappings[0]!.path, 'other.read');
-    assert.equal(next.mappings[0]!.alwaysVisible, true);
+    assert.equal(next.mappings[0]!.alwaysVisible, 2);
     assert.deepEqual(namespacePaths(next), ['other']);
     assert.deepEqual(next.order, ['other', 'other.read']);
 });
@@ -54,6 +54,6 @@ test('mixed namespace/command order changes only for siblings and survives a nam
 
 test('subtree edits respect locked mapping paths', () => {
     const current = draft(); current.mappings[0]!.pinned = true;
-    assert.throws(() => renameNamespace(current, 'files', 'workspace'), /锁定/);
-    assert.throws(() => deleteNamespace(current, 'files'), /锁定/);
+    assert.throws(() => renameNamespace(current, 'files', 'workspace'), /locked_namespace_mapping/);
+    assert.throws(() => deleteNamespace(current, 'files'), /locked_namespace_mapping/);
 });
