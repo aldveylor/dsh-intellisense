@@ -2,8 +2,8 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from '../locale/locale.js';
 
 /** @brief Modal name entry for saving the draft as a new profile. */
-export function SaveAsDialog({ profiles, busy, save, close }: {
-    profiles: string[]; busy: boolean; save: (name: string) => void; close: () => void;
+export function SaveAsDialog({ profiles, busy, save, close, title }: {
+    title?: string; profiles: string[]; busy: boolean; save: (name: string) => void; close: () => void;
 }) {
     const t = useTranslation();
     const dialog = useRef<HTMLDialogElement>(null);
@@ -13,7 +13,7 @@ export function SaveAsDialog({ profiles, busy, save, close }: {
     useEffect(() => { dialog.current?.showModal(); }, []);
 
     return <dialog ref={dialog} className="ts-management-dialog" aria-labelledby={titleId} onClose={close}>
-        <h2 id={titleId}>{t('save_as')}</h2>
+        <h2 id={titleId}>{title ?? t('save_as')}</h2>
         <form onSubmit={event => {
             event.preventDefault(); const name = draft.trim();
             if (busy || !name || profiles.includes(name)) return;

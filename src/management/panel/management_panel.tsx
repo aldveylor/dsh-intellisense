@@ -6,13 +6,14 @@ import type { Namespace, Mapping, PhysicalTool, RegistryState, PinLevel, Command
 import { defaultBuiltinVisible } from '../../runtime/builtins.js';
 import { validatePath } from '../../registry/path.js';
 import { TreeProvider, unmountedTools, type ProvidedCommand, type ProvidedNamespace } from './tree_provider.js';
-import { ProfilePicker, type ProfileSelectProps } from '../profile_picker/profile_picker.js';
+import { ProfilePicker, ProfileSelect as PortableProfileSelect, type ProfileSelectProps } from '../profile_picker/profile_picker.js';
 import { ToolPicker } from '../tool_picker/tool_picker.js';
 import { useTreeDrag, treeDropTarget } from './tree_drag.js';
 import { isFixedNamespace, namespacePaths, orderedPaths, inNamespace, renameNamespace, deleteNamespace, dropTree, type TreeDragSource, type TreeDropTarget } from './namespace_tree.js';
 
 /** @brief Authenticated management metadata, shared by embedded and standalone React views. */
 interface View {
+    defaultProfile: string;
     state: RegistryState;
     tools: PhysicalTool[];
     effective: Array<Mapping & { tool: PhysicalTool }>;
@@ -239,6 +240,7 @@ function NamespaceNode({ path, tree, fixed = false, provided }: { path: string; 
 /** @brief React registry editor with versioned drafts and conversation-based organization. */
 export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPanelProps) {
     const t = useTranslation();
+    const Select = ProfileSelect ?? PortableProfileSelect;
     const [view, setView] = useState<View>();
     const [mappings, setMappings] = useState<Mapping[]>([]);
     const [namespaces, setNamespaces] = useState<Namespace[]>([]);
@@ -254,9 +256,14 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
     const [busy, setBusy] = useState(false);
 
     /** @brief Replace drafts only after a successful snapshot load. */
-    async function reload(signal?: AbortSignal): Promise<void> {
+    async function reload(signal?: AbortSignal, profile: string | null = view?.state.profiles?.includes(view.state.profile!) ? view.state.profile! : null): Promise<void> {
         const url = new URL(api, document.baseURI);
-        const snapshot = await request<View>(url.href, undefined, signal);
+        if (profile) url.searchParams.set('profile', profile);
+        applyView(await request<View>(url.href, undefined, signal));
+    }
+
+    /** @brief Load an editor snapshot without changing the catalog default. */
+    function applyView(snapshot: View): void {
         setView(snapshot); setMappings(structuredClone(snapshot.state.mappings));
         setNamespaces(structuredClone(snapshot.state.namespaces ?? []));
         setUnmountedVisible(structuredClone(snapshot.state.unmountedVisible ?? {}));
@@ -270,7 +277,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
     useEffect(() => {
         const controller = new AbortController();
         setView(undefined); setConsolePinned(false); setMappings([]); setNamespaces([]); setUnmountedVisible({}); setToolComments({}); setOrder([]); setExpanded({}); setDescriptionEditor(undefined); setToolPicker(undefined); setStatus('loading');
-        void reload(controller.signal).catch(error => { if (!controller.signal.aborted) setStatus(String(error instanceof Error ? error.message : error)); });
+        void reload(controller.signal, null).catch(error => { if (!controller.signal.aborted) setStatus(String(error instanceof Error ? error.message : error)); });
         return () => controller.abort();
     }, [api]);
 
@@ -287,15 +294,45 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
     const paths = [...new Set([...provided.map(node => node.path), ...namespacePaths({ mappings, namespaces })])];
     const saved = view?.state;
     const draft = profileDraft({ mappings, namespaces, unmountedVisible, builtinVisible, consolePinned, toolComments, order });
-    const dirty = !!saved && JSON.stringify(draft) !== JSON.stringify(profileDraft(saved));
+    const newProfile = !!saved && !saved.profiles?.includes(saved.profile!);
+    const dirty = !!saved && (newProfile || JSON.stringify(draft) !== JSON.stringify(profileDraft(saved)));
 
-    /** @brief Apply named configuration operations and replace the editor with the selected configuration. */
-    function manageProfile(operation: 'create' | 'select' | 'rename' | 'delete', name: string, newName?: string): void {
-        if (!view || (operation === 'select' && name === view.state.profile)) return;
-        void action('updating_profile', async () => {
+    /** @brief Change the default while preserving the editor's selection and draft. */
+    function selectDefault(name: string): void {
+        if (!view || name === view.defaultProfile) return;
+        void action('', async () => {
+            await request(api, { action: 'profile', operation: 'select', name, revision: view.state.revision });
+            const url = new URL(api, document.baseURI);
+            if (!newProfile) url.searchParams.set('profile', view.state.profile!);
+            const snapshot = await request<View>(url.href);
+            setView({ ...view, defaultProfile: snapshot.defaultProfile, state: { ...view.state, revision: snapshot.state.revision, profiles: snapshot.state.profiles } });
+        });
+    }
+
+    /** @brief Create a local empty profile; persistence occurs only when saving. */
+    function createProfile(name: string): void {
+        if (!view) return;
+        applyView({ ...view, state: { ...view.state, profile: name, mappings: [], namespaces: [], order: [], unmountedVisible: {}, builtinVisible: { ...defaultBuiltinVisible }, consolePinned: false, toolComments: {} } });
+        setExpanded({}); setToolPicker(undefined); setDescriptionEditor(undefined);
+    }
+
+    /** @brief Manage catalog names without using editor selection to change the default. */
+    function manageProfile(operation: 'select' | 'rename' | 'delete', name: string, newName?: string): void {
+        if (!view) return;
+        if (operation === 'select') {
+            if (name !== view.state.profile) void action('', () => reload(undefined, name));
+            return;
+        }
+        if (newProfile && name === view.state.profile) {
+            if (operation === 'rename') setView({ ...view, state: { ...view.state, profile: newName! } });
+            else void action('', () => reload(undefined, view.defaultProfile));
+            return;
+        }
+        void action('', async () => {
             await request(api, { action: 'profile', operation, name, newName, revision: view.state.revision });
             setToolPicker(undefined); setDescriptionEditor(undefined); setExpanded({});
-            await reload();
+            const selected = view.state.profile === name ? (operation === 'rename' ? newName : null) : view.state.profile;
+            await reload(undefined, selected);
         });
     }
 
@@ -425,19 +462,31 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
             ? <p role="status" aria-live="polite">{t(status)}</p>
             : <ErrorDialog message={t(status)} close={() => setStatus('')} />)}
         <div className="ts-toolbar"><div className="ts-actions">
-            <ProfilePicker name={view?.state.profile ?? 'Default'} profiles={view?.state.profiles ?? ['Default']} dirty={dirty} busy={busy || !view} Select={ProfileSelect}
-                refresh={() => void action('', reload)} refreshDisabled={busy}
-                select={name => manageProfile('select', name)} create={name => manageProfile('create', name)}
-                rename={(name, newName) => manageProfile('rename', name, newName)} remove={name => manageProfile('delete', name)}
-                save={profile => void action('', async () => {
-                    await request(api, { action: profile === undefined ? 'configure' : 'save_as', ...(profile === undefined ? {} : { profile }), revision: view!.state.revision, ...draft });
-                    await reload();
-                })} />
+            <div className="ts-default-profile"><span>{t('profile')}</span>
+                <Select value={view?.defaultProfile ?? 'Default'} options={(view?.state.profiles ?? ['Default']).map(name => ({ value: name, label: name }))}
+                    disabled={busy || !view} readOnly allowCreate={false} onChange={selectDefault}
+                    onCreate={createProfile} onRename={(name, newName) => manageProfile('rename', name, newName)} onRemove={name => manageProfile('delete', name)} />
+            </div>
             <button className="ts-organize" disabled={busy || !organize} onClick={() => void action('organizing', async () => {
                 await organize!(t('organization_prompt')); setStatus('');
             })}>{t('generate_proposal')}</button>
         </div></div>
-        <main><section className="ts-namespaces"><h2>{t('namespace_tree')}</h2>
+        <main><section className="ts-namespaces"><div className="ts-namespace-heading"><h2>{t('namespace_tree')}</h2>
+            <div className="ts-namespace-profile">
+                <ProfilePicker name={view?.state.profile ?? 'Default'} profiles={[...(view?.state.profiles ?? ['Default']), ...(newProfile ? [view!.state.profile!] : [])]}
+                    dirty={dirty} busy={busy || !view} Select={ProfileSelect} protectedProfile={view?.state.profiles?.length === 1 ? view.state.profiles[0] : undefined}
+                    refresh={() => void action('', reload)} refreshDisabled={busy}
+                    select={name => manageProfile('select', name)} create={createProfile}
+                    rename={(name, newName) => manageProfile('rename', name, newName)} remove={name => manageProfile('delete', name)}
+                    save={profile => void action('', async () => {
+                        const copyName = profile ?? (newProfile ? view!.state.profile : undefined);
+                        await request(api, { action: copyName === undefined ? 'configure' : 'save_as',
+                            ...(copyName === undefined ? {} : { profile: copyName }), activate: false,
+                            ...(newProfile ? {} : { editingProfile: view!.state.profile }), revision: view!.state.revision, ...draft });
+                        await reload(undefined, copyName ?? view!.state.profile);
+                    })} />
+            </div>
+        </div>
             <small>{t('tree_hint')}</small>
             {view && <button className="ts-unmounted-count" type="button" data-unmounted-count={unmounted.length} aria-live="polite" disabled={busy || !unmounted.length}
                 onClick={() => setToolPicker({ parent: '', unmountedOnly: true })}>{t('unmounted_count', { count: unmounted.length })}</button>}

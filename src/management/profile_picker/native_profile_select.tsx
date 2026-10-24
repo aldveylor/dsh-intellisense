@@ -3,8 +3,8 @@ import { useTranslation } from '../locale/locale.js';
 import type { ProfileSelectProps } from './profile_picker.js';
 
 /** @brief One profile row with inline renaming and an independent borderless delete action. */
-function NativeProfileItem({ value, label, selected, disabled, removable, onChange, onRename, onRemove }: {
-    value: string; label: string; selected: boolean; disabled: boolean; removable: boolean;
+function NativeProfileItem({ value, label, selected, disabled, removable, readOnly, onChange, onRename, onRemove }: {
+    value: string; label: string; selected: boolean; disabled: boolean; removable: boolean; readOnly: boolean;
     onChange: () => void; onRename: (name: string) => void; onRemove: () => void;
 }) {
     const t = useTranslation();
@@ -19,7 +19,7 @@ function NativeProfileItem({ value, label, selected, disabled, removable, onChan
 
     return <div className="ts-profile-item" data-selected={selected}>
         {draft === undefined ? <button type="button" className="ts-profile-option" aria-pressed={selected} aria-disabled={disabled}
-            onClick={() => { if (!disabled) onChange(); }} onDoubleClick={() => setDraft(value)}>
+            onClick={() => { if (!disabled) onChange(); }} onDoubleClick={() => { if (!readOnly && !disabled) setDraft(value); }}>
             <span className="ts-profile-check" aria-hidden="true">{selected ? '✓' : ''}</span><span>{label}</span>
         </button> : <input aria-label={t('rename_profile')} autoFocus maxLength={80} value={draft} disabled={disabled}
             onFocus={event => event.target.select()} onChange={event => setDraft(event.target.value)} onBlur={commit}
@@ -28,17 +28,17 @@ function NativeProfileItem({ value, label, selected, disabled, removable, onChan
                 if (event.key === 'Enter') { event.preventDefault(); commit(); }
                 if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setDraft(undefined); }
             }} />}
-        <button type="button" className="ts-profile-delete" aria-label={`${t('delete_profile')} ${value}`} title={t('delete_profile')}
+        {!readOnly && <button type="button" className="ts-profile-delete" aria-label={`${t('delete_profile')} ${value}`} title={t('delete_profile')}
             disabled={disabled || !removable} onClick={onRemove}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
                 <path d="m6 6 12 12M18 6 6 18" />
             </svg>
-        </button>
+        </button>}
     </div>;
 }
 
 /** @brief Independent anchored profile dropdown that keeps selection and editing inside the open panel. */
-export function NativeProfileSelect({ value, options, disabled, onChange, onCreate, onRename, onRemove }: ProfileSelectProps) {
+export function NativeProfileSelect({ value, options, disabled, readOnly = false, allowCreate = true, protectedProfile, onChange, onCreate, onRename, onRemove }: ProfileSelectProps) {
     const t = useTranslation();
     const [phase, setPhase] = useState<'closed' | 'open' | 'closing'>('closed');
     const open = phase === 'open';
@@ -80,9 +80,9 @@ export function NativeProfileSelect({ value, options, disabled, onChange, onCrea
                 if (event.target === event.currentTarget && phase === 'closing') setPhase('closed');
             }}>
             <div className="ts-profile-options">{options.map(option => <NativeProfileSelect.Item key={option.value} {...option}
-                selected={option.value === value} disabled={disabled} removable={options.length > 1} onChange={() => onChange(option.value)}
+                selected={option.value === value} disabled={disabled} removable={options.length > 1 && option.value !== protectedProfile} readOnly={readOnly} onChange={() => onChange(option.value)}
                 onRename={name => onRename(option.value, name)} onRemove={() => onRemove(option.value)} />)}</div>
-            <form className="ts-profile-create" onSubmit={event => {
+            {!readOnly && allowCreate && <form className="ts-profile-create" onSubmit={event => {
                 event.preventDefault(); const name = draft.trim();
                 if (disabled || !name || options.some(option => option.value === name)) return;
                 onCreate(name); setDraft('');
@@ -91,7 +91,7 @@ export function NativeProfileSelect({ value, options, disabled, onChange, onCrea
                     onChange={event => setDraft(event.target.value)} onKeyDown={event => {
                         if (event.key === 'Enter' && event.nativeEvent.isComposing) event.preventDefault();
                     }} />
-            </form>
+            </form>}
         </div>}
     </div>;
 }
