@@ -6,31 +6,31 @@
 
 `integration/presentation.ts` 通过 config.mode 选择 native/ptc 工具呈现与初始提示词，按作用域继承 preset 配置。仅显式挂载 presentation 的 Intellisense / Intellisense PTC 模式启用命名空间；标准模式及其它模式保持原生工具与提示词。主插件 mode 默认 ptc，独立命名空间入口默认 native，但均不自动为会话挂载模式。
 
-`integration/namespace_component.ts` 管理 Profile、工具目录与共享 manifest。Intellisense 模式按会话渐进注册原生工具，初始仅提供 tools.intellisense 和固定命令，查询后添加直接成员；名称以单下划线替换点号，不加 ns_ 前缀。执行时根据实际调用者重新验证可见性，并通过原生 guard/execute 流水线派发。代理不进入物理工具目录，卸载时清理。
+`integration/namespace_component.ts` 管理 Profile、工具目录与共享 manifest。Intellisense 模式按会话渐进注册原生工具，初始仅提供 tools.intellisense 和固定命令，查询后添加直接成员；名称以双下划线 __ 替换点号，不加 ns_ 前缀。执行时根据实际调用者重新验证可见性，并通过原生 guard/execute 流水线派发。代理不进入物理工具目录，卸载时清理。
 
 Intellisense PTC 模式仅向模型提供原生 run_code 工具。`integration/namespace_runtime.ts` 实现 PtcRuntime seam，将受限 RuntimeHost 和 manifest 命名空间接入原生 transport 的工具绑定；原生层拥有调度、权限、父子审计及工具结果历史。本插件不拦截模型流，不再解析代码围栏或提供源码续写。
 
 `integration/intellisense.ts` 注册 tools_intellisense，固定映射 tools.intellisense。查询列表包含尾点成员查询与精确签名查询，PTC 合并返回 TypeScript global 命名空间声明；DSML 返回 JSON 成员与命名参数 schema，并更新系统提示词中的工具集合，不提示 TS/JS。PTC 使用 tools.intellisense(["std.", "std.cwd", "std.fs."])；DSML 调用同名工具，参数为 queries 数组。结果通过普通工具历史返回，并保存 plugin:ts_intellisense/intellisense 审计。
 
-`runtime/` 管理每会话受限 Node 进程、严格 async 函数体、IPC、取消和超时。局部声明不持久，显式 globalThis 状态仅在进程存活期间保留。使用原生 console。DSML 模式不创建会话运行时。
+`runtime/` 管理每会话受限 Node 进程、严格 async 函数体、IPC、取消和超时。每次执行重建 VM Context，不保证环境连续，globalThis 不受支持；移除 vm 命名空间及 vm.restart。console 输出写入内存流并通过 IPC 返回。DSML 模式不创建会话运行时。
 
 ## Profile 与工具表
 
 `registry/registry.ts` 管理全局具名 Profile 目录、映射、别名、注释、排序、启用状态、固定路径和使用统计。`registry/profiles.ts` 为每会话持有不可变配置版本的智能引用，修改按 CoW 分离；目录覆盖/删除不修改既有会话。新会话捕获 UI 当前选中配置。工具权限始终由原生 guard/策略决定。
 
-tools.intellisense 固定映射到内置 tools_intellisense，强制固定等级 2，不受 Profile 图钉偏好或启用状态影响。tools 仅保留 intellisense 和 profile：profile.load(name?) 返回当前或加载具名 Profile；profile.save(name, profile) 保存树，省略名称时使用当前 Profile，也支持 save(profile)。profile.annotation 与 profile.commands 在 VM 执行前预加载为冻结常量，在 DSML 中为可直接调用的无参数工具，分别返回模型文档（DSML 为 JSON Schema）与原始命令摘要；其余旧 tools 管理命令移除。未配置物理工具需挂载或提供自定义别名后调用；不生成 unknown 命名空间。路径保留名称、重复和树碰撞检查。失效工具保留配置，但不进入实际 manifest、补全或执行环境。builtinVisible 记录内置固定提示偏好，按 Profile 保存；默认只提示非 Node 标准的自定义命令，console 等标准接口默认不固定提示。unmountedVisible 保存未挂载工具的固定提示偏好，不兼容旧字段名。
+tools.intellisense 固定映射到内置 tools_intellisense，强制固定等级 2，不受 Profile 图钉偏好或启用状态影响。tools 仅保留 intellisense 和 profile：profile.load(name?) 返回当前或加载具名 Profile；profile.save(name, profile) 保存树，省略名称时使用当前 Profile，也支持 save(profile)。profile.annotation 与 profile.commands 在 VM 执行前预加载为冻结常量，在 DSML 中为可直接调用的无参数工具，分别返回模型文档（DSML 为 JSON Schema）与完整目录中的原始命令摘要（含当前上下文没有的命令）；其余旧 tools 管理命令移除。未配置物理工具需挂载或提供自定义别名后调用；不生成 unknown 命名空间。路径保留名称、重复和树碰撞检查。失效工具保留配置，但不进入实际 manifest、补全或执行环境。builtinVisible 记录内置固定提示偏好，按 Profile 保存；默认仅固定 tools.intellisense，console 等标准接口默认不固定提示。unmountedVisible 保存未挂载工具的固定提示偏好，不兼容旧字段名。
 
 `storage/store.ts` 通过 DSH JSON backend 保存工具目录、Profile 版本和会话引用；MemoryStore/FileStore 用于独立使用。运行时不保存可执行状态或重放工具。
 
 ## 管理 UI
 
-`management/panel/management_panel.tsx` 和 `management/panel/tree_provider.ts` 显示 console、tools、vm 固定树与可配置命名空间；内置描述/注释/tooltip 固定英文，其余 UI 支持中英文。内置命令不可改名、拖动或删除，tools.intellisense 强制固定等级 2、禁用图钉切换，tools.profile 显示嵌套子树，其余可用命令的图钉按 0 → 1 → 2 → 0 切换，等级 2 使用黄色图标，并按当前 Profile 草稿保存。
+`management/panel/management_panel.tsx` 和 `management/panel/tree_provider.ts` 显示 console、tools 固定树与可配置命名空间；内置命令描述固定英文，界面中文集中到翻译表，其余 UI 支持中英文。内置命令不可改名、拖动或删除，tools.intellisense 强制固定等级 2、禁用图钉切换，tools.profile 显示嵌套子树，其余可用命令的图钉按 0 → 1 → 2 → 0 切换，等级 2 使用黄色图标，并按当前 Profile 草稿保存。
 
 UI 不再显示 unknown 块。树上方显示当前可用但未挂载的工具数量，点击打开只含未挂载工具的选择器；数量随挂载、移除映射和切换 Profile 更新。失效工具不计入，已挂载但禁用的工具仍算已挂载；内置管理工具和 run_code 不计入未挂载工具。
 
 `management/panel/namespace_tree.ts` 处理路径、树迁移和混合拖动排序，固定内置节点禁止落入或移动。工具选择器仍可搜索普通可用工具并挂入根或指定命名空间。`management/profile_picker/` 实现 Profile 切换、创建、删除、重命名、保存和另存为；草稿名称带 *。`management/locale/` 保留本地化与原生语言桥接。运行时预算由 zod Config 管理；旧历史偏好接口及控件已移除。
 
-`management/server/routes.ts` 的管理接口沿用原生 Connection 的认证和 Host/Origin 保护。`integration/organization.ts` 通过只读维护子代理产生提案，明确批准后按 revision 提交，不变更原生工具权限。
+`management/server/routes.ts` 的管理接口沿用原生 Connection 的认证和 Host/Origin 保护。“生成整理提案”由客户端创建默认模型的 Intellisense PTC 新会话，按界面语言预填整理提示，等待用户点击提交；服务端不再提供提案生成或批准接口。
 
 ## 构建和部署
 

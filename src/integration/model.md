@@ -10,7 +10,7 @@
 
 `namespace_component.ts` 在 native 模式下按会话注册命名空间代理。代理使用命名参数，按 YAML argMap 转换字段；每次执行按实际调用者重新验证 manifest，并通过物理工具的原生执行流水线派发。生成代理不进入物理工具目录，仅挂载 tools.intellisense、固定命令和会话已查询的直接成员，变更 manifest 后替换，释放会话或卸载时清理；不为无显式配置的会话创建默认呈现。PTC 模式仅向模型暴露 run_code，native 模式仅暴露当前渐进发现集合中的命名空间工具。
 
-`native_tools.ts` 为 native 代理生成符合 API 字符及 64 字符长度限制的名称，例如 tools.intellisense 对应 tools_intellisense，std.cwd 对应 std_cwd。点号替换为单下划线，不添加 ns_ 前缀；美元符号编码，长路径使用摘要，并为名称碰撞添加数字后缀。内置管理命令可直接复用同名物理工具，避免代理递归；其他代理避让物理工具名称。提示词只列出当前已暴露命令的路径与调用名。Profile、IntelliSense 查询与 PTC 继续使用原路径。
+`native_tools.ts` 为 native 代理生成符合 API 字符及 64 字符长度限制的名称，例如 tools.intellisense 对应 tools__intellisense，std.cwd 对应 std__cwd。点号替换为双下划线，不添加 ns_ 前缀；美元符号编码，长路径使用摘要，并为名称碰撞添加数字后缀。内置管理代理派发到原始物理工具；代理名称避让物理工具名称。提示词只列出当前已暴露命令的路径与调用名。Profile、IntelliSense 查询与 PTC 继续使用原路径。
 
 管理目录异步汇总全局、可用预设的 standing scope 及活动会话工具，以物理名称去重；读取预设使用 acquireScope 并始终释放 lease，无需创建会话。损坏的预设不参与目录，会话运行时仍只读取实际调用者作用域的物理工具，不能从管理目录继承其他预设权限。
 
@@ -29,3 +29,5 @@ Profile 可同时保存来自多个预设的映射；当前模型作用域未挂
 consolePinned 为随 Profile 保存的命名空间固定提示开关，默认 false。管理面板始终展示 console 及其命令，console 命名空间图钉可切换是否固定提示；命令各自保留独立的提示等级。IntelliSense 与原生 console 的可用性不受固定状态影响。PTC 初始 prompt 提示可使用运行时提供的原生 Node.js 变量。
 
 `builtin_trace.ts` 在 presentation 作用域包装内置工具注册，保存实际参数/输出 schema、调用参数、返回值、错误与耗时到独立插件审计。结果保持原始模型内容，字符串结果不再额外 JSON 编码。
+
+PTC 每次执行重建 VM Context，不保证环境连续，不支持 globalThis，不提供 vm 命名空间或 vm.restart。tools.profile.commands 使用完整管理目录，含当前上下文没有的命令；save 校验同一目录，但执行仍受调用者作用域权限控制。内置命令描述固定英文。整理入口创建未提交的新 PTC 对话草稿，不再调用维护子代理。

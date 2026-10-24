@@ -41,7 +41,7 @@ PTC 模式调用原生 `run_code`：
 
 ## PTC 执行
 
-`run_code` 由原生工具呈现层提供，参数包含 `code` 和简短的 `description`。程序是严格 async 函数体，支持 TS 类型标注、顶层 await 和显式 return。每次执行的局部变量均独立；显式 `globalThis` 状态在当前会话进程存活期间保留。使用原生 `console` 记录输出，`await vm.restart()` 终止当前执行并清空运行时状态。命名空间调用失败时抛出带 `toolName` 的 `ToolCallError`。
+`run_code` 由原生工具呈现层提供，参数包含 `code` 和简短的 `description`。程序是严格 async 函数体，支持 TS 类型标注、顶层 await 和显式 return。每次执行创建独立 VM 上下文，不保证环境连续，不支持 `globalThis`，也不提供 `vm` 命名空间或重启命令。使用 `console` 记录输出，通过内存流及 IPC 返回执行结果。命名空间调用失败时抛出带 `toolName` 的 `ToolCallError`。
 
 原生 `run_code` 拥有工具调度、guard、父子调用记录和附加上下文转发。插件的 `NamespaceRuntime` 将命名空间位置参数转换为实际工具参数，并沿用原生绑定执行，不复制原生执行流水线。取消和超时会终止受限进程，副作用不会自动重放。
 
