@@ -1,10 +1,10 @@
 # 进程运行时模型
 
-`host.ts` 提供插件自有的 `codeRuntime` 服务实现 `RuntimeHost`。每个 session 独立进程、串行执行；运行时状态只驻留内存，不从会话日志重放副作用或恢复闭包。每次调用由宿主 TypeScript transpileModule 编译为新的严格 async 函数体，支持 await 与显式 return；函数内普通声明不跨调用保留，仅 globalThis 状态保留。
+`host.ts` 提供插件自有的 `codeRuntime` 服务实现 `RuntimeHost`。每个 session 独立进程、串行执行；运行时状态只驻留内存，不从会话日志重放副作用或恢复闭包。每次调用由宿主 TypeScript transpileModule 编译为新的严格 async 函数体，支持 await 与显式 return；函数内普通声明不跨调用保留，globalThis 不向执行代码开放，不支持跨调用声明状态。
 
 `protocol.ts` 定义共享 zod 消息 schema。执行/RPC ID 带品牌；每条 IPC 消息验证类型、字段及传输大小。宿主只接受当前父执行所属的调用；结果和参数为 JSON 数据，不传递宿主对象。
 
-`worker.ts` 在空 node:vm Context 内安装冻结、null 原型的命名空间，以及 VM realm 的函数包装。宿主 RPC/console 回调只由闭包持有，不作为 guest 属性暴露；工具返回值序列化后在 VM realm 解码，拒绝变成 VM 内的 rejected Promise。console 包装使用 Node 原生 Console 格式化，输出归入当前执行结果。没有 vm.print。describe 仅读 own data descriptor，跳过 Proxy/accessor，不执行 getter；默认全局目录过滤标准 ECMAScript/Node.js 名称。
+`worker.ts` 在空 node:vm Context 内安装冻结、null 原型的命名空间，以及 VM realm 的函数包装。宿主 RPC/console 回调只由闭包持有，不作为 guest 属性暴露；工具返回值序列化后在 VM realm 解码，拒绝变成 VM 内的 rejected Promise。console 包装使用 Node 原生 Console 格式化，输出写入内存 Writable，随后通过 IPC 结果帧归入当前执行；不占用宿主 stdin/stdout/stderr。stdin 仅一次性传入 worker 启动源码，stderr 仅收集进程诊断。没有 vm.print。describe 仅读 own data descriptor，跳过 Proxy/accessor，不执行 getter；默认全局目录过滤标准 ECMAScript/Node.js 名称。
 
 `sandbox.ts` 在 Linux/Python3/libseccomp 下启动 Node 权限进程。seccomp 在 exec Node 前禁止 socket 创建、连接、绑定、监听及 ptrace 等；不禁止继承的 IPC socket 使用 sendmsg/recvmsg。Node 未授予文件读写、子进程、worker、addon 等权限。启动脚本由宿主构建为 bundle，经 stdin 一次性送入并关闭 stdin，之后控制与工具交互只有 IPC。没有为加载源码开放 dist/node_modules 文件读取权限。启动检查实际测试文件读取被 Node permission 拒绝、网络监听被 seccomp 拒绝；缺少能力时加载失败，无宽松回退。这不是已证明覆盖所有 Node/V8 漏洞的安全性结论。
 

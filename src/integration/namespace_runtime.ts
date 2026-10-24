@@ -36,7 +36,7 @@ export class NamespaceRuntime extends PtcRuntime {
         ctx.effect(() => () => this.runtime.dispose());
     }
 
-    override get executionInstructions(): string { return 'Use namespace commands directly, such as std.cwd() and tools.intellisense(["std."]). Each run is an async function body; use await and return. Only explicit globalThis state persists.'; }
+    override get executionInstructions(): string { return 'Use namespace commands directly, such as std.cwd() and tools.intellisense(["std."]). Each run is an async function body; use await and return. Local declarations do not persist. globalThis is unavailable.'; }
 
     override get timeout(): { defaultMs: number; maxMs: number } {
         const timeoutMs = this.runtime.config.timeoutMs;

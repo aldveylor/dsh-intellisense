@@ -6,6 +6,7 @@ import { HostMessage, RpcId, WorkerMessage, RunResult, type ExecutionResult } fr
 
 const context = vm.createContext(Object.create(null), { codeGeneration: { strings: false, wasm: false } });
 const global = vm.runInContext('globalThis', context) as object;
+Object.defineProperty(global, 'globalThis', { value: undefined, writable: false, configurable: false });
 const installedRoots = new Set<string>();
 const standardGlobals = new Set([...Object.getOwnPropertyNames(global), ...Object.getOwnPropertyNames(globalThis)]);
 const outstanding = new Map<number, { resolve(value: string): void; reject(error: Error): void }>();
@@ -45,15 +46,15 @@ function initialize(paths: string[], values: Record<string, unknown>): void {
         if (typeof fn !== 'function') throw new Error('Unknown console method');
         Reflect.apply(fn, console, args);
     };
-    const install = vm.runInContext(`(function(call, print, paths, methods, values) {
+    const install = vm.runInContext(`(function(root, call, print, paths, methods, values) {
         "use strict";
         const parse=JSON.parse, stringify=JSON.stringify;
-        if(!Object.hasOwn(globalThis,'ToolCallError')) {
+        if(!Object.hasOwn(root,'ToolCallError')) {
             /** @brief A rejected namespace call, created entirely in the guest realm. */
             class ToolCallError extends Error {
                 constructor(message,toolName){super(message);this.name='ToolCallError';this.toolName=toolName;}
             }
-            Object.defineProperty(globalThis,'ToolCallError',{value:ToolCallError,configurable:false});
+            Object.defineProperty(root,'ToolCallError',{value:ToolCallError,configurable:false});
         }
         const tree=Object.create(null);
         const wrap=target=>(...args)=>new Promise((resolve,reject)=>{
@@ -73,15 +74,15 @@ function initialize(paths: string[], values: Record<string, unknown>): void {
         }
         const freeze=node=>{for(const child of Object.values(node))if(child&&typeof child==='object')freeze(child);Object.freeze(node)};
         freeze(tree);
-        for(const [name,value] of Object.entries(tree))Object.defineProperty(globalThis,name,{value,configurable:true});
+        for(const [name,value] of Object.entries(tree))Object.defineProperty(root,name,{value,configurable:true});
         const logger=Object.create(null);
         for(const method of parse(methods)) {
             const fn=(...args)=>{try{print(method,args)}catch(error){throw new Error(String(error.message??error))}};
             Object.setPrototypeOf(fn,null);logger[method]=Object.freeze(fn);
         }
-        if(!Object.hasOwn(globalThis,'console')||Object.getOwnPropertyDescriptor(globalThis,'console').configurable)Object.defineProperty(globalThis,'console',{value:Object.freeze(logger),configurable:false});
-    })`, context, { timeout: syncTimeoutMs }) as (call: typeof hostCall, print: typeof hostPrint, paths: string, methods: string, values: string) => void;
-    install(hostCall, hostPrint, JSON.stringify(paths), JSON.stringify(Object.keys(console).filter(name => !name.startsWith('_'))), JSON.stringify(values));
+        if(!Object.hasOwn(root,'console')||Object.getOwnPropertyDescriptor(root,'console').configurable)Object.defineProperty(root,'console',{value:Object.freeze(logger),configurable:false});
+    })`, context, { timeout: syncTimeoutMs }) as (root: object, call: typeof hostCall, print: typeof hostPrint, paths: string, methods: string, values: string) => void;
+    install(global, hostCall, hostPrint, JSON.stringify(paths), JSON.stringify(Object.keys(console).filter(name => !name.startsWith('_'))), JSON.stringify(values));
 }
 
 /** @brief Traverse only own data descriptors; accessors and proxies never run during completion. */
