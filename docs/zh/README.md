@@ -11,7 +11,7 @@
 
 ## 启动
 
-需要 Node.js >=24、Linux、Python3 和 libseccomp。运行时加载时验证隔离条件。以下命令均在项目根目录执行。
+需要 Node.js >=24。运行时使用 Node.js 原生权限（`--permission`），不依赖 Python 或 libseccomp。Node.js 24 权限模型不限制网络访问。运行时加载时验证隔离条件。以下命令均在项目根目录执行。
 
 ```sh
 npm ci
@@ -51,7 +51,7 @@ PTC 签名为 `function intellisense(...args: string[]): Promise<string>`，查�
 
 主插件 `Config.mode` 为 `ptc`（默认）或 `native`。两个 preset 通过 `dsh-intellisense/presentation` 的 `config.mode` 显式覆盖默认值；两个模式均在作用域内选择原生工具呈现，由插件按模式过滤模型工具 schema。初始提示词与实际工具 schema 使用同一配置来源：PTC 仅暴露 `tools_run_code`，native 暴露当前命名空间代理。
 
-运行时预算包括 `timeoutMs`、`syncTimeoutMs`、`maxOutputBytes`、`maxMessageBytes`、`maxPendingCalls`、`heapMb`、`python`、`sandboxProbeTimeoutMs` 和 `diagnosticChars`，另可配置 `aliasesFile`。
+运行时预算包括 `timeoutMs`、`syncTimeoutMs`、`maxOutputBytes`、`maxMessageBytes`、`maxPendingCalls`、`heapMb`、`sandboxProbeTimeoutMs` 和 `diagnosticChars`，另可配置 `aliasesFile`。
 
 ## Profile 与管理界面
 

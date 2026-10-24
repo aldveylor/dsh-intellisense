@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import ts from 'typescript';
 import { z } from 'zod';
 import { ExecutionId, HostMessage, RpcId, RunResult, WorkerMessage, type ExecutionResult } from './protocol.js';
-import { launcher, verifySandbox } from './sandbox.js';
+import { verifySandbox } from './sandbox.js';
 
 /** @brief Deployment-controlled process budgets; unsupported confinement fails during loading. */
 export const RuntimeConfig = z.strictObject({
@@ -14,7 +14,6 @@ export const RuntimeConfig = z.strictObject({
     maxMessageBytes: z.number().int().min(1024).default(2_097_152),
     maxPendingCalls: z.number().int().positive().default(64),
     heapMb: z.number().int().min(32).default(192),
-    python: z.string().min(1).default('python3'),
     sandboxProbeTimeoutMs: z.number().int().min(100).default(10_000),
     diagnosticChars: z.number().int().positive().default(4096),
 });
@@ -39,7 +38,7 @@ export class RuntimeHost {
     private disposed = false;
     private bootstrap?: Promise<string>;
 
-    constructor(config: unknown = {}) { this.config = RuntimeConfig.parse(config); verifySandbox(this.config.python, this.config.sandboxProbeTimeoutMs); }
+    constructor(config: unknown = {}) { this.config = RuntimeConfig.parse(config); verifySandbox(this.config.sandboxProbeTimeoutMs); }
 
     /** @brief Expose the next or current generation so a reconstructed process is announced before execution. */
     epoch(owner: string): number { return this.epochs.get(owner) ?? 1; }
@@ -53,7 +52,7 @@ export class RuntimeHost {
         this.bootstrap ??= readFile(existsSync(local) ? local : new URL('../../dist/runtime/worker_bundle.mjs', import.meta.url), 'utf8');
         const javascript = await this.bootstrap;
         if (this.disposed) throw new Error('Runtime host is disposed');
-        const child = spawn(this.config.python, ['-c', launcher, process.execPath, '--permission', `--max-old-space-size=${this.config.heapMb}`, '--input-type=module', '-'], {
+        const child = spawn(process.execPath, ['--permission', `--max-old-space-size=${this.config.heapMb}`, '--input-type=module', '-'], {
             env: {}, stdio: ['pipe', 'ignore', 'pipe', 'ipc'], serialization: 'advanced',
         });
         child.stdin!.end(javascript);

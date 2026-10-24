@@ -11,7 +11,7 @@ Both Agent Modes use the same namespace configuration:
 
 ## Getting started
 
-Requires Node.js >=24, Linux, Python 3, and libseccomp. Isolation requirements are checked when the runtime loads.
+Requires Node.js >=24. The runtime uses Node.js native permissions (`--permission`); Python and libseccomp are not required. Node.js 24 permissions do not restrict network access. Isolation requirements are checked when the runtime loads.
 
 Run these commands from the project root:
 
@@ -53,7 +53,7 @@ The plugin's `NamespaceRuntime` converts positional namespace arguments into act
 
 The main plugin's `Config.mode` is either `ptc` (default) or `native`. Both presets explicitly override the default through `config.mode` in `dsh-intellisense/presentation`. Both modes select native tool presentation within their scope; the plugin filters the model's tool schemas according to the selected mode. Initial prompts and actual tool schemas share the same configuration source: PTC exposes only `tools_run_code`, while native mode exposes the current namespace proxies.
 
-Runtime budgets include `timeoutMs`, `syncTimeoutMs`, `maxOutputBytes`, `maxMessageBytes`, `maxPendingCalls`, `heapMb`, `python`, `sandboxProbeTimeoutMs`, and `diagnosticChars`. You can also configure `aliasesFile`.
+Runtime budgets include `timeoutMs`, `syncTimeoutMs`, `maxOutputBytes`, `maxMessageBytes`, `maxPendingCalls`, `heapMb`, `sandboxProbeTimeoutMs`, and `diagnosticChars`. You can also configure `aliasesFile`.
 
 ## Profiles and management UI
 
