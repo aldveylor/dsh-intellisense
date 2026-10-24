@@ -1,4 +1,3 @@
-# Shared Intellisense Agent capabilities; the preset loader supplies the presentation mode.
 - id: persona
   name: '@deepseek-ai/dsh-persona'
   config:
@@ -119,3 +118,5 @@
   disabled: true
 - id: intellisense-presentation
   name: dsh-intellisense/presentation
+  config:
+    mode: native

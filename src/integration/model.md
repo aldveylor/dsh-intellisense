@@ -4,7 +4,7 @@
 
 `presentation.ts` 参考 dsh-agent-tool-presentation 的作用域生命周期，配置 mode 为 ptc/native，两个模式均调用 tools.presentAs('native')，避免原生共享 run_code 使用全局后端。PTC 在隔离的 namespaceRuntime/codeRuntime 服务作用域创建插件执行入口。配置按 scope 继承，命名空间组件及初始 prompt 从同一配置读取模式，不依赖 preset ID。无显式 presentation 的会话不启用本插件的工具、运行时或提示词；内置工具在 presentation 作用域注册，PTC 运行时也在该作用域创建。
 
-`preset.ts` 注册 Intellisense PTC 和 Intellisense 两个 Agent Mode；各自 composition 统一使用 intellisense-presentation 配置项 ID，加载 dsh-intellisense/presentation，通过 config.mode 的 ptc/native 区分执行方式。能力清单保留规划、技能及子代理支持。
+`preset.ts` 从 presets/intellisense_ptc 和 presets/intellisense 各自的 preset.yml 与完整 agent.cordis.yml 加载、校验并注册两个 Agent Mode，不在注册时注入或改写配置。各自 YAML 统一使用 intellisense-presentation 配置项 ID，加载 dsh-intellisense/presentation，显式声明 config.mode 为 ptc/native 以区分执行方式。两份完整能力清单均保留规划、技能及子代理支持。
 
 `namespace_runtime.ts` 注册插件自有的 tools_run_code，使用已有受限 RuntimeHost 执行完整 TS/JS 函数体，不依赖或替换部署的全局 ptcRuntime。只在 Intellisense PTC presentation 作用域挂载，模型仅见 tools_run_code；物理目录和 manifest 排除此入口，禁止递归调用。轨迹调用卡片使用 description 作为标题，以 TypeScript 代码块展示 code。每次按实际调用者 manifest 验证路径，通过 namespace_component.dispatch 将位置参数转换为原生参数，沿用原生 guard/execute、父子审计和附加上下文转发，返回值只投影一次并保留 undefined。显式超时限制在部署上限内，按实际 Agent owner 释放状态。取消先解除 IPC 回调等待，再取消并等待所有真实子调用；程序结束时也取消并等待未完成子调用，避免循环等待和后台遗留执行。执行失败保留原始错误和已捕获输出，以 CodeRunFailedError 返回。插件不解析模型流或代码围栏。
 
