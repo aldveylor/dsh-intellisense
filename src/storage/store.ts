@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { KvUnit } from '@deepseek-ai/dsh-storage';
 
@@ -6,23 +6,24 @@ import type { KvUnit } from '@deepseek-ai/dsh-storage';
 export interface Store {
     load<T>(key: string): Promise<T | undefined>;
     save<T>(key: string, value: T): Promise<void>;
+    remove(key: string): Promise<void>;
 }
 
 /** @brief Uses a DSH-owned KV unit and its native durability contract. */
 export class DshStore implements Store {
-    private snapshot: Promise<Record<string, unknown>> | undefined;
-
     constructor(private unit: KvUnit) {}
 
     async load<T>(key: string): Promise<T | undefined> {
-        this.snapshot ??= this.unit.loadAll().then(snapshot => snapshot.tables.state ?? {});
-        return structuredClone((await this.snapshot)[key]) as T | undefined;
+        const snapshot = await this.unit.loadAll();
+        return structuredClone(snapshot.tables.state?.[key]) as T | undefined;
     }
 
     async save<T>(key: string, value: T): Promise<void> {
         await this.unit.putRecord('state', key, value);
-        if (this.snapshot) (await this.snapshot)[key] = structuredClone(value);
     }
+
+    async remove(key: string): Promise<void> { await this.unit.deleteRecord('state', key); }
+
 }
 
 /** @brief Atomic file store for explicit standalone use and tests. */
@@ -42,6 +43,8 @@ export class FileStore implements Store {
         }
     }
 
+    async remove(key: string): Promise<void> { await rm(this.path(key), { force: true }); }
+
     async save<T>(key: string, value: T): Promise<void> {
         const path = this.path(key);
         await mkdir(dirname(path), { recursive: true });
@@ -54,6 +57,8 @@ export class FileStore implements Store {
 /** @brief Detached in-memory snapshots for isolated tests. */
 export class MemoryStore implements Store {
     private values = new Map<string, unknown>();
+
+    async remove(key: string): Promise<void> { this.values.delete(key); }
 
     async load<T>(key: string): Promise<T | undefined> {
         return structuredClone(this.values.get(key)) as T | undefined;

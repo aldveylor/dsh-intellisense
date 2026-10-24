@@ -16,11 +16,11 @@ Intellisense PTC 模式仅向模型提供插件自有 tools_run_code 工具。`i
 
 ## Profile 与工具表
 
-`registry/registry.ts` 管理全局具名 Profile 目录、映射、别名、注释、排序、启用状态和固定路径。`registry/profiles.ts` 为每会话持有不可变配置版本的智能引用，修改按 CoW 分离；目录覆盖/删除不修改既有会话。新会话捕获 UI 当前选中配置。工具权限始终由原生 guard/策略决定。
+`registry/registry.ts` 管理全局具名 Profile 目录、映射、别名、注释、排序、启用状态和固定路径。`registry/profiles.ts` 为每会话持有独立配置快照，草稿覆盖保存且释放会话时删除；目录覆盖/删除不修改既有会话。新会话捕获 UI 当前选中配置。工具权限始终由原生 guard/策略决定。
 
 tools.intellisense 固定映射到内置 tools_intellisense，强制固定等级 2，不受 Profile 图钉偏好或启用状态影响。tools 仅保留 intellisense 和 profile：profile.load(name?) 返回当前或加载具名 Profile；profile.save(name, profile) 保存树，省略名称时使用当前 Profile，也支持 save(profile)。profile.annotation 与 profile.commands 在 VM 执行前预加载为冻结常量，在 DSML 中为可直接调用的无参数工具，分别返回模型文档（DSML 为 JSON Schema）与完整目录中的原始命令摘要（含当前上下文没有的命令）；其余旧 tools 管理命令移除。未配置物理工具需挂载或提供自定义别名后调用；不生成 unknown 命名空间。路径保留名称、重复和树碰撞检查。失效工具保留配置，但不进入实际 manifest、补全或执行环境。builtinVisible 记录内置固定提示偏好，按 Profile 保存；默认仅固定 tools.intellisense，console 等标准接口默认不固定提示。unmountedVisible 保存未挂载工具的固定提示偏好，不兼容旧字段名。
 
-`storage/store.ts` 通过 DSH JSON backend 保存工具目录、Profile 版本和会话引用；MemoryStore/FileStore 用于独立使用。运行时不保存可执行状态或重放工具。
+`storage/store.ts` 通过 DSH JSON backend 保存工具目录、具名 Profile 和会话工作快照；MemoryStore/FileStore 用于独立使用。运行时不保存可执行状态或重放工具。
 
 ## 管理 UI
 

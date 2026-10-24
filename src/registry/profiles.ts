@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { SemanticRegistry, type RegistryState } from './registry.js';
 import type { Store } from '../storage/store.js';
 
-/** @brief Session-owned smart references point to immutable, durable configuration versions. */
+/** @brief Session-owned registries isolate working snapshots from the durable named catalog. */
 export class ProfileSessions {
     private sessions = new Map<string, Promise<SemanticRegistry>>();
 
@@ -19,29 +19,15 @@ export class ProfileSessions {
         return pending;
     }
 
-    /** @brief Persist the immutable object before publishing the reference that owns it. */
+    /** @brief Keep one durable working snapshot per live session instead of an append-only version history. */
     private async open(session: string): Promise<SemanticRegistry> {
-        const referenceKey = `profile_reference_${this.hash(session)}`;
-        const save = async (state: RegistryState): Promise<void> => {
-            const version = this.hash(JSON.stringify(state));
-            await this.store.save(`profile_version_${version}`, state);
-            await this.store.save(referenceKey, { version });
-        };
-        let reference = await this.store.load<{ version: string }>(referenceKey);
-        if (!reference) {
-            const state = this.catalog.snapshot();
-            await save({ version: 1, revision: 0, ...this.catalog.configuration(), profile: state.profile });
-            reference = await this.store.load<{ version: string }>(referenceKey);
-        }
-        const state = await this.store.load<RegistryState>(`profile_version_${reference!.version}`);
-        if (!state) throw new Error('Missing referenced profile version');
-        let current = state;
+        const key = `profile_session_${this.hash(session)}`;
+        const state = this.catalog.snapshot();
+        const initial: RegistryState = { version: 1, revision: 0, ...this.catalog.configuration(), profile: state.profile };
         const registry = new SemanticRegistry({
-            load: async <T>() => structuredClone(current) as T,
-            save: async <T>(_key: string, value: T) => {
-                await save(value as RegistryState);
-                current = structuredClone(value as RegistryState);
-            },
+            load: async <T>() => (await this.store.load<T>(key)) ?? structuredClone(initial) as T,
+            save: async <T>(_key: string, value: T) => { await this.store.save(key, value); },
+            remove: async () => { await this.store.remove(key); },
         });
         await registry.load();
         return registry;
@@ -62,9 +48,17 @@ export class ProfileSessions {
         return registry;
     }
 
-    /** @brief Release the live handle; the durable reference remains available on resume. */
-    release(session: string): void { this.sessions.delete(session); }
+    /** @brief Delete the working snapshot after initialization settles and release the live handle. */
+    async release(session: string): Promise<void> {
+        const pending = this.sessions.get(session);
+        if (!pending) return;
+        try { await pending; }
+        finally {
+            await this.store.remove(`profile_session_${this.hash(session)}`);
+            if (this.sessions.get(session) === pending) this.sessions.delete(session);
+        }
+    }
 
-    /** @brief Content-addressed keys preserve old versions after catalog replacement or deletion. */
+    /** @brief Hash session identities into safe storage keys. */
     private hash(value: string): string { return createHash('sha256').update(value).digest('hex'); }
 }
