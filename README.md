@@ -1,5 +1,7 @@
 # dsh-intellisense
 
+![Intellisense — Tool discovery, on demand.](docs/banner.png)
+
 Documentation: [English](docs/en/README.md) | [简体中文](docs/zh/README.md)
 
 Brief: [简体中文](#简体中文) | [English](#english)
