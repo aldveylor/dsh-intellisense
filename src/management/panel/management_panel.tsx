@@ -1,7 +1,7 @@
 import { useTranslation } from '../locale/locale.js';
 import styles from './management_panel.css';
 import { useEffect, useState, type ComponentType, type DragEvent } from 'react';
-import type { Namespace, Mapping, PhysicalTool, RegistryState, PinLevel, CommandVisibility } from '../../registry/registry.js';
+import type { Namespace, Mapping, PhysicalTool, RegistryState, PinLevel, CommandVisibility, RegistryConfiguration } from '../../registry/registry.js';
 import { defaultBuiltinVisible } from '../../runtime/builtins.js';
 import { validatePath } from '../../registry/path.js';
 import { TreeProvider, unmountedTools, type ProvidedCommand, type ProvidedNamespace } from './tree_provider.js';
@@ -29,6 +29,18 @@ async function request<T>(api: string, body?: unknown, signal?: AbortSignal): Pr
     const data = await response.json() as T & { error?: string };
     if (!response.ok) throw new Error(data.error ?? `HTTP ${response.status}`);
     return data;
+}
+
+/** @brief Normalize the same Profile configuration for comparison and persistence. */
+function profileDraft(state: Pick<RegistryState, keyof RegistryConfiguration>): RegistryConfiguration {
+    const mappings = state.mappings.map(mapping => ({ ...mapping, path: mapping.path.trim(), aliases: mapping.aliases.map(alias => alias.trim()).filter(Boolean) }));
+    const namespaces = state.namespaces ?? [];
+    const paths = [...TreeProvider(state.builtinVisible ?? defaultBuiltinVisible).map(node => node.path), ...namespacePaths({ mappings, namespaces }), ...mappings.flatMap(mapping => [mapping.path, ...mapping.aliases])];
+    return {
+        mappings, namespaces, unmountedVisible: state.unmountedVisible ?? {}, builtinVisible: state.builtinVisible ?? defaultBuiltinVisible,
+        consolePinned: state.consolePinned ?? false, toolComments: state.toolComments ?? {},
+        order: orderedPaths([...new Set(paths)], (state.order ?? []).map(path => path.trim())),
+    };
 }
 
 /** @brief A double-click text editor that keeps its draft local until explicit commit or blur. */
@@ -273,7 +285,8 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
     const unmounted = unmountedTools(view?.tools ?? [], mappings);
     const paths = [...new Set([...provided.map(node => node.path), ...namespacePaths({ mappings, namespaces })])];
     const saved = view?.state;
-    const dirty = !!saved && JSON.stringify([mappings, namespaces, unmountedVisible, builtinVisible, consolePinned, toolComments, order]) !== JSON.stringify([saved.mappings, saved.namespaces ?? [], saved.unmountedVisible ?? {}, saved.builtinVisible ?? defaultBuiltinVisible, saved.consolePinned ?? false, saved.toolComments ?? {}, orderedPaths([...namespacePaths({ mappings: saved.mappings, namespaces: saved.namespaces ?? [] }), ...saved.mappings.flatMap(m => [m.path, ...m.aliases])], saved.order ?? [])]);
+    const draft = profileDraft({ mappings, namespaces, unmountedVisible, builtinVisible, consolePinned, toolComments, order });
+    const dirty = !!saved && JSON.stringify(draft) !== JSON.stringify(profileDraft(saved));
 
     /** @brief Apply named configuration operations and replace the editor with the selected configuration. */
     function manageProfile(operation: 'create' | 'select' | 'rename' | 'delete', name: string, newName?: string): void {
@@ -414,7 +427,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
                 select={name => manageProfile('select', name)} create={name => manageProfile('create', name)}
                 rename={(name, newName) => manageProfile('rename', name, newName)} remove={name => manageProfile('delete', name)}
                 save={profile => void action('saving', async () => {
-                    await request(api, { action: profile === undefined ? 'configure' : 'save_as', ...(profile === undefined ? {} : { profile }), revision: view!.state.revision, namespaces, unmountedVisible, builtinVisible, consolePinned, toolComments, order: orderedPaths([...paths, ...mappings.flatMap(m => [m.path, ...m.aliases])], order), mappings: mappings.map(m => ({ ...m, path: m.path.trim(), aliases: m.aliases.map(alias => alias.trim()).filter(Boolean) })) });
+                    await request(api, { action: profile === undefined ? 'configure' : 'save_as', ...(profile === undefined ? {} : { profile }), revision: view!.state.revision, ...draft });
                     await reload();
                 })} />
             <button disabled={busy || !organize} onClick={() => void action('organizing', async () => {
