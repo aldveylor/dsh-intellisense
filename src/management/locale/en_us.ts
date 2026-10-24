@@ -53,7 +53,7 @@ export const enUs = {
     "apply": "Apply",
     "reset": "Reset",
     "cancel": "Cancel",
-    "profile": "Profile",
+    "profile": "Profile:",
     "create_profile": "Create profile",
     "rename_profile": "Rename profile",
     "delete_profile": "Delete profile",

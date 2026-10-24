@@ -53,7 +53,7 @@ export const zh = {
     "apply": "应用",
     "reset": "重置",
     "cancel": "取消",
-    "profile": "Profile",
+    "profile": "配置文件:",
     "create_profile": "新建 Profile",
     "rename_profile": "重命名 Profile",
     "delete_profile": "删除 Profile",

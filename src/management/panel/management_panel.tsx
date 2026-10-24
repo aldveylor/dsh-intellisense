@@ -422,15 +422,15 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
         <header><h1>{t('title')}</h1></header>
         {status && <p role="status" aria-live="polite">{t(status)}</p>}
         <div className="ts-toolbar"><div className="ts-actions">
-            <button disabled={busy} onClick={() => void action('refreshing', reload)}>{t('refresh')}</button>
             <ProfilePicker name={view?.state.profile ?? 'Default'} profiles={view?.state.profiles ?? ['Default']} dirty={dirty} busy={busy || !view} Select={ProfileSelect}
+                refresh={() => void action('refreshing', reload)} refreshDisabled={busy}
                 select={name => manageProfile('select', name)} create={name => manageProfile('create', name)}
                 rename={(name, newName) => manageProfile('rename', name, newName)} remove={name => manageProfile('delete', name)}
                 save={profile => void action('saving', async () => {
                     await request(api, { action: profile === undefined ? 'configure' : 'save_as', ...(profile === undefined ? {} : { profile }), revision: view!.state.revision, ...draft });
                     await reload();
                 })} />
-            <button disabled={busy || !organize} onClick={() => void action('organizing', async () => {
+            <button className="ts-organize" disabled={busy || !organize} onClick={() => void action('organizing', async () => {
                 await organize!(t('organization_prompt')); setStatus('');
             })}>{t('generate_proposal')}</button>
         </div></div>
