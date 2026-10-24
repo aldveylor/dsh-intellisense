@@ -43,6 +43,8 @@ The PTC signature is `function intellisense(...args: string[]): Promise<string>`
 
 Query an unknown command's signature before calling it directly. Queries are ordinary tool executions: results return through native tool history without interrupting model output, injecting system prompts, or automatically continuing code. Text code fences are for display only.
 
+Installation and builds apply an idempotent patch to the pinned native trajectory client (0.2.1-rc.2), enabling the code view for `tools_run_code` while retaining its name. Unsupported dependency versions or changed patch anchors fail before writing.
+
 ## PTC execution
 
 The scoped namespace plugin provides `tools_run_code`, with `code` and a short `description` as arguments. Code runs as a strict async function body supporting TS type annotations, top-level await, and explicit return. Each execution creates an independent VM context; state persistence is not guaranteed. `globalThis`, a `vm` namespace, and restart commands are unavailable. Use `console` to log output; execution results return through in-memory streams and IPC. Failed namespace calls throw a `ToolCallError` carrying `toolName`.
