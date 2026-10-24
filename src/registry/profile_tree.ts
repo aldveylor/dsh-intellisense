@@ -56,7 +56,7 @@ export function profileConfiguration(profile: Profile, current: RegistryConfigur
                 if (!commands.some(item => item.name === command.command)) throw new Error(`Unknown command: ${command.command}`);
                 const mounted = configuration.mappings.find(item => item.id === command.command);
                 if (mounted) mounted.aliases.push(path);
-                else configuration.mappings.push({ id: command.command, path, aliases: [], enabled: true, pinned: false, alwaysVisible: command.fixedLevel === 'fixed-detail' ? 2 : command.fixedLevel === 'fixed-brief' ? 1 : 0 });
+                else configuration.mappings.push({ id: command.command, path, aliases: [], pinned: false, alwaysVisible: command.fixedLevel === 'fixed-detail' ? 2 : command.fixedLevel === 'fixed-brief' ? 1 : 0 });
                 if (command.simplifiedBrief !== undefined) configuration.toolComments![command.command] = command.simplifiedBrief;
             } else {
                 const previous = current.namespaces.find(item => item.path === path);

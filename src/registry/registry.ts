@@ -23,7 +23,6 @@ export interface Mapping {
     path: string;
     aliases: string[];
     description?: string;
-    enabled: boolean;
     pinned: boolean;
     alwaysVisible?: PinLevel;
 }
@@ -192,7 +191,7 @@ export class SemanticRegistry {
             return {
                 id: tool.id,
                 path: `tools.${tool.id.startsWith('tools_') ? tool.id.slice(6) : toolName(tool.id)}`,
-                aliases: [], enabled: true, pinned: false,
+                aliases: [], pinned: false,
                 alwaysVisible: mapping?.alwaysVisible ?? ((this.state.unmountedVisible ?? {})[tool.id] ?? 0),
                 ...mapping, description: Object.hasOwn(this.state.toolComments ?? {}, tool.id) ? this.state.toolComments![tool.id] : mapping?.description, tool,
             };
@@ -203,7 +202,7 @@ export class SemanticRegistry {
         const ids = new Set<string>();
         const paths: string[] = [];
         for (const m of mappings) {
-            if (!m || typeof m.id !== 'string' || ids.has(m.id) || !Array.isArray(m.aliases) || m.aliases.some(a => typeof a !== 'string') || typeof m.enabled !== 'boolean' || typeof m.pinned !== 'boolean' || (m.description !== undefined && typeof m.description !== 'string') || (m.alwaysVisible !== undefined && ![0, 1, 2].includes(m.alwaysVisible))) throw new Error('Invalid mapping');
+            if (!m || typeof m.id !== 'string' || ids.has(m.id) || !Array.isArray(m.aliases) || m.aliases.some(a => typeof a !== 'string') || typeof m.pinned !== 'boolean' || (m.description !== undefined && typeof m.description !== 'string') || (m.alwaysVisible !== undefined && ![0, 1, 2].includes(m.alwaysVisible))) throw new Error('Invalid mapping');
             ids.add(m.id);
             for (const path of [m.path, ...m.aliases]) {
                 validatePath(path);

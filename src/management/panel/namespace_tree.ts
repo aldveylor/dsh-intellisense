@@ -108,7 +108,7 @@ export function dropTree(draft: TreeDraft, source: TreeDragSource, target: TreeD
     let next: TreeDraft;
     if (source.namespace) { const moved = relocateNamespace(draft, previous!, path); next = { ...moved, namespaces: [...moved.namespaces] }; }
     else {
-        const entry: Mapping = { id: source.id!, path, aliases: [], enabled: true, pinned: false, ...mapping };
+        const entry: Mapping = { id: source.id!, path, aliases: [], pinned: false, ...mapping };
         if (previous && mapping?.path !== previous) entry.aliases = entry.aliases.map(p => p === previous ? path : p);
         else entry.path = path;
         next = { ...draft, mappings: mapping ? draft.mappings.map(m => m.id === source.id ? entry : m) : [...draft.mappings, entry], namespaces: [...draft.namespaces] };

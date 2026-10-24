@@ -40,15 +40,15 @@ export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Ali
         for (const path of entries.keys()) if (path.startsWith(entry.path + '.') || entry.path.startsWith(path + '.')) throw new Error(`Namespace overlaps a callable path: ${entry.path}`);
         entries.set(entry.path, entry);
     };
-    for (const mapping of registry.effective().filter(mapping => mapping.enabled && !['exec', 'run_code', ptcToolName].includes(mapping.id))) {
+    for (const mapping of registry.effective().filter(mapping => !['exec', 'run_code', ptcToolName].includes(mapping.id))) {
         const physical = mapping.tool;
         const paths = mapping.id.startsWith('tools_') ? [`tools.${mapping.id.slice(6)}`] : [mapping.path, ...mapping.aliases];
         for (const path of paths) insert({ path, tool: mapping.id, schema: physical.parameters, output: physical.output, doc: physical.description });
     }
-    const enabled = new Set(registry.effective().filter(mapping => mapping.enabled).map(mapping => mapping.id));
+    const mounted = new Set(registry.effective().map(mapping => mapping.id));
     for (const alias of aliases) {
         const tool = registry.tools().find(tool => tool.id === alias.tool);
-        if (tool && enabled.has(tool.id)) insert({ ...alias, schema: tool.parameters, output: tool.output, doc: tool.description });
+        if (tool && mounted.has(tool.id)) insert({ ...alias, schema: tool.parameters, output: tool.output, doc: tool.description });
     }
     for (const [id, path] of Object.entries(managementPaths)) {
         const tool = registry.tools().find(tool => tool.id === id);
