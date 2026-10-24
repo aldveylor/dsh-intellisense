@@ -36,7 +36,7 @@ export const zh = {
     "fixed_namespace": "固定命名空间不可修改。",
     "invalid_namespace": "命名空间名称无效或与现有路径冲突。",
     "invalid_mapping": "映射名称无效或与现有路径冲突。",
-    "title": "TypeScript 工具注册表",
+    "title": "工具命名空间表",
     "refreshing": "正在刷新…",
     "refresh": "刷新",
     "saving": "正在保存…",
