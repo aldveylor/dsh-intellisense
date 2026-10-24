@@ -23,15 +23,14 @@ export class ProfileSessions {
     private async open(session: string): Promise<SemanticRegistry> {
         const referenceKey = `profile_reference_${this.hash(session)}`;
         const save = async (state: RegistryState): Promise<void> => {
-            const value = { ...state, usage: {} };
-            const version = this.hash(JSON.stringify(value));
-            await this.store.save(`profile_version_${version}`, value);
+            const version = this.hash(JSON.stringify(state));
+            await this.store.save(`profile_version_${version}`, state);
             await this.store.save(referenceKey, { version });
         };
         let reference = await this.store.load<{ version: string }>(referenceKey);
         if (!reference) {
             const state = this.catalog.snapshot();
-            await save({ version: 1, revision: 0, ...this.catalog.configuration(), profile: state.profile, usage: {} });
+            await save({ version: 1, revision: 0, ...this.catalog.configuration(), profile: state.profile });
             reference = await this.store.load<{ version: string }>(referenceKey);
         }
         const state = await this.store.load<RegistryState>(`profile_version_${reference!.version}`);
@@ -43,7 +42,7 @@ export class ProfileSessions {
                 await save(value as RegistryState);
                 current = structuredClone(value as RegistryState);
             },
-        }, this.catalog);
+        });
         await registry.load();
         return registry;
     }

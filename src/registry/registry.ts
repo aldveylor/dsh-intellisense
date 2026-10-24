@@ -1,4 +1,3 @@
-import { jsonSchemaToTs, validateJsonSchemaValue, type JsonSchemaNode } from '@deepseek-ai/dsh-tools';
 import { defaultBuiltinVisible } from '../runtime/builtins.js';
 import { toolName, validatePath } from './path.js';
 export { validatePath } from './path.js';
@@ -32,11 +31,9 @@ export interface Mapping {
 /** @brief Persisted namespace documentation and unconditional prompt visibility. */
 export interface Namespace { path: string; alwaysVisible: boolean; description: string }
 
-/** @brief Successful physical invocations, independent of completion exposure. */
-export interface Usage { calls: number; lastUsed: number; exposures: number }
 /** @brief Versioned complete registry state, committed atomically. */
-export interface RegistryState { version: 1; revision: number; mappings: Mapping[]; namespaces?: Namespace[]; order?: string[]; unmountedVisible?: CommandVisibility; builtinVisible?: CommandVisibility; consolePinned?: boolean; toolComments?: Record<string, string>; profile?: string; profiles?: string[]; usage: Record<string, Usage> }
-/** @brief A named configuration contains no runtime state or usage counters. */
+export interface RegistryState { version: 1; revision: number; mappings: Mapping[]; namespaces?: Namespace[]; order?: string[]; unmountedVisible?: CommandVisibility; builtinVisible?: CommandVisibility; consolePinned?: boolean; toolComments?: Record<string, string>; profile?: string; profiles?: string[] }
+/** @brief A named configuration contains only tool tree settings. */
 export interface RegistryConfiguration { mappings: Mapping[]; namespaces: Namespace[]; order: string[]; unmountedVisible: CommandVisibility; builtinVisible?: CommandVisibility; consolePinned?: boolean; toolComments?: Record<string, string> }
 /** @brief Only inactive configurations are archived, so the active configuration has one source of truth. */
 interface StoredRegistryState extends RegistryState { inactiveProfiles?: Record<string, RegistryConfiguration> }
@@ -44,15 +41,15 @@ interface StoredRegistryState extends RegistryState { inactiveProfiles?: Record<
 /** @brief Transactional semantic registry; unconfigured identities use encoded tools paths. */
 export class SemanticRegistry {
     private physical = new Map<string, PhysicalTool>();
-    private state: StoredRegistryState = { version: 1, revision: 0, mappings: [], usage: {}, profile: 'Default', inactiveProfiles: {} };
+    private state: StoredRegistryState = { version: 1, revision: 0, mappings: [], profile: 'Default', inactiveProfiles: {} };
     private writeChain: Promise<unknown> = Promise.resolve();
 
-    constructor(private store: Store, private usageOwner?: SemanticRegistry) {}
+    constructor(private store: Store) {}
 
     async load(): Promise<void> {
         const saved = await this.store.load<StoredRegistryState>('registry');
         if (saved) {
-            if (saved.version !== 1 || !Number.isSafeInteger(saved.revision) || !Array.isArray(saved.mappings) || !saved.usage) throw new Error('Invalid registry snapshot');
+            if (saved.version !== 1 || !Number.isSafeInteger(saved.revision) || !Array.isArray(saved.mappings)) throw new Error('Invalid registry snapshot');
             this.validateProfileName(saved.profile ?? 'Default');
             this.validateMappings(saved.mappings);
             this.validateNamespaces(saved.namespaces ?? [], saved.mappings);
@@ -84,7 +81,7 @@ export class SemanticRegistry {
     snapshot(): RegistryState {
         const { inactiveProfiles, ...state } = structuredClone(this.state);
         const profile = state.profile ?? 'Default';
-        return { ...state, usage: this.usageOwner?.snapshot().usage ?? state.usage, profile, profiles: [profile, ...Object.keys(inactiveProfiles ?? {})].sort((a, b) => a.localeCompare(b)) };
+        return { ...state, profile, profiles: [profile, ...Object.keys(inactiveProfiles ?? {})].sort((a, b) => a.localeCompare(b)) };
     }
 
     /** @brief Extract only the configurable fields when archiving an active profile. */
@@ -294,90 +291,4 @@ export class SemanticRegistry {
         });
     }
 
-    declarations(allowed?: Set<string>): string {
-        const tree: Record<string, unknown> = Object.create(null);
-        const rootFunctions: string[] = [];
-        for (const mapping of this.effective().filter(m => m.enabled && (!allowed || allowed.has(m.id)))) {
-            const doc = mapping.tool.description.replaceAll('*/', '* /');
-            const signature = `(args: ${jsonSchemaToTs(mapping.tool.parameters)}) => Promise<${jsonSchemaToTs(mapping.tool.output)}>`;
-            for (const path of [mapping.path, ...mapping.aliases]) {
-                const parts = path.split('.');
-                if (parts.length === 1) { rootFunctions.push(`/** ${doc} */\ndeclare const ${path}: ${signature};`); continue; }
-                let node = tree;
-                for (const part of parts.slice(0, -1)) node = (node[part] ??= Object.create(null)) as Record<string, unknown>;
-                node[parts.at(-1)!] = `/** ${doc} */\n${JSON.stringify(parts.at(-1)!)}: ${signature};`;
-            }
-        }
-        const doc = (path: string): string => {
-            const description = this.state.namespaces?.find(n => n.path === path)?.description;
-            return description ? `/** ${description.replaceAll('*/', '* /')} */\n` : '';
-        };
-        const render = (node: Record<string, unknown>, path: string): string => `{\n${Object.entries(node).map(([k, v]) => typeof v === 'string' ? v : `${doc(`${path}.${k}`)}${JSON.stringify(k)}: ${render(v as Record<string, unknown>, `${path}.${k}`)};`).join('\n')} }`;
-        return [...rootFunctions, ...Object.entries(tree).map(([key, value]) => `${doc(key)}declare const ${key}: ${render(value as Record<string, unknown>, key)};`)].join('\n');
-    }
-
-    /** @brief Include configured namespace hints only when an agent can access a descendant. */
-    namespaceVisibility(allowed?: Set<string>): string[] {
-        const visible = this.effective().filter(m => m.enabled && (!allowed || allowed.has(m.id)));
-        const paths = visible.flatMap(m => [m.path, ...m.aliases]);
-        return [
-            ...(this.state.namespaces ?? []).filter(n => n.alwaysVisible && paths.some(path => path.startsWith(`${n.path}.`)))
-                .map(n => `${n.path}${n.description ? ` — ${n.description}` : ''}`),
-            ...visible.filter(m => m.alwaysVisible).flatMap(m => [m.path, ...m.aliases]
-                .map(path => m.alwaysVisible === 2 ? `${path}(args: ${jsonSchemaToTs(m.tool.parameters)}) => Promise<${jsonSchemaToTs(m.tool.output)}>\n/** @brief ${m.tool.description}\n * @param args Tool arguments\n * @returns Tool result\n */` : `${path} — ${m.description ?? m.tool.description}`)),
-        ];
-    }
-
-    roots(): string[] { return [...new Set(this.effective().filter(m => m.enabled).flatMap(m => [m.path, ...m.aliases].map(p => p.split('.')[0]!)))].sort(); }
-
-    /** @brief Reuse durable successful-call statistics for visible namespace discovery. */
-    namespaceHints(allowed?: Set<string>, limit = 8): { frequent: string[]; recent: string[] } {
-        const usage = this.snapshot().usage;
-        const used = this.effective().filter(m => m.enabled && (!allowed || allowed.has(m.id)) && (usage[m.id]?.calls ?? 0) > 0);
-        const calls = (id: string): Usage => usage[id]!;
-        const paths = (mappings: Mapping[]): string[] => [...new Set(mappings.flatMap(m => [m.path, ...m.aliases]))].slice(0, limit);
-        return {
-            frequent: paths([...used].sort((a, b) => calls(b.id).calls - calls(a.id).calls || calls(b.id).lastUsed - calls(a.id).lastUsed || a.path.localeCompare(b.path))),
-            recent: paths([...used].sort((a, b) => calls(b.id).lastUsed - calls(a.id).lastUsed || a.path.localeCompare(b.path))),
-        };
-    }
-
-    async invoke(path: string, args: unknown, dispatch: (id: string, args: unknown) => Promise<unknown>): Promise<unknown> {
-        const mapping = this.effective().find(m => m.path === path || m.aliases.includes(path));
-        if (!mapping?.enabled) throw new Error(`Execution denied: ${path}`);
-        const errors = validateJsonSchemaValue(mapping.tool.parameters as JsonSchemaNode, args);
-        if (errors.length) throw new Error(`Invalid arguments: ${errors.join('; ')}`);
-        const value = await dispatch(mapping.id, args);
-        await (this.usageOwner ?? this).recordInvocation(mapping.id);
-        return value;
-    }
-
-    /** @brief Store global usage independently of immutable configuration versions. */
-    private async recordInvocation(id: string): Promise<void> {
-        await this.transaction(async () => {
-            const next = structuredClone(this.state);
-            const usage = (Object.hasOwn(next.usage, id) ? next.usage[id] : undefined) ?? { calls: 0, lastUsed: 0, exposures: 0 };
-            Object.defineProperty(next.usage, id, { value: { ...usage, calls: usage.calls + 1, lastUsed: Date.now() }, enumerable: true, configurable: true, writable: true });
-            await this.store.save('registry', next);
-            this.state = next;
-        });
-    }
-
-    async expose(paths: string[]): Promise<void> {
-        const ids = [...new Set(this.effective().filter(m => paths.includes(m.path) || m.aliases.some(a => paths.includes(a))).map(m => m.id))];
-        await (this.usageOwner ?? this).recordExposures(ids);
-    }
-
-    /** @brief Attribute exposure by physical identity across session-local configurations. */
-    private async recordExposures(ids: string[]): Promise<void> {
-        await this.transaction(async () => {
-            const next = structuredClone(this.state);
-            for (const id of ids) {
-                const usage = (Object.hasOwn(next.usage, id) ? next.usage[id] : undefined) ?? { calls: 0, lastUsed: 0, exposures: 0 };
-                Object.defineProperty(next.usage, id, { value: { ...usage, exposures: usage.exposures + 1 }, enumerable: true, configurable: true, writable: true });
-            }
-            await this.store.save('registry', next);
-            this.state = next;
-        });
-    }
 }
