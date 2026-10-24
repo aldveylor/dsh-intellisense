@@ -423,7 +423,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
         {status && <p role="status" aria-live="polite">{t(status)}</p>}
         <div className="ts-toolbar"><div className="ts-actions">
             <ProfilePicker name={view?.state.profile ?? 'Default'} profiles={view?.state.profiles ?? ['Default']} dirty={dirty} busy={busy || !view} Select={ProfileSelect}
-                refresh={() => void action('refreshing', reload)} refreshDisabled={busy}
+                refresh={() => void action('', reload)} refreshDisabled={busy}
                 select={name => manageProfile('select', name)} create={name => manageProfile('create', name)}
                 rename={(name, newName) => manageProfile('rename', name, newName)} remove={name => manageProfile('delete', name)}
                 save={profile => void action('saving', async () => {

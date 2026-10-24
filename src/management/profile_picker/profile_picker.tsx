@@ -43,7 +43,7 @@ export function ProfilePicker({ name, profiles, dirty, busy, select, create, ren
     return <div className="ts-profile-picker">
         <span>{t('profile')}</span><Select value={name} options={profiles.map(profile => ({ value: profile, label: `${profile}${dirty && profile === name ? ' *' : ''}` }))}
             disabled={busy} onChange={select} onCreate={create} onRename={rename} onRemove={remove} />
-        <button className="ts-profile-action" type="button" aria-label={t('refresh')} title={t('refresh')} disabled={refreshDisabled} onClick={refresh}>
+        <button className="ts-profile-action" type="button" aria-label={t('refresh')} disabled={refreshDisabled} onClick={refresh}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M20 7v5h-5M4 17v-5h5M6.1 6.1A8 8 0 0 1 20 12M4 12a8 8 0 0 0 13.9 5.9" />
             </svg>
