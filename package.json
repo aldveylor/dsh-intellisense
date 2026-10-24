@@ -48,11 +48,11 @@
     "node": ">=24"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && npm run build:client && esbuild src/runtime/worker.ts --bundle --platform=node --format=esm --outfile=dist/runtime/worker_bundle.mjs --target=node24 --minify",
+    "build": "npm run build:server && npm run build:client",
+    "build:server": "tsc -p tsconfig.json && esbuild src/runtime/worker.ts --bundle --platform=node --format=esm --outfile=dist/runtime/worker_bundle.mjs --target=node24 --minify",
     "build:client": "esbuild src/management/client.ts --bundle --platform=browser --format=cjs --loader:.css=text --external:react --external:react/jsx-runtime --external:@deepseek-ai/dsh-client-ui-primitives --target=es2022 --outfile=dist/client.js --banner:js=\"window.__ModuleLoader__.load({id:'dsh-intellisense',factory(require){const module={exports:{}};\" --footer:js=\"return module.exports;}});\" && esbuild src/management/standalone.tsx --bundle --platform=browser --format=iife --loader:.css=text --outfile=dist/management/standalone.js --target=es2022 --minify",
     "typecheck": "tsc -p tsconfig.json",
     "test": "npm run build && tsx --test tests/**/*.test.ts",
-    "prepack": "npm run build",
     "lint": "eslint --config scripts/eslint_config.mjs src tests"
   },
   "license": "MIT",
