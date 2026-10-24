@@ -24,7 +24,7 @@ const output = new Writable({ write: (chunk: Buffer, _encoding, done) => {
     }
     done();
 } });
-const console = new Console({ stdout: output, stderr: output, colorMode: false, inspectOptions: { customInspect: false, getters: false } });
+let console = new Console({ stdout: output, stderr: output, colorMode: false, inspectOptions: { customInspect: false, getters: false } });
 
 /** @brief Validate every outgoing frame before it reaches the host. */
 function send(message: unknown): void { process.send?.(WorkerMessage.parse(message)); }
@@ -34,6 +34,7 @@ function initialize(paths: string[], values: Record<string, unknown>): void {
     context = vm.createContext(Object.create(null), { codeGeneration: { strings: false, wasm: false } });
     global = vm.runInContext('globalThis', context) as object;
     Object.defineProperty(global, 'globalThis', { value: undefined, writable: false, configurable: false });
+    console = new Console({ stdout: output, stderr: output, colorMode: false, inspectOptions: { customInspect: false, getters: false } });
     const hostCall = (path: string, json: string): Promise<string> => {
         if (!execution) return Promise.reject(new Error('No active execution'));
         const id = RpcId.parse(++sequence);

@@ -48,6 +48,7 @@ export const zh = {
     "create_profile_hint": "输入名称，按 Enter 创建 Profile",
     "organizing": "正在打开整理对话…",
     "proposal_ready": "整理提案已生成，请审核后应用。",
+    "draft_initialization_failed": "无法初始化整理对话草稿。",
     "organization_prompt": "根据tools.profile.annotation 和 tools.profile.commands 的描述，使用 tools.profile.save 生成命令的命名空间，要求缩短命令描述，减小固定的命名空间和命令数量，固定常用命令，极其常用的命令和用户交互命令使用详细固定选项, 其它命令不进行固定, 命名空间允许多层堆叠, 保存到当前profile中",
     "generate_proposal": "生成整理提案",
     "namespace_tree": "命名空间树",

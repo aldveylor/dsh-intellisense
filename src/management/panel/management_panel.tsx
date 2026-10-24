@@ -258,7 +258,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
 
     useEffect(() => {
         const controller = new AbortController();
-        setView(undefined); setConsolePinned(false); setMappings([]); setNamespaces([]); setUnmountedVisible({}); setToolComments({}); setProposal(undefined); setOrder([]); setExpanded({}); setDescriptionEditor(undefined); setToolPicker(undefined); setStatus('loading');
+        setView(undefined); setConsolePinned(false); setMappings([]); setNamespaces([]); setUnmountedVisible({}); setToolComments({}); setOrder([]); setExpanded({}); setDescriptionEditor(undefined); setToolPicker(undefined); setStatus('loading');
         void reload(controller.signal).catch(error => { if (!controller.signal.aborted) setStatus(String(error instanceof Error ? error.message : error)); });
         return () => controller.abort();
     }, [api]);
@@ -282,7 +282,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
         if (!view || (operation === 'select' && name === view.state.profile)) return;
         void action('updating_profile', async () => {
             await request(api, { action: 'profile', operation, name, newName, revision: view.state.revision });
-            setProposal(undefined); setToolPicker(undefined); setDescriptionEditor(undefined); setExpanded({});
+            setToolPicker(undefined); setDescriptionEditor(undefined); setExpanded({});
             await reload();
         });
     }

@@ -59,7 +59,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         output: { ...output, schema: { type: 'array', items: { type: 'object', additionalProperties: true } } },
         execute: async (_args, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
-            return commands();
+            return (await commands()).map(({ name, brief }) => ({ name, brief }));
         },
     })));
 }

@@ -39,7 +39,7 @@ export function profileTree(name: string, configuration: RegistryConfiguration):
     for (const mapping of configuration.mappings) for (const path of [mapping.path, ...mapping.aliases]) {
         const parts = path.split('.');
         const brief = configuration.toolComments?.[mapping.id] ?? mapping.description;
-        nodeFor(parts.slice(0, -1).join('.')).children[parts.at(-1)!] = { type: 'command', command: mapping.id, fixedLevel: (['none', 'fixed-brief', 'fixed-detail'] as const)[mapping.alwaysVisible], ...(brief === undefined ? {} : { simplifiedBrief: brief }) };
+        nodeFor(parts.slice(0, -1).join('.')).children[parts.at(-1)!] = { type: 'command', command: mapping.id, fixedLevel: (['none', 'fixed-brief', 'fixed-detail'] as const)[mapping.alwaysVisible ?? 0], ...(brief === undefined ? {} : { simplifiedBrief: brief }) };
     }
     return { name, root };
 }

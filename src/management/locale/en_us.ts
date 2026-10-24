@@ -48,6 +48,7 @@ export const enUs = {
     "create_profile_hint": "Enter a name and press Enter to create a profile",
     "organizing": "Opening the organization conversation…",
     "proposal_ready": "The organization proposal is ready. Review it before applying.",
+    "draft_initialization_failed": "Could not initialize the organization conversation draft.",
     "organization_prompt": "Using the descriptions in tools.profile.annotation and tools.profile.commands, generate command namespaces with tools.profile.save. Shorten command descriptions and minimize the number of fixed namespaces and commands. Pin commonly used commands; use the detailed fixed option for extremely common commands and commands for user interaction. Leave other commands unpinned. Namespaces may be nested across multiple levels. Save to the current profile.",
     "generate_proposal": "Generate organization proposal",
     "namespace_tree": "Namespace tree",

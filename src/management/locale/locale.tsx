@@ -19,7 +19,7 @@ export function browserLanguage(languages: readonly string[]): 'zh' | 'en' {
 
 /** @brief Resolve UI state and tree errors to their shared dictionary key. */
 export function messageKey(key: string): LocaleKey | undefined {
-    return Object.hasOwn(zh, key) ? key as LocaleKey : (Object.keys(zh) as LocaleKey[]).find(entry => zh[entry] === key);
+    return Object.hasOwn(zh, key) ? key as LocaleKey : undefined;
 }
 
 /** @brief Standalone translator also recognizes errors from namespace operations. */
