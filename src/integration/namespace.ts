@@ -1,7 +1,7 @@
 import { decodeHTML } from 'entities';
 import { z } from 'zod';
 import { jsonSchemaToTs, validateJsonSchemaValue, type JsonSchemaNode } from '@deepseek-ai/dsh-tools';
-import { managementCommands, ptcToolName } from '../runtime/builtins.js';
+import { builtinTool, builtinTools, ptcToolName } from '../runtime/builtins.js';
 import type { SemanticRegistry } from '../registry/registry.js';
 
 /** @brief YAML aliases reference physical tools and rename argument fields without reimplementing tools. */
@@ -30,7 +30,7 @@ export function normalizeIntellisenseQueries(queries: readonly string[]): string
 /** @brief Build deterministic, scoped aliases from the current Profile and physical tool catalog. */
 export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Aliases>): ManifestEntry[] {
     const entries = new Map<string, ManifestEntry>();
-    const managementPaths: Record<string, string> = { tools_intellisense: 'tools.intellisense', tools_profile_load: 'tools.profile.load', tools_profile_save: 'tools.profile.save', tools_profile_annotation: 'tools.profile.annotation', tools_profile_commands: 'tools.profile.commands' };
+    const managementPaths = Object.fromEntries(builtinTools.map(command => [command.tool, command.path]));
     const insert = (entry: ManifestEntry): void => {
         if ((entry.path === 'tools' || entry.path.startsWith('tools.') || entry.tool.startsWith('tools_')) && managementPaths[entry.tool] !== entry.path) return;
         const parts = entry.path.split('.');
@@ -73,16 +73,12 @@ function parameters(entry: ManifestEntry): Parameter[] | undefined {
 /** @brief Repack positional values into validated native arguments before guarded dispatch. */
 export function argumentsFor(entry: ManifestEntry, values: unknown): unknown {
     if (!Array.isArray(values)) throw new Error('Expected positional arguments');
-    if (entry.tool === 'tools_intellisense') {
-        return nativeArgumentsFor(entry, { queries: values });
-    }
-    if (entry.tool === 'tools_profile_load') {
-        if (values.length > 1) throw new Error('Too many arguments');
-        return nativeArgumentsFor(entry, values[0] === undefined ? {} : { name: values[0] });
-    }
-    if (entry.tool === 'tools_profile_save') {
-        if (values.length < 1 || values.length > 2) throw new Error('Expected a Profile and an optional name');
-        return nativeArgumentsFor(entry, values.length === 1 ? { profile: values[0] } : { ...(values[0] === undefined ? {} : { name: values[0] }), profile: values[1] });
+    const command = builtinTool(entry.tool);
+    if (command?.rest) return nativeArgumentsFor(entry, { [command.rest]: values });
+    if (command?.positional) {
+        const layout = command.positional.find(fields => fields.length === values.length);
+        if (!layout) throw new Error('Invalid positional argument count');
+        return nativeArgumentsFor(entry, Object.fromEntries(layout.flatMap((name, index) => values[index] === undefined ? [] : [[name, values[index]]])));
     }
     const fields = parameters(entry);
     let args: unknown;
@@ -133,7 +129,7 @@ function resultField(entry: ManifestEntry): [string, JsonSchemaNode] | undefined
 
 /** @brief Unwrap the native response using the same contract exposed by IntelliSense. */
 export function resultFor(entry: ManifestEntry, value: unknown): unknown {
-    if (entry.tool === 'tools_profile_save') return undefined;
+    if (builtinTool(entry.tool)?.discardResult) return undefined;
     const field = resultField(entry);
     return field && value && typeof value === 'object' ? Object.hasOwn(value, field[0]) ? (value as Record<string, unknown>)[field[0]] : undefined : value;
 }
@@ -143,12 +139,11 @@ export function declaration(entry: ManifestEntry, nested = true): string {
     const parts = entry.path.split('.');
     const name = parts.pop()!;
     if (!nested) parts.length = 0;
-    if (entry.tool === 'tools_intellisense') return `${parts.length ? `namespace ${parts.join('.')} {\n` : ''}/**\n * @brief Query namespace members and tool signatures.\n * @param args Namespace member paths or exact command paths. Include an empty string ("") to list root namespace members, e.g. tools.intellisense("").\n * @returns Complete TypeScript declarations for the requested paths.\n */\nfunction ${name}(...args: string[]): Promise<string>;\n${parts.length ? '}' : ''}`;
-    if (entry.tool === 'tools_profile_annotation' || entry.tool === 'tools_profile_commands') return `${parts.length ? `namespace ${parts.join('.')} {\n` : ''}/** @brief ${entry.doc.replaceAll('*/', '* /')} */\nfunction ${name}(): Promise<${entry.tool === 'tools_profile_annotation' ? 'string' : 'CommandBrief[]'}>;\n${parts.length ? '}' : ''}`;
-    if (entry.tool === 'tools_profile_load' || entry.tool === 'tools_profile_save') {
-        const command = managementCommands.find(item => item.path === (entry.tool === 'tools_profile_load' ? 'tools.profile.load' : 'tools.profile.save'))!;
-        const signature = entry.tool === 'tools_profile_load' ? '(name?: string): Promise<Profile>' : '(name: string | undefined, profile: Profile): Promise<void>';
-        return `${parts.length ? `namespace ${parts.join('.')} {\n` : ''}/** @brief ${command.description} */\nfunction ${name}${signature};\n${entry.tool === 'tools_profile_save' ? `function ${name}(profile: Profile): Promise<void>;\n` : ''}${parts.length ? '}' : ''}`;
+    const command = builtinTool(entry.tool);
+    if (command) {
+        const signatures = command.preload ? [`() => Promise<${command.signature}>`] : [command.signature, ...command.overloads ?? []];
+        const functions = signatures.map(signature => `function ${name}${signature.replace(' => ', ': ')};`).join('\n');
+        return `${parts.length ? `namespace ${parts.join('.')} {\n` : ''}/** @brief ${command.description.replaceAll('*/', '* /')} */\n${functions}\n${parts.length ? '}' : ''}`;
     }
     const doc = (text: string): string => decodeHTML(text).replaceAll('*/', '* /');
     const types: string[] = [];

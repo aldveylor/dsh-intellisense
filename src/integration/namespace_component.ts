@@ -10,7 +10,7 @@ import type { PhysicalTool, SemanticRegistry } from '../registry/registry.js';
 import type { ProfileSessions } from '../registry/profiles.js';
 import { declaration, manifest, nativeArgumentsFor, nativeSchema, resultFor, type Aliases, type ManifestEntry } from './namespace.js';
 import { builtinDeclaration, namespaceDirectory, type NamespaceHint } from './prompt.js';
-import { builtinCommands, defaultBuiltinVisible, discoveryCommand, profileValues, ptcToolName } from '../runtime/builtins.js';
+import { builtinTool, builtinCommands, defaultBuiltinVisible, discoveryCommand, profileValues, ptcToolName } from '../runtime/builtins.js';
 import { type CommandBrief, profileAnnotation } from '../registry/profile_tree.js';
 import type { z } from 'zod';
 import { registerIntellisense } from './intellisense.js';
@@ -116,7 +116,7 @@ export class NamespaceComponent {
         if (!this.isPtc(agent)) return '';
         const registry = await this.registryFor(agent);
         const state = registry.snapshot();
-        const entries = manifest(registry, this.aliases).filter(entry => !['tools_profile_annotation', 'tools_profile_commands'].includes(entry.tool));
+        const entries = manifest(registry, this.aliases).filter(entry => !builtinTool(entry.tool)?.preload);
         const hints: NamespaceHint[] = [];
         for (const entry of entries) {
             const mapping = registry.effective().find(mapping => mapping.id === entry.tool);

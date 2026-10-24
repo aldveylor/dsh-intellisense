@@ -3,7 +3,7 @@ import { CodeRunFailedError, defineTool, type ToolRunContext } from '@deepseek-a
 import { argumentsFor } from './namespace.js';
 import type {} from './namespace_plugin.js';
 import { RuntimeHost, type RuntimeConfig } from '../runtime/host.js';
-import { ptcToolName } from '../runtime/builtins.js';
+import { builtinTool, ptcToolName } from '../runtime/builtins.js';
 import { codeBlock } from '../protocol/code_block.js';
 import type { z } from 'zod';
 
@@ -70,7 +70,7 @@ export class NamespaceRuntime extends Service {
         const pending = new Set<Promise<unknown>>();
         let sequence = 0;
         try {
-            const entries = (await namespaces.entries(agent)).filter(entry => !['tools_profile_annotation', 'tools_profile_commands'].includes(entry.tool));
+            const entries = (await namespaces.entries(agent)).filter(entry => !builtinTool(entry.tool)?.preload);
             const result = await this.runtime.execute(agent.id, `run-code-${++this.sequence}`, code, entries.map(entry => entry.path), async (path, input, signal) => {
                 signal.throwIfAborted();
                 const entry = (await namespaces.entries(agent)).find(entry => entry.path === path);
