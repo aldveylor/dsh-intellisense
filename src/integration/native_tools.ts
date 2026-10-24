@@ -5,13 +5,16 @@ import { nativeSchema, normalizeIntellisenseQueries, type ManifestEntry } from '
 export function nativeBindings(entries: ManifestEntry[], reserved: Iterable<string>): { entry: ManifestEntry; name: string }[] {
     const physical = new Set(reserved);
     const used = new Set<string>();
+    const counters = new Map<string, number>();
     return entries.map(entry => {
         const encoded = entry.path.replace(/[^a-zA-Z0-9_-]/g, char => char === '.' ? '__' : `_${char.charCodeAt(0).toString(16)}_`);
         const base = encoded.length <= 64 ? encoded : createHash('sha256').update(entry.path).digest('hex');
         let name = base;
-        for (let index = 1; used.has(name) || (physical.has(name) && (name !== entry.tool || !entry.path.startsWith('tools.') || entry.argMap)); index++) {
+        for (let index = counters.get(base) ?? 1; used.has(name) || (physical.has(name) && (name !== entry.tool || !entry.path.startsWith('tools.') || entry.argMap)); index++) {
             const suffix = `_${index}`;
-            name = base.slice(0, 64 - suffix.length) + suffix;
+            name = base.length + suffix.length <= 64 ? base + suffix
+                : createHash('sha256').update(`${entry.path}\0${index}`).digest('hex');
+            counters.set(base, index + 1);
         }
         used.add(name);
         return { entry, name };
