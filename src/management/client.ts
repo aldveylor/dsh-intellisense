@@ -24,7 +24,7 @@ export const inject = ['slots', 'locale', 'sessions', 'uiWorkspace', 'conversati
 export function apply(ctx: Context): void {
     ctx.effect(() => ctx.locale.register('ts_intellisense', { zh, en: enUs }));
     ctx.inject(['uiConversation'], ctx => {
-        ctx.uiConversation.events.register(builtinTraceDefinition(key => ctx.locale.bind('ts_intellisense')(key)));
+        ctx.uiConversation.events.register(builtinTraceDefinition(key => enUs[key]));
     });
     ctx.slots.inject('plugins.bundle.config', () => ctx.slots.register({
         name: 'plugins.bundle.config', key: 'dsh-intellisense',

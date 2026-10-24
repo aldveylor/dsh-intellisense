@@ -6,7 +6,7 @@ export const enUs = {
     "protocol_error": "Protocol execution failed",
     "intellisense_trace": "IntelliSense completion request",
     "intellisense_query": "Query code",
-    "intellisense_result": "Completion result",
+    "intellisense_result": "Result",
     "add_comment": "Double-click to add a comment",
     "builtin_pinned": "Built-in commands are always pinned",
     "pin_level_0": "Not pinned (click for brief)",
