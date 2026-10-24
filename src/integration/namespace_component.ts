@@ -24,7 +24,7 @@ export class NamespaceComponent {
     private discovered = new Map<string, Set<string>>();
     private nativeTools = new Map<string, { fingerprint: string; disposers: (() => void)[] }>();
 
-    constructor(private ctx: Context, private registry: SemanticRegistry, readonly profiles: ProfileSessions, private aliases: z.infer<typeof Aliases>, _defaultMode: presentation.PresentationMode = 'native') {
+    constructor(private ctx: Context, private registry: SemanticRegistry, readonly profiles: ProfileSessions, private aliases: z.infer<typeof Aliases>) {
         ctx.effect(() => async () => { await Promise.all([...this.nativeTools.keys()].map(id => this.release(id))); });
         ctx.on('agent/request', async (payload, next) => {
             if (this.enabled(payload.agent)) this.positions.set(payload.agent.id, { turn: payload.turn, step: payload.step });
@@ -95,7 +95,7 @@ export class NamespaceComponent {
     }
 
     /** @brief Preload data-only Profile metadata before guest execution. */
-    async values(_agent: Agent): Promise<{ [path: string]: string | { name: string; brief: string }[] }> {
+    async values(): Promise<{ [path: string]: string | { name: string; brief: string }[] }> {
         return { 'tools.profile.annotation': profileAnnotation, 'tools.profile.commands': await this.commandBriefs() };
     }
 
@@ -115,14 +115,14 @@ export class NamespaceComponent {
                 ...(mapping.alwaysVisible === 2 ? { declaration: declaration(entry, false) } : {}) });
         }
         for (const item of state.namespaces ?? []) if (item.alwaysVisible && entries.some(entry => entry.path.startsWith(item.path + '.'))) hints.push({ ...item, namespace: true });
-        if (this.isPtc(agent) && state.consolePinned) hints.push({ path: 'console', description: 'Native console output', namespace: true });
-        for (const item of (this.isPtc(agent) ? builtinCommands : builtinCommands.filter(command => command.path.startsWith('tools.')))) {
+        if (state.consolePinned) hints.push({ path: 'console', description: 'Native console output', namespace: true });
+        for (const item of builtinCommands) {
             const level = item.path === discoveryCommand.path ? 2 : (state.builtinVisible ?? defaultBuiltinVisible)[item.path] ?? 0;
             if (level) hints.push({ ...item, ...(level === 2 ? { declaration: builtinDeclaration(item) } : {}) });
         }
         for (const item of profileValues) {
             const level = state.builtinVisible?.[item.path] ?? 0;
-            if (level) hints.push({ ...item, ...(level === 2 ? { declaration: this.isPtc(agent) ? `/** @brief ${item.description} */\nconst ${item.path.split('.').at(-1)}: ${item.signature};` : `function ${item.path.split('.').at(-1)}(): Promise<${item.signature}>;` } : {}) });
+            if (level) hints.push({ ...item, ...(level === 2 ? { declaration: `/** @brief ${item.description} */\nconst ${item.path.split('.').at(-1)}: ${item.signature};` } : {}) });
         }
         return (hints.some(item => item.declaration && item.path.startsWith('tools.profile.')) ? '```ts\n' + profileAnnotation + '\n```\n\n' : '') + namespaceDirectory(hints);
     }

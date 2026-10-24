@@ -5,17 +5,17 @@ import * as namespacePlugin from './integration/namespace_plugin.js';
 import { RuntimeConfig } from './runtime/host.js';
 
 export const name = 'dsh-intellisense';
-export const inject = ['llm', 'tools', 'agents', 'systemPrompt', 'storage', storageBackendServiceKey('json'), 'subagents', 'connection'];
-/** @brief Configure the default presentation and the isolated namespace execution backend. */
-export const Config = RuntimeConfig.extend({ mode: z.enum(['native', 'ptc']).default('ptc'), aliasesFile: z.string().optional() });
-/** @brief Public plugin settings; preset presentation config overrides the default mode. */
+export const inject = ['tools', 'agents', 'systemPrompt', 'storage', storageBackendServiceKey('json'), 'connection'];
+/** @brief Configure aliases and the isolated namespace execution backend. */
+export const Config = RuntimeConfig.extend({ aliasesFile: z.string().optional() });
+/** @brief Public plugin settings; each presentation selects its execution mode. */
 export type Config = z.input<typeof Config>;
 
 /** @brief Mount namespace discovery and scoped namespace execution without intercepting model streams. */
 export async function apply(ctx: Context, options: Config = {}): Promise<void> {
-    const { mode, aliasesFile, ...runtimeOptions } = Config.parse(options);
+    const { aliasesFile, ...runtimeOptions } = Config.parse(options);
     ctx.provide('codeRuntimeOptions', runtimeOptions);
-    await ctx.plugin(namespacePlugin, { mode, aliasesFile });
+    await ctx.plugin(namespacePlugin, { aliasesFile });
 }
 
 export { RuntimeHost } from './runtime/host.js';

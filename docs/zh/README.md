@@ -49,7 +49,7 @@ PTC 签名为 `function intellisense(...args: string[]): Promise<string>`，查�
 
 ## 配置与初始提示词
 
-主插件 `Config.mode` 为 `ptc`（默认）或 `native`。两个 preset 通过 `dsh-intellisense/presentation` 的 `config.mode` 显式覆盖默认值；两个模式均在作用域内选择原生工具呈现，由插件按模式过滤模型工具 schema。初始提示词与实际工具 schema 使用同一配置来源：PTC 仅暴露 `tools_run_code`，native 暴露当前命名空间代理。
+两个 preset 通过 `dsh-intellisense/presentation` 的 `config.mode` 选择 `ptc` 或 `native`，主插件配置运行时预算与别名；两个模式均在作用域内选择原生工具呈现，由插件按模式过滤模型工具 schema。初始提示词与实际工具 schema 使用同一配置来源：PTC 仅暴露 `tools_run_code`，native 暴露当前命名空间代理。
 
 运行时预算包括 `timeoutMs`、`syncTimeoutMs`、`maxOutputBytes`、`maxMessageBytes`、`maxPendingCalls`、`heapMb`、`sandboxProbeTimeoutMs` 和 `diagnosticChars`，另可配置 `aliasesFile`。
 

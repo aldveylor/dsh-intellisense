@@ -13,9 +13,9 @@ import { ptcToolName } from '../runtime/builtins.js';
 import { executionInstructions } from './prompt.js';
 
 export const name = 'command-namespaces';
-export const inject = ['llm', 'tools', 'agents', 'systemPrompt', 'storage', storageBackendServiceKey('json'), 'connection'];
-/** @brief Namespace discovery budgets do not require or configure a runtime. */
-export const Config = z.object({ mode: z.enum(['native', 'ptc']).default('native'), aliasesFile: z.string().optional() }).prefault({});
+export const inject = ['tools', 'agents', 'systemPrompt', 'storage', storageBackendServiceKey('json'), 'connection'];
+/** @brief Configure the shared namespace alias catalog. */
+export const Config = z.object({ aliasesFile: z.string().optional() }).prefault({});
 
 /** @brief Independent namespace service shared by native tools, the UI, and optional PTC execution. */
 declare module '@deepseek-ai/cordis' { interface Context { commandNamespaces: NamespaceComponent } }
@@ -31,7 +31,7 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
     const store = new DshStore(unit);
     const registry = new SemanticRegistry(store); await registry.load();
     const profiles = new ProfileSessions(registry, store);
-    const namespaces = new NamespaceComponent(ctx, registry, profiles, aliases, config.mode);
+    const namespaces = new NamespaceComponent(ctx, registry, profiles, aliases);
     ctx.provide('commandNamespaces', namespaces);
     registerManagement(ctx, registry, namespaces);
     ctx.on('agent/created', async ({ agent }) => { await namespaces.configure(agent); });

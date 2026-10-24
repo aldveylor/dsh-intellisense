@@ -51,7 +51,7 @@ The plugin's `NamespaceRuntime` converts positional namespace arguments into act
 
 ## Configuration and initial prompts
 
-The main plugin's `Config.mode` is either `ptc` (default) or `native`. Both presets explicitly override the default through `config.mode` in `dsh-intellisense/presentation`. Both modes select native tool presentation within their scope; the plugin filters the model's tool schemas according to the selected mode. Initial prompts and actual tool schemas share the same configuration source: PTC exposes only `tools_run_code`, while native mode exposes the current namespace proxies.
+Each preset selects `ptc` or `native` through `config.mode` in `dsh-intellisense/presentation`. The main plugin configures runtime budgets and aliases. Both modes select native tool presentation within their scope; the plugin filters the model's tool schemas according to the selected mode. Initial prompts and actual tool schemas share the same configuration source: PTC exposes only `tools_run_code`, while native mode exposes the current namespace proxies.
 
 Runtime budgets include `timeoutMs`, `syncTimeoutMs`, `maxOutputBytes`, `maxMessageBytes`, `maxPendingCalls`, `heapMb`, `sandboxProbeTimeoutMs`, and `diagnosticChars`. You can also configure `aliasesFile`.
 
