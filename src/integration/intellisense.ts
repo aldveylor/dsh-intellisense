@@ -76,7 +76,7 @@ export function intellisense(queries: readonly string[], entries: readonly Manif
 export function registerIntellisense(ctx: Context, namespaces: NamespaceComponent): void {
     const definition: ToolDefinition = defineTool({
         name: 'tools_intellisense',
-        description: 'Query namespace members with a trailing dot, or complete tool signatures by exact path. Discovers commands progressively. Call through tools.intellisense.',
+        description: 'Query namespace members with a trailing dot, or complete tool signatures by exact path. An empty string ("") in queries lists root namespace members, e.g. {"queries":[""]}. Discovers commands progressively. Call through tools.intellisense.',
         parameters: { queries: { type: 'array', items: { type: 'string' }, description: 'Namespace member paths or exact command paths. An optional global. prefix is ignored. Include an empty string ("") to list root namespace members, e.g. [""].', required: true } },
         output: { schema: { type: 'string', description: 'TypeScript namespace declarations in PTC mode, or a JSON object containing namespace members and exact tool contracts in native mode.' }, render: (_args, value) => [{ type: 'text', text: value }] },
         presentCall: ({ queries }) => ({ card: 'generic', title: 'tools.intellisense', kind: 'read', rawInput: queries }),

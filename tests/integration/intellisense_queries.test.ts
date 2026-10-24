@@ -23,6 +23,8 @@ test('registered physical discovery tool exposes and validates the queries objec
     registerIntellisense(ctx, {} as NamespaceComponent);
     assert.equal(definition.parameters.type, 'object');
     assert.deepEqual(definition.parameters.required, ['queries']);
+    assert(definition.description.includes('{"queries":[""]}'));
+    assert(executionInstructions('native').includes('{"queries":[""]}'));
     const execution = {} as ToolRunContext;
     await assert.rejects(definition.execute({ queries: ['std.'] }, execution), /A live conversation is required/);
     await assert.rejects(definition.execute([3], execution), /invalid arguments/i);
