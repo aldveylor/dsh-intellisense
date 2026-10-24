@@ -5,6 +5,7 @@ import { argumentsFor } from './namespace.js';
 import type {} from './namespace_plugin.js';
 import { RuntimeHost, type RuntimeConfig } from '../runtime/host.js';
 import { ptcToolName } from '../runtime/builtins.js';
+import { codeBlock } from '../protocol/code_block.js';
 import type { z } from 'zod';
 
 /** @brief Release an IPC callback on cancellation before draining the actual native child call. */
@@ -46,6 +47,10 @@ export class NamespaceRuntime extends Service {
                 schema: { type: 'object', additionalProperties: true },
                 render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
             },
+            presentCall: ({ code, description }) => ({
+                card: 'generic', title: description, kind: 'execute', rawInput: code,
+                content: [{ type: 'text', text: codeBlock(code, 'typescript') }],
+            }),
             execute: ({ code, timeoutMs }, execution) => this.execute(code, execution, timeoutMs),
         }));
     }

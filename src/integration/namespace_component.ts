@@ -164,7 +164,7 @@ export class NamespaceComponent {
             if (name === entry.tool && !entry.argMap) continue;
             const definition: ToolDefinition = {
                 name, description: `${entry.path}: ${entry.doc}`, parameters: nativeSchema(entry),
-                output: { schema: {}, render: (_args, value) => [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value) }] },
+                output: { schema: entry.tool === 'tools_intellisense' ? entry.output ?? {} : {}, render: (_args, value) => [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value) }] },
                 execute: async (args, parent) => {
                     const caller = parent.agent;
                     if (!caller) throw new Error('A live conversation is required');
@@ -173,6 +173,11 @@ export class NamespaceComponent {
                     return await this.dispatch(caller, current, nativeArgumentsFor(current, args), parent, 1) ?? null;
                 },
             };
+            if (entry.tool === 'tools_intellisense') {
+                const physical = agent.ctx.tools.get(entry.tool, agent)!;
+                definition.presentCall = args => physical.presentCall?.(nativeArgumentsFor(entry, args));
+                definition.presentResult = (args, result) => physical.presentResult?.(nativeArgumentsFor(entry, args), result);
+            }
             this.generatedTools.add(definition);
             state.disposers.push(agent.ctx.tools.register(definition));
         }

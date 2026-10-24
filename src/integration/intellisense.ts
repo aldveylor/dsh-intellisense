@@ -1,6 +1,7 @@
 import { registerBuiltin } from './builtin_trace.js';
 import type { Context } from '@deepseek-ai/cordis';
-import { defineTool } from '@deepseek-ai/dsh-tools';
+import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools';
+import { codeBlock } from '../protocol/code_block.js';
 import { appendPluginRecord } from '@deepseek-ai/dsh-session';
 import { declaration, type ManifestEntry } from './namespace.js';
 import { builtinCommands, profileValues } from '../runtime/builtins.js';
@@ -74,11 +75,19 @@ export function intellisense(queries: readonly string[], entries: readonly Manif
 
 /** @brief Register batched signature discovery as an ordinary guarded native tool. */
 export function registerIntellisense(ctx: Context, namespaces: NamespaceComponent): void {
-    ctx.effect(() => registerBuiltin(ctx, defineTool({
+    const definition: ToolDefinition = defineTool({
         name: 'tools_intellisense',
         description: 'Query namespace members with a trailing dot, or complete tool signatures by exact path. Discovers commands progressively. Call through tools.intellisense.',
         parameters: { queries: { type: 'array', items: { type: 'string' }, description: 'Namespace member paths or exact command paths. Include an empty string ("") to list root namespace members, e.g. [""].', required: true } },
-        output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
+        output: { schema: { type: 'string', description: 'TypeScript namespace declarations in PTC mode, or a JSON object containing namespace members and exact tool contracts in native mode.' }, render: (_args, value) => [{ type: 'text', text: value }] },
+        presentCall: ({ queries }) => ({ card: 'generic', title: 'tools.intellisense', kind: 'read', rawInput: queries }),
+        presentResult: (_args, result) => {
+            const schema = JSON.stringify({ name: definition.name, description: definition.description, parameters: definition.parameters, output: definition.output.schema }, null, 2);
+            const content = result.content.map(block => block.type === 'text'
+                ? { type: 'text' as const, text: codeBlock(block.text, result.isError ? 'text' : block.text.trimStart().startsWith('{') ? 'json' : 'typescript') }
+                : block);
+            return { card: 'generic', content: [{ type: 'text', text: `Schema\n\n${codeBlock(schema, 'json')}\n\nResult` }, ...content] };
+        },
         execute: async ({ queries }, execution) => {
             const agent = execution.agent;
             if (!agent) throw new Error('A live conversation is required');
@@ -95,5 +104,6 @@ export function registerIntellisense(ctx: Context, namespaces: NamespaceComponen
             });
             return info;
         },
-    })));
+    });
+    ctx.effect(() => registerBuiltin(ctx, definition));
 }

@@ -2,13 +2,9 @@ import type { ContextMessageNode, ConversationNodeDefinitionInput } from '@deeps
 import type { TrajectoryConversationViewNode } from '@deepseek-ai/dsh-client-ui-trajectory/client';
 import type { BuiltinEvent } from '../../protocol/events.js';
 import type { LocaleKey } from '../locale/locale.js';
+import { codeBlock } from '../../protocol/code_block.js';
 
-/** @brief Fence arbitrary result text without allowing embedded fences to close the block. */
-export function codeBlock(value: string, language: string): string {
-    const length = Math.max(3, ...[...value.matchAll(/`+/g)].map(match => match[0].length + 1));
-    const fence = '`'.repeat(length);
-    return `${fence}${language}\n${value}\n${fence}`;
-}
+export { codeBlock } from '../../protocol/code_block.js';
 
 /** @brief Validate durable builtin records before projecting them into the trajectory. */
 function builtinRecord(event: { type: string; data: unknown; ignorable?: boolean }): BuiltinEvent | undefined {
