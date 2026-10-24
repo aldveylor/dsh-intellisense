@@ -41,8 +41,6 @@ PTC 签名为 `function intellisense(...args: string[]): Promise<string>`，查�
 
 未知命令先查询签名，再直接调用。查询是普通工具执行，结果随原生工具历史返回，不中断模型输出、不注入系统提示词，也不自动续写代码。文本代码围栏只用于展示。
 
-安装和构建时会对固定版本 0.2.1-rc.2 的原生轨迹客户端应用幂等补丁，让 `tools_run_code` 使用代码视图并保留工具名。依赖版本或补丁锚点变化时，会在写入前报错。
-
 ## PTC 执行
 
 `tools_run_code` 由命名空间插件在 presentation 作用域提供，参数包含 `code` 和简短的 `description`。程序是严格 async 函数体，支持 TS 类型标注、顶层 await 和显式 return。每次执行创建独立 VM 上下文，不保证环境连续，不支持 `globalThis`，也不提供 `vm` 命名空间或重启命令。使用 `console` 记录输出，通过内存流及 IPC 返回执行结果。命名空间调用失败时抛出带 `toolName` 的 `ToolCallError`。

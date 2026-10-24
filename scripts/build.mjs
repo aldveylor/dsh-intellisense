@@ -1,8 +1,5 @@
 import { rm } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
-import { patchInstalledTrajectory } from './patch_trajectory.mjs';
-
-await patchInstalledTrajectory();
 
 // Remove stale modules so deleted source interfaces cannot survive in published output.
 await rm(new URL('../dist/', import.meta.url), { recursive: true, force: true });
