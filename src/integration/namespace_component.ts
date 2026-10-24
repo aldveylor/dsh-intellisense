@@ -104,17 +104,9 @@ export class NamespaceComponent {
 
     /** @brief Publish only explicitly pinned commands and namespaces with their Profile briefs. */
     async prompt(agent: Agent): Promise<string> {
+        if (!this.isPtc(agent)) return '';
         const registry = await this.registryFor(agent);
         const state = registry.snapshot();
-        if (!this.isPtc(agent)) {
-            const entries = manifest(registry, this.aliases);
-            const bindings = nativeBindings(entries, registry.tools().map(tool => tool.id));
-            const visible = new Set((await this.nativeEntries(agent)).map(entry => entry.path));
-            return JSON.stringify({
-                namespaces: [...new Set(entries.filter(entry => !visible.has(entry.path)).map(entry => entry.path.split('.')[0]!))].sort(),
-                tools: bindings.filter(({ entry }) => visible.has(entry.path)).map(({ entry, name }) => ({ path: entry.path, tool: name })),
-            }, null, 2);
-        }
         const entries = manifest(registry, this.aliases).filter(entry => !['tools_profile_annotation', 'tools_profile_commands'].includes(entry.tool));
         const hints: NamespaceHint[] = [];
         for (const entry of entries) {

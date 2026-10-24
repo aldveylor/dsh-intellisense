@@ -39,7 +39,7 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
         const assembled = await next();
         const agent = context.agent;
         if (agent && namespaces.enabled(agent)) {
-            assembled.sections.push({ name: 'namespaces:directory', text: await namespaces.prompt(agent), interpolate: false });
+            if (namespaces.isPtc(agent)) assembled.sections.push({ name: 'namespaces:directory', text: await namespaces.prompt(agent), interpolate: false });
             if (!namespaces.isPtc(agent)) {
                 const names = new Set(await namespaces.syncNative(agent));
                 assembled.sections = assembled.sections.filter(section => !section.name.startsWith('tool:') && !section.name.startsWith('tools:'));
