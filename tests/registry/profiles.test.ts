@@ -9,14 +9,14 @@ test('profiles isolate all configuration fields and persist create, select, rena
     const store = new MemoryStore(); const registry = new SemanticRegistry(store);
     registry.refresh(['read', 'other'].map(id => ({ id, description: id, parameters: { type: 'object' }, output: { type: 'string' } })));
     assert.equal(registry.snapshot().profile, 'Default');
-    await registry.configure([mapping], 0, [{ path: 'files', description: 'Files', alwaysVisible: true }], ['files'], ['other']);
+    await registry.configure([mapping], 0, [{ path: 'files', description: 'Files', alwaysVisible: true }], ['files'], { other: 2 });
     await registry.manageProfile('create', 'Work', 1);
     assert.deepEqual(registry.snapshot().mappings, []);
-    assert.deepEqual(registry.snapshot().unmountedVisible, []);
-    await registry.configure([], 2, [{ path: 'work', description: 'Work', alwaysVisible: false }], ['work'], ['read']);
+    assert.deepEqual(registry.snapshot().unmountedVisible, {});
+    await registry.configure([], 2, [{ path: 'work', description: 'Work', alwaysVisible: false }], ['work'], { read: 1 });
     await registry.manageProfile('select', 'Default', 3);
     assert.deepEqual(registry.snapshot().mappings, [mapping]);
-    assert.deepEqual(registry.snapshot().unmountedVisible, ['other']);
+    assert.deepEqual(registry.snapshot().unmountedVisible, { other: 2 });
     assert.deepEqual(registry.snapshot().order, ['files', 'files.read']);
     await registry.manageProfile('rename', 'Work', 4, 'Office');
     const restored = new SemanticRegistry(store); await restored.load();
@@ -24,7 +24,7 @@ test('profiles isolate all configuration fields and persist create, select, rena
     assert(!('inactiveProfiles' in restored.snapshot()));
     await restored.manageProfile('select', 'Office', 5);
     assert.deepEqual(restored.snapshot().namespaces, [{ path: 'work', description: 'Work', alwaysVisible: false }]);
-    assert.deepEqual(restored.snapshot().unmountedVisible, ['read']);
+    assert.deepEqual(restored.snapshot().unmountedVisible, { read: 1 });
     await restored.manageProfile('rename', 'Office', 6, 'Personal');
     await restored.manageProfile('delete', 'Personal', 7);
     assert.equal(restored.snapshot().profile, 'Default');
