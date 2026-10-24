@@ -63,6 +63,18 @@ The built-in `tools.intellisense` command cannot be renamed, moved, deleted, or 
 
 Native DSML proxies revalidate the actual caller's tool visibility at execution time and pass through the actual tool's native permission checks. Proxies are removed when the session is released or the plugin is unloaded. `dsh-intellisense/namespace` can independently mount native namespace mode without creating a JS runtime.
 
+### Namespace management
+
+The namespace tree shows tool groups, call names, and descriptions. Expand groups, double-click names or comments to edit them, drag sibling entries to reorder them, and set pinned hint levels. Use the controls above the tree to switch, save, or save a copy of a profile for reuse across different tool configurations.
+
+![Tool namespace table with profile selection and tree editing](namespace_table.png)
+
+### Adding unmounted tools
+
+The unmounted tools entry shows how many tools have not yet been added to the namespace. Open the picker to search by name, path, or description, then click a tool card to add it to the current node. Its name and grouping can then be adjusted in the namespace tree.
+
+![Unmounted tools picker with search and tool cards for the current node](unmounted_tools.png)
+
 ## Checks
 
 Run from the project root:
