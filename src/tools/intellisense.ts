@@ -72,9 +72,19 @@ export function registerIntellisense(ctx: Context, namespaces: NamespaceComponen
             const registry = await namespaces.registryFor(agent);
             const root = await namespaces.tree(agent);
             await namespaces.statistics.recordQueries(agent.id, intellisenseQueryTargets(queries, root));
-            const info = namespaces.isPtc(agent)
-                ? intellisense(queries, root, true, path => registry.disabled(path))
-                : await namespaces.discover(agent, queries);
+            let info: string;
+            if (namespaces.isPtc(agent)) info = intellisense(queries, root, true, path => registry.disabled(path));
+            else {
+                const discovery = JSON.parse(await namespaces.discover(agent, queries));
+                discovery.members = (discovery.members ?? []).filter((member: { path: string }) => {
+                    const node = root.resolve(member.path.split('.'));
+                    if (!node || node.disabled) return false;
+                    return node instanceof NamespaceNode
+                        ? node.commands().some(command => !command.disabled && command.deployment === 'tool')
+                        : node.deployment === 'tool';
+                });
+                info = JSON.stringify(discovery, null, 2);
+            }
             const position = namespaces.position(agent);
             appendPluginRecord(agent.session, 'plugin:ts_intellisense/intellisense', {
                 ...position, queries, info, elapsedMs: performance.now() - started,
