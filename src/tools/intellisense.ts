@@ -24,7 +24,7 @@ export function intellisenseQueryTargets(queries: readonly string[], root: Names
 }
 
 /** @brief Render queried members and signatures through the shared namespace declaration model. */
-export function intellisense(queries: readonly string[], root: NamespaceNode, runtime = false, disabled: (path: string) => boolean = () => false): string {
+export function intellisense(queries: readonly string[], root: NamespaceNode, runtime = false, disabled: (path: string) => boolean = () => false, brief: (tool: string) => string | undefined = () => undefined): string {
     const selected = new Map<string, NamespaceDeclaration>();
     const exact = new Set(normalizeIntellisenseQueries(queries));
     for (const node of queryNodes(root, queries)) {
@@ -35,7 +35,7 @@ export function intellisense(queries: readonly string[], root: NamespaceNode, ru
         }
         const value = runtime && node.preload;
         selected.set(node.path, {
-            path: node.path, description: node.doc,
+            path: node.path, description: brief(node.tool) ?? node.doc.trim().split(/\r?\n/, 1)[0],
             ...(value ? { valueType: node.signature }
                 : exact.has(node.path) ? { declaration: declaration(node, false) } : {}),
         });
@@ -72,8 +72,10 @@ export function registerIntellisense(ctx: Context, namespaces: NamespaceComponen
             const root = await namespaces.tree(agent);
             await namespaces.statistics.recordQueries(agent.id, intellisenseQueryTargets(queries, root));
             let info: string;
-            if (namespaces.isPtc(agent)) info = intellisense(queries, root, true, path => registry.disabled(path));
-            else {
+            if (namespaces.isPtc(agent)) {
+                const briefs = new Map(registry.effective().map(mapping => [mapping.id, mapping.description]));
+                info = intellisense(queries, root, true, path => registry.disabled(path), tool => briefs.get(tool));
+            } else {
                 const discovery = JSON.parse(await namespaces.discover(agent, queries));
                 discovery.members = (discovery.members ?? []).filter((member: { path: string }) => {
                     const node = root.resolve(member.path.split('.'));
