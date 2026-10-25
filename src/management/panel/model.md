@@ -1,6 +1,6 @@
 # 工具树管理面板
 
-`management_panel.tsx` 管理草稿、保存、命名空间编辑、内置提示图钉和整理会话草稿入口。`namespace_tree.ts` 处理路径及树变换，`tree_drag.ts` 处理指针拖动，`tree_provider.ts` 定义固定的 tools、console 节点与未挂载工具筛选。样式保存在同目录的 `management_panel.css`。
+`management_panel.tsx` 管理草稿、保存、命名空间编辑、内置提示图钉和整理会话草稿入口。`namespace_tree.ts` 处理路径及树变换，`tree_drag.ts` 处理指针拖动，`tree_provider.ts` 投影服务端序列化节点并筛选未挂载工具。样式保存在同目录的 `management_panel.css`。
 
 `tools.intellisense` 固定映射内置 tools_intellisense，始终提示且不可取消固定、改名、拖动或删除，其图钉锁定详细等级 2；tools.profile 子树仅显示 annotation、commands、load、save，均可按 0/1/2 切换提示等级。
 
@@ -8,7 +8,7 @@
 
 命名空间块统一显示当前层级名称，固定子树 tools.profile 显示 profile，悬停保留完整路径。
 
-consolePinned 为随 Profile 保存的命名空间固定提示开关，默认 false。管理面板始终展示 console 及其命令，console 命名空间图钉可切换是否固定提示；命令各自保留独立的提示等级。IntelliSense 与原生 console 的可用性不受固定状态影响。PTC 初始 prompt 提示可使用运行时提供的原生 Node.js 变量。
+namespaceVisible 为随 Profile 保存的命名空间路径 → 固定提示布尔值映射，默认空对象；不使用 console 专有存储字段。管理面板始终展示 console 及其命令，console 命名空间图钉可切换是否固定提示；命令各自保留独立的提示等级。IntelliSense 与原生 console 的可用性不受固定状态影响。PTC 初始 prompt 提示可使用运行时提供的原生 Node.js 变量。
 
 除可切换固定提示的 console 外，固定命名空间（tools、tools.profile）显示禁用的实心固定图标，提示固定命名空间不可修改；不改变命令各自的提示等级。
 
@@ -24,8 +24,6 @@ consolePinned 为随 Profile 保存的命名空间固定提示开关，默认 fa
 
 拖动到命名空间中心时高亮目标节点；前后插入时，在目标同级节点之间绘制横线。命名空间之后的插入线位于完整展开子树之后，不贴在标题块边缘。
 
-`tree_node.ts` 的抽象 `TreeNode` 实现 `integration/node.ts` 的共享 `Node` 接口。`CommandTreeNode`、`NamespaceTreeNode`、`BuiltinCommandTreeNode`、`BuiltinNamespaceTreeNode`、`RootNamespaceTreeNode` 分别对应 integration 的五类节点及 type。`NamespaceTree.root` 是匿名根，节点持有 parent 引用，命名空间持有直接 children 引用；path 仅由父节点链派生。`resolve(parts)` 沿子节点查找；`serialize()` 和 `toJSON()` 输出共享节点快照，不包含 parent，避免循环引用。树从 Profile 与内置 provider 输入建立，按 Profile 排序，管理面板通过 render 接口递归渲染。
+`tree_nodes/` 按类拆分客户端节点，统一实现 Node 接口和 leaf/tree 类型，详见其 model.md。`tree_node.ts` 只负责组织 NamespaceTree：普通匿名 NamespaceTreeNode 作为根，组合服务器描述的受保护子树和本地草稿映射，路径从 parent 引用派生。父节点 remove 检查子节点 permissions.removable。
 
-宿主与 UI 共用 `nodePermissions`、`fixLevel`、`nextFixLevel`；provider 只保存 permissions，不再额外保存 fixed/draggable 状态。内置命令的图钉按其 fixLevels 循环，仅一个可选等级时锁定；tools.intellisense 仅允许等级 2 且不可禁用。禁用按钮及操作回调读取 permissions.disable，不允许禁用时不渲染禁用图标；继承命名空间禁用时，同样按命令权限保留不可禁用命令。内置命令操作区从左到右为禁用、固定，普通命令保持固定、禁用、删除。console 命名空间是否允许提示固定由共享权限决定，不再使用单独的 ConsoleNamespaceTreeNode 类。
-
-`tools` 根命名空间不可禁用：共享 permissions.disable 为 false，UI 不显示禁用按钮且回调不允许禁用；registry 拒绝将 tools 写入 builtinDisabled。tools 下其余命令和 tools.profile 仍保留各自禁用权限，tools.intellisense 始终可用。
+服务端 API 的 provided 字段传递完整 SerializedNode 子树及 Permission，包括 removable 和 availableFixLevels；TreeProvider 不导入内置命令表、不按名称分类。ProvidedCommandTreeNode 和 ProvidedNamespaceTreeNode 仅代理这些描述。固定、禁用、删除、拖动和插入均读取权限。固定状态通过通用 namespaceVisible 路径映射保存；协议无 consolePinned/pinField 等特殊字段。受保护命令按钮从左到右为禁用、固定；不可禁用时不渲染禁用按钮，固定等级只有一个选择时锁定。

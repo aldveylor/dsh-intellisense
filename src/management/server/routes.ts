@@ -2,6 +2,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
 import type { SemanticRegistry } from '../../registry/registry.js';
+import { createNamespace } from '../../integration/namespace.js';
 import type { NamespaceComponent } from '../../integration/namespace_component.js';
 import '@deepseek-ai/dsh-client-connection';
 import { managementHtml } from './page.js';
@@ -15,7 +16,7 @@ const configuration = {
     revision: z.number().int().nonnegative(), mappings: z.array(mapping),
     namespaces: z.array(z.strictObject({ path: z.string(), description: z.string(), alwaysVisible: z.boolean(), disabled: z.boolean().optional() })),
     builtinDisabled: z.array(z.string()).optional(), order: z.array(z.string()), unmountedVisible: visibility, builtinVisible: visibility,
-    consolePinned: z.boolean(), toolComments: z.record(z.string(), z.string()),
+    namespaceVisible: z.record(z.string(), z.boolean()), toolComments: z.record(z.string(), z.string()),
 };
 const managementRequest = z.discriminatedUnion('action', [
     z.strictObject({ action: z.literal('configure'), ...configuration }),
@@ -36,7 +37,7 @@ export function registerManagement(ctx: Context, globalRegistry: SemanticRegistr
                 const registry = globalRegistry;
                 const state = registry.snapshot();
                 const profile = new URL(request.url).searchParams.get('profile') ?? state.profile!;
-                return Response.json({ defaultProfile: state.profile, state: { ...state, ...registry.configuration(profile), profile }, tools: registry.tools(), effective: registry.effective() }, { headers });
+                return Response.json({ defaultProfile: state.profile, state: { ...state, ...registry.configuration(profile), profile }, tools: registry.tools(), provided: [...createNamespace({ tools: registry.tools(), includeUnavailable: true }).children.values()].map(node => node.serialize()), effective: registry.effective() }, { headers });
             }
             if (!request.headers.get('content-type')?.startsWith('application/json')) return Response.json({ error: 'Expected application/json' }, { status: 415, headers });
             const bodyText = await request.text();
@@ -49,7 +50,7 @@ export function registerManagement(ctx: Context, globalRegistry: SemanticRegistr
             const body = parsed.data;
             const registry = globalRegistry;
             if (body.action === 'profile') await registry.manageProfile(body.operation, body.name, body.revision, body.newName, body.activate);
-            else await registry.configure(body.mappings, body.revision, body.namespaces, body.order, body.unmountedVisible, body.action === 'save_as' ? body.profile : undefined, body.toolComments, body.builtinVisible, body.consolePinned, body.editingProfile, body.activate, body.builtinDisabled);
+            else await registry.configure(body.mappings, body.revision, body.namespaces, body.order, body.unmountedVisible, body.action === 'save_as' ? body.profile : undefined, body.toolComments, body.builtinVisible, body.namespaceVisible, body.editingProfile, body.activate, body.builtinDisabled);
             ctx.emit('system-prompt/change');
             return Response.json({ ok: true }, { headers });
         } catch (error) { return Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: 400, headers }); }

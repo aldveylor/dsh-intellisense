@@ -4,10 +4,9 @@ import { ErrorDialog } from './error_dialog.js';
 import { NamespaceTree, type TreeNode, type CommandTreeNode, type NamespaceTreeNode } from './tree_node.js';
 import { useEffect, useState, type ComponentType, type DragEvent } from 'react';
 import type { Namespace, Mapping, PhysicalTool, RegistryState, PinLevel, CommandVisibility, RegistryConfiguration } from '../../registry/registry.js';
-import { nextFixLevel } from '../../integration/node.js';
-import { pluginCommands } from '../../runtime/builtins.js';
-import { validatePath } from '../../registry/path.js';
-import { TreeProvider, unmountedTools } from './tree_provider.js';
+import { nextFixLevel, type SerializedNode } from '../../integration/node.js';
+import { validateNodePath as validatePath } from '../../integration/node.js';
+import { TreeProvider, unmountedTools, providedNamespace } from './tree_provider.js';
 import { ProfilePicker, ProfileSelect as PortableProfileSelect, type ProfileSelectProps } from '../profile_picker/profile_picker.js';
 import { ToolPicker } from '../tool_picker/tool_picker.js';
 import { useTreeDrag, treeDropTarget, showTreeDropFeedback, clearTreeDropFeedback } from './tree_drag.js';
@@ -15,6 +14,7 @@ import { isFixedNamespace, namespacePaths, orderedPaths, inNamespace, renameName
 
 /** @brief Authenticated management metadata, shared by embedded and standalone React views. */
 interface View {
+    provided: SerializedNode[];
     defaultProfile: string;
     state: RegistryState;
     tools: PhysicalTool[];
@@ -36,13 +36,13 @@ async function request<T>(api: string, body?: unknown, signal?: AbortSignal): Pr
 }
 
 /** @brief Normalize the same Profile configuration for comparison and persistence. */
-function profileDraft(state: Pick<RegistryState, keyof RegistryConfiguration>): RegistryConfiguration {
+function profileDraft(state: Pick<RegistryState, keyof RegistryConfiguration>, provided: readonly SerializedNode[] = []): RegistryConfiguration {
     const mappings = state.mappings.map(mapping => ({ ...mapping, path: mapping.path.trim(), aliases: mapping.aliases.map(alias => alias.trim()).filter(Boolean) }));
     const namespaces = state.namespaces ?? [];
-    const paths = [...TreeProvider(state.builtinVisible ?? pluginCommands.defaultBuiltinVisible).map(node => node.path), ...namespacePaths({ mappings, namespaces }), ...mappings.flatMap(mapping => [mapping.path, ...mapping.aliases])];
+    const paths = [...TreeProvider(provided, state.builtinVisible ?? {}).map(node => node.path), ...namespacePaths({ mappings, namespaces }), ...mappings.flatMap(mapping => [mapping.path, ...mapping.aliases])];
     return {
-        mappings, namespaces, unmountedVisible: state.unmountedVisible ?? {}, builtinVisible: state.builtinVisible ?? pluginCommands.defaultBuiltinVisible,
-        builtinDisabled: state.builtinDisabled ?? [], consolePinned: state.consolePinned ?? false, toolComments: state.toolComments ?? {},
+        mappings, namespaces, unmountedVisible: state.unmountedVisible ?? {}, builtinVisible: state.builtinVisible ?? {},
+        builtinDisabled: state.builtinDisabled ?? [], namespaceVisible: state.namespaceVisible ?? {}, toolComments: state.toolComments ?? {},
         order: orderedPaths([...new Set(paths)], (state.order ?? []).map(path => path.trim())),
     };
 }
@@ -113,12 +113,12 @@ function CommandNode({ node, tree }: { node: CommandTreeNode; tree: TreeProps })
     const t = useTranslation();
     const { path, mapping, command, fixed, description } = node;
     const id = mapping?.id ?? command?.id;
-    const readOnly = node.fixed;
+    const readOnly = !node.permissions.renamable;
     const invalid = !!mapping && !tree.tools.some(tool => tool.id === id);
     const draggable = !tree.busy && node.draggable;
-    const disableButton = node.permissions.disable ? <DisableButton disabled={tree.disabled(path)} busy={tree.busy} toggle={() => tree.toggleDisabled(path)} /> : null;
+    const disableButton = node.permissions.disableable ? <DisableButton disabled={tree.disabled(path)} busy={tree.busy} toggle={() => tree.toggleDisabled(path)} /> : null;
     const pinButton = <PinButton label={t('pin_command', { path })} active={!!node.level} level={node.level} busy={tree.busy || !!command?.disabled}
-        locked={node.permissions.fixLevels.length <= 1}
+        locked={node.permissions.availableFixLevels.length <= 1}
         toggle={() => { if (command) tree.pinBuiltin(path); else if (mapping) tree.pinTool(mapping); else if (id) tree.pinUnmounted(id); }} />;
     return <li className={`ts-tree-tool${fixed ? ' ts-fixed-node' : ''}${invalid ? ' ts-tool-invalid' : ''}`}
         aria-disabled={tree.disabled(path) || undefined} data-tool-status={tree.disabled(path) ? 'disabled' : invalid ? 'invalid' : 'available'} data-tree-path={path} data-tool-id={id} data-drop-disabled={readOnly || undefined}
@@ -142,7 +142,7 @@ function CommandNode({ node, tree }: { node: CommandTreeNode; tree: TreeProps })
             {command && disableButton}
             {pinButton}
             {!command && disableButton}
-            {!readOnly && <RemoveButton label={t('remove_mapping', { path })} busy={tree.busy || !!mapping?.pinned} remove={() => tree.remove(path)} />}
+            {node.permissions.removable && <RemoveButton label={t('remove_mapping', { path })} busy={tree.busy || !!mapping?.pinned} remove={() => tree.remove(path)} />}
         </span>
     </li>;
 }
@@ -201,7 +201,7 @@ interface TreeProps {
     editDescription: (id: string) => void; remove: (path: string) => void; pinTool: (mapping: Mapping) => void;
     renameNamespace: (path: string, name: string) => boolean; deleteNamespace: (path: string) => void;
     toggle: (path: string) => void; dropNode: (event: DragEvent<HTMLElement>, path: string, namespace: boolean) => void;
-    consolePinned: boolean; toggleConsole: () => void;
+    namespaceVisible: Record<string, boolean>; toggleProvidedNamespace: (path: string) => void;
     pinBuiltin: (path: string) => void; toolComments: Record<string, string>; unmountedVisible: CommandVisibility; pinUnmounted: (id: string) => void;
 }
 
@@ -211,16 +211,16 @@ function NamespaceNode({ node, tree }: { node: NamespaceTreeNode; tree: TreeProp
     const { path, fixed, metadata: config, count } = node;
     const open = tree.expanded[path] ?? false;
     return <li data-tree-path={path} data-disabled={tree.disabled(path) || undefined}>
-        <div className={`ts-node-block${fixed ? ' ts-fixed-node' : ''}`} data-namespace-path={path} data-drop-disabled={fixed || undefined} draggable={!tree.busy && !fixed} onDragStart={event => {
-            if (fixed) { event.preventDefault(); return; }
+        <div className={`ts-node-block${fixed ? ' ts-fixed-node' : ''}`} data-namespace-path={path} data-drop-disabled={!node.permissions.acceptsChildren || undefined} draggable={!tree.busy && node.permissions.movable} onDragStart={event => {
+            if (!node.permissions.movable) { event.preventDefault(); return; }
             if ((event.target as HTMLElement).tagName === 'INPUT') { event.preventDefault(); return; }
             event.stopPropagation(); event.dataTransfer.setData('application/x-ts-namespace', path); event.dataTransfer.effectAllowed = 'move';
-        }} onDragOver={event => acceptTreeDrag(event, tree.busy || fixed)} onDragLeave={() => clearTreeDropFeedback()} onDrop={event => tree.dropNode(event, path, true)}>
+        }} onDragOver={event => acceptTreeDrag(event, tree.busy || !node.permissions.acceptsChildren)} onDragLeave={() => clearTreeDropFeedback()} onDrop={event => tree.dropNode(event, path, true)}>
             <button className="ts-disclosure" type="button" aria-label={t('toggle_namespace', { path })} aria-expanded={open} disabled={tree.busy}
                 onClick={() => tree.toggle(path)}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
             </button>
-            {fixed ? <span className="ts-node-name" title={path}>{path.split('.').at(-1)}</span> : <EditableText className="ts-node-name" value={path.split('.').at(-1)!} label={t('namespace_path_name', { path })} busy={tree.busy}
+            {!node.permissions.renamable ? <span className="ts-node-name" title={path}>{path.split('.').at(-1)}</span> : <EditableText className="ts-node-name" value={path.split('.').at(-1)!} label={t('namespace_path_name', { path })} busy={tree.busy}
                 commit={name => tree.renameNamespace(path, name)} />}
             <small className="ts-node-count" aria-label={t('command_count', { path })}>{count}</small>
             {fixed ? <span className="ts-node-preview">{node.description}</span> : <><EditableText className="ts-node-preview" value={config?.description ?? ''} label={t('namespace_comment', { path })} busy={tree.busy} empty
@@ -228,19 +228,19 @@ function NamespaceNode({ node, tree }: { node: NamespaceTreeNode; tree: TreeProp
             <span className="ts-node-actions">
                 <PinButton label={t('pin_namespace', { path })} active={config?.alwaysVisible ?? false} busy={tree.busy}
                     toggle={() => tree.configure(path, { alwaysVisible: !config?.alwaysVisible })} />
-                <DisableButton disabled={tree.disabled(path)} busy={tree.busy} toggle={() => tree.toggleDisabled(path)} />
-                <RemoveButton label={t('delete_namespace', { path })} busy={tree.busy} remove={() => tree.deleteNamespace(path)} />
+                {node.permissions.disableable && <DisableButton disabled={tree.disabled(path)} busy={tree.busy} toggle={() => tree.toggleDisabled(path)} />}
+                {node.permissions.removable && <RemoveButton label={t('delete_namespace', { path })} busy={tree.busy} remove={() => tree.deleteNamespace(path)} />}
             </span></>}
             {node.pinMode === 'locked' && <span className="ts-node-actions">
-                {node.permissions.disable && <DisableButton disabled={tree.disabled(path)} busy={tree.busy} toggle={() => tree.toggleDisabled(path)} />}
+                {node.permissions.disableable && <DisableButton disabled={tree.disabled(path)} busy={tree.busy} toggle={() => tree.toggleDisabled(path)} />}
                 <PinButton label={t('fixed_namespace')} tooltip={t('fixed_namespace')} active busy={tree.busy} locked toggle={() => {}} />
             </span>}
-            {node.pinMode === 'console' && <span className="ts-node-actions">
-                {node.permissions.disable && <DisableButton disabled={tree.disabled(path)} busy={tree.busy} toggle={() => tree.toggleDisabled(path)} />}
-                <PinButton label={t('pin_namespace', { path })} active={tree.consolePinned} busy={tree.busy} toggle={tree.toggleConsole} />
+            {node.pinMode === 'provided' && <span className="ts-node-actions">
+                {node.permissions.disableable && <DisableButton disabled={tree.disabled(path)} busy={tree.busy} toggle={() => tree.toggleDisabled(path)} />}
+                <PinButton label={t('pin_namespace', { path })} active={tree.namespaceVisible[path] ?? false} busy={tree.busy} toggle={() => tree.toggleProvidedNamespace(path)} />
             </span>}
         </div>
-        {open && <ul>{node.children.map(child => <TreeNodeView key={child.path} node={child} tree={tree} />)}{!fixed && <NamespacePlaceholder parent={path} busy={tree.busy} create={tree.create} drop={tree.drop} pick={tree.pick} />}</ul>}
+        {open && <ul>{node.children.map(child => <TreeNodeView key={child.path} node={child} tree={tree} />)}{node.permissions.acceptsChildren && <NamespacePlaceholder parent={path} busy={tree.busy} create={tree.create} drop={tree.drop} pick={tree.pick} />}</ul>}
     </li>;
 }
 
@@ -259,8 +259,8 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
     const [order, setOrder] = useState<string[]>([]);
     const [expanded, setExpanded] = useState<Record<string, boolean>>({});
     const [builtinDisabled, setBuiltinDisabled] = useState<string[]>([]);
-    const [consolePinned, setConsolePinned] = useState(false);
-    const [builtinVisible, setBuiltinVisible] = useState<CommandVisibility>({ ...pluginCommands.defaultBuiltinVisible });
+    const [namespaceVisible, setNamespaceVisible] = useState<Record<string, boolean>>({});
+    const [builtinVisible, setBuiltinVisible] = useState<CommandVisibility>({ ...{} });
     const [unmountedVisible, setUnmountedVisible] = useState<CommandVisibility>({});
     const [toolComments, setToolComments] = useState<Record<string, string>>({});
     const [descriptionEditor, setDescriptionEditor] = useState<{ id: string; text?: string }>();
@@ -280,8 +280,8 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
         setView(snapshot); setMappings(structuredClone(snapshot.state.mappings));
         setNamespaces(structuredClone(snapshot.state.namespaces ?? []));
         setUnmountedVisible(structuredClone(snapshot.state.unmountedVisible ?? {}));
-        setBuiltinVisible(structuredClone(snapshot.state.builtinVisible ?? pluginCommands.defaultBuiltinVisible));
-        setConsolePinned(snapshot.state.consolePinned ?? false);
+        setBuiltinVisible(structuredClone(snapshot.state.builtinVisible ?? {}));
+        setNamespaceVisible(snapshot.state.namespaceVisible ?? {});
         setBuiltinDisabled(snapshot.state.builtinDisabled ?? []);
         setToolComments(structuredClone(snapshot.state.toolComments ?? {}));
         setOrder(orderedPaths([...namespacePaths({ mappings: snapshot.state.mappings, namespaces: snapshot.state.namespaces ?? [] }), ...snapshot.state.mappings.flatMap(m => [m.path, ...m.aliases])], snapshot.state.order ?? []));
@@ -290,7 +290,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
 
     useEffect(() => {
         const controller = new AbortController();
-        setView(undefined); setBuiltinDisabled([]); setConsolePinned(false); setMappings([]); setNamespaces([]); setUnmountedVisible({}); setToolComments({}); setOrder([]); setExpanded({}); setDescriptionEditor(undefined); setToolPicker(undefined); setStatus('loading');
+        setView(undefined); setBuiltinDisabled([]); setNamespaceVisible({}); setMappings([]); setNamespaces([]); setUnmountedVisible({}); setToolComments({}); setOrder([]); setExpanded({}); setDescriptionEditor(undefined); setToolPicker(undefined); setStatus('loading');
         void reload(controller.signal, null).catch(error => { if (!controller.signal.aborted) setStatus(String(error instanceof Error ? error.message : error)); });
         return () => controller.abort();
     }, [api]);
@@ -303,14 +303,14 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
         finally { setBusy(false); }
     }
 
-    const provided = TreeProvider(builtinVisible, (view?.tools.find(tool => tool.id === 'tools_search')?.parameters.properties as Record<string, { enum?: string[] }> | undefined)?.method?.enum ?? []);
+    const provided = TreeProvider(view?.provided ?? [], builtinVisible);
     const namespaceTree = new NamespaceTree({ mappings, namespaces, order }, provided, view?.tools ?? []);
-    const unmounted = unmountedTools(view?.tools ?? [], mappings);
+    const unmounted = unmountedTools(view?.tools ?? [], mappings, provided);
     const paths = [...new Set([...provided.map(node => node.path), ...namespacePaths({ mappings, namespaces })])];
     const saved = view?.state;
-    const draft = profileDraft({ mappings, namespaces, unmountedVisible, builtinVisible, builtinDisabled, consolePinned, toolComments, order });
+    const draft = profileDraft({ mappings, namespaces, unmountedVisible, builtinVisible, builtinDisabled, namespaceVisible, toolComments, order }, view?.provided);
     const newProfile = !!saved && !saved.profiles?.includes(saved.profile!);
-    const dirty = !!saved && (newProfile || JSON.stringify(draft) !== JSON.stringify(profileDraft(saved)));
+    const dirty = !!saved && (newProfile || JSON.stringify(draft) !== JSON.stringify(profileDraft(saved, view?.provided)));
 
     /** @brief Change the default while preserving the editor's selection and draft. */
     function selectDefault(name: string): void {
@@ -327,7 +327,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
     /** @brief Create a local empty profile; persistence occurs only when saving. */
     function createProfile(name: string): void {
         if (!view) return;
-        applyView({ ...view, state: { ...view.state, profile: name, mappings: [], namespaces: [], order: [], unmountedVisible: {}, builtinDisabled: [], builtinVisible: { ...pluginCommands.defaultBuiltinVisible }, consolePinned: false, toolComments: {} } });
+        applyView({ ...view, state: { ...view.state, profile: name, mappings: [], namespaces: [], order: [], unmountedVisible: {}, builtinDisabled: [], builtinVisible: { ...{} }, namespaceVisible: {}, toolComments: {} } });
         setExpanded({}); setToolPicker(undefined); setDescriptionEditor(undefined);
     }
 
@@ -353,7 +353,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
 
     /** @brief Keep inferred and explicitly created namespaces in the same draft metadata model. */
     function configureNamespace(path: string, patch: Partial<Namespace>): void {
-        if (isFixedNamespace(path)) return;
+        if (isFixedNamespace(path, provided)) return;
         setNamespaces(current => {
             const next = { path, alwaysVisible: false, description: '', ...current.find(n => n.path === path), ...patch };
             return current.some(n => n.path === path) ? current.map(n => n.path === path ? next : n) : [...current, next];
@@ -362,7 +362,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
 
     /** @brief Commit only named namespaces that do not conflict with callable paths. */
     function createNamespace(path: string): boolean {
-        if (isFixedNamespace(path)) { setStatus('fixed_namespace'); return false; }
+        if (isFixedNamespace(path, provided)) { setStatus('fixed_namespace'); return false; }
         const toolPaths = mappings.flatMap(m => [m.path, ...m.aliases]);
         if (!/^[a-zA-Z_$][\w$]*(\.[a-zA-Z_$][\w$]*)*$/.test(path) || paths.includes(path) ||
             toolPaths.some(p => p === path || path.startsWith(`${p}.`))) {
@@ -404,9 +404,11 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
     /** @brief Remove a single mapping, promoting another mapped path when one remains. */
     function removeMapping(path: string): void {
         const mapping = mappings.find(m => m.path === path || m.aliases.includes(path));
-        if (busy || !mapping || mapping.pinned) return;
+        const node = namespaceTree.root.resolve(path.split('.'));
+        if (busy || !mapping || mapping.pinned || !node?.permissions.removable) return;
         const parent = path.split('.').slice(0, -1).join('.');
         if (parent) configureNamespace(parent, {});
+        node.parent?.remove(node.name);
         const remaining = [mapping.path, ...mapping.aliases].filter(p => p !== path);
         if (!remaining.length && mapping.alwaysVisible) setUnmountedVisible(current => ({ ...current, [mapping.id]: mapping.alwaysVisible! }));
         setMappings(current => current.flatMap(m => m.id !== mapping.id ? [m] : remaining.length ? [{ ...m, path: remaining[0]!, aliases: remaining.slice(1) }] : []));
@@ -417,8 +419,11 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
     function editNamespace(source: string, name?: string): boolean {
         if (busy || !view) return false;
         try {
-            const draft = { mappings, namespaces, order };
+            const node = namespaceTree.root.resolve(source.split('.'));
+            if (!node || (name === undefined ? !node.permissions.removable : !node.permissions.renamable)) throw new Error('fixed_namespace');
+            const draft = { mappings, namespaces, order, provided };
             const next = name === undefined ? deleteNamespace(draft, source) : renameNamespace(draft, source, name);
+            if (name === undefined) node.parent?.remove(node.name);
             const lostPins = mappings.filter(mapping => mapping.alwaysVisible && !next.mappings.some(next => next.id === mapping.id)).map(mapping => [mapping.id, mapping.alwaysVisible!] as const);
             if (lostPins.length) setUnmountedVisible(current => ({ ...current, ...Object.fromEntries(lostPins) }));
             setMappings(next.mappings); setNamespaces(next.namespaces); setOrder(next.order);
@@ -436,7 +441,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
         try {
             if (!source.namespace && !view.tools.some(tool => tool.id === source.id)) return;
             const name = view.effective.find(m => m.id === source.id)?.path.split('.').at(-1) || source.id?.replace(/[^a-zA-Z0-9_$]/g, '_').replace(/^(?=\d)/, '_');
-            const next = dropTree({ mappings, namespaces, order }, source, target, name);
+            const next = dropTree({ mappings, namespaces, order, provided }, source, target, name);
             for (const mapping of next.mappings) if (!mappings.some(current => current.id === mapping.id) && unmountedVisible[mapping.id]) mapping.alwaysVisible = unmountedVisible[mapping.id];
             setUnmountedVisible(current => Object.fromEntries(Object.entries(current).filter(([id]) => !next.mappings.some(mapping => mapping.id === id))));
             if (source.namespace && source.path) {
@@ -459,13 +464,13 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
     const drag = useTreeDrag(applyDrop);
 
     const tree: TreeProps = {
-        disabled: path => !!namespaceTree.root.resolve(path.split('.'))?.permissions.disable && (builtinDisabled.some(prefix => inNamespace(path, prefix))
+        disabled: path => !!namespaceTree.root.resolve(path.split('.'))?.permissions.disableable && (builtinDisabled.some(prefix => inNamespace(path, prefix))
             || namespaces.some(node => node.disabled && inNamespace(path, node.path))
             || mappings.some(mapping => mapping.disabled && [mapping.path, ...mapping.aliases].includes(path))),
         toggleDisabled: path => {
             const node = namespaceTree.root.resolve(path.split('.'));
-            if (busy || !node?.permissions.disable) return;
-            if (node.type === 'inner_command' || node.type === 'inner_namespace') {
+            if (busy || !node?.permissions.disableable) return;
+            if (providedNamespace(path, provided)) {
                 setBuiltinDisabled(current => current.includes(path) ? current.filter(item => item !== path) : [...current, path]);
             } else {
                 const mapping = mappings.find(item => [item.path, ...item.aliases].includes(path));
@@ -473,11 +478,11 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
                 else configureNamespace(path, { disabled: !namespaces.find(node => node.path === path)?.disabled });
             }
         },
-        consolePinned, toggleConsole: () => setConsolePinned(current => !current),
+        namespaceVisible, toggleProvidedNamespace: path => setNamespaceVisible(current => ({ ...current, [path]: !current[path] })),
         expanded, tools: view?.tools ?? [], busy: busy || !view,
         pinBuiltin: path => {
             const node = namespaceTree.root.resolve(path.split('.'));
-            if (busy || !node || node.permissions.fixLevels.length <= 1) return;
+            if (busy || !node || node.permissions.availableFixLevels.length <= 1) return;
             setBuiltinVisible(current => ({ ...current, [path]: nextFixLevel(node.permissions, current[path] ?? 0) }));
         },
         toolComments, unmountedVisible, pinUnmounted: id => setUnmountedVisible(current => ({ ...current, [id]: nextPinLevel(current[id] ?? 0) })),

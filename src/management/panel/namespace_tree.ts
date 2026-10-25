@@ -1,14 +1,14 @@
-import { providedNamespace } from './tree_provider.js';
-import { validatePath } from '../../registry/path.js';
+import { providedNamespace, type ProvidedNamespace } from './tree_provider.js';
+import { validateNodePath as validatePath } from '../../integration/node.js';
 import type { Mapping, Namespace } from '../../registry/registry.js';
 
 /** @brief The editable tree configuration independent of physical tool identities. */
-export interface TreeDraft { mappings: Mapping[]; namespaces: Namespace[]; order: string[] }
+export interface TreeDraft { mappings: Mapping[]; namespaces: Namespace[]; order: string[]; provided?: readonly ProvidedNamespace[] }
 
 /** @brief Fixed namespaces are display-only and cannot receive configurable tree nodes. */
-export function isFixedNamespace(path: string): boolean {
-    const permissions = providedNamespace(path)?.permissions;
-    return !!permissions && !permissions.rename && !permissions.move && !permissions.remove;
+export function isFixedNamespace(path: string, provided: readonly ProvidedNamespace[] = []): boolean {
+    const permissions = providedNamespace(path, provided)?.permissions;
+    return !!permissions && !permissions.renamable && !permissions.movable && !permissions.removable;
 }
 
 /** @brief List explicit and inferred namespace paths. */
@@ -37,7 +37,7 @@ export function renameNamespace(draft: TreeDraft, source: string, name: string):
 
 /** @brief Move a complete namespace subtree to an explicitly resolved destination. */
 function relocateNamespace(draft: TreeDraft, source: string, target: string): TreeDraft {
-    if (isFixedNamespace(source) || isFixedNamespace(target)) throw new Error('fixed_namespace');
+    if (isFixedNamespace(source, draft.provided) || isFixedNamespace(target, draft.provided)) throw new Error('fixed_namespace');
     validatePath(`${target}.namespace_check`);
     if (target !== source && inNamespace(target, source)) throw new Error('namespace_cycle');
     if (source === target) return draft;
@@ -52,15 +52,15 @@ function relocateNamespace(draft: TreeDraft, source: string, target: string): Tr
     for (const path of mappings.flatMap(m => [m.path, ...m.aliases])) {
         if (namespaces.some(n => inNamespace(n.path, path))) throw new Error('namespace_command_conflict');
     }
-    return { mappings, namespaces, order: draft.order.map(move) };
+    return { ...draft, mappings, namespaces, order: draft.order.map(move) };
 }
 
 /** @brief Delete a subtree's namespace metadata and mappings, keeping physical tools and outside mappings. */
 export function deleteNamespace(draft: TreeDraft, source: string): TreeDraft {
-    if (isFixedNamespace(source)) throw new Error('fixed_namespace');
+    if (isFixedNamespace(source, draft.provided)) throw new Error('fixed_namespace');
     if (draft.mappings.some(m => m.pinned && [m.path, ...m.aliases].some(p => inNamespace(p, source)))) throw new Error('locked_namespace_mapping');
     return {
-        namespaces: draft.namespaces.filter(n => !inNamespace(n.path, source)),
+        ...draft, namespaces: draft.namespaces.filter(n => !inNamespace(n.path, source)),
         mappings: draft.mappings.flatMap(m => {
             const paths = [m.path, ...m.aliases].filter(path => !inNamespace(path, source));
             return paths.length ? [{ ...m, path: paths[0]!, aliases: paths.slice(1) }] : [];
@@ -72,7 +72,7 @@ export function deleteNamespace(draft: TreeDraft, source: string): TreeDraft {
 /** @brief Reorder sibling commands and namespaces without changing their semantic paths. */
 export function reorderTree(draft: TreeDraft, source: string, target: string, after: boolean): string[] {
     const parent = (path: string): string => path.split('.').slice(0, -1).join('.');
-    if (isFixedNamespace(source) || isFixedNamespace(parent(target))) throw new Error('fixed_namespace');
+    if (isFixedNamespace(source, draft.provided) || isFixedNamespace(parent(target), draft.provided)) throw new Error('fixed_namespace');
     const paths = [...namespacePaths(draft), ...draft.mappings.flatMap(m => [m.path, ...m.aliases])];
     if (source === target || parent(source) !== parent(target) || !paths.includes(source) || !paths.includes(target)) return draft.order;
     const order = orderedPaths(paths, draft.order).filter(path => path !== source);
@@ -88,13 +88,13 @@ export interface TreeDropTarget { path: string; position: 'inside' | 'before' | 
 /** @brief Move or mount any tree node atomically, including cross-namespace insertion beside commands. */
 export function dropTree(draft: TreeDraft, source: TreeDragSource, target: TreeDropTarget, defaultName = 'command'): TreeDraft {
     const parent = target.position === 'inside' ? target.path : target.path.split('.').slice(0, -1).join('.');
-    if (isFixedNamespace(parent)) throw new Error('fixed_drop_target');
-    if ((source.namespace && source.path && isFixedNamespace(source.path)) || (source.path && providedNamespace(source.path)?.commands.some(command => command.path === source.path && !command.permissions.move))) throw new Error('fixed_move_source');
+    if (isFixedNamespace(parent, draft.provided)) throw new Error('fixed_drop_target');
+    if ((source.namespace && source.path && isFixedNamespace(source.path)) || (source.path && providedNamespace(source.path, draft.provided)?.commands.some(command => command.path === source.path && !command.permissions.movable))) throw new Error('fixed_move_source');
     const namespaces = namespacePaths(draft);
     if (parent && !namespaces.includes(parent)) throw new Error('missing_drop_namespace');
     if (target.position !== 'inside' && ![...namespaces, ...draft.mappings.flatMap(m => [m.path, ...m.aliases])].includes(target.path)) throw new Error('missing_drop_node');
     const mapping = draft.mappings.find(m => m.id === source.id);
-    const previous = !mapping && source.path && providedNamespace(source.path) ? undefined : source.path || (source.namespace ? undefined : mapping?.path);
+    const previous = !mapping && source.path && providedNamespace(source.path, draft.provided) ? undefined : source.path || (source.namespace ? undefined : mapping?.path);
     if (!source.namespace && mapping?.pinned) throw new Error('locked_mapping');
     if (previous === target.path && target.position !== 'inside') return draft;
     if (source.namespace && (!previous || !namespaces.includes(previous))) throw new Error('missing_source_namespace');
@@ -117,7 +117,7 @@ export function dropTree(draft: TreeDraft, source: TreeDragSource, target: TreeD
         next = { ...draft, mappings: mapping ? draft.mappings.map(m => m.id === source.id ? entry : m) : [...draft.mappings, entry], namespaces: [...draft.namespaces] };
     }
     const oldParent = previous?.split('.').slice(0, -1).join('.');
-    for (const keep of [parent, oldParent]) if (keep && !isFixedNamespace(keep) && !next.namespaces.some(n => n.path === keep)) next.namespaces.push({ path: keep, alwaysVisible: false, description: '' });
+    for (const keep of [parent, oldParent]) if (keep && !isFixedNamespace(keep, draft.provided) && !next.namespaces.some(n => n.path === keep)) next.namespaces.push({ path: keep, alwaysVisible: false, description: '' });
     const move = (p: string): string => previous && (source.namespace ? inNamespace(p, previous) : p === previous) ? path + p.slice(previous.length) : p;
     const all = orderedPaths([...namespacePaths(next), ...next.mappings.flatMap(m => [m.path, ...m.aliases])], draft.order.map(move));
     const moving = all.filter(p => source.namespace ? inNamespace(p, path) : p === path);

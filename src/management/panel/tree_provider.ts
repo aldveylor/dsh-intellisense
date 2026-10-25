@@ -1,33 +1,45 @@
 import type { Mapping, PhysicalTool, PinLevel, CommandVisibility } from '../../registry/registry.js';
-import { nodePermissions, type NodePermissions } from '../../integration/node.js';
-import { pluginCommands } from '../../runtime/builtins.js';
+import { fixLevel, type Permission, type SerializedNode } from '../../integration/node.js';
 
-/** @brief Provider command metadata supplies interaction rules independently of its name. */
+/** @brief Client command metadata comes entirely from the server's node description. */
 export interface ProvidedCommand {
     path: string; id?: string; signature?: string; description: string;
-    permissions: NodePermissions; alwaysVisible: PinLevel; disabled?: boolean;
+    permissions: Permission; alwaysVisible: PinLevel; disabled?: boolean;
+    node: SerializedNode;
 }
 
-/** @brief Synthetic namespaces share the ordinary namespace renderer through fixed props. */
-export interface ProvidedNamespace { path: string; description: string; permissions: NodePermissions; commands: ProvidedCommand[]; children?: ProvidedNamespace[] }
+/** @brief A protected subtree is projected without client knowledge of its names or server classes. */
+export interface ProvidedNamespace { path: string; description: string; permissions: Permission; commands: ProvidedCommand[]; children?: ProvidedNamespace[]; node: SerializedNode }
 
-/** @brief List currently available tools without a mounted path in the active draft. */
-export function unmountedTools(tools: PhysicalTool[], mappings: Mapping[]): PhysicalTool[] {
+/** @brief List physical tools that have neither a mapping nor a server-owned node. */
+export function unmountedTools(tools: PhysicalTool[], mappings: Mapping[], provided: readonly ProvidedNamespace[] = []): PhysicalTool[] {
     const mounted = new Set(mappings.filter(mapping => mapping.path.trim()).map(mapping => mapping.id));
-    return tools.filter(tool => !tool.id.startsWith('tools_') && !['exec', 'run_code'].includes(tool.id) && !mounted.has(tool.id));
+    const visit = (namespace: ProvidedNamespace): void => {
+        for (const command of namespace.commands) if (command.id) mounted.add(command.id);
+        for (const child of namespace.children ?? []) visit(child);
+    };
+    provided.forEach(visit);
+    return tools.filter(tool => !mounted.has(tool.id));
 }
 
-/** @brief Provider owns visible, fixed runtime namespaces; unmounted tools use the picker. */
-export function TreeProvider(visible: CommandVisibility = pluginCommands.defaultBuiltinVisible, searchMethods?: readonly string[]): ProvidedNamespace[] {
-    return [{ path: 'tools', description: 'Tool discovery and Profile management', permissions: nodePermissions('inner_namespace', 'tools'),
-        commands: [{ ...pluginCommands.discoveryCommand, id: 'tools_intellisense', permissions: nodePermissions('inner_command', pluginCommands.discoveryCommand.path), alwaysVisible: 2 }, { ...pluginCommands.searchContract(searchMethods), id: 'tools_search', permissions: nodePermissions('inner_command', pluginCommands.searchCommand.path), alwaysVisible: visible['tools.search'] ?? 0 }],
-        children: [{ path: 'tools.profile', description: 'Profile data and configuration', permissions: nodePermissions('inner_namespace', 'tools.profile'), commands: [...pluginCommands.managementCommands, ...pluginCommands.profileValues].map(command => ({ ...command, permissions: nodePermissions('inner_command', command.path), alwaysVisible: visible[command.path] ?? 0 })) }] },
-        { path: 'console', description: 'Native console output', permissions: nodePermissions('inner_namespace', 'console'),
-        commands: pluginCommands.consoleCommands.map(command => ({ ...command, permissions: nodePermissions('inner_command', command.path), alwaysVisible: visible[command.path] ?? 0 })) }];
+/** @brief Convert serialized tree/leaf descriptions into view contracts and apply the local draft. */
+export function TreeProvider(nodes: readonly SerializedNode[], visible: CommandVisibility = {}): ProvidedNamespace[] {
+    const visit = (node: SerializedNode, parent: string): ProvidedNamespace => {
+        const path = parent ? `${parent}.${node.name}` : node.name;
+        return { path, description: node.description ?? '', permissions: node.permissions, node,
+            commands: (node.children ?? []).filter(child => child.type === 'leaf').map(child => ({ path: `${path}.${child.name}`, id: child.deployment === 'tool' ? child.command?.tool : undefined,
+                signature: child.signature, description: child.description ?? child.command?.doc ?? '', permissions: child.permissions,
+                alwaysVisible: fixLevel(child.permissions, visible[`${path}.${child.name}`] ?? 0), node: child })),
+            children: (node.children ?? []).filter(child => child.type === 'tree').map(child => visit(child, path)) };
+    };
+    return nodes.filter(node => node.type === 'tree').map(node => visit(node, ''));
 }
 
-/** @brief Resolve fixed runtime namespaces and their descendants. */
-export function providedNamespace(path: string): ProvidedNamespace | undefined {
-    const roots = TreeProvider();
-    return [...roots.flatMap(node => node.children ?? []), ...roots].find(node => path === node.path || path.startsWith(`${node.path}.`));
+/** @brief Resolve a server-described namespace or its descendants without any reserved-name table. */
+export function providedNamespace(path: string, roots: readonly ProvidedNamespace[] = []): ProvidedNamespace | undefined {
+    for (const node of roots) {
+        const child = providedNamespace(path, node.children ?? []);
+        if (child) return child;
+        if (path === node.path || path.startsWith(`${node.path}.`)) return node;
+    }
 }
