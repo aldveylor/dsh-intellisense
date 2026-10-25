@@ -7,6 +7,7 @@ import type { Store } from '../storage/store.js';
 /** @brief Stable physical identity and the enforced native JSON contracts. */
 export interface PhysicalTool {
     id: string;
+    source?: string;
     description: string;
     parameters: Record<string, unknown>;
     output: unknown;

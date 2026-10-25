@@ -1,5 +1,20 @@
 /** @brief Chinese interface dictionary. */
 export const zh = {
+    "tool_name": "工具名",
+    "tool_source": "来源",
+    "tool_description": "工具描述",
+    "tool_parameters": "参数",
+    "tool_returns": "返回值",
+    "tool_total_calls": "总调用次数",
+    "tool_no_description": "暂无描述",
+    "tool_calls_label": "总调用次数：{count}",
+    "tool_sort": "工具排序",
+    "tool_sort_default": "默认顺序",
+    "tool_sort_name_asc": "名称：升序",
+    "tool_sort_name_desc": "名称：降序",
+    "tool_sort_calls_desc": "调用次数：从多到少",
+    "tool_sort_calls_asc": "调用次数：从少到多",
+
     "disable_node": "禁用",
     "enable_node": "启用",
     "builtin_schema": "Schema",

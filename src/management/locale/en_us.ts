@@ -1,5 +1,20 @@
 /** @brief American English interface dictionary. */
 export const enUs = {
+    "tool_name": "Tool name",
+    "tool_source": "Source",
+    "tool_description": "Description",
+    "tool_parameters": "Parameters",
+    "tool_returns": "Returns",
+    "tool_total_calls": "Total calls",
+    "tool_no_description": "No description",
+    "tool_calls_label": "Total calls: {count}",
+    "tool_sort": "Sort tools",
+    "tool_sort_default": "Default order",
+    "tool_sort_name_asc": "Name: A–Z",
+    "tool_sort_name_desc": "Name: Z–A",
+    "tool_sort_calls_desc": "Calls: high to low",
+    "tool_sort_calls_asc": "Calls: low to high",
+
     "disable_node": "Disable",
     "enable_node": "Enable",
     "builtin_schema": "Schema",
