@@ -84,7 +84,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "npm run build && tsx --test tests/**/*.test.ts",
     "lint": "eslint --config scripts/eslint_config.mjs src tests",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "screenshots": "npm run build && node scripts/screenshots.mjs"
   },
   "license": "Apache-2.0",
   "dependencies": {

@@ -11,7 +11,7 @@ Both Agent Modes use the same namespace configuration:
 
 ## Getting started
 
-Requires Node.js >=24. The runtime uses Node.js native permissions (`--permission`). Node.js 24 permissions do not restrict network access. Isolation requirements are checked when the runtime loads.
+Requires Node.js >=24 and DSH >=0.2.1-rc.2. The runtime uses Node.js native permissions (`--permission`). Node.js 24 permissions do not restrict network access. Isolation requirements are checked when the runtime loads.
 
 Run these commands from the project root:
 
@@ -65,15 +65,37 @@ Native DSML proxies revalidate the actual caller's tool visibility at execution 
 
 ### Namespace management
 
-The namespace tree shows tool groups, call names, and descriptions. Expand groups, double-click names or comments to edit them, drag sibling entries to reorder them, and set pinned hint levels. Use the controls above the tree to switch, save, or save a copy of a profile for reuse across different tool configurations.
+The namespace tree shows tool groups, call names, and descriptions. Hover a namespace for its name, full path, and notes; hover a command for its summary, full documentation, and call totals. Its original command name opens a second tooltip with tool details. Expand groups, double-click names or comments to edit them, drag sibling entries to reorder them, and set pinned hint levels. Use the controls above the tree to switch, save, or save a copy of a profile for reuse across different tool configurations.
 
 ![Tool namespace table with profile selection and tree editing](namespace_table.png)
 
-### Adding unmounted tools
+### Adding tools
 
-The unmounted tools entry shows how many tools have not yet been added to the namespace. Open the picker to search by name, path, or description, then click a tool card to add it to the current node. Its name and grouping can then be adjusted in the namespace tree.
+Click the tool icon beside “Namespace tree” to open the tool picker. The unmounted count opens a filtered list. Search by name, path, or description, then click an ordinary tool card to add it to the current node. Built-in plugin commands appear as disabled gray cards.
 
-![Unmounted tools picker with search and tool cards for the current node](unmounted_tools.png)
+![Tool picker with search, sorting, and disabled built-in command cards](tools.png)
+
+### Tool details
+
+Hover a card for its original name, description, parameters, return type, and call totals. Parameter types have nested tooltips showing the type expression directly. Table titles sit outside their tables, and columns size to content. Hold Alt to keep a tooltip in place, then move into it to scroll manually.
+
+![Bash tool details and type display](tooltip.png)
+
+## Documentation screenshots
+
+Install screenshot dependencies in your home directory (the script can reuse Playwright in ~/node_modules):
+
+```sh
+npm install --prefix ~ playwright
+~/node_modules/.bin/playwright install chromium
+npm run screenshots
+```
+
+The script builds the project, then uses a fixed in-memory example profile and the production management page to update namespace_table.png, tools.png, and tooltip.png in both languages, removing the old unmounted_tools.png. It does not read or modify user configuration or execute example tools. PNG files are managed with Git LFS.
+
+## License
+
+[Apache License 2.0](../../LICENSE).
 
 ## Checks
 

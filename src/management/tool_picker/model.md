@@ -1,108 +1,11 @@
-import { TypeScriptBlock } from '../code_block/code_block.js';
-import type { PhysicalTool } from '../../registry/registry.js';
-import { useTranslation } from '../locale/locale.js';
+# 工具选择器
 
-/** @brief One documented schema field, including its complete nested path. */
-interface SchemaField { name: string; type: string; description: string }
+`tool_picker.tsx` 提供模态工具选择器与 ToolCard，支持名称、路径、描述搜索，以及名称或物理调用次数排序。普通卡片点击后将物理工具挂载到目标命名空间；卡片页脚显示当前映射路径或未挂载状态。未挂载入口只筛选普通未挂载工具。
 
-/** @brief Normalize a JSON schema node without interpreting metadata as HTML. */
-function schemaRecord(value: unknown): Record<string, unknown> {
-    return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
-}
+内置物理命令由服务端 provided 树通过 `providedTools` 投影为 protectedTools，始终显示为禁用灰色卡片，不能再次挂载。普通工具不按 tools_ 前缀过滤；PTC 执行入口和原生 exec/run_code 不参与挂载。
 
-/** @brief Describe primitive, array, reference and composed schema types. */
-function schemaType(value: unknown, detailed = false, depth = 0): string {
-    if (typeof value === 'boolean') return value ? 'unknown' : 'never';
-    const schema = schemaRecord(value);
-    if (detailed && Object.hasOwn(schema, 'const')) return JSON.stringify(schema.const) ?? 'unknown';
-    if (detailed && Array.isArray(schema.enum)) return schema.enum.map(item => JSON.stringify(item)).join(' | ') || 'never';
-    for (const key of ['anyOf', 'oneOf', 'allOf']) {
-        const variants = schema[key];
-        if (Array.isArray(variants)) return variants.map(variant => schemaType(variant, detailed, depth)).join(key === 'allOf' ? ' & ' : ' | ');
-    }
-    if (schema.items) return `(${schemaType(schema.items, detailed, depth)})[]`;
-    if (detailed && (schema.type === 'object' || schema.properties)) {
-        const indent = '  '.repeat(depth);
-        const required = Array.isArray(schema.required) ? schema.required : [];
-        const fields = Object.entries(schemaRecord(schema.properties)).map(([key, field]) => {
-            const definition = schemaRecord(field);
-            const name = /^[A-Za-z_$][\w$]*$/.test(key) ? key : JSON.stringify(key);
-            const description = typeof definition.description === 'string' ? definition.description.trim() : '';
-            const comment = description ? `${indent}  /** ${description.replace(/\s+/g, ' ').replaceAll('*/', '* /')} */\n` : '';
-            const optional = required.includes(key) || definition.required === true ? '' : '?';
-            return `${comment}${indent}  ${name}${optional}: ${schemaType(field, true, depth + 1)};`;
-        });
-        if (schema.additionalProperties !== false) fields.push(`${indent}  [key: string]: unknown;`);
-        return fields.length ? `{\n${fields.join('\n')}\n${indent}}` : 'Record<string, never>';
-    }
-    if (Array.isArray(schema.type)) return schema.type.join(' | ');
-    if (typeof schema.type === 'string') return schema.type === 'integer' ? 'number' : schema.type;
-    if (typeof schema.$ref === 'string') return schema.$ref;
-    return schema.properties ? 'object' : 'unknown';
-}
+`tool_details.tsx` 提供工具卡片和树节点共用的 ToolDetails：头部直接展示原始工具名、来源与完整描述，下方分隔线之后依次为参数、返回类型与调用统计。参数与统计标题在表格外；表格根据内容自适应列宽。
 
-/** @brief Flatten nested properties, array items and union variants into documented rows. */
-function schemaFields(value: unknown, name: string): SchemaField[] {
-    const schema = schemaRecord(value);
-    const rows: SchemaField[] = [{ name, type: schemaType(value), description: typeof schema.description === 'string' ? schema.description : '' }];
-    for (const [key, field] of Object.entries(schemaRecord(schema.properties))) {
-        rows.push(...schemaFields(field, name ? `${name}.${key}` : key));
-    }
-    if (schema.items) rows.push(...schemaFields(schema.items, `${name}[]`));
-    for (const key of ['anyOf', 'oneOf', 'allOf']) {
-        const variants = schema[key];
-        if (Array.isArray(variants)) variants.forEach((variant, index) => rows.push(...schemaFields(variant, `${name} (${index + 1})`)));
-    }
-    return rows;
-}
+参数类型列保持 object、对象数组和基础类型等简洁标签；完整对象结构、数组、联合、枚举及原始字段注释放在第二层 Tooltip 的代码块中。返回类型使用服务端 outputDeclaration，缺省时由本地 schemaType 转换；二者均直接显示类型表达式，不添加 type 别名或 interface 包装。代码块隐藏宿主标题栏及外框，保留原生 TypeScript 高亮。
 
-/** @brief Render a schema as a semantic table of field names, types and descriptions. */
-function SchemaTable({ label, schema }: { label: string; schema: unknown }) {
-    const t = useTranslation();
-    const definition = schemaRecord(schema);
-    const properties = Object.entries(schemaRecord(definition.properties));
-    const rows = properties.length ? properties.flatMap(([name, field]) => schemaFields(field, name))
-        : definition.type === 'object' && !definition.additionalProperties ? [] : schemaFields(schema, label);
-
-    return <section className="ts-tool-schema">
-        {(properties.length > 0 || !rows.length) && typeof definition.description === 'string' && <p>{definition.description}</p>}
-        <table>
-            <caption>{label}</caption>
-            <thead><tr><th scope="col">{t('tool_field_name')}</th><th scope="col">{t('tool_field_type')}</th><th scope="col">{t('tool_field_description')}</th></tr></thead>
-            <tbody>{rows.length ? rows.map((row, index) => <tr key={index}>
-                <th scope="row"><code>{row.name}</code></th><td><code>{row.type}</code></td><td>{row.description || t('tool_no_description')}</td>
-            </tr>) : <tr><td colSpan={3}>{t('tool_no_fields')}</td></tr>}</tbody>
-        </table>
-    </section>;
-}
-
-/** @brief Present tool metadata, parameter fields and a TypeScript return declaration. */
-export function ToolDetails({ tool, calls }: { tool: PhysicalTool; calls: number }) {
-    const t = useTranslation();
-    const output = schemaRecord(tool.output);
-    return <article className="ts-tool-details">
-        <header className="ts-tool-detail-header">
-            <div><span className="ts-tool-detail-label">{t('tool_name')}</span><h3><code>{tool.id}</code></h3></div>
-            {tool.source && <span className="ts-tool-detail-source" aria-label={`${t('tool_source')}: ${tool.source}`}>{tool.source}</span>}
-        </header>
-        <section className="ts-tool-detail-overview"><h4>{t('tool_description')}</h4><p>{tool.description || t('tool_no_description')}</p></section>
-        <SchemaTable label={t('tool_parameters')} schema={tool.parameters} />
-        <section className="ts-tool-return">
-            <h4>{t('tool_returns')}</h4>
-            {typeof output.description === 'string' && output.description.trim() && <p>{output.description}</p>}
-            <TypeScriptBlock code={tool.outputDeclaration ?? `type Result = ${schemaType(tool.output, true)};`} />
-        </section>
-        <section className="ts-tool-statistics">
-            <table>
-                <caption>{t('tool_statistics')}</caption>
-                <tbody><tr><th scope="row">{t('tool_total_calls')}</th><td>{calls}</td></tr></tbody>
-            </table>
-        </section>
-    </article>;
-}
-
-参数类型列保持 object、对象数组和基础类型等简洁标签；完整对象结构、数组、联合、枚举及原始字段注释放在第二层 Tooltip 的代码块中。返回代码块隐藏宿主标题栏及外框，保留 TypeScript 高亮。
-
-Tooltip 头部直接显示工具名与描述，整体头部下方为分隔线；参数、统计标题在表格外，表格根据内容自适应列宽。参数二层 Tooltip 与返回值均直接显示类型表达式，不添加 type 别名或 interface 包装。ToolStatistics 复用于树节点的调用统计。
-
-内置物理命令由服务端 provided 树投影为 protectedTools，始终显示为禁用灰色卡片，不能再次挂载。不再使用 tools_ 前缀过滤普通工具；PTC 执行入口和原生 exec/run_code 仍不参与挂载。
+ToolStatistics 按物理工具 ID 展示全局累计调用次数，复用于树节点详情；工具选择器底部展示目录中的所有命令总调用次数。

@@ -55,3 +55,5 @@ namespaceVisible 为随 Profile 保存的命名空间路径 → 固定提示布�
 `search/` 通过 SearchEngine 接口与 SearchEngineRegistry 注册器提供命令搜索，支持可选 MiniSearch BM25、包含匹配及自定义同步/异步引擎。tools.search 固定映射 tools_search，默认不固定，可禁用；method 枚举及默认值从注册器选择器直接生成，只有一个引擎时移除该参数。defaultSearchMethod 配置及 searchEngines.setDefault 均可指定默认方法。详见 search/model.md。
 
 发布元数据使用 Apache-2.0 许可，根目录 LICENSE 保存完整许可文本；engines.dsh 最低版本为 0.2.1-rc.2，repository 指向 origin，files 包含 dist、docs、cordis.patch.yml、README.md、LICENSE 和 presets。文档及许可通过 files 发布，不添加 exports 子路径。
+
+文档截图通过 npm run screenshots 构建后调用 scripts/screenshots.mjs，复用主目录 Playwright 的 Chromium，运行内存示例 Profile 与生产管理页面，校验 Tooltip、二层类型与禁用卡片，生成中英文 namespace_table.png、tools.png、tooltip.png。脚本不访问用户数据或执行工具。所有 PNG 使用 Git LFS，源码分支不记录 dist/build 产物。
