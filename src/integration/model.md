@@ -18,13 +18,13 @@ Profile 可同时保存来自多个预设的映射；当前模型作用域未挂
 
 `intellisense.ts` 注册 tools_intellisense，固定映射 tools.intellisense。工具结果卡片使用代码块展示输入/输出 schema 和查询结果（PTC 为 TypeScript，native 为 JSON，错误为 text），原生命名空间代理沿用此展示及输出 schema。物理工具及 native 代理保留 { queries: string[] } 命名参数；PTC 接口为 function intellisense(...args: string[]): Promise<string>，接收多个字符串参数，无需数组或 queries 对象包装，tools.intellisense("") 查询根命名空间，派发时还原物理工具的 queries 字段。两种模式查询时均忽略开头的 global. 前缀，global. 等同于根目录查询。尾点查询列出直接子项，精确路径展开签名和文档，PTC 多查询合并为 TypeScript global 命名空间树。native 返回 JSON 直接成员列表，精确查询附带命名参数 schema；只添加查询命中的直接命令，不递归挂载后代。native 查询会更新会话发现集合、同步工具并发出 system-prompt/change，使下一次组装包含新增工具。结果作为普通工具响应进入原生历史，并保存查询审计。会话释放时清除发现集合。
 
-`node.ts` 定义浏览器与宿主共用的 `Node` 接口、序列化契约、nodePermissions、fixLevel 和 nextFixLevel；`namespace.ts` 实现 `CommandNode`、`NamespaceNode`、`InnerCommandNode`、`InnerNamespaceNode`、`RootNamespaceNode`。manifest 返回匿名根节点，命名空间保存直接子节点引用，命令保存父命名空间引用；`resolve(parts)` 沿 node → subnode 链查找，`queryNodes` 只选择精确命令或直接成员。path 是从父节点链派生的边界投影，不作为树内命令索引；`NamespaceComponent.tree` 提供完整树，`entries` 仅为搜索和物理工具绑定展开命令叶子。native 和 PTC IntelliSense 共用节点查询；`withRuntimeNodes` 为 PTC 查询和提示添加原生 console 子树。
+`node.ts` 定义共享 Node、Permission 与 SerializedNode。NodeType 只区分 leaf（命令）和 tree（命名空间），服务端子类身份不进入协议。Permission 包含 renamable、movable、removable、disableable、acceptsChildren、availableFixLevels；固定等级为 0/1/2。serialize/toJSON 仅输出子树、命令契约、描述和权限，不包含父引用。
 
-`Node.type` 区分五类节点；`serialize()` 输出 type、name、permissions、children 或 command 契约，不包含父引用。内置命令额外保存 builtin 契约。`toJSON()` 使用同一序列化结果，native 工具同步指纹显式包含节点快照及派生路径，避免父子循环引用。
+`namespace_nodes/` 按类拆分实现，详见其 model.md。`namespace.ts` 作为上层入口，通过 createNamespace(context) 组织初始 console/tools 子树，再由 manifest 注册当前映射及别名。根是普通匿名 NamespaceNode，不存在 RootNamespaceNode。NamespaceNode.add 不覆盖已有成员；remove 由父节点检查子节点 permissions.removable。InnerNamespaceNode 自行限制外部插入；ToolsNamespaceNode、ProfileNamespaceNode、ConsoleNamespaceNode 在构造期间管理各自子对象，ToolsNamespaceNode 禁止禁用。
 
-`CommandNode` 提供 VM 绑定编译、DSML 命名参数转换、返回值投影和声明生成。`InnerCommandNode` 自行处理 rest 参数、位置参数重载、返回值丢弃、预加载标记和内置声明。`runtime/builtins.ts` 的 `PluginCommands` 与 `pluginCommands` 仅保存共享物理 ID、位置参数布局、签名、重载和预加载契约。
+console 等环境接口是 EnvironmentCommandNode 普通 leaf，带环境声明并标记 deployment=environment；tools.* 使用服务端 InnerCommandNode 和专用命令节点，绑定 rest、重载、丢弃结果及预加载。tools.intellisense 的节点权限仅允许固定等级 2 且不可禁用。所有成员都在初始化时创建，intellisense 查询只调用 queryNodes → resolve，查询期间不生成节点、不覆盖映射。PTC 绑定仅选择 deployment=tool 且非 preload 的命令，console 等环境节点不编译为物理工具代理。
 
-每个节点通过 permissions 声明 rename、move、remove、disable 及可选 fixLevels。普通命令允许等级 0/1/2，普通命名空间允许 0/1；内置节点禁止重命名、移动与删除，内置命名空间仅 console 允许固定提示切换；tools.intellisense 不可禁用且仅允许等级 2，其余内置命令允许 0/1/2。命令的 fixLevel 将 Profile 偏好约束到允许等级，PTC 固定提示统一从实际节点读取策略和声明。这里的权限描述结构编辑与提示控制，实际调用权限仍由 DSH 原生 guard 处理。tools.profile.load/save 通过原生工具执行；annotation/commands 在 native 中是无参调用，annotation 返回 Profile JSON Schema；在 PTC 中是预加载常量，annotation 保留 TypeScript 声明。旧 tools 管理命令已移除。
+管理 API 将同一初始化树的 SerializedNode 传给客户端，客户端不导入内置命令表、不按 console/tools 等名称生成权限或节点。Profile.root 同样使用 SerializedNode 描述，导入时由服务端权威节点检查受保护子对象不可删除、替换或外部插入；不能通过伪造 permissions 改写这些规则。实际工具执行权限仍由 DSH 原生 guard 处理。
 
 `prompt.ts` 根据 native/ptc 配置生成初始说明，PTC 渲染 Profile 选中的部分命名空间树。未知命令先直接查询 tools.intellisense；PTC 通过 tools_run_code 调用命名空间，native 直接使用 DSML 命名空间工具。native 初始提示与工具描述明确 {"queries":[""]} 接受空字符串以查询根命名空间；初始提示强调当前工具基于命名空间，ns_ 标记挂载命令，双下划线 __ 是调用名称中的命名空间分隔符，对应查询路径中的点号；不再附加根命名空间摘要和工具映射 JSON，描述只保留在工具 schema 中，不生成 TS/JS 声明或执行说明。
 
@@ -32,7 +32,7 @@ Profile 可同时保存来自多个预设的映射；当前模型作用域未挂
 
 `tool_commands.ts` 仅注册 Profile load/save/annotation/commands。save 支持显式名称或当前会话名称，验证递归树与物理命令身份，发布目录并替换当前会话配置；load 无名称只返回草稿，有名称切换会话版本。`namespace_runtime.ts` 将 annotation 和原始命令列表作为数据传给 VM init，不安装同名函数。
 
-consolePinned 为随 Profile 保存的命名空间固定提示开关，默认 false。管理面板始终展示 console 及其命令，console 命名空间图钉可切换是否固定提示；命令各自保留独立的提示等级。IntelliSense 与原生 console 的可用性不受固定状态影响。PTC 初始 prompt 提示可使用运行时提供的原生 Node.js 变量。
+namespaceVisible 为随 Profile 保存的命名空间路径 → 固定提示布尔值映射，默认空对象；不使用 console 专有存储字段。管理面板始终展示 console 及其命令，console 命名空间图钉可切换是否固定提示；命令各自保留独立的提示等级。IntelliSense 与原生 console 的可用性不受固定状态影响。PTC 初始 prompt 提示可使用运行时提供的原生 Node.js 变量。
 
 `builtin_trace.ts` 在 presentation 作用域包装内置工具注册，保存实际参数/输出 schema、调用参数、返回值、错误与耗时到独立插件审计。结果保持原始模型内容，字符串结果不再额外 JSON 编码。审计和 Profile annotation 通过调用者上下文的 get() 获取命名空间服务，不要求调用者插件显式注入 commandNamespaces。
 
@@ -44,4 +44,4 @@ PTC 每次执行重建 VM Context，不保证环境连续，不支持 globalThis
 
 `tool_search.ts` 将 tools_search 注册到 presentation 作用域并映射 tools.search。搜索参数直接由 SearchEngineRegistry.selector 生成；引擎注册、卸载或默认方法变更后重新注册工具并通知提示重组。searchEngines 由 NamespaceComponent 持有，通过 commandNamespaces 服务供其它插件注册；主插件和 namespace 独立入口均接受 defaultSearchMethod。搜索只返回当前有效树中的完整命令路径，提示使用 tools.intellisense 获取详细信息。声明、PTC 位置参数和 UI 提示共同读取实际物理 schema 中的方法枚举。
 
-`tools` 根命名空间不可禁用：共享 permissions.disable 为 false，UI 不显示禁用按钮且回调不允许禁用；registry 拒绝将 tools 写入 builtinDisabled。tools 下其余命令和 tools.profile 仍保留各自禁用权限，tools.intellisense 始终可用。
+`tools` 根命名空间不可禁用：共享 permissions.disableable 为 false，UI 不显示禁用按钮且回调不允许禁用；registry 拒绝将 tools 写入 builtinDisabled。tools 下其余命令和 tools.profile 仍保留各自禁用权限，tools.intellisense 始终可用。

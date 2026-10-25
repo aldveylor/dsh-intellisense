@@ -4,9 +4,9 @@
 
 命令固定等级统一为 0（不固定）、1（固定但简略）、2（固定且详细）。Mapping.alwaysVisible 保存等级；builtinVisible、unmountedVisible 为路径或物理 ID 到等级的映射，随 Profile 保存，挂载和移除映射时保留等级。命名空间 alwaysVisible 仍为布尔值。
 
-`profile_tree.ts` 定义对外 Profile 树、递归校验与配置转换，以及英文 TypeScript 声明文本。CommandBrief 使用物理命令 ID 与原始描述；CommandNode 以 type: 'command' 标识命令，可提供 simplifiedBrief，保存为工具描述偏好。NamespaceNode（含 Profile.root）以 type: 'namespace' 标识命名空间，children 按本地名称保存命令或子命名空间。CommandNode.fixedLevel 显式选择 none / fixed-brief / fixed-detail，NamespaceNode.fixed 控制命名空间固定提示；树导入导出保留这些属性，按路径聚合别名；可选名称由会话当前 Profile 决定。
+`profile_tree.ts` 的 Profile.root 使用 integration/node.ts 的统一 SerializedNode：type 为 leaf/tree，children 为直接子节点数组，command 保存物理契约，permissions 保存服务端编辑和固定等级限制。fixedLevel 为 0/1/2，disabled 表示节点自身显式禁用。创建 Profile 时先构建带上下文的普通匿名 NamespaceNode 及 console/tools 受保护子树，再添加配置映射；没有专门的根节点类型。导入由父节点对应的服务端策略验证子对象不可移除或替换，拒绝向受限命名空间添加成员；客户端提交的 permissions 不作为权限依据。命令按物理 ID 聚合别名，command.doc 保存描述偏好。
 
-consolePinned 为随 Profile 保存的命名空间固定提示开关，默认 false。管理面板始终展示 console 及其命令，console 命名空间图钉可切换是否固定提示；命令各自保留独立的提示等级。IntelliSense 与原生 console 的可用性不受固定状态影响。PTC 初始 prompt 提示可使用运行时提供的原生 Node.js 变量。
+namespaceVisible 为随 Profile 保存的命名空间路径 → 固定提示布尔值映射，默认空对象；不使用 console 专有存储字段。管理面板始终展示 console 及其命令，console 命名空间图钉可切换是否固定提示；命令各自保留独立的提示等级。IntelliSense 与原生 console 的可用性不受固定状态影响。PTC 初始 prompt 提示可使用运行时提供的原生 Node.js 变量。
 
 注册表负责配置与工具目录；声明由 integration/namespace.ts 投影实际 manifest 的命令契约，integration/namespace_declaration.ts 统一渲染命名空间树，供单项声明、IntelliSense 与提示词共用，执行由原生工具流水线负责。
 

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { nativeSchema, normalizeIntellisenseQueries, queryNodes, CommandNode, NamespaceNode, type RootNamespaceNode } from './namespace.js';
+import { nativeSchema, normalizeIntellisenseQueries, queryNodes, CommandNode, NamespaceNode } from './namespace.js';
 
 /** @brief Bind namespace paths to unique API-safe names without shadowing physical tools. */
 export function nativeBindings(entries: CommandNode[], reserved: Iterable<string>): { entry: CommandNode; name: string }[] {
@@ -22,17 +22,17 @@ export function nativeBindings(entries: CommandNode[], reserved: Iterable<string
 }
 
 /** @brief Select exact commands or immediate namespace members without expanding descendants. */
-export function nativeQueryEntries(queries: readonly string[], root: RootNamespaceNode): CommandNode[] {
-    return queryNodes(root, queries).filter((node): node is CommandNode => node instanceof CommandNode);
+export function nativeQueryEntries(queries: readonly string[], root: NamespaceNode): CommandNode[] {
+    return queryNodes(root, queries).filter((node): node is CommandNode => node instanceof CommandNode && node.deployment === 'tool');
 }
 
 /** @brief Render shallow native discovery and exact named-argument contracts as JSON. */
-export function nativeDiscovery(queries: readonly string[], root: RootNamespaceNode, bindings: readonly { entry: CommandNode; name: string }[]): string {
+export function nativeDiscovery(queries: readonly string[], root: NamespaceNode, bindings: readonly { entry: CommandNode; name: string }[]): string {
     const names = new Map(bindings.map(({ entry, name }) => [entry, name]));
     const exact = new Set(normalizeIntellisenseQueries(queries));
     const members = queryNodes(root, queries).sort((a, b) => a.path.localeCompare(b.path)).map(node => node instanceof NamespaceNode
         ? { path: node.path, namespace: true }
-        : { path: node.path, tool: names.get(node), description: node.doc,
+        : { path: node.path, tool: names.get(node), description: node.doc, deployment: node.deployment,
             ...(exact.has(node.path) ? { parameters: nativeSchema(node), output: node.output } : {}) });
     return JSON.stringify({ members }, null, 2);
 }

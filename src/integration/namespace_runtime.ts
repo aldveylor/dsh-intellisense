@@ -3,7 +3,6 @@ import { CodeRunFailedError, defineTool, type ToolRunContext } from '@deepseek-a
 import type {} from './namespace_plugin.js';
 import { RuntimeHost, type RuntimeConfig } from '../runtime/host.js';
 import { ptcToolName } from '../runtime/builtins.js';
-import { InnerCommandNode } from './namespace.js';
 import { codeBlock } from '../protocol/code_block.js';
 import type { z } from 'zod';
 
@@ -70,7 +69,7 @@ export class NamespaceRuntime extends Service {
         const pending = new Set<Promise<unknown>>();
         let sequence = 0;
         try {
-            const entries = (await namespaces.entries(agent)).filter(entry => !(entry instanceof InnerCommandNode && entry.preload));
+            const entries = (await namespaces.entries(agent)).filter(entry => !entry.preload);
             const result = await this.runtime.execute(agent.id, `run-code-${++this.sequence}`, code, entries.map(entry => entry.binding()), async (tool, input, signal) => {
                 signal.throwIfAborted();
                 const work = namespaces.dispatchTool(agent, tool, input, { ...parent, signal: controller.signal }, ++sequence);

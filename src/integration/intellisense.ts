@@ -4,13 +4,12 @@ import type { Context } from '@deepseek-ai/cordis';
 import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools';
 import { codeBlock } from '../protocol/code_block.js';
 import { appendPluginRecord } from '@deepseek-ai/dsh-session';
-import { declaration, normalizeIntellisenseQueries, queryNodes, withRuntimeNodes, InnerCommandNode, NamespaceNode, type RootNamespaceNode } from './namespace.js';
+import { declaration, normalizeIntellisenseQueries, queryNodes, NamespaceNode } from './namespace.js';
 import { profileAnnotation } from '../registry/profile_tree.js';
 import type { NamespaceComponent } from './namespace_component.js';
 
 /** @brief Render queried members and signatures through the shared namespace declaration model. */
-export function intellisense(queries: readonly string[], root: RootNamespaceNode, runtime = false, disabled: (path: string) => boolean = () => false): string {
-    if (runtime) withRuntimeNodes(root, disabled);
+export function intellisense(queries: readonly string[], root: NamespaceNode, runtime = false, disabled: (path: string) => boolean = () => false): string {
     const selected = new Map<string, NamespaceDeclaration>();
     const exact = new Set(normalizeIntellisenseQueries(queries));
     for (const node of queryNodes(root, queries)) {
@@ -19,10 +18,10 @@ export function intellisense(queries: readonly string[], root: RootNamespaceNode
             selected.set(node.path, { path: node.path, namespace: true });
             continue;
         }
-        const value = runtime && node instanceof InnerCommandNode && node.preload;
+        const value = runtime && node.preload;
         selected.set(node.path, {
             path: node.path, description: node.doc,
-            ...(value ? { valueType: node.builtin.signature }
+            ...(value ? { valueType: node.signature }
                 : exact.has(node.path) ? { declaration: declaration(node, false) } : {}),
         });
     }
