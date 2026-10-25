@@ -36,9 +36,10 @@
   },
   "files": [
     "dist",
-    "docs/icon.svg",
+    "docs",
     "cordis.patch.yml",
     "README.md",
+    "LICENSE",
     "presets"
   ],
   "dsh": {
@@ -52,7 +53,8 @@
     }
   },
   "engines": {
-    "node": ">=24"
+    "node": ">=24",
+    "dsh": ">=0.2.1-rc.2"
   },
   "scripts": {
     "build": "npm run build:server && npm run build:client",
@@ -60,9 +62,10 @@
     "build:client": "esbuild src/management/client.ts --bundle --platform=browser --format=cjs --loader:.css=text --external:react --external:react/jsx-runtime --external:@deepseek-ai/dsh-client-ui-primitives --target=es2022 --outfile=dist/client.js --banner:js=\"window.__ModuleLoader__.load({id:'dsh-intellisense',factory(require){const module={exports:{}};\" --footer:js=\"return module.exports;}});\" && esbuild src/management/standalone.tsx --bundle --platform=browser --format=iife --loader:.css=text --outfile=dist/management/standalone.js --target=es2022 --minify",
     "typecheck": "tsc -p tsconfig.json",
     "test": "npm run build && tsx --test tests/**/*.test.ts",
-    "lint": "eslint --config scripts/eslint_config.mjs src tests"
+    "lint": "eslint --config scripts/eslint_config.mjs src tests",
+    "prepare": "npm run build"
   },
-  "license": "MIT",
+  "license": "Apache-2.0",
   "dependencies": {
     "entities": "8.1.0",
     "typescript": "5.9.3",
@@ -105,5 +108,9 @@
   },
   "optionalDependencies": {
     "minisearch": "7.2.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aldveylor/dsh-intellisense.git"
   }
 }

@@ -40,7 +40,7 @@ UI 不再显示 unknown 块。树上方显示当前可用但未挂载的工具�
 
 两个模式的 presentation 配置项 ID 统一为 intellisense-presentation，通过 config.mode 的 ptc/native 区分执行方式。保留基础包 ptc-runtime，供其它模式使用。Intellisense PTC 的 presentation 隔离 namespaceRuntime/codeRuntime 服务，并在自身作用域创建 NamespaceRuntime 与 RuntimeHost，不替换全局 ptcRuntime；内置工具也仅注册到两个自定义模式的 presentation 作用域。
 
-package.json 的 build 命令依次调用 build:server 和 build:client；build:server 通过 tsc 编译生产源码并通过 esbuild CLI 打包 worker，build:client 打包原生管理客户端与独立管理页面，两者均可通过 pnpm 单独执行。移除 prepack，打包前需显式执行构建。覆盖对应产物但不清理 dist，不调用外部构建脚本文件；支持 pnpm build 和 npm run build，不添加 allowBuilds 名单。原生管理客户端通过 esbuild banner/footer 包装为 __ModuleLoader__ 模块，独立管理页面和 worker 分别打包为浏览器 IIFE 与 Node ESM。源码分支不提交 dist/build 生成物。`.github/workflows/publish_release.yml` 在推送 master 后，从当前 master 源码提交切换到临时 release_build 分支，使用 Node 24、npm ci 和 npm run build 编译，再提交完整源码及全部编译产物（排除 node_modules 依赖目录和 agent 文件）。不筛选发布目录，不改写 package.json，保留 scripts、devDependencies 和原有 files 字段。产物提交沿用 master 的 Git 历史，强制将固定 release Tag 指向该提交，随后切换为游离 HEAD 并删除临时分支，最后原子推送 Tag 并删除存在的旧 release 分支。不修改或推送 master，不创建 GitHub Release，不打包附件，不串联旧产物提交。受限运行时需要 Node >=24，直接使用 --permission，加载时实测文件读取与子进程创建被拒绝。Node 24 权限模型不限制网络，不提供系统调用级网络封锁。
+package.json 的 build 命令依次调用 build:server 和 build:client；build:server 通过 tsc 编译生产源码并通过 esbuild CLI 打包 worker，build:client 打包原生管理客户端与独立管理页面，两者均可通过 pnpm 单独执行。prepare 脚本执行 npm run build，在安装和打包的 prepare 阶段构建。覆盖对应产物但不清理 dist，不调用外部构建脚本文件；支持 pnpm build 和 npm run build，不添加 allowBuilds 名单。原生管理客户端通过 esbuild banner/footer 包装为 __ModuleLoader__ 模块，独立管理页面和 worker 分别打包为浏览器 IIFE 与 Node ESM。源码分支不提交 dist/build 生成物。`.github/workflows/publish_release.yml` 在推送 master 后，从当前 master 源码提交切换到临时 release_build 分支，使用 Node 24、npm ci 和 npm run build 编译，再提交完整源码及全部编译产物（排除 node_modules 依赖目录和 agent 文件）。不筛选发布目录，不改写 package.json，保留 scripts、devDependencies 和原有 files 字段。产物提交沿用 master 的 Git 历史，强制将固定 release Tag 指向该提交，随后切换为游离 HEAD 并删除临时分支，最后原子推送 Tag 并删除存在的旧 release 分支。不修改或推送 master，不创建 GitHub Release，不打包附件，不串联旧产物提交。受限运行时需要 Node >=24，直接使用 --permission，加载时实测文件读取与子进程创建被拒绝。Node 24 权限模型不限制网络，不提供系统调用级网络封锁。
 
 ## 验证
 
@@ -53,3 +53,5 @@ namespaceVisible 为随 Profile 保存的命名空间路径 → 固定提示布�
 命令映射与命名空间通过可选 disabled 标志保存禁用状态；内置树使用 builtinDisabled 路径集合。禁用项保留在管理 UI，禁用按钮位于删除按钮左侧，节点变灰；manifest、补全、固定提示与 PTC 预加载排除禁用路径，命名空间禁用作用于所有后代。tools.intellisense 保留可用。
 
 `search/` 通过 SearchEngine 接口与 SearchEngineRegistry 注册器提供命令搜索，支持可选 MiniSearch BM25、包含匹配及自定义同步/异步引擎。tools.search 固定映射 tools_search，默认不固定，可禁用；method 枚举及默认值从注册器选择器直接生成，只有一个引擎时移除该参数。defaultSearchMethod 配置及 searchEngines.setDefault 均可指定默认方法。详见 search/model.md。
+
+发布元数据使用 Apache-2.0 许可，根目录 LICENSE 保存完整许可文本；engines.dsh 最低版本为 0.2.1-rc.2，repository 指向 origin，files 包含 dist、docs、cordis.patch.yml、README.md、LICENSE 和 presets。文档及许可通过 files 发布，不添加 exports 子路径。
