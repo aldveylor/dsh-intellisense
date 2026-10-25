@@ -2,6 +2,8 @@
 
 包名为 dsh-intellisense。默认入口 index.ts 组合命名空间服务与受限运行时，注册 Intellisense PTC（intellisense-ptc，TS/JS 执行）和 Intellisense（intellisense，原生 DSML 执行）两个 Agent Mode；包入口 ./namespace 可独立挂载原生命名空间服务，不创建 VM。
 
+根入口同时导出 NamespaceNode、CommandNode 类及公共工具、映射、注册器配置/状态、Profile、节点权限/序列化、运行时绑定/结果和 Store 类型；ToolDefinition 类型转导出自原生 dsh-tools，供外部扩展使用。
+
 ## 执行与查询
 
 `integration/presentation.ts` 通过 config.mode 选择 native/ptc 工具呈现与初始提示词，按作用域继承 preset 配置。仅显式挂载 presentation 的 Intellisense / Intellisense PTC 模式启用命名空间；标准模式及其它模式保持原生工具与提示词。执行模式仅由 presentation 配置选择，主插件和独立入口不声明默认模式，也不自动为会话挂载模式。
