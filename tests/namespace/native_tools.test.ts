@@ -75,3 +75,18 @@ test('native discovery prefers Profile briefs and keeps full documentation out o
         assert(!JSON.stringify(discovery).includes('Full file documentation.'));
     }
 });
+
+test('native discovery omits empty namespace, command and Profile briefs', () => {
+    const root = namespace([{ path: 'fs.read', tool: 'read_file', doc: '', schema: {}, output: {} }]);
+    const roots = JSON.parse(nativeDiscovery([''], root, []));
+    assert(!Object.hasOwn(roots.members.find((member: { path: string }) => member.path === 'fs'), 'brief'));
+    for (const queries of [['fs.'], ['fs.read']]) {
+        const discovery = JSON.parse(nativeDiscovery(queries, root, []));
+        assert(!Object.hasOwn(discovery.members[0], 'brief'));
+    }
+    const documented = namespace([{ path: 'fs.read', tool: 'read_file', doc: 'Full documentation', schema: {}, output: {} }]);
+    for (const brief of ['', '  \n ']) {
+        const discovery = JSON.parse(nativeDiscovery(['fs.read'], documented, [], () => brief));
+        assert(!Object.hasOwn(discovery.members[0], 'brief'));
+    }
+});

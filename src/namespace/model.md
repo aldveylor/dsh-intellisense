@@ -41,4 +41,4 @@ PTC 每次执行重建 VM Context，不保证环境连续，不支持 globalThis
 `tools` 根命名空间不可禁用：共享 permissions.disableable 为 false，UI 不显示禁用按钮且回调不允许禁用；registry 拒绝将 tools 写入 builtinDisabled。tools 下其余命令和 tools.profile 仍保留各自禁用权限，tools.intellisense 始终可用。
 
 
-命名空间描述由 manifest 从 Profile namespaces 元数据传入普通 NamespaceNode，内置 tools 等命名空间保留自身描述。native 成员查询的命名空间条目包含 brief；PTC 查询与初始提示词为已展示的命名空间及其父链附加 description 注释，包含 tools.intellisense 的 tools 父命名空间；不因此展开未查询或未固定的其它成员。
+命名空间描述由 manifest 从 Profile namespaces 元数据传入普通 NamespaceNode，内置 tools 等命名空间保留自身描述。native 成员查询的命名空间条目包含 brief，所有条目的 brief 为空或仅含空白时省略该键；PTC 查询与初始提示词为已展示的命名空间及其父链附加 description 注释，包含 tools.intellisense 的 tools 父命名空间；不因此展开未查询或未固定的其它成员。
