@@ -7,6 +7,22 @@ import { appendPluginRecord } from '@deepseek-ai/dsh-session';
 import { declaration, normalizeIntellisenseQueries, queryNodes, NamespaceNode } from '../namespace/namespace.js';
 import { profileAnnotation } from '../registry/profile_tree.js';
 import type { NamespaceComponent } from '../namespace/component.js';
+import type { QueryTarget } from '../namespace/statistics.js';
+
+/** @brief Resolve each query target, excluding disabled, missing and runtime-only members. */
+export function intellisenseQueryTargets(queries: readonly string[], root: NamespaceNode): QueryTarget[] {
+    return normalizeIntellisenseQueries(queries).flatMap<QueryTarget>(query => {
+        const path = query.replace(/\.$/, '');
+        const node = root.resolve(path ? path.split('.') : []);
+        if (!node || node.disabled) return [];
+        if (node instanceof NamespaceNode) {
+            const commands = node.commands().filter(command => !command.disabled);
+            if (commands.length && commands.every(command => command.deployment === 'environment')) return [];
+            return [{ path, namespace: true }];
+        }
+        return !query.endsWith('.') && node.deployment === 'tool' ? [{ path, namespace: false }] : [];
+    });
+}
 
 /** @brief Render queried members and signatures through the shared namespace declaration model. */
 export function intellisense(queries: readonly string[], root: NamespaceNode, runtime = false, disabled: (path: string) => boolean = () => false): string {
@@ -54,8 +70,10 @@ export function registerIntellisense(ctx: Context, namespaces: NamespaceComponen
             execution.signal.throwIfAborted();
             const started = performance.now();
             const registry = await namespaces.registryFor(agent);
+            const root = await namespaces.tree(agent);
+            await namespaces.statistics.recordQueries(agent.id, intellisenseQueryTargets(queries, root));
             const info = namespaces.isPtc(agent)
-                ? intellisense(queries, await namespaces.tree(agent), true, path => registry.disabled(path))
+                ? intellisense(queries, root, true, path => registry.disabled(path))
                 : await namespaces.discover(agent, queries);
             const position = namespaces.position(agent);
             appendPluginRecord(agent.session, 'plugin:ts_intellisense/intellisense', {

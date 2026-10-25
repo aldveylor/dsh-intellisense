@@ -12,6 +12,7 @@ import { Aliases } from './namespace.js';
 import { registerManagement } from '../management/server/routes.js';
 import { ptcToolName } from '../runtime/builtins.js';
 import { executionInstructions } from './prompt.js';
+import { CommandStatistics } from './statistics.js';
 
 export const name = 'command-namespaces';
 export const inject = ['tools', 'agents', 'systemPrompt', 'storage', storageBackendServiceKey('json'), 'connection'];
@@ -32,7 +33,8 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
     const store = new DshStore(unit);
     const registry = new SemanticRegistry(store); await registry.load();
     const profiles = new ProfileSessions(registry, store);
-    const namespaces = new NamespaceComponent(ctx, registry, profiles, aliases, createSearchEngines(config.defaultSearchMethod));
+    const statistics = new CommandStatistics(store); await statistics.load();
+    const namespaces = new NamespaceComponent(ctx, registry, profiles, aliases, createSearchEngines(config.defaultSearchMethod), statistics);
     ctx.provide('commandNamespaces', namespaces);
     registerManagement(ctx, registry, namespaces);
     ctx.on('agent/created', async ({ agent }) => { await namespaces.configure(agent); });
@@ -59,3 +61,5 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
 
 export { SearchEngineRegistry } from '../search/engine_registry.js';
 export type { SearchEngine, SearchSelection, SearchDocument, SearchSelector, SearchField } from '../search/engine_registry.js';
+export { CommandStatistics } from './statistics.js';
+export type { CommandCounts, CommandStatisticsSnapshot, QueryTarget } from './statistics.js';

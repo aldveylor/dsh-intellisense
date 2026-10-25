@@ -18,6 +18,8 @@ import { registerSearch } from '../tools/tool_search.js';
 import { registerIntellisense } from '../tools/intellisense.js';
 import { registerToolCommands } from '../tools/tool_commands.js';
 import { nativeBindings, nativeDiscovery, nativeQueryEntries } from './native_tools.js';
+import { CommandStatistics } from './statistics.js';
+import { MemoryStore } from '../storage/store.js';
 
 /** @brief Profile-backed namespace discovery, independent of any execution runtime. */
 export class NamespaceComponent {
@@ -26,7 +28,7 @@ export class NamespaceComponent {
     private discovered = new Map<string, Set<string>>();
     private nativeTools = new Map<string, { fingerprint: string; disposers: (() => void)[] }>();
 
-    constructor(private ctx: Context, private registry: SemanticRegistry, readonly profiles: ProfileSessions, private aliases: z.infer<typeof Aliases>, readonly searchEngines = createSearchEngines()) {
+    constructor(private ctx: Context, private registry: SemanticRegistry, readonly profiles: ProfileSessions, private aliases: z.infer<typeof Aliases>, readonly searchEngines = createSearchEngines(), readonly statistics = new CommandStatistics(new MemoryStore())) {
         ctx.effect(() => async () => { await Promise.all([...new Set([...this.nativeTools.keys(), ...this.positions.keys(), ...this.discovered.keys()])].map(id => this.release(id))); await this.profiles.dispose(); });
         ctx.on('agent/request', async (payload, next) => {
             if (this.enabled(payload.agent)) this.positions.set(payload.agent.id, { turn: payload.turn, step: payload.step });
@@ -223,6 +225,7 @@ export class NamespaceComponent {
         const callId = ToolCallId(`${parent.callId}:tool:${sequence}`);
         const ids = { rootCallId: parent.rootCallId, parentCallId: parent.callId, subCallId: callId, name: tool, arguments: args };
         agent.session.append('tool/ptc-dispatch-start', ids);
+        await this.statistics.recordCall(agent.id, tool);
         const settled = await agent.ctx.tools.execute({ agent, callId, rootCallId: parent.rootCallId, parent: parent.token, name: tool, arguments: args, signal: parent.signal });
         agent.session.append('tool/ptc-dispatch', { ...ids, isError: settled.isError, content: settled.content, ...(settled.meta ? { meta: settled.meta } : {}) });
         for (const context of settled.additionalContexts ?? []) parent.deferContext(context);
