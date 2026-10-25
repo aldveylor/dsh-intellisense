@@ -1,6 +1,6 @@
 # 命名空间模型
 
-`statistics.ts` 的 CommandStatistics 通过 `NamespaceComponent.statistics` 提供统计服务，不接入 UI。`dispatchTool` 每次派发前按物理 tool ID 计一次调用，包含失败派发，native 与 PTC 共用入口；原生物理工具调用、tools_run_code 外层执行、console 等环境接口和预加载数据读取不计入。`snapshot()` 返回全局统计，`snapshot(sessionId)` 返回指定会话统计；快照含 calls、namespacesQueried、commandsQueried 总数以及 callsByTool、namespaceQueriesByPath、commandQueriesByPath 明细。总数由明细求和，读取返回独立副本。
+`statistics.ts` 的 CommandStatistics 通过 `NamespaceComponent.statistics` 提供统计服务，管理 UI 通过状态接口读取全局 callsByTool，供工具卡片、详情浮层与排序使用。`dispatchTool` 每次派发前按物理 tool ID 计一次调用，包含失败派发，native 与 PTC 共用入口；原生物理工具调用、tools_run_code 外层执行、console 等环境接口和预加载数据读取不计入。`snapshot()` 返回全局统计，`snapshot(sessionId)` 返回指定会话统计；快照含 calls、namespacesQueried、commandsQueried 总数以及 callsByTool、namespaceQueriesByPath、commandQueriesByPath 明细。总数由明细求和，读取返回独立副本。
 
 `tools/intellisense.ts` 内部按请求中的实际查询目标计数：去掉 global. 前缀和命名空间尾点，根目录路径为 ""；重复目标分别计数，命名空间查询不展开为所有后代的查询次数。不存在、禁用、无效命令尾点及 environment 命令/纯环境命名空间不计数，非法路径请求整体拒绝。统计按会话和全局一起串行更新，使用现有 Store 的 command_statistics 记录持久化，重启和会话释放均保留计数。
 

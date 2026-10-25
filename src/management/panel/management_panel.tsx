@@ -18,6 +18,7 @@ interface View {
     defaultProfile: string;
     state: RegistryState;
     tools: PhysicalTool[];
+    callsByTool?: Record<string, number>;
     effective: Array<Mapping & { tool: PhysicalTool }>;
 }
 
@@ -532,7 +533,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
                 <NamespacePlaceholder busy={busy || !view} create={createNamespace} pick={parent => setToolPicker({ parent })} drop={(event, parent) => nativeDrop(event, { path: parent, position: 'inside' })} />
             </ul>
         </section></main>
-        {toolPicker !== undefined && view && <ToolPicker parent={toolPicker.parent} tools={toolPicker.unmountedOnly ? unmounted : view.tools} mappings={mappings} busy={busy}
+        {toolPicker !== undefined && view && <ToolPicker parent={toolPicker.parent} tools={toolPicker.unmountedOnly ? unmounted : view.tools} mappings={mappings} callsByTool={view.callsByTool} busy={busy}
             close={() => setToolPicker(undefined)} select={tool => {
                 applyDrop({ namespace: false, id: tool.id }, { path: toolPicker.parent, position: 'inside' });
                 setToolPicker(undefined);
