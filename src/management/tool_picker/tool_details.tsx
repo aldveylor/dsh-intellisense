@@ -42,10 +42,9 @@ function schemaType(value: unknown, detailed = false, depth = 0): string {
 }
 
 /** @brief Keep parameter types compact and reveal their full declaration in a nested tooltip. */
-function ParameterType({ name, schema }: { name: string; schema: unknown }) {
+function ParameterType({ schema }: { schema: unknown }) {
     const tooltip = useTooltip();
-    const typeName = /^[A-Za-z_$][\w$]*$/.test(name) ? name[0]!.toUpperCase() + name.slice(1) : 'Parameter';
-    const details = <div className="ts-parameter-type-code"><TypeScriptBlock code={`type ${typeName} = ${schemaType(schema, true)};`} /></div>;
+    const details = <div className="ts-parameter-type-code"><TypeScriptBlock code={schemaType(schema, true)} /></div>;
     return <code className="ts-parameter-type" tabIndex={0} aria-describedby={tooltip.id}
         onPointerEnter={event => { event.stopPropagation(); tooltip.show(details, event.clientX, event.clientY); }}
         onPointerMove={event => { event.stopPropagation(); tooltip.move(event.clientX, event.clientY, event.altKey); }}
@@ -64,12 +63,12 @@ function SchemaTable({ label, schema }: { label: string; schema: unknown }) {
         : definition.type === 'object' && !definition.additionalProperties ? [] : [{ name: label, schema }];
 
     return <section className="ts-tool-schema">
+        <h4>{label}</h4>
         {(properties.length > 0 || !rows.length) && typeof definition.description === 'string' && <p>{definition.description}</p>}
-        <table>
-            <caption>{label}</caption>
+        <table aria-label={label}>
             <thead><tr><th scope="col">{t('tool_field_name')}</th><th scope="col">{t('tool_field_type')}</th><th scope="col">{t('tool_field_description')}</th></tr></thead>
             <tbody>{rows.length ? rows.map((row, index) => <tr key={index}>
-                <th scope="row"><code>{row.name}</code></th><td><ParameterType name={row.name} schema={row.schema} /></td><td>{String(schemaRecord(row.schema).description || t('tool_no_description'))}</td>
+                <th scope="row"><code>{row.name}</code></th><td><ParameterType schema={row.schema} /></td><td>{String(schemaRecord(row.schema).description || t('tool_no_description'))}</td>
             </tr>) : <tr><td colSpan={3}>{t('tool_no_fields')}</td></tr>}</tbody>
         </table>
     </section>;
@@ -81,21 +80,26 @@ export function ToolDetails({ tool, calls }: { tool: PhysicalTool; calls: number
     const output = schemaRecord(tool.output);
     return <article className="ts-tool-details">
         <header className="ts-tool-detail-header">
-            <div><span className="ts-tool-detail-label">{t('tool_name')}</span><h3><code>{tool.id}</code></h3></div>
+            <div><h3><code>{tool.id}</code></h3><p>{tool.description || t('tool_no_description')}</p></div>
             {tool.source && <span className="ts-tool-detail-source" aria-label={`${t('tool_source')}: ${tool.source}`}>{tool.source}</span>}
         </header>
-        <section className="ts-tool-detail-overview"><h4>{t('tool_description')}</h4><p>{tool.description || t('tool_no_description')}</p></section>
         <TooltipProvider><SchemaTable label={t('tool_parameters')} schema={tool.parameters} /></TooltipProvider>
         <section className="ts-tool-return">
             <h4>{t('tool_returns')}</h4>
             {typeof output.description === 'string' && output.description.trim() && <p>{output.description}</p>}
-            <TypeScriptBlock code={tool.outputDeclaration ?? `type Result = ${schemaType(tool.output, true)};`} />
+            <TypeScriptBlock code={tool.outputDeclaration ?? schemaType(tool.output, true)} />
         </section>
-        <section className="ts-tool-statistics">
-            <table>
-                <caption>{t('tool_statistics')}</caption>
-                <tbody><tr><th scope="row">{t('tool_total_calls')}</th><td>{calls}</td></tr></tbody>
-            </table>
-        </section>
+        <ToolStatistics calls={calls} />
     </article>;
+}
+
+/** @brief Share physical invocation totals between card and tree tooltips. */
+export function ToolStatistics({ calls }: { calls: number }) {
+    const t = useTranslation();
+    return <section className="ts-tool-statistics">
+        <h4>{t('tool_statistics')}</h4>
+        <table aria-label={t('tool_statistics')}>
+            <tbody><tr><th scope="row">{t('tool_total_calls')}</th><td>{calls}</td></tr></tbody>
+        </table>
+    </section>;
 }

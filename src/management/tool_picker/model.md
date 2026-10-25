@@ -102,3 +102,5 @@ export function ToolDetails({ tool, calls }: { tool: PhysicalTool; calls: number
 }
 
 参数类型列保持 object、对象数组和基础类型等简洁标签；完整对象结构、数组、联合、枚举及原始字段注释放在第二层 Tooltip 的代码块中。返回代码块隐藏宿主标题栏及外框，保留 TypeScript 高亮。
+
+Tooltip 头部直接显示工具名与描述，整体头部下方为分隔线；参数、统计标题在表格外，表格根据内容自适应列宽。参数二层 Tooltip 与返回值均直接显示类型表达式，不添加 type 别名或 interface 包装。ToolStatistics 复用于树节点的调用统计。
