@@ -1,18 +1,20 @@
-import { createContext, useContext, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useId, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 
 /** @brief Shared tooltip controls; pointer movement updates the floating element directly. */
 interface TooltipControls {
     id: string;
     show: (content: ReactNode, x: number, y: number) => void;
-    move: (x: number, y: number) => void;
+    move: (x: number, y: number, altKey: boolean) => void;
+    leave: () => void;
     hide: () => void;
 }
 
 const TooltipContext = createContext<TooltipControls | undefined>(undefined);
 
 /** @brief A pointer-following tooltip in the top layer, including inside modal dialogs. */
-export function Tooltip({ id, children, position, element }: {
+export function Tooltip({ id, children, position, element, enter, leave }: {
     id: string; children: ReactNode; position: () => void; element: React.RefObject<HTMLDivElement>;
+    enter: () => void; leave: () => void;
 }) {
     useLayoutEffect(() => {
         const node = element.current;
@@ -22,7 +24,7 @@ export function Tooltip({ id, children, position, element }: {
         return () => { node?.hidePopover?.(); };
     }, [children, element, position]);
 
-    return <div ref={element} id={id} role="tooltip" className="ts-tooltip">{children}</div>;
+    return <div ref={element} id={id} role="tooltip" className="ts-tooltip" onPointerEnter={enter} onPointerLeave={leave}>{children}</div>;
 }
 
 /** @brief Share one floating tooltip across anchors without rerendering cards on pointer movement. */
@@ -31,6 +33,53 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
     const element = useRef<HTMLDivElement>(null);
     const point = useRef({ x: 0, y: 0 });
     const [content, setContent] = useState<ReactNode>();
+    const alt = useRef(false);
+    const hovered = useRef<'anchor' | 'tooltip'>();
+    const hideTimer = useRef<ReturnType<typeof setTimeout>>();
+
+    /** @brief Cancel dismissal while crossing the gap into the tooltip. */
+    function cancelHide(): void {
+        clearTimeout(hideTimer.current);
+        hideTimer.current = undefined;
+    }
+
+    /** @brief Immediately dismiss for explicit actions such as selection or Escape. */
+    function hide(): void {
+        cancelHide();
+        setContent(undefined);
+    }
+
+    /** @brief Allow pointer transfer to the tooltip and keep Alt-held details open. */
+    function scheduleHide(): void {
+        cancelHide();
+        if (alt.current || hovered.current) return;
+        hideTimer.current = setTimeout(() => setContent(undefined), 200);
+    }
+
+    useEffect(() => {
+        /** @brief Track Alt even when the pointer is outside the original card. */
+        function keydown(event: KeyboardEvent): void {
+            if (event.key === 'Alt') { alt.current = true; cancelHide(); }
+        }
+
+        /** @brief Resume normal dismissal when Alt is released outside both regions. */
+        function keyup(event: KeyboardEvent): void {
+            if (event.key === 'Alt') { alt.current = false; scheduleHide(); }
+        }
+
+        /** @brief Clear held modifiers and dismiss when the browser loses focus. */
+        function blur(): void { alt.current = false; hovered.current = undefined; hide(); }
+
+        window.addEventListener('keydown', keydown);
+        window.addEventListener('keyup', keyup);
+        window.addEventListener('blur', blur);
+        return () => {
+            cancelHide();
+            window.removeEventListener('keydown', keydown);
+            window.removeEventListener('keyup', keyup);
+            window.removeEventListener('blur', blur);
+        };
+    }, []);
 
     /** @brief Flip around the pointer and clamp the tooltip inside the viewport. */
     function position(): void {
@@ -43,14 +92,25 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
     }
 
     return <TooltipContext.Provider value={{ id,
-        show: (next, x, y) => { point.current = { x, y }; setContent(next); },
-        move: (x, y) => { point.current = { x, y }; position(); },
-        hide: () => setContent(undefined),
+        show: (next, x, y) => {
+            cancelHide(); hovered.current = 'anchor';
+            if (alt.current && element.current) return;
+            point.current = { x, y }; setContent(next);
+        },
+        move: (x, y, altKey) => {
+            alt.current = altKey;
+            if (altKey) return;
+            point.current = { x, y }; position();
+        },
+        leave: () => { if (hovered.current === 'anchor') hovered.current = undefined; scheduleHide(); },
+        hide,
     }}>
-        <div className="ts-tooltip-scope" onScrollCapture={() => setContent(undefined)} onKeyDownCapture={event => {
-            if (event.key === 'Escape' && content !== undefined) { event.preventDefault(); event.stopPropagation(); setContent(undefined); }
+        <div className="ts-tooltip-scope" onScrollCapture={hide} onKeyDownCapture={event => {
+            if (event.key === 'Escape' && content !== undefined) { event.preventDefault(); event.stopPropagation(); hide(); }
         }}>{children}</div>
-        {content !== undefined && <Tooltip id={id} element={element} position={position}>{content}</Tooltip>}
+        {content !== undefined && <Tooltip id={id} element={element} position={position}
+            enter={() => { hovered.current = 'tooltip'; cancelHide(); }}
+            leave={() => { hovered.current = undefined; scheduleHide(); }}>{content}</Tooltip>}
     </TooltipContext.Provider>;
 }
 

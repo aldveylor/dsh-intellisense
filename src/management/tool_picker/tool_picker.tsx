@@ -13,11 +13,11 @@ function ToolCard({ tool, mapping, calls, busy, select }: {
     return <button type="button" data-tool-id={tool.id} aria-describedby={tooltip.id}
         className={`ts-tool ${mapping?.path.trim() ? '' : 'ts-unmounted'}`} disabled={busy || mapping?.pinned}
         onPointerEnter={event => tooltip.show(<ToolDetails tool={tool} calls={calls} />, event.clientX, event.clientY)}
-        onPointerMove={event => tooltip.move(event.clientX, event.clientY)} onPointerLeave={tooltip.hide}
+        onPointerMove={event => tooltip.move(event.clientX, event.clientY, event.altKey)} onPointerLeave={tooltip.leave}
         onFocus={event => {
             const rect = event.currentTarget.getBoundingClientRect();
             tooltip.show(<ToolDetails tool={tool} calls={calls} />, rect.left, rect.bottom);
-        }} onBlur={tooltip.hide} onClick={() => { tooltip.hide(); select(tool); }}>
+        }} onBlur={tooltip.leave} onClick={() => { tooltip.hide(); select(tool); }}>
         <strong>{tool.id}</strong>
         <span className="ts-tool-footer"><code>{mapping?.path || t('unmounted')}</code>
             <span className="ts-tool-calls" aria-label={t('tool_calls_label', { count: calls })}>{calls}</span></span>
