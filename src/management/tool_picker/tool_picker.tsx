@@ -1,6 +1,7 @@
 import { useTranslation } from '../locale/locale.js';
 import { useEffect, useRef, useState } from 'react';
 import { TooltipProvider, useTooltip } from '../tooltip/tooltip.js';
+import { NativeProfileSelect } from '../profile_picker/native_profile_select.js';
 import { ToolDetails } from './tool_details.js';
 import type { Mapping, PhysicalTool } from '../../registry/registry.js';
 
@@ -58,12 +59,11 @@ export function ToolPicker({ parent, tools, mappings, callsByTool = {}, busy, se
         <TooltipProvider><header><h2 id="ts-tool-picker-title">{t('add_tools')} · {parent || t('root')}</h2>
             <button type="button" aria-label={t('close_picker')} onClick={close}>{t('close')}</button>
         </header>
-        <input type="search" autoFocus aria-label={t('search_tools')} placeholder={t('search_hint')} value={search} onChange={event => setSearch(event.target.value)} />
-        <div className="ts-tool-picker-summary">
-            <select aria-label={t('tool_sort')} value={sort} onChange={event => setSort(event.target.value)}>
-                {['default', 'name_asc', 'name_desc', 'calls_desc', 'calls_asc'].map(value =>
-                    <option key={value} value={value}>{t(`tool_sort_${value}`)}</option>)}
-            </select>
+        <div className="ts-tool-picker-search">
+            <input type="search" autoFocus aria-label={t('search_tools')} placeholder={t('search_hint')} value={search} onChange={event => setSearch(event.target.value)} />
+            <div className="ts-tool-picker-sort"><NativeProfileSelect label={t('tool_sort')} value={sort}
+                options={['default', 'name_asc', 'name_desc', 'calls_desc', 'calls_asc'].map(value => ({ value, label: t(`tool_sort_${value}`) }))}
+                disabled={busy} readOnly closeOnSelect onChange={setSort} /></div>
         </div>
         <div className="ts-blocks">{matches.map(tool => <ToolCard key={tool.id} tool={tool}
             mapping={mappings.find(mapping => mapping.id === tool.id)} calls={callsByTool[tool.id] ?? 0} busy={busy} select={select} />)}</div>

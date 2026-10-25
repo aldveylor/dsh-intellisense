@@ -5,24 +5,25 @@ import { useState, type ComponentType } from 'react';
 /** @brief A host may supply its own dropdown without imposing host dependencies on standalone pages. */
 export interface ProfileSelectProps {
     value: string; options: ReadonlyArray<{ value: string; label: string }>; disabled: boolean; readOnly?: boolean; allowCreate?: boolean; protectedProfile?: string;
+    label?: string; closeOnSelect?: boolean;
     onChange: (value: string) => void;
-    onCreate: (name: string) => void; onRename: (name: string, newName: string) => void; onRemove: (name: string) => void;
+    onCreate?: (name: string) => void; onRename?: (name: string, newName: string) => void; onRemove?: (name: string) => void;
 }
 
 /** @brief Portable selection control for the independent authenticated page. */
-export function ProfileSelect({ value, options, disabled, readOnly = false, allowCreate = true, protectedProfile, onChange, onCreate, onRename, onRemove }: ProfileSelectProps) {
+export function ProfileSelect({ value, options, disabled, readOnly = false, allowCreate = true, protectedProfile, label, onChange, onCreate, onRename, onRemove }: ProfileSelectProps) {
     const t = useTranslation();
     const [editing, setEditing] = useState<'create' | 'rename'>();
     const [draft, setDraft] = useState('');
-    return <><select aria-label={t('profile')} value={value} disabled={disabled} onChange={event => onChange(event.target.value)}>
+    return <><select aria-label={label ?? t('profile')} value={value} disabled={disabled} onChange={event => onChange(event.target.value)}>
         {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
     </select>
         {!readOnly && allowCreate && <button type="button" disabled={disabled} onClick={() => { setEditing('create'); setDraft(''); }}>{t('create_profile')}</button>}
         {!readOnly && <button type="button" disabled={disabled} onClick={() => { setEditing('rename'); setDraft(value); }}>{t('rename_profile')}</button>}
-        {!readOnly && <button type="button" disabled={disabled || options.length <= 1 || value === protectedProfile} onClick={() => onRemove(value)}>{t('delete_profile')}</button>}
+        {!readOnly && <button type="button" disabled={disabled || options.length <= 1 || value === protectedProfile} onClick={() => onRemove?.(value)}>{t('delete_profile')}</button>}
         {editing && <form className="ts-profile-name" onSubmit={event => {
             event.preventDefault(); const name = draft.trim(); if (disabled || !name) return;
-            if (editing === 'create') onCreate(name); else onRename(value, name);
+            if (editing === 'create') onCreate?.(name); else onRename?.(value, name);
             setEditing(undefined);
         }}>
             <input aria-label={t('profile_name')} autoFocus maxLength={80} value={draft} disabled={disabled} onChange={event => setDraft(event.target.value)}
