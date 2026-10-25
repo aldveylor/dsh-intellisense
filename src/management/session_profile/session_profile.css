@@ -1,0 +1,56 @@
+/* Keep the profile beside the preset while later hero options retain their trailing placement. */
+div:has(> [data-slot="conversation.hero.options"] .ts-session-profile) {
+    flex: 1;
+    margin-left: 0;
+}
+
+.ts-session-profile {
+    display: inline-flex;
+    align-items: center;
+    margin-right: auto;
+    min-width: 0;
+}
+
+.ts-session-profile-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    max-width: 240px;
+    min-height: 28px;
+    padding: 0 8px;
+    border: none;
+    border-radius: var(--dsw-radius-sm);
+    background: transparent;
+    color: var(--dsw-alias-label-primary);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 20px;
+    cursor: pointer;
+}
+
+.ts-session-profile-trigger:hover,
+.ts-session-profile-trigger[aria-expanded="true"] {
+    background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.ts-session-profile-trigger:disabled {
+    color: var(--dsw-alias-label-quaternary);
+    cursor: default;
+}
+
+.ts-session-profile-trigger span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ts-session-profile-trigger svg {
+    flex: none;
+}
+
+.ts-session-profile-error {
+    color: var(--dsw-alias-state-error-primary);
+    font-size: 12px;
+}

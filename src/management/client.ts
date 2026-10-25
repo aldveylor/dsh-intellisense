@@ -2,6 +2,7 @@ import { CodeBlock } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { Context } from '@deepseek-ai/cordis';
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client';
 import type {} from '@deepseek-ai/dsh-client-ui-plugin-manager/client';
+import { SessionProfile } from './session_profile/session_profile.js';
 import { NativeProfileSelect } from './profile_picker/native_profile_select.js';
 import type {} from '@deepseek-ai/dsh-client-locale/client';
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client';
@@ -23,6 +24,10 @@ export const inject = ['slots', 'locale', 'sessions', 'uiWorkspace', 'conversati
 /** @brief Register global namespace configuration in the native Plugins page. */
 export function apply(ctx: Context): void {
     ctx.effect(() => ctx.locale.register('ts_intellisense', { zh, en: enUs }));
+    ctx.slots.inject('conversation.hero.options', () => ctx.slots.register({
+        name: 'conversation.hero.options', id: 'intellisense-profile', order: -100,
+        inject: () => ({ api: new URL('api/ts-intellisense-profile', document.baseURI).href }),
+    }, SessionProfile));
     ctx.slots.inject('plugins.bundle.config', () => ctx.slots.register({
         name: 'plugins.bundle.config', key: 'dsh-intellisense',
         inject: () => ({ organize: async (prompt: string) => {

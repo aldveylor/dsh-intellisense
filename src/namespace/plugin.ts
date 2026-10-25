@@ -9,6 +9,7 @@ import { ProfileSessions } from '../registry/profiles.js';
 import { createSearchEngines } from '../search/search.js';
 import { NamespaceComponent } from './component.js';
 import { Aliases } from './namespace.js';
+import { registerSessionProfiles } from '../management/session_profile/routes.js';
 import { registerManagement } from '../management/server/routes.js';
 import { ptcToolName } from '../runtime/builtins.js';
 import { executionInstructions } from './prompt.js';
@@ -37,6 +38,7 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
     const namespaces = new NamespaceComponent(ctx, registry, profiles, aliases, createSearchEngines(config.defaultSearchMethod), statistics);
     ctx.provide('commandNamespaces', namespaces);
     registerManagement(ctx, registry, namespaces);
+    registerSessionProfiles(ctx, registry, namespaces);
     ctx.on('agent/created', async ({ agent }) => { await namespaces.configure(agent); });
     ctx.on('agent/disposed', async ({ agent }) => { await namespaces.release(agent.id); });
     ctx.on('system-prompt/assemble', async (_assembly, context, next) => {

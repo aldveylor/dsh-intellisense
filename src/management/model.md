@@ -5,3 +5,5 @@
 code_block/ 提供代码渲染上下文；client.ts 向 NativePanel 注入宿主 ui-primitives 的 CodeBlock，工具返回类型使用 TypeScript 高亮及复制按钮，独立页面使用可移植代码展示。
 
 package.json 的 dsh.client.inject 显式声明客户端服务提供包 ui-renderer（slots）、locale、api-session-controller（sessions）、ui-workspace、ui-conversation 和 ui-layout，以及提供 plugins.bundle.config 插槽的 ui-plugin-manager。ui-slots 与 ui-primitives 为共享模块，不作为客户端插件依赖声明。
+
+`session_profile/` 在已有会话的首页 preset 右侧提供原生 Profile 菜单，只在当前作用域启用 intellisense-presentation 时显示；切换只加载当前会话命名空间。详见 session_profile/model.md。
