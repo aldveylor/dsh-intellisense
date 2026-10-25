@@ -46,3 +46,6 @@
 .ts-parameter-type{cursor:help;text-decoration:underline dotted;text-underline-offset:3px}.ts-parameter-type:focus-visible{outline:1px solid var(--ts-border-focus);outline-offset:3px}.ts-parameter-type-code{width:480px;max-width:100%;font:12px/1.6 ui-monospace,monospace}.ts-tooltip .ts-parameter-type-code pre{white-space:pre-wrap;overflow-wrap:anywhere}
 
 .ts-tool-details table{border:1px solid var(--ts-border,var(--dsw-alias-border-l2,#80808047))}.ts-tool-detail-header p{margin-top:8px}.ts-tool-details .ts-tool-schema>h4,.ts-tool-details .ts-tool-statistics>h4{font-size:15px;margin-bottom:6px}
+
+.ts-intellisense .ts-open-tools:not([data-dsh-control]){border:0;margin-left:-16px}.ts-intellisense .ts-tool.ts-builtin-tool{color:var(--dsw-alias-label-tertiary,#a5a5a5)}
+.ts-tree-details{max-width:480px;font:12px/1.6 system-ui,sans-serif;overflow-wrap:anywhere}.ts-tree-details h3{margin:0;font-size:16px}.ts-tree-details p{white-space:pre-wrap;margin:8px 0 0}.ts-detail-path,.ts-command-namespace{color:var(--dsw-alias-label-tertiary,#a5a5a5)}.ts-command-namespace{margin-left:10px;font-size:11px;font-weight:400}.ts-original-command{cursor:help;text-decoration:underline dotted;text-underline-offset:3px}

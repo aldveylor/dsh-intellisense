@@ -43,3 +43,13 @@ export function providedNamespace(path: string, roots: readonly ProvidedNamespac
         if (path === node.path || path.startsWith(`${node.path}.`)) return node;
     }
 }
+
+/** @brief Project plugin-owned physical commands into disabled picker cards from server contracts. */
+export function providedTools(roots: readonly ProvidedNamespace[], tools: readonly PhysicalTool[]): Array<{ tool: PhysicalTool; path: string }> {
+    return roots.flatMap(namespace => [
+        ...namespace.commands.flatMap(command => command.id ? [{ path: command.path, tool: tools.find(tool => tool.id === command.id) ?? {
+            id: command.id, description: command.description, parameters: command.node.command?.schema ?? {}, output: command.node.command?.output,
+        } }] : []),
+        ...providedTools(namespace.children ?? [], tools),
+    ]);
+}

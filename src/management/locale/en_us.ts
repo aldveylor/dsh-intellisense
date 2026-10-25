@@ -1,5 +1,8 @@
 /** @brief American English interface dictionary. */
 export const enUs = {
+    "original_command": "Original command",
+    "command_summary": "Summary",
+    "command_documentation": "Full documentation",
     "copy_code": "Copy code",
     "copied_code": "Copied",
     "tool_name": "Tool name",
