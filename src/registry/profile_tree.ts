@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { RegistryConfiguration } from './registry.js';
-import { CommandNode, NamespaceNode, createNamespace } from '../integration/namespace.js';
-import { fixLevel, type SerializedNode } from '../integration/node.js';
+import { CommandNode, NamespaceNode, createNamespace } from '../namespace/namespace.js';
+import { fixLevel, type SerializedNode } from '../namespace/node.js';
 
 /** @brief Physical command identity used by editable Profile trees. */
 export type CommandName = string;

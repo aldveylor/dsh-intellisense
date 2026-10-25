@@ -1,4 +1,4 @@
-import { createNamespace } from '../integration/namespace.js';
+import { createNamespace } from '../namespace/namespace.js';
 import { pluginCommands } from '../runtime/builtins.js';
 import { toolName, validatePath } from './path.js';
 export { validatePath } from './path.js';

@@ -1,7 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis';
 import { storageBackendServiceKey } from '@deepseek-ai/dsh-storage';
 import { z } from 'zod';
-import * as namespacePlugin from './integration/namespace_plugin.js';
+import * as namespacePlugin from './namespace/namespace_plugin.js';
 import { RuntimeConfig } from './runtime/host.js';
 
 export const name = 'dsh-intellisense';
@@ -20,7 +20,7 @@ export async function apply(ctx: Context, options: Config = {}): Promise<void> {
 
 export { RuntimeHost } from './runtime/host.js';
 export { SemanticRegistry } from './registry/registry.js';
-export { NamespaceComponent } from './integration/namespace_component.js';
+export { NamespaceComponent } from './namespace/namespace_component.js';
 
 export { SearchEngineRegistry } from './search/engine_registry.js';
 export type { SearchEngine, SearchSelection, SearchDocument, SearchSelector, SearchField } from './search/engine_registry.js';

@@ -3,7 +3,7 @@ import { TreeNode } from './tree_node.js';
 import type { NamespaceTreeNode } from './namespace_tree_node.js';
 import type { Mapping, PhysicalTool } from '../../../registry/registry.js';
 import type { ProvidedCommand } from '../tree_provider.js';
-import { fixLevel, type NodeType, type SerializedNode } from '../../../integration/node.js';
+import { fixLevel, type NodeType, type SerializedNode } from '../../../namespace/node.js';
 
 /** @brief An editable physical command mapping or one of its aliases. */
 export class CommandTreeNode extends TreeNode {

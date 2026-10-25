@@ -1,5 +1,5 @@
 import { providedNamespace, type ProvidedNamespace } from './tree_provider.js';
-import { validateNodePath as validatePath } from '../../integration/node.js';
+import { validateNodePath as validatePath } from '../../namespace/node.js';
 import type { Mapping, Namespace } from '../../registry/registry.js';
 
 /** @brief The editable tree configuration independent of physical tool identities. */

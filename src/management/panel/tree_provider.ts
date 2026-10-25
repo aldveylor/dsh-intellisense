@@ -1,5 +1,5 @@
 import type { Mapping, PhysicalTool, PinLevel, CommandVisibility } from '../../registry/registry.js';
-import { fixLevel, type Permission, type SerializedNode } from '../../integration/node.js';
+import { fixLevel, type Permission, type SerializedNode } from '../../namespace/node.js';
 
 /** @brief Client command metadata comes entirely from the server's node description. */
 export interface ProvidedCommand {

@@ -1,7 +1,7 @@
 import { NamespaceTreeNode } from './namespace_tree_node.js';
 import { ProvidedCommandTreeNode } from './provided_command_tree_node.js';
 import type { ProvidedNamespace } from '../tree_provider.js';
-import type { Permission } from '../../../integration/node.js';
+import type { Permission } from '../../../namespace/node.js';
 
 /** @brief A fixed runtime namespace owns builtin descendants and locked pin policy. */
 export class ProvidedNamespaceTreeNode extends NamespaceTreeNode {

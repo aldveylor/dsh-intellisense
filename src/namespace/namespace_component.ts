@@ -1,6 +1,6 @@
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
-import * as presentation from './presentation.js';
+import * as presentation from '../integration/presentation.js';
 import type { Position } from '../protocol/events.js';
 import type { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
@@ -14,9 +14,9 @@ import { pluginCommands, ptcToolName } from '../runtime/builtins.js';
 import { type CommandBrief, profileAnnotation } from '../registry/profile_tree.js';
 import type { z } from 'zod';
 import { createSearchEngines } from '../search/search.js';
-import { registerSearch } from './tool_search.js';
-import { registerIntellisense } from './intellisense.js';
-import { registerToolCommands } from './tool_commands.js';
+import { registerSearch } from '../tools/tool_search.js';
+import { registerIntellisense } from '../tools/intellisense.js';
+import { registerToolCommands } from '../tools/tool_commands.js';
 import { nativeBindings, nativeDiscovery, nativeQueryEntries } from './native_tools.js';
 
 /** @brief Profile-backed namespace discovery, independent of any execution runtime. */
