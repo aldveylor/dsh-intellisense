@@ -11,8 +11,8 @@ export interface PhysicalTool {
     description: string;
     parameters: Record<string, unknown>;
     output: unknown;
-    /** @brief TypeScript return type supplied by the management API for display. */
-    outputType?: string;
+    /** @brief TypeScript return declaration supplied by the management API for display. */
+    outputDeclaration?: string;
 }
 
 /** @brief Command prompt exposure: hidden, brief, or fully documented. */

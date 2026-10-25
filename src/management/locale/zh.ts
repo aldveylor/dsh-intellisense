@@ -1,5 +1,7 @@
 /** @brief Chinese interface dictionary. */
 export const zh = {
+    "copy_code": "复制代码",
+    "copied_code": "已复制",
     "tool_name": "工具名",
     "tool_source": "来源",
     "tool_description": "工具描述",

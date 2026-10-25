@@ -1,8 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis';
 import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
-import { jsonSchemaToTs } from '@deepseek-ai/dsh-tools';
-import { decodeHTML } from 'entities';
+import { returnTypeDeclaration } from './return_type.js';
 import type { SemanticRegistry } from '../../registry/registry.js';
 import { createNamespace } from '../../namespace/namespace.js';
 import type { NamespaceComponent } from '../../namespace/component.js';
@@ -39,7 +38,7 @@ export function registerManagement(ctx: Context, globalRegistry: SemanticRegistr
                 const registry = globalRegistry;
                 const state = registry.snapshot();
                 const profile = new URL(request.url).searchParams.get('profile') ?? state.profile!;
-                return Response.json({ defaultProfile: state.profile, state: { ...state, ...registry.configuration(profile), profile }, tools: registry.tools().map(tool => ({ ...tool, outputType: decodeHTML(jsonSchemaToTs(tool.output)) })), callsByTool: (await adapter.statistics?.snapshot())?.callsByTool ?? {}, provided: [...createNamespace({ tools: registry.tools(), includeUnavailable: true }).children.values()].map(node => node.serialize()), effective: registry.effective() }, { headers });
+                return Response.json({ defaultProfile: state.profile, state: { ...state, ...registry.configuration(profile), profile }, tools: registry.tools().map(tool => ({ ...tool, outputDeclaration: returnTypeDeclaration(tool.output) })), callsByTool: (await adapter.statistics?.snapshot())?.callsByTool ?? {}, provided: [...createNamespace({ tools: registry.tools(), includeUnavailable: true }).children.values()].map(node => node.serialize()), effective: registry.effective() }, { headers });
             }
             if (!request.headers.get('content-type')?.startsWith('application/json')) return Response.json({ error: 'Expected application/json' }, { status: 415, headers });
             const bodyText = await request.text();

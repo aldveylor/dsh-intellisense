@@ -1,3 +1,4 @@
+import { TypeScriptBlock } from '../code_block/code_block.js';
 import type { PhysicalTool } from '../../registry/registry.js';
 import { useTranslation } from '../locale/locale.js';
 
@@ -73,7 +74,7 @@ export function ToolDetails({ tool, calls }: { tool: PhysicalTool; calls: number
         <section className="ts-tool-return">
             <h4>{t('tool_returns')}</h4>
             {typeof output.description === 'string' && output.description.trim() && <p>{output.description}</p>}
-            <pre><code className="language-typescript">{`type Result = ${tool.outputType ?? schemaType(tool.output)};`}</code></pre>
+            <TypeScriptBlock code={tool.outputDeclaration ?? `type Result = ${schemaType(tool.output)};`} />
         </section>
         <section className="ts-tool-statistics">
             <table>

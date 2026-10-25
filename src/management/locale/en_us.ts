@@ -1,5 +1,7 @@
 /** @brief American English interface dictionary. */
 export const enUs = {
+    "copy_code": "Copy code",
+    "copied_code": "Copied",
     "tool_name": "Tool name",
     "tool_source": "Source",
     "tool_description": "Description",
