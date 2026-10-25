@@ -1,5 +1,5 @@
 /** @brief Searchable command fields exposed by the target selector. */
-export type SearchField = 'name' | 'description' | 'parameters' | 'returns';
+export type SearchField = 'name' | 'description' | 'parameters';
 
 /** @brief One effective command projected onto searchable namespace fields. */
 export interface SearchDocument extends Record<SearchField, string> { id: string }

@@ -49,7 +49,7 @@ export function createSearchEngines(defaultMethod?: string, ranked = miniSearch)
 
 /** @brief Define target selector choices once for both parameters and field selection. */
 const targets: Record<SearchField | 'all', readonly SearchField[]> = {
-    name: ['name'], description: ['description'], parameters: ['parameters'], returns: ['returns'], all: ['name', 'description', 'parameters', 'returns'],
+    name: ['name'], description: ['description'], parameters: ['parameters'], all: ['name', 'description', 'parameters'],
 };
 
 /** @brief Generate tool parameters directly from the current registry and target selector structure. */
@@ -77,7 +77,7 @@ export async function searchEntries(entries: readonly ManifestEntry[], options: 
     if (!engine) throw new Error(`Unknown search method: ${method}`);
     const documents = entries.filter(entry => !namespace || entry.path.startsWith(namespace + '.')).map(entry => ({
         id: entry.path, name: entry.path, description: entry.doc,
-        parameters: JSON.stringify(nativeSchema(entry)), returns: JSON.stringify(entry.output ?? {}),
+        parameters: JSON.stringify(nativeSchema(entry)),
     }));
     if (!keywords.length || !limit || !documents.length) return [];
     const allowed = new Set(documents.map(document => document.id));

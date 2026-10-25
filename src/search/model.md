@@ -6,7 +6,7 @@
 
 方法及目标字段的参数声明直接从选择器生成。多个引擎时 method 为注册方法枚举，default 使用当前注册器的默认值；仅一个引擎时无 method 参数。keywords 必填，max_results 默认 10，target 默认 all，namespace_path 默认空字符串。返回值始终是有效树中的唯一命令路径数组，按引擎结果顺序限制条数；未知路径会被过滤。空关键词或零结果上限返回空数组。
 
-搜索索引来自调用者当前 Profile、当前作用域有效 manifest，排除失效和禁用路径，不影响原生执行权限。parameters 使用配置后的命名参数 schema，returns 使用原始返回 schema，description 使用当前简化描述（若配置）。命名空间范围按点号边界限定，包含所有后代；支持 global. 前缀及尾点。
+搜索索引来自调用者当前 Profile、当前作用域有效 manifest，排除失效和禁用路径，不影响原生执行权限。仅索引 name、description 和 parameters；parameters 使用配置后的命名参数 schema，description 使用当前简化描述（若配置）。target 仅接受 name、description、parameters 和 all，all 不搜索返回值。命名空间范围按点号边界限定，包含所有后代；支持 global. 前缀及尾点。
 
 自定义插件通过现有 commandNamespaces 服务注册引擎，例如：
 

@@ -47,8 +47,8 @@ export class PluginCommands {
     /** @brief Optional-ranked command search, unpinned by default and independently disableable. */
     readonly searchCommand: BuiltinTool = {
         tool: 'tools_search', path: 'tools.search',
-        signature: "(keywords: string[], method?: string, max_results?: number, target?: 'name' | 'description' | 'parameters' | 'returns' | 'all', namespace_path?: string) => Promise<string[]>",
-        description: 'Search command names, descriptions, parameters or returns within a namespace subtree; defaults to the configured method, 10 results, all fields and the entire tree. Returns full command paths matching any keyword. Use tools.intellisense for complete command details.',
+        signature: "(keywords: string[], method?: string, max_results?: number, target?: 'name' | 'description' | 'parameters' | 'all', namespace_path?: string) => Promise<string[]>",
+        description: 'Search command names, descriptions, or parameters within a namespace subtree; defaults to the configured method, 10 results, all fields and the entire tree. Use tools.intellisense for complete command details.',
     };
 
     /** @brief Derive the positional search signature from the installed physical contract. */
