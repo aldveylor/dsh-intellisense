@@ -14,9 +14,16 @@ import { MemoryStore } from '../../src/storage/store.js';
 import { RuntimeConfig } from '../../src/runtime/host.js';
 import { ptcToolName } from '../../src/runtime/builtins.js';
 import { executionInstructions } from '../../src/namespace/prompt.js';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { JsonStorageBackend } from '@deepseek-ai/dsh-storage-json';
+import { DshStore, type Store } from '../../src/storage/store.js';
+import { CommandStatistics } from '../../src/namespace/statistics.js';
+import { createSearchEngines } from '../../src/search/search.js';
 
 /** @brief Mount the real scoped presentation beside a deployment-default runtime that must never execute namespace code. */
-async function fixture() {
+async function fixture(store: Store = new MemoryStore()) {
     const ctx = new Context();
     ctx.provide('systemPrompt', { tools: () => () => {}, section: () => () => {}, getSectionOrder: () => 1 });
     await ctx.plugin(ToolRuntime, { mode: 'ptc' });
@@ -25,9 +32,10 @@ async function fixture() {
     const agents: Agent[] = [];
     ctx.provide('agents', { list: () => agents } as unknown as Context['agents']);
     ctx.provide('codeRuntimeOptions', RuntimeConfig.parse({ timeoutMs: 3000 }));
-    const store = new MemoryStore();
     const catalog = new SemanticRegistry(store);
-    const namespaces = new NamespaceComponent(ctx, catalog, new ProfileSessions(catalog, store), []);
+    const statistics = new CommandStatistics(store);
+    await statistics.load();
+    const namespaces = new NamespaceComponent(ctx, catalog, new ProfileSessions(catalog, store), [], createSearchEngines(), statistics);
     ctx.provide('commandNamespaces', namespaces);
     let toolContext = ctx;
     await ctx.plugin({ inject: ['tools'], apply: (scope: Context) => { toolContext = scope; } });
@@ -46,6 +54,58 @@ async function fixture() {
     const dispose = async () => { await live.dispose(); await mounted.dispose(); await standing.dispose(); await ctx.fiber.dispose(); };
     return { ctx, agent, namespaces, run, dispose, standing, mounted, defaultRuntime };
 }
+
+test('PTC worker dispatches and discovery persist session and global statistics through the JSON backend', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'intellisense-ptc-statistics-'));
+    const descriptor = { name: 'ts_intellisense', version: 1, tables: ['state'], hasGlobal: false, layout: 'per-record' as const };
+    let backend = new JsonStorageBackend(directory);
+    try {
+        const unit = await backend.kv.open(descriptor);
+        const { ctx, agent, namespaces, run, dispose } = await fixture(new DshStore(unit));
+        let expected;
+        try {
+            agent.ctx.tools.register(defineTool({ name: 'read_tool', description: 'Read', parameters: {},
+                output: { schema: { type: 'string' }, render: () => [] }, execute: async () => 'ok',
+            }));
+            agent.ctx.tools.register(defineTool({ name: 'fail_tool', description: 'Fail', parameters: {},
+                output: { schema: { type: 'string' }, render: () => [] }, execute: async () => { throw new Error('Expected failure'); },
+            }));
+            const registry = await namespaces.registryFor(agent);
+            await registry.configure([
+                { id: 'read_tool', path: 'std.read', aliases: [], pinned: false },
+                { id: 'fail_tool', path: 'std.fail', aliases: [], pinned: false },
+            ], registry.snapshot().revision);
+            const result = await run('console.log("excluded"); const commands = tools.profile.commands; await tools.intellisense("global.std.", "std.read", "console.log"); return await Promise.all([std.read(), std.read()]);');
+            assert.equal(result.isError, false, JSON.stringify(result));
+            assert.deepEqual(result.value, { logs: ['excluded'], result: ['ok', 'ok'] });
+            const failed = await run('return await std.fail();');
+            assert.equal(failed.isError, true);
+            const unguard = ctx.tools.guard(execution => execution.name === 'read_tool' ? 'Denied for statistics test' : undefined);
+            try {
+                const denied = await run('return await std.read();');
+                assert.equal(denied.isError, true);
+                assert.match(JSON.stringify(denied), /Denied for statistics test/);
+            } finally { unguard(); }
+            expected = await namespaces.statistics.snapshot();
+            assert.equal(expected.calls, 5);
+            assert.deepEqual(expected.callsByTool, { tools_intellisense: 1, read_tool: 3, fail_tool: 1 });
+            assert.deepEqual(expected.namespaceQueriesByPath, { std: 1 });
+            assert.deepEqual(expected.commandQueriesByPath, { 'std.read': 1 });
+            assert.deepEqual(await namespaces.statistics.snapshot(agent.id), expected);
+            assert.equal(agent.session.snapshotEvents().filter(event => event.type === 'tool/ptc-dispatch-start').length, expected.calls);
+            await namespaces.release(agent.id);
+        } finally { await dispose(); }
+        await backend.close();
+        backend = new JsonStorageBackend(directory);
+        const restored = new CommandStatistics(new DshStore(await backend.kv.open(descriptor)));
+        await restored.load();
+        assert.deepEqual(await restored.snapshot(), expected);
+        assert.deepEqual(await restored.snapshot(agent.id), expected);
+    } finally {
+        await backend.close();
+        await rm(directory, { recursive: true, force: true });
+    }
+});
 
 test('PTC discovery uses namespace execution instead of the deployment Node runtime', async () => {
     const { ctx, agent, namespaces, run, dispose, mounted, defaultRuntime } = await fixture();
