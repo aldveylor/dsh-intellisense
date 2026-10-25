@@ -32,6 +32,7 @@ function schemaType(value: unknown, detailed = false, depth = 0): string {
             const optional = required.includes(key) || definition.required === true ? '' : '?';
             return `${comment}${indent}  ${name}${optional}: ${schemaType(field, true, depth + 1)};`;
         });
+        if (!fields.length && schema.additionalProperties !== false) return 'Record<string, unknown>';
         if (schema.additionalProperties !== false) fields.push(`${indent}  [key: string]: unknown;`);
         return fields.length ? `{\n${fields.join('\n')}\n${indent}}` : 'Record<string, never>';
     }
@@ -45,7 +46,7 @@ function schemaType(value: unknown, detailed = false, depth = 0): string {
 /** @brief Flatten nested properties, array items and union variants into documented rows. */
 function schemaFields(value: unknown, name: string): SchemaField[] {
     const schema = schemaRecord(value);
-    const rows: SchemaField[] = [{ name, type: schemaType(value), description: typeof schema.description === 'string' ? schema.description : '' }];
+    const rows: SchemaField[] = [{ name, type: schemaType(value, true), description: typeof schema.description === 'string' ? schema.description : '' }];
     for (const [key, field] of Object.entries(schemaRecord(schema.properties))) {
         rows.push(...schemaFields(field, name ? `${name}.${key}` : key));
     }
