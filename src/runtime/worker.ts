@@ -56,6 +56,12 @@ function initialize(commands: CommandBinding[], values: Record<string, unknown>)
             }
             Object.defineProperty(root,'ToolCallError',{value:ToolCallError,configurable:false});
         }
+        const logger=Object.create(null);
+        for(const method of parse(methods)) {
+            const fn=(...args)=>{try{print(method,args)}catch(error){throw new Error(String(error.message??error))}};
+            Object.setPrototypeOf(fn,null);logger[method]=Object.freeze(fn);
+        }
+        if(!Object.hasOwn(root,'console')||Object.getOwnPropertyDescriptor(root,'console').configurable)Object.defineProperty(root,'console',{value:Object.freeze(logger),configurable:false});
         const tree=Object.create(null);
         /** @brief A guest-owned command with its physical target and precompiled argument/result adapters. */
         class NamespaceCommand {
@@ -115,22 +121,20 @@ function initialize(commands: CommandBinding[], values: Record<string, unknown>)
             const parts=command.path.split('.'); let node=tree;
             for(const part of parts.slice(0,-1)) node=node[part]??=Object.create(null);
             const fn=(...args)=>command.invoke(args);
-            Object.setPrototypeOf(fn,null); node[parts.at(-1)]=Object.freeze(fn);
+            Object.setPrototypeOf(fn,null);
+            if(Object.hasOwn(node,parts.at(-1)))throw new Error('Duplicate command deployment: '+command.path);
+            node[parts.at(-1)]=Object.freeze(fn);
         }
         for(const [path,value] of Object.entries(parse(values))) {
             const parts=path.split('.');let node=tree;
             for(const part of parts.slice(0,-1))node=node[part]??=Object.create(null);
+            if(Object.hasOwn(node,parts.at(-1)))throw new Error('Conflicting value deployment: '+path);
             node[parts.at(-1)]=value;
         }
         const freeze=node=>{for(const child of Object.values(node))if(child&&typeof child==='object')freeze(child);Object.freeze(node)};
         freeze(tree);
-        for(const [name,value] of Object.entries(tree))Object.defineProperty(root,name,{value,configurable:true});
-        const logger=Object.create(null);
-        for(const method of parse(methods)) {
-            const fn=(...args)=>{try{print(method,args)}catch(error){throw new Error(String(error.message??error))}};
-            Object.setPrototypeOf(fn,null);logger[method]=Object.freeze(fn);
-        }
-        if(!Object.hasOwn(root,'console')||Object.getOwnPropertyDescriptor(root,'console').configurable)Object.defineProperty(root,'console',{value:Object.freeze(logger),configurable:false});
+        for(const [name,value] of Object.entries(tree))if(!Object.hasOwn(root,name))Object.defineProperty(root,name,{value,configurable:false});
+
     })`, context, { timeout: syncTimeoutMs }) as (root: object, call: typeof hostCall, print: typeof hostPrint, commands: string, methods: string, values: string) => void;
     install(global, hostCall, hostPrint, JSON.stringify(commands), JSON.stringify(Object.keys(console).filter(name => !name.startsWith('_'))), JSON.stringify(values));
 }

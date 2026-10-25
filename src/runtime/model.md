@@ -19,3 +19,5 @@
 init 消息携带 data-only values，VM realm 内解析并递归冻结，执行前预加载 tools.profile.annotation 与 tools.profile.commands；不传递宿主对象。每次运行刷新这些值，工具仍通过原生 PTC 闭包派发。
 
 `builtins.ts` 的 `PluginCommands` 持有插件命令契约表，通过共享实例 `pluginCommands` 提供物理命令查找、搜索签名、默认提示等级及运行时/UI 投影所需的命令分组。
+
+PTC 初始化先建立运行时环境（包括 console 输出对象），再安装生成的命令与预加载数据。部署只写入环境中不存在的根属性，不覆盖已有 console、标准对象或其它运行时全局。生成树内重复命令或命令/值冲突会明确拒绝，不以后写覆盖先写。environment 节点参与普通 IntelliSense 查询，但不进入物理工具绑定。
