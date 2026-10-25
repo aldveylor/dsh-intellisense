@@ -141,3 +141,50 @@ test('positional RPC preserves optional holes, explicit null and undefined resul
         assert.deepEqual(received, [['call', { path: 'x', nullable: null, options: { nested: true } }], ['empty', {}]]);
     } finally { await host.dispose(); }
 });
+
+
+test('program settlement drains parallel RPC without cancelling siblings or resetting the process', async () => {
+    const host = new RuntimeHost({ timeoutMs: 3000 });
+    try {
+        const cases = [
+            { code: 'void std.read("slow"); return 42;', value: 42 },
+            { code: 'return await Promise.all([std.read("fail"), std.read("slow")]);', error: true },
+            { code: 'try { await Promise.all([std.read("fail"), std.read("slow")]); } catch {} return await std.read("next");', value: 'next' },
+        ];
+        for (const [index, item] of cases.entries()) {
+            let completed = false;
+            const result = await host.execute('siblings', `run-${index}`, item.code, [binding('std.read')], async (_tool, input, signal) => {
+                const { path } = input as { path: string };
+                if (path === 'fail') throw new Error('Expected child failure');
+                if (path === 'slow') {
+                    await new Promise(resolve => setTimeout(resolve, 40));
+                    assert.equal(signal.aborted, false);
+                    completed = true;
+                }
+                return path;
+            }, signal());
+            assert.equal(completed, true);
+            assert.equal(result.epoch, 1);
+            if (item.error) assert.match(result.error!, /Expected child failure/);
+            else { assert.equal(result.error, undefined); assert.equal(result.value, item.value); }
+        }
+        const next = await host.execute('siblings', 'after', 'return 7;', [], unused, signal());
+        assert.equal(next.value, 7);
+        assert.equal(next.epoch, 1);
+    } finally { await host.dispose(); }
+});
+
+test('execution deadline still cancels RPC while draining after an early return', async () => {
+    const host = new RuntimeHost({ timeoutMs: 500 });
+    try {
+        let cancelled = false;
+        await assert.rejects(host.execute('drain-timeout', 'one', 'void std.read("slow"); return 42;', [binding('std.read')], async (_tool, _input, signal) => {
+            await new Promise<void>(resolve => signal.addEventListener('abort', () => { cancelled = true; resolve(); }, { once: true }));
+            return null;
+        }, signal()), /timed out/);
+        assert.equal(cancelled, true);
+        const next = await host.execute('drain-timeout', 'two', 'return 42;', [], unused, signal());
+        assert.equal(next.value, 42);
+        assert.equal(next.epoch, 2);
+    } finally { await host.dispose(); }
+});

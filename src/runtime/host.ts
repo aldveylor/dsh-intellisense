@@ -136,8 +136,8 @@ export class RuntimeHost {
                 if (result.error?.includes('Script execution timed out')) this.close(owner, state, new Error(result.error));
                 return { ...result, epoch: state.epoch };
             } finally {
-                signal.removeEventListener('abort', abort); controller.abort(); state.active = undefined;
                 await Promise.allSettled([...state.calls]);
+                signal.removeEventListener('abort', abort); controller.abort(); state.active = undefined;
             }
         });
         this.queues.set(owner, work);

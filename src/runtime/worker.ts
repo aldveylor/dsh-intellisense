@@ -8,7 +8,7 @@ let context = vm.createContext(Object.create(null), { codeGeneration: { strings:
 let global = vm.runInContext('globalThis', context) as object;
 Object.defineProperty(global, 'globalThis', { value: undefined, writable: false, configurable: false });
 const standardGlobals = new Set([...Object.getOwnPropertyNames(global), ...Object.getOwnPropertyNames(globalThis)]);
-const outstanding = new Map<number, { resolve(value: string): void; reject(error: Error): void }>();
+const outstanding = new Map<number, { promise: Promise<string>; resolve(value: string): void; reject(error: Error): void }>();
 let execution: string | undefined;
 let sequence = 0;
 let logs: string[] = [];
@@ -38,7 +38,12 @@ function initialize(commands: CommandBinding[], values: Record<string, unknown>)
     const hostCall = (tool: string, json: string): Promise<string> => {
         if (!execution) return Promise.reject(new Error('No active execution'));
         const id = RpcId.parse(++sequence);
-        return new Promise((resolve, reject) => { outstanding.set(id, { resolve, reject }); send({ type: 'call', id, execution, tool, args: JSON.parse(json) }); });
+        let resolve!: (value: string) => void;
+        let reject!: (error: Error) => void;
+        const promise = new Promise<string>((accept, fail) => { resolve = accept; reject = fail; });
+        outstanding.set(id, { promise, resolve, reject });
+        send({ type: 'call', id, execution, tool, args: JSON.parse(json) });
+        return promise;
     };
     const hostPrint = (method: string, args: unknown[]): void => {
         if (!execution) return;
@@ -195,9 +200,8 @@ process.on('message', async raw => {
                 result = { logs, ...(cloned === undefined ? {} : { value: cloned }) };
                 if (Buffer.byteLength(JSON.stringify(result)) > maxOutputBytes) throw new Error('Execution output exceeds configured limit');
             } catch (error) { result = { logs, error: error && typeof error === 'object' && 'message' in error ? String(error.message) : String(error) }; }
+            while (outstanding.size) await Promise.allSettled([...outstanding.values()].map(pending => pending.promise));
             execution = undefined;
-            for (const pending of outstanding.values()) pending.reject(new Error('Execution ended before the tool call settled'));
-            outstanding.clear();
             send({ type: 'result', id: message.id, value: result });
         }
     } catch (error) { send({ type: 'result', id: message.id, error: error instanceof Error ? error.message : String(error) }); }

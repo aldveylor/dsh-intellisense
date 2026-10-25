@@ -293,3 +293,34 @@ test('PTC projects results once, preserves void results and supports parallel na
         assert.deepEqual(saved.value, { logs: [], result: 'undefined' });
     } finally { await dispose(); }
 });
+
+
+test('PTC early returns and failed parallel calls drain native siblings without cancellation', async () => {
+    const { agent, namespaces, run, dispose } = await fixture();
+    try {
+        let completed = 0;
+        agent.ctx.tools.register(defineTool({ name: 'sibling_tool', description: 'Parallel sibling', parameters: { fail: { type: 'boolean', required: true } },
+            output: { schema: { type: 'null' }, render: () => [] },
+            execute: async ({ fail }, execution) => {
+                if (fail) throw new Error('Expected sibling failure');
+                await new Promise(resolve => setTimeout(resolve, 40));
+                assert.equal(execution.signal.aborted, false);
+                completed++;
+                return null;
+            },
+        }));
+        const registry = await namespaces.registryFor(agent);
+        await registry.configure([{ id: 'sibling_tool', path: 'std.sibling', aliases: [], pinned: false }], registry.snapshot().revision);
+        const early = await run('void std.sibling(false); return 42;');
+        assert.equal(early.isError, false, JSON.stringify(early));
+        assert.deepEqual(early.value, { logs: [], result: 42 });
+        assert.equal(completed, 1);
+        const failed = await run('return await Promise.all([std.sibling(true), std.sibling(false)]);');
+        assert.equal(failed.isError, true);
+        assert.match(JSON.stringify(failed), /Expected sibling failure/);
+        assert.equal(completed, 2);
+        const next = await run('return await std.sibling(false);');
+        assert.equal(next.isError, false, JSON.stringify(next));
+        assert.equal(completed, 3);
+    } finally { await dispose(); }
+});
