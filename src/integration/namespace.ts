@@ -2,7 +2,7 @@ import { builtinDeclaration, namespaceDeclaration } from './namespace_declaratio
 import { decodeHTML } from 'entities';
 import { z } from 'zod';
 import { jsonSchemaToTs, validateJsonSchemaValue, type JsonSchemaNode } from '@deepseek-ai/dsh-tools';
-import { builtinTool, builtinTools, ptcToolName } from '../runtime/builtins.js';
+import { builtinTool, builtinTools, ptcToolName, searchContract } from '../runtime/builtins.js';
 import type { SemanticRegistry } from '../registry/registry.js';
 
 /** @brief YAML aliases reference physical tools and rename argument fields without reimplementing tools. */
@@ -42,12 +42,12 @@ export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Ali
         for (const path of entries.keys()) if (path.startsWith(entry.path + '.') || entry.path.startsWith(path + '.')) throw new Error(`Namespace overlaps a callable path: ${entry.path}`);
         entries.set(entry.path, entry);
     };
-    for (const mapping of registry.effective().filter(mapping => !['exec', 'run_code', ptcToolName].includes(mapping.id))) {
+    for (const mapping of registry.effective().filter(mapping => !mapping.disabled && !['exec', 'run_code', ptcToolName].includes(mapping.id))) {
         const physical = mapping.tool;
         const paths = mapping.id.startsWith('tools_') ? [`tools.${mapping.id.slice(6)}`] : [mapping.path, ...mapping.aliases];
         for (const path of paths) insert({ path, tool: mapping.id, schema: physical.parameters, output: physical.output, doc: physical.description });
     }
-    const mounted = new Set(registry.effective().map(mapping => mapping.id));
+    const mounted = new Set(registry.effective().filter(mapping => !mapping.disabled).map(mapping => mapping.id));
     for (const alias of aliases) {
         const tool = registry.tools().find(tool => tool.id === alias.tool);
         if (tool && mounted.has(tool.id)) insert({ ...alias, schema: tool.parameters, output: tool.output, doc: tool.description });
@@ -145,7 +145,7 @@ export function declaration(entry: ManifestEntry, nested = true): string {
 function commandDeclaration(entry: ManifestEntry): string {
     const name = entry.path.split('.').at(-1)!;
     const command = builtinTool(entry.tool);
-    if (command) return builtinDeclaration(command);
+    if (command) return builtinDeclaration(entry.tool === 'tools_search' ? searchContract(((entry.schema.properties as Record<string, { enum?: string[] }> | undefined)?.method?.enum) ?? []) : command);
     const doc = (text: string): string => decodeHTML(text).replaceAll('*/', '* /');
     const types: string[] = [];
     /** @brief Keep complex field types out of the callable signature. */

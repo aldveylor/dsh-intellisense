@@ -305,7 +305,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
         finally { setBusy(false); }
     }
 
-    const provided = TreeProvider(builtinVisible);
+    const provided = TreeProvider(builtinVisible, (view?.tools.find(tool => tool.id === 'tools_search')?.parameters.properties as Record<string, { enum?: string[] }> | undefined)?.method?.enum ?? []);
     const unmounted = unmountedTools(view?.tools ?? [], mappings);
     const paths = [...new Set([...provided.map(node => node.path), ...namespacePaths({ mappings, namespaces })])];
     const saved = view?.state;

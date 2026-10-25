@@ -42,14 +42,26 @@ export const profileValues: readonly BuiltinTool[] = [
 /** @brief Fixed discovery command available in both native and PTC modes. */
 export const discoveryCommand: BuiltinTool = { tool: 'tools_intellisense', rest: 'queries', path: 'tools.intellisense', signature: '(...args: string[]) => Promise<string>', description: 'Query namespace members and complete TypeScript tool signatures. Pass an empty string ("") to query root namespace members.' };
 
+/** @brief Optional-ranked command search, unpinned by default and independently disableable. */
+export const searchCommand: BuiltinTool = {
+    tool: 'tools_search', path: 'tools.search',
+    signature: "(keywords: string[], method?: string, max_results?: number, target?: 'name' | 'description' | 'parameters' | 'returns' | 'all', namespace_path?: string) => Promise<string[]>",
+    description: 'Search command names, descriptions, parameters or returns within a namespace subtree; defaults to the configured method, 10 results, all fields and the entire tree. Returns full command paths matching any keyword. Use tools.intellisense for complete command details.',
+};
+
+/** @brief Derive the positional search signature from the installed physical contract. */
+export function searchContract(methods?: readonly string[]): BuiltinTool {
+    return methods === undefined ? searchCommand : methods.length > 1 ? { ...searchCommand, signature: searchCommand.signature.replace('method?: string', `method?: ${methods.map(method => JSON.stringify(method)).join(' | ')}`) } : { ...searchCommand, signature: searchCommand.signature.replace("method?: string, ", '') };
+}
+
 /** @brief Default discovery includes custom commands and excludes standard console methods. */
 export const defaultBuiltinVisible: CommandVisibility = { [discoveryCommand.path]: 2 };
 
 /** @brief Callable runtime commands and permanently visible signature discovery. */
-export const builtinCommands = [...consoleCommands, discoveryCommand, ...managementCommands];
+export const builtinCommands = [...consoleCommands, discoveryCommand, searchCommand, ...managementCommands];
 
 /** @brief Builtin contracts indexed by physical identity for all namespace projections. */
-export const builtinTools: readonly BuiltinTool[] = [discoveryCommand, ...managementCommands, ...profileValues];
+export const builtinTools: readonly BuiltinTool[] = [discoveryCommand, searchCommand, ...managementCommands, ...profileValues];
 
 /** @brief Resolve a builtin contract once for declarations, invocation and runtime filtering. */
 export function builtinTool(tool: string): BuiltinTool | undefined { return builtinTools.find(command => command.tool === tool); }

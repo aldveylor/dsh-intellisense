@@ -61,6 +61,9 @@ export function builtinDeclaration(command: BuiltinCommand & Partial<Pick<Builti
         else if ('}])'.includes(char!)) depth--;
     }
     const descriptions: Record<string, string> = {
+        keywords: 'Keywords to search with OR semantics.', method: 'Registered search method; defaults to the configured engine.',
+        max_results: 'Maximum results; defaults to 10.', target: 'Search name, description, parameters, returns, or all (default).',
+        namespace_path: 'Namespace subtree; an empty string searches the entire tree (default).',
         data: 'Values to format or display.', value: 'Object to inspect.', options: 'Inspection depth, colors and hidden-property options.',
         label: 'Timer or counter label.', condition: 'Condition to check.', properties: 'Properties to include in the table.',
         args: 'Namespace member paths or exact command paths, passed as separate string arguments. Pass an empty string ("") to query root namespace members: tools.intellisense("").',

@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { DshStore } from '../storage/store.js';
 import { SemanticRegistry } from '../registry/registry.js';
 import { ProfileSessions } from '../registry/profiles.js';
+import { createSearchEngines } from '../search/search.js';
 import { NamespaceComponent } from './namespace_component.js';
 import { Aliases } from './namespace.js';
 import { registerManagement } from '../management/server/routes.js';
@@ -15,7 +16,7 @@ import { executionInstructions } from './prompt.js';
 export const name = 'command-namespaces';
 export const inject = ['tools', 'agents', 'systemPrompt', 'storage', storageBackendServiceKey('json'), 'connection'];
 /** @brief Configure the shared namespace alias catalog. */
-export const Config = z.object({ aliasesFile: z.string().optional() }).prefault({});
+export const Config = z.object({ aliasesFile: z.string().optional(), defaultSearchMethod: z.string().regex(/^[a-z][a-z0-9_]*$/).optional() }).prefault({});
 
 /** @brief Independent namespace service shared by native tools, the UI, and optional PTC execution. */
 declare module '@deepseek-ai/cordis' { interface Context { commandNamespaces: NamespaceComponent } }
@@ -31,7 +32,7 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
     const store = new DshStore(unit);
     const registry = new SemanticRegistry(store); await registry.load();
     const profiles = new ProfileSessions(registry, store);
-    const namespaces = new NamespaceComponent(ctx, registry, profiles, aliases);
+    const namespaces = new NamespaceComponent(ctx, registry, profiles, aliases, createSearchEngines(config.defaultSearchMethod));
     ctx.provide('commandNamespaces', namespaces);
     registerManagement(ctx, registry, namespaces);
     ctx.on('agent/created', async ({ agent }) => { await namespaces.configure(agent); });
@@ -55,3 +56,6 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
     });
     for (const agent of ctx.agents.list()) await namespaces.configure(agent);
 }
+
+export { SearchEngineRegistry } from '../search/engine_registry.js';
+export type { SearchEngine, SearchSelection, SearchDocument, SearchSelector, SearchField } from '../search/engine_registry.js';

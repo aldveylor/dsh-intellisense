@@ -13,6 +13,8 @@ import { builtinDeclaration, namespaceDirectory, type NamespaceHint } from './pr
 import { builtinTool, builtinCommands, defaultBuiltinVisible, discoveryCommand, profileValues, ptcToolName } from '../runtime/builtins.js';
 import { type CommandBrief, profileAnnotation } from '../registry/profile_tree.js';
 import type { z } from 'zod';
+import { createSearchEngines } from '../search/search.js';
+import { registerSearch } from './tool_search.js';
 import { registerIntellisense } from './intellisense.js';
 import { registerToolCommands } from './tool_commands.js';
 import { nativeBindings, nativeDiscovery, nativeQueryEntries } from './native_tools.js';
@@ -24,7 +26,7 @@ export class NamespaceComponent {
     private discovered = new Map<string, Set<string>>();
     private nativeTools = new Map<string, { fingerprint: string; disposers: (() => void)[] }>();
 
-    constructor(private ctx: Context, private registry: SemanticRegistry, readonly profiles: ProfileSessions, private aliases: z.infer<typeof Aliases>) {
+    constructor(private ctx: Context, private registry: SemanticRegistry, readonly profiles: ProfileSessions, private aliases: z.infer<typeof Aliases>, readonly searchEngines = createSearchEngines()) {
         ctx.effect(() => async () => { await Promise.all([...new Set([...this.nativeTools.keys(), ...this.positions.keys(), ...this.discovered.keys()])].map(id => this.release(id))); await this.profiles.dispose(); });
         ctx.on('agent/request', async (payload, next) => {
             if (this.enabled(payload.agent)) this.positions.set(payload.agent.id, { turn: payload.turn, step: payload.step });
@@ -35,6 +37,7 @@ export class NamespaceComponent {
     /** @brief Register builtin tools in the owning presentation scope. */
     register(ctx: Context): void {
         registerIntellisense(ctx, this);
+        registerSearch(ctx, this);
         registerToolCommands(ctx, this.registry, this.profiles, agent => this.registryFor(agent), agent => this.configurationChanged(agent), () => this.commandBriefs());
     }
 
@@ -130,7 +133,7 @@ export class NamespaceComponent {
         for (const item of builtinCommands) {
             if (registry.disabled(item.path) || (item.path.startsWith('tools.') && !entries.some(entry => entry.path === item.path))) continue;
             const level = item.path === discoveryCommand.path ? 2 : (state.builtinVisible ?? defaultBuiltinVisible)[item.path] ?? 0;
-            if (level) hints.push({ ...item, ...(level === 2 ? { declaration: builtinDeclaration(item) } : {}) });
+            if (level) hints.push({ ...item, ...(level === 2 ? { declaration: item.path === 'tools.search' ? declaration(entries.find(entry => entry.path === item.path)!, false) : builtinDeclaration(item) } : {}) });
         }
         for (const item of profileValues) {
             if (registry.disabled(item.path)) continue;
