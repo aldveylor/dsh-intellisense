@@ -2,7 +2,7 @@
 
 `plugin.ts` 装配共享 Profile、管理 UI、tools_intellisense、命名空间树和模式提示。主入口 index.ts 提供运行时配置；仅 PTC presentation 创建 codeRuntime 与 NamespaceRuntime；独立入口 ./namespace 不创建 JS 运行时。主插件和命名空间服务仅配置运行预算与别名；执行模式由 presentation 配置决定。
 
-`runtime.ts` 注册插件自有的 tools_run_code，使用已有受限 RuntimeHost 执行完整 TS/JS 函数体，不依赖或替换部署的全局 ptcRuntime。只在 Intellisense PTC presentation 作用域挂载，模型仅见 tools_run_code；物理目录和 manifest 排除此入口，禁止递归调用。轨迹调用卡片使用 description 作为标题，以 TypeScript 代码块展示 code。初始化时将 CommandNode 编译为 CommandBinding，VM 内 NamespaceCommand 代理类把函数绑定到物理 tool 与参数/结果适配器；IPC 直接传物理 tool 和底层命名参数，宿主通过 namespace_component.dispatchTool 调用 DSH tools.execute，不逐次重建或解析 manifest，不增加插件权限校验。保留父子审计和附加上下文转发，返回值仅由 VM 命令适配器投影一次并保留 undefined。显式超时限制在部署上限内，按实际 Agent owner 释放状态。取消先解除 IPC 回调等待，再取消并等待所有真实子调用；程序结束时也取消并等待未完成子调用，避免循环等待和后台遗留执行。执行失败保留原始错误和已捕获输出，以 CodeRunFailedError 返回。插件不解析模型流或代码围栏。
+`runtime.ts` 注册插件自有的 tools_run_code，使用已有受限 RuntimeHost 执行完整 TS/JS 函数体，不依赖或替换部署的全局 ptcRuntime。只在 Intellisense PTC presentation 作用域挂载，模型仅见 tools_run_code；物理目录和 manifest 排除此入口，禁止递归调用。轨迹调用卡片使用 description 作为标题，以 TypeScript 代码块展示 code。初始化时将 CommandNode 编译为 CommandBinding，VM 内 NamespaceCommand 代理类把函数绑定到物理 tool 与参数/结果适配器；IPC 直接传物理 tool 和底层命名参数，宿主通过 NamespaceComponent.dispatchTool 调用 DSH tools.execute，不逐次重建或解析 manifest，不增加插件权限校验。保留父子审计和附加上下文转发，返回值仅由 VM 命令适配器投影一次并保留 undefined。显式超时限制在部署上限内，按实际 Agent owner 释放状态。取消先解除 IPC 回调等待，再取消并等待所有真实子调用；程序结束时也取消并等待未完成子调用，避免循环等待和后台遗留执行。执行失败保留原始错误和已捕获输出，以 CodeRunFailedError 返回。插件不解析模型流或代码围栏。
 
 `component.ts` 在 native 模式下按会话注册命名空间代理。代理使用命名参数，按 YAML argMap 转换字段；代理闭包持有已解析的 CommandNode，将参数转换后通过 DSH 原生执行流水线派发；权限交给 DSH，不再在调用时重建和查找 manifest。生成代理不进入物理工具目录，仅挂载 tools.intellisense、固定命令和会话已查询的直接成员，变更 manifest 后替换，释放会话或卸载时清理；不为无显式配置的会话创建默认呈现。PTC 模式仅向模型暴露 tools_run_code，native 模式仅暴露当前渐进发现集合中的命名空间工具。
 
