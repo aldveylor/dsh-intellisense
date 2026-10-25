@@ -40,7 +40,7 @@ export interface Node {
 export function nodePermissions(type: NodeType, path: string): NodePermissions {
     switch (type) {
         case 'root_namespace': return { rename: false, move: false, remove: false, disable: false, fixLevels: [] };
-        case 'inner_namespace': return { rename: false, move: false, remove: false, disable: true, fixLevels: path === 'console' ? [0, 1] : [] };
+        case 'inner_namespace': return { rename: false, move: false, remove: false, disable: path !== 'tools', fixLevels: path === 'console' ? [0, 1] : [] };
         case 'inner_command': return { rename: false, move: false, remove: false, disable: path !== 'tools.intellisense', fixLevels: path === 'tools.intellisense' ? [2] : [0, 1, 2] };
         case 'namespace': return { rename: true, move: true, remove: true, disable: true, fixLevels: [0, 1] };
         case 'command': return { rename: true, move: true, remove: true, disable: true, fixLevels: [0, 1, 2] };

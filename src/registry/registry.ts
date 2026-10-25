@@ -195,15 +195,15 @@ export class SemanticRegistry {
 
     /** @brief Resolve explicit command and inherited namespace disablement without dropping editor state. */
     disabled(path: string): boolean {
-        if (path === 'tools.intellisense') return false;
+        if (path === 'tools' || path === 'tools.intellisense') return false;
         return [...(this.state.builtinDisabled ?? []), ...(this.state.namespaces ?? []).filter(node => node.disabled).map(node => node.path)]
             .some(prefix => path === prefix || path.startsWith(prefix + '.'))
             || this.state.mappings.some(mapping => mapping.disabled && [mapping.path, ...mapping.aliases].includes(path));
     }
 
-    /** @brief Validate disabled builtin paths while preserving the discovery entry point. */
+    /** @brief Validate disabled builtin paths while preserving the tools namespace and discovery entry point. */
     private validateDisabled(paths: string[] | undefined): void {
-        if (paths !== undefined && (!Array.isArray(paths) || paths.some(path => typeof path !== 'string' || !/^(tools|console)(\.[A-Za-z_$][\w$]*)*$/.test(path) || path === 'tools.intellisense'))) throw new Error('Invalid disabled builtin paths');
+        if (paths !== undefined && (!Array.isArray(paths) || paths.some(path => typeof path !== 'string' || !/^(tools|console)(\.[A-Za-z_$][\w$]*)*$/.test(path) || path === 'tools' || path === 'tools.intellisense'))) throw new Error('Invalid disabled builtin paths');
     }
 
     tools(): PhysicalTool[] { return structuredClone([...this.physical.values()]); }

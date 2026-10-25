@@ -43,3 +43,5 @@ PTC 每次执行重建 VM Context，不保证环境连续，不支持 globalThis
 `namespace_declaration.ts` 定义共享命名空间声明项与唯一树渲染器，负责路径合并、稳定排序、嵌套、简略 Function 占位、常量和完整声明，以及提示围栏转义。namespace.ts 仅投影工具契约；intellisense.ts 仅选择查询结果；prompt.ts 仅选择提示内容。三种入口统一使用该树模型，内置签名与重载也共用 builtinDeclaration。
 
 `tool_search.ts` 将 tools_search 注册到 presentation 作用域并映射 tools.search。搜索参数直接由 SearchEngineRegistry.selector 生成；引擎注册、卸载或默认方法变更后重新注册工具并通知提示重组。searchEngines 由 NamespaceComponent 持有，通过 commandNamespaces 服务供其它插件注册；主插件和 namespace 独立入口均接受 defaultSearchMethod。搜索只返回当前有效树中的完整命令路径，提示使用 tools.intellisense 获取详细信息。声明、PTC 位置参数和 UI 提示共同读取实际物理 schema 中的方法枚举。
+
+`tools` 根命名空间不可禁用：共享 permissions.disable 为 false，UI 不显示禁用按钮且回调不允许禁用；registry 拒绝将 tools 写入 builtinDisabled。tools 下其余命令和 tools.profile 仍保留各自禁用权限，tools.intellisense 始终可用。
