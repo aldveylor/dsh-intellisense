@@ -49,7 +49,7 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
             const routes = new Map<string, ConnectionFetchRoute>();
             ctx.provide('connection', { fetch: { register: (route: ConnectionFetchRoute) => { routes.set(route.path, route); return () => { routes.delete(route.path); }; } } });
             ctx.provide('subagents', { startActivation: async () => { throw new Error('Unused'); } });
-            ctx.tools.register(defineTool({ name: 'read_file', description: 'Read a file', parameters: {},
+            ctx.tools.register(defineTool({ name: 'read_file', description: 'Read a file\nComplete file documentation.', parameters: {},
                 output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] }, execute: async () => 'contents' }));
             const model = new ScriptedModel(); ctx.llm.registerAdapter(['fake'], model);
             const mounted = mode === 'native' ? await ctx.plugin(namespacePlugin) : await ctx.plugin(plugin, { timeoutMs: 3000 });
@@ -60,7 +60,7 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
             if (mode !== 'standard') {
                 await agent.ctx.plugin(presentation, { mode });
                 const registry = await namespaces.registryFor(agent);
-                await registry.configure([{ id: 'read_file', path: 'std.fs.read', aliases: [], pinned: false }], registry.snapshot().revision);
+                await registry.configure([{ id: 'read_file', path: 'std.fs.read', aliases: [], description: 'Read file contents', pinned: false }], registry.snapshot().revision);
                 await namespaces.configure(agent);
             }
             const errors: unknown[] = [];
@@ -90,11 +90,23 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
                 assert.deepEqual(names, ['ns_tools__intellisense']);
                 assert.equal(agent.ctx.get('codeRuntime'), undefined);
                 assert(!systemOf(request).includes('TypeScript/JavaScript'));
-                const info = JSON.parse(await namespaces.discover(agent, ['std.fs.read']));
+                const discover = async (queries: string[]) => {
+                    const result = await agent.ctx.tools.execute({ agent, callId: ToolCallId(`integration-discovery-${model.requests.length}`), name: 'ns_tools__intellisense', arguments: { queries }, signal: new AbortController().signal });
+                    assert.equal(result.isError, false, JSON.stringify(result));
+                    assert(!JSON.stringify(result.value).includes('Complete file documentation.'));
+                    return JSON.parse(result.value as string);
+                };
+                const listing = await discover(['global.std.fs.']);
+                assert.deepEqual(listing.members, [{ path: 'std.fs.read', deployment: 'tool', brief: 'Read file contents' }]);
+                await send();
+                assert.deepEqual(model.requests[1]!.tools?.map(tool => tool.name), ['ns_tools__intellisense']);
+                const info = await discover(['global.std.fs.read']);
                 assert(info.members.some((member: { path: string }) => member.path === 'std.fs.read'));
                 assert(info.members.every((member: object) => !Object.hasOwn(member, 'tool')));
+                assert.equal(info.members[0].brief, 'Read file contents');
+                assert(Object.hasOwn(info.members[0], 'parameters'));
                 await send();
-                assert(model.requests[1]!.tools?.some(tool => tool.name === 'ns_std__fs__read'));
+                assert.deepEqual(model.requests[2]!.tools?.map(tool => tool.name).sort(), ['ns_std__fs__read', 'ns_tools__intellisense']);
             }
             assert(!agent.session.snapshotEvents().some(event => String(event.type) === 'plugin:ts_intellisense/rewrite'));
             await mounted.dispose();

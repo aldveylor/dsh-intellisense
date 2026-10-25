@@ -147,7 +147,7 @@ test('native commands rereads current global counts after each namespace dispatc
         }));
         const registry = await namespaces.registryFor(agent);
         await registry.configure([{ id: 'read_tool', path: 'std.read', aliases: [], pinned: false }], registry.snapshot().revision);
-        await namespaces.discover(agent, ['std.', 'tools.profile.commands']);
+        await namespaces.discover(agent, ['std.read', 'tools.profile.commands']);
         let sequence = 0;
         const call = (name: string) => ctx.tools.execute({ agent, callId: ToolCallId(`native-statistics-${++sequence}`), name, arguments: {}, signal: new AbortController().signal });
         const before = await call('ns_tools__profile__commands');
