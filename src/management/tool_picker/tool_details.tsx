@@ -11,16 +11,33 @@ function schemaRecord(value: unknown): Record<string, unknown> {
 }
 
 /** @brief Describe primitive, array, reference and composed schema types. */
-function schemaType(value: unknown): string {
+function schemaType(value: unknown, detailed = false, depth = 0): string {
     if (typeof value === 'boolean') return value ? 'unknown' : 'never';
     const schema = schemaRecord(value);
+    if (detailed && Object.hasOwn(schema, 'const')) return JSON.stringify(schema.const) ?? 'unknown';
+    if (detailed && Array.isArray(schema.enum)) return schema.enum.map(item => JSON.stringify(item)).join(' | ') || 'never';
     for (const key of ['anyOf', 'oneOf', 'allOf']) {
         const variants = schema[key];
-        if (Array.isArray(variants)) return variants.map(schemaType).join(key === 'allOf' ? ' & ' : ' | ');
+        if (Array.isArray(variants)) return variants.map(variant => schemaType(variant, detailed, depth)).join(key === 'allOf' ? ' & ' : ' | ');
     }
-    if (schema.items) return `(${schemaType(schema.items)})[]`;
-    if (Array.isArray(schema.type)) return schema.type.join(' | ');
-    if (typeof schema.type === 'string') return schema.type;
+    if (schema.items) return `(${schemaType(schema.items, detailed, depth)})[]`;
+    if (detailed && (schema.type === 'object' || schema.properties)) {
+        const indent = '  '.repeat(depth);
+        const required = Array.isArray(schema.required) ? schema.required : [];
+        const fields = Object.entries(schemaRecord(schema.properties)).map(([key, field]) => {
+            const definition = schemaRecord(field);
+            const name = /^[A-Za-z_$][\w$]*$/.test(key) ? key : JSON.stringify(key);
+            const description = typeof definition.description === 'string' ? definition.description.trim() : '';
+            const comment = description ? `${indent}  /** ${description.replace(/\s+/g, ' ').replaceAll('*/', '* /')} */\n` : '';
+            const optional = required.includes(key) || definition.required === true ? '' : '?';
+            return `${comment}${indent}  ${name}${optional}: ${schemaType(field, true, depth + 1)};`;
+        });
+        if (schema.additionalProperties !== false) fields.push(`${indent}  [key: string]: unknown;`);
+        return fields.length ? `{\n${fields.join('\n')}\n${indent}}` : 'Record<string, never>';
+    }
+    if (schema.type === 'array') return 'unknown[]';
+    if (Array.isArray(schema.type)) return schema.type.map(type => type === 'integer' ? 'number' : type).join(' | ');
+    if (typeof schema.type === 'string') return schema.type === 'integer' ? 'number' : schema.type;
     if (typeof schema.$ref === 'string') return schema.$ref;
     return schema.properties ? 'object' : 'unknown';
 }
@@ -74,7 +91,7 @@ export function ToolDetails({ tool, calls }: { tool: PhysicalTool; calls: number
         <section className="ts-tool-return">
             <h4>{t('tool_returns')}</h4>
             {typeof output.description === 'string' && output.description.trim() && <p>{output.description}</p>}
-            <TypeScriptBlock code={tool.outputDeclaration ?? `type Result = ${schemaType(tool.output)};`} />
+            <TypeScriptBlock code={tool.outputDeclaration ?? `type Result = ${schemaType(tool.output, true)};`} />
         </section>
         <section className="ts-tool-statistics">
             <table>

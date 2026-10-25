@@ -1,5 +1,102 @@
-# 工具选择器
+import { TypeScriptBlock } from '../code_block/code_block.js';
+import type { PhysicalTool } from '../../registry/registry.js';
+import { useTranslation } from '../locale/locale.js';
 
-`tool_picker.tsx` 在当前可用物理工具中搜索并选择挂载目标，由父面板提供目标命名空间、可见工具与确认回调。未挂载入口只传入尚未挂载的工具，已挂载工具及失效工具不进入该列表。
+/** @brief One documented schema field, including its complete nested path. */
+interface SchemaField { name: string; type: string; description: string }
 
-卡片底行只显示绑定路径，不显示调用次数。ToolDetails 使用结构化 HTML 构建详情面板布局：顶部突出工具名及可选来源标签，独立描述区域，底部“统计”区使用表格，第一项为总调用次数，读取全局 callsByTool，未调用显示 0；参数使用带标题的表格，列为名称、类型和描述，嵌套字段使用完整路径，数组和组合 schema 保留子项说明；返回值通过宿主 DSH CodeBlock 组件提供 TypeScript 语法高亮，复用管理 API 提供的完整 outputDeclaration；有合法 title 名称的对象使用 interface，匿名对象及联合类型使用 type Result，其他具名类型使用 type 名称，整体 description 若存在则显示在“返回值”标题下、代码块上方；TooltipProvider 共享随鼠标移动的提示组件，支持键盘聚焦。搜索框右侧复用 NativeProfileSelect 只读组件，固定宽度 200px，搜索框占剩余空间；可按默认顺序、名称升降序或调用次数升降序排列，选中后收起，排序不修改 Profile 的命名空间顺序。排序下拉菜单使用主题基础背景色，降低透明度以避免下方工具卡片干扰阅读。卡片池底部 footer 左侧显示添加提示及匹配工具数，右侧显示全局 callsByTool 全部明细求和后的所有命令总调用次数，不受搜索、挂载状态或当前卡片列表限制。
+/** @brief Normalize a JSON schema node without interpreting metadata as HTML. */
+function schemaRecord(value: unknown): Record<string, unknown> {
+    return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+/** @brief Describe primitive, array, reference and composed schema types. */
+function schemaType(value: unknown, detailed = false, depth = 0): string {
+    if (typeof value === 'boolean') return value ? 'unknown' : 'never';
+    const schema = schemaRecord(value);
+    if (detailed && Object.hasOwn(schema, 'const')) return JSON.stringify(schema.const) ?? 'unknown';
+    if (detailed && Array.isArray(schema.enum)) return schema.enum.map(item => JSON.stringify(item)).join(' | ') || 'never';
+    for (const key of ['anyOf', 'oneOf', 'allOf']) {
+        const variants = schema[key];
+        if (Array.isArray(variants)) return variants.map(variant => schemaType(variant, detailed, depth)).join(key === 'allOf' ? ' & ' : ' | ');
+    }
+    if (schema.items) return `(${schemaType(schema.items, detailed, depth)})[]`;
+    if (detailed && (schema.type === 'object' || schema.properties)) {
+        const indent = '  '.repeat(depth);
+        const required = Array.isArray(schema.required) ? schema.required : [];
+        const fields = Object.entries(schemaRecord(schema.properties)).map(([key, field]) => {
+            const definition = schemaRecord(field);
+            const name = /^[A-Za-z_$][\w$]*$/.test(key) ? key : JSON.stringify(key);
+            const description = typeof definition.description === 'string' ? definition.description.trim() : '';
+            const comment = description ? `${indent}  /** ${description.replace(/\s+/g, ' ').replaceAll('*/', '* /')} */\n` : '';
+            const optional = required.includes(key) || definition.required === true ? '' : '?';
+            return `${comment}${indent}  ${name}${optional}: ${schemaType(field, true, depth + 1)};`;
+        });
+        if (schema.additionalProperties !== false) fields.push(`${indent}  [key: string]: unknown;`);
+        return fields.length ? `{\n${fields.join('\n')}\n${indent}}` : 'Record<string, never>';
+    }
+    if (Array.isArray(schema.type)) return schema.type.join(' | ');
+    if (typeof schema.type === 'string') return schema.type === 'integer' ? 'number' : schema.type;
+    if (typeof schema.$ref === 'string') return schema.$ref;
+    return schema.properties ? 'object' : 'unknown';
+}
+
+/** @brief Flatten nested properties, array items and union variants into documented rows. */
+function schemaFields(value: unknown, name: string): SchemaField[] {
+    const schema = schemaRecord(value);
+    const rows: SchemaField[] = [{ name, type: schemaType(value), description: typeof schema.description === 'string' ? schema.description : '' }];
+    for (const [key, field] of Object.entries(schemaRecord(schema.properties))) {
+        rows.push(...schemaFields(field, name ? `${name}.${key}` : key));
+    }
+    if (schema.items) rows.push(...schemaFields(schema.items, `${name}[]`));
+    for (const key of ['anyOf', 'oneOf', 'allOf']) {
+        const variants = schema[key];
+        if (Array.isArray(variants)) variants.forEach((variant, index) => rows.push(...schemaFields(variant, `${name} (${index + 1})`)));
+    }
+    return rows;
+}
+
+/** @brief Render a schema as a semantic table of field names, types and descriptions. */
+function SchemaTable({ label, schema }: { label: string; schema: unknown }) {
+    const t = useTranslation();
+    const definition = schemaRecord(schema);
+    const properties = Object.entries(schemaRecord(definition.properties));
+    const rows = properties.length ? properties.flatMap(([name, field]) => schemaFields(field, name))
+        : definition.type === 'object' && !definition.additionalProperties ? [] : schemaFields(schema, label);
+
+    return <section className="ts-tool-schema">
+        {(properties.length > 0 || !rows.length) && typeof definition.description === 'string' && <p>{definition.description}</p>}
+        <table>
+            <caption>{label}</caption>
+            <thead><tr><th scope="col">{t('tool_field_name')}</th><th scope="col">{t('tool_field_type')}</th><th scope="col">{t('tool_field_description')}</th></tr></thead>
+            <tbody>{rows.length ? rows.map((row, index) => <tr key={index}>
+                <th scope="row"><code>{row.name}</code></th><td><code>{row.type}</code></td><td>{row.description || t('tool_no_description')}</td>
+            </tr>) : <tr><td colSpan={3}>{t('tool_no_fields')}</td></tr>}</tbody>
+        </table>
+    </section>;
+}
+
+/** @brief Present tool metadata, parameter fields and a TypeScript return declaration. */
+export function ToolDetails({ tool, calls }: { tool: PhysicalTool; calls: number }) {
+    const t = useTranslation();
+    const output = schemaRecord(tool.output);
+    return <article className="ts-tool-details">
+        <header className="ts-tool-detail-header">
+            <div><span className="ts-tool-detail-label">{t('tool_name')}</span><h3><code>{tool.id}</code></h3></div>
+            {tool.source && <span className="ts-tool-detail-source" aria-label={`${t('tool_source')}: ${tool.source}`}>{tool.source}</span>}
+        </header>
+        <section className="ts-tool-detail-overview"><h4>{t('tool_description')}</h4><p>{tool.description || t('tool_no_description')}</p></section>
+        <SchemaTable label={t('tool_parameters')} schema={tool.parameters} />
+        <section className="ts-tool-return">
+            <h4>{t('tool_returns')}</h4>
+            {typeof output.description === 'string' && output.description.trim() && <p>{output.description}</p>}
+            <TypeScriptBlock code={tool.outputDeclaration ?? `type Result = ${schemaType(tool.output, true)};`} />
+        </section>
+        <section className="ts-tool-statistics">
+            <table>
+                <caption>{t('tool_statistics')}</caption>
+                <tbody><tr><th scope="row">{t('tool_total_calls')}</th><td>{calls}</td></tr></tbody>
+            </table>
+        </section>
+    </article>;
+}
