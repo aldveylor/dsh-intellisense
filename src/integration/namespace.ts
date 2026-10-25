@@ -1,3 +1,5 @@
+import { nodePermissions, fixLevel, type CommandContract, type Node, type NodeType, type NodePermissions, type SerializedNode } from './node.js';
+export type { Node, NodeType, NodePermissions, SerializedNode } from './node.js';
 import { builtinDeclaration, namespaceDeclaration } from './namespace_declaration.js';
 import { decodeHTML } from 'entities';
 import { z } from 'zod';
@@ -18,40 +20,7 @@ export const Aliases = z.array(z.strictObject({ path: z.string().regex(/^[A-Za-z
 });
 
 /** @brief Trusted host-side namespace manifest entry. */
-export interface ManifestEntry { path: string; tool: string; argMap?: Record<string, string>; schema: Record<string, unknown>; output: unknown; doc: string }
-
-/** @brief Discriminator for executable namespace nodes. */
-export type NodeType = 'command' | 'namespace' | 'inner_command' | 'inner_namespace' | 'root_namespace';
-
-/** @brief Editing and pin choices owned by a node, independent of native execution guards. */
-export interface NodePermissions {
-    readonly rename: boolean;
-    readonly move: boolean;
-    readonly remove: boolean;
-    readonly disable: boolean;
-    readonly fixLevels: readonly (0 | 1 | 2)[];
-}
-
-/** @brief A transport-safe node snapshot without parent references. */
-export interface SerializedNode {
-    type: NodeType;
-    name: string;
-    permissions: NodePermissions;
-    children?: SerializedNode[];
-    command?: Omit<ManifestEntry, 'path'>;
-    builtin?: BuiltinTool;
-}
-
-/** @brief Common structured identity and serialization contract for the namespace tree. */
-export interface Node {
-    readonly type: NodeType;
-    readonly name: string;
-    readonly parent: NamespaceNode | undefined;
-    readonly path: string;
-    readonly permissions: NodePermissions;
-    /** @brief Serialize a subtree without retaining parent references. */
-    serialize(): SerializedNode;
-}
+export interface ManifestEntry extends CommandContract { path: string }
 
 /** @brief An ordinary namespace owns direct child references and resolves node chains. */
 export class NamespaceNode implements Node {
@@ -64,7 +33,7 @@ export class NamespaceNode implements Node {
 
     get children(): ReadonlyMap<string, NamespaceNode | CommandNode> { return this.members; }
 
-    get permissions(): NodePermissions { return { rename: true, move: true, remove: true, disable: true, fixLevels: [0, 1] }; }
+    get permissions(): NodePermissions { return nodePermissions(this.type, this.path); }
 
     /** @brief Attach a direct child while preventing callable/namespace and identity collisions. */
     add<T extends NamespaceNode | CommandNode>(node: T): T {
@@ -98,7 +67,6 @@ export class NamespaceNode implements Node {
 export class InnerNamespaceNode extends NamespaceNode {
     override readonly type: NodeType = 'inner_namespace';
 
-    override get permissions(): NodePermissions { return { rename: false, move: false, remove: false, disable: true, fixLevels: this.path === 'console' ? [0, 1] : [] }; }
 }
 
 /** @brief The anonymous root is the single entry to a resolved namespace tree. */
@@ -107,7 +75,6 @@ export class RootNamespaceNode extends NamespaceNode {
 
     constructor() { super(''); }
 
-    override get permissions(): NodePermissions { return { rename: false, move: false, remove: false, disable: false, fixLevels: [] }; }
 }
 
 /** @brief A resolved command owns its parent reference and callable contract. */
@@ -129,7 +96,7 @@ export class CommandNode implements Node, ManifestEntry {
 
     get path(): string { return this.parent.path ? `${this.parent.path}.${this.name}` : this.name; }
 
-    get permissions(): NodePermissions { return { rename: true, move: true, remove: true, disable: true, fixLevels: [0, 1, 2] }; }
+    get permissions(): NodePermissions { return nodePermissions(this.type, this.path); }
 
     serialize(): SerializedNode {
         return structuredClone({ type: this.type, name: this.name, permissions: this.permissions, command: { tool: this.tool, argMap: this.argMap, schema: this.schema, output: this.output, doc: this.doc } });
@@ -140,7 +107,7 @@ export class CommandNode implements Node, ManifestEntry {
 
     /** @brief Resolve a requested pin against this command's available levels. */
     fixLevel(level: 0 | 1 | 2 = 0): 0 | 1 | 2 {
-        return this.permissions.fixLevels.includes(level) ? level : this.permissions.fixLevels[0] ?? 0;
+        return fixLevel(this.permissions, level);
     }
 
     /** @brief Compile the physical target and argument/result adapters before installing the VM function. */
@@ -170,11 +137,6 @@ export class InnerCommandNode extends CommandNode {
     override readonly type: NodeType = 'inner_command';
 
     constructor(name: string, parent: NamespaceNode, entry: Omit<ManifestEntry, 'path'>, readonly builtin: BuiltinTool) { super(name, parent, entry); }
-
-    override get permissions(): NodePermissions {
-        const discovery = this.tool === pluginCommands.discoveryCommand.tool;
-        return { rename: false, move: false, remove: false, disable: !discovery, fixLevels: discovery ? [2] : [0, 1, 2] };
-    }
 
     /** @brief Identify data-only builtins before installing runtime command functions. */
     get preload(): boolean { return this.builtin.preload ?? false; }
