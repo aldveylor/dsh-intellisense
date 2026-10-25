@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
-import { nativeSchema, normalizeIntellisenseQueries, type ManifestEntry, type NamespaceCommand } from './namespace.js';
+import { nativeSchema, normalizeIntellisenseQueries, queryNodes, CommandNode, NamespaceNode, type RootNamespaceNode } from './namespace.js';
 
 /** @brief Bind namespace paths to unique API-safe names without shadowing physical tools. */
-export function nativeBindings(entries: NamespaceCommand[], reserved: Iterable<string>): { entry: NamespaceCommand; name: string }[] {
+export function nativeBindings(entries: CommandNode[], reserved: Iterable<string>): { entry: CommandNode; name: string }[] {
     const physical = new Set(reserved);
     const used = new Set<string>();
     const counters = new Map<string, number>();
@@ -22,32 +22,17 @@ export function nativeBindings(entries: NamespaceCommand[], reserved: Iterable<s
 }
 
 /** @brief Select exact commands or immediate namespace members without expanding descendants. */
-export function nativeQueryEntries(queries: readonly string[], entries: readonly ManifestEntry[]): ManifestEntry[] {
-    queries = normalizeIntellisenseQueries(queries);
-    return entries.filter(entry => queries.some(query => {
-        if (query === entry.path) return true;
-        const prefix = query ? query.replace(/\.$/, '') + '.' : '';
-        return entry.path.startsWith(prefix) && !entry.path.slice(prefix.length).includes('.');
-    }));
+export function nativeQueryEntries(queries: readonly string[], root: RootNamespaceNode): CommandNode[] {
+    return queryNodes(root, queries).filter((node): node is CommandNode => node instanceof CommandNode);
 }
 
 /** @brief Render shallow native discovery and exact named-argument contracts as JSON. */
-export function nativeDiscovery(queries: readonly string[], bindings: readonly { entry: ManifestEntry; name: string }[]): string {
-    const selected = new Set(nativeQueryEntries(queries, bindings.map(binding => binding.entry)).map(entry => entry.path));
-    queries = normalizeIntellisenseQueries(queries);
-    const members = new Map<string, unknown>();
-    for (const { entry, name } of bindings) {
-        if (selected.has(entry.path)) members.set(entry.path, {
-            path: entry.path, tool: name, description: entry.doc,
-            ...(queries.includes(entry.path) ? { parameters: nativeSchema(entry), output: entry.output } : {}),
-        });
-        for (const query of queries) {
-            if (query === entry.path) continue;
-            const prefix = query ? query.replace(/\.$/, '') + '.' : '';
-            if (!entry.path.startsWith(prefix)) continue;
-            const path = prefix + entry.path.slice(prefix.length).split('.')[0]!;
-            if (path !== entry.path) members.set(path, { path, namespace: true });
-        }
-    }
-    return JSON.stringify({ members: [...members].sort(([a], [b]) => a.localeCompare(b)).map(([, member]) => member) }, null, 2);
+export function nativeDiscovery(queries: readonly string[], root: RootNamespaceNode, bindings: readonly { entry: CommandNode; name: string }[]): string {
+    const names = new Map(bindings.map(({ entry, name }) => [entry, name]));
+    const exact = new Set(normalizeIntellisenseQueries(queries));
+    const members = queryNodes(root, queries).sort((a, b) => a.path.localeCompare(b.path)).map(node => node instanceof NamespaceNode
+        ? { path: node.path, namespace: true }
+        : { path: node.path, tool: names.get(node), description: node.doc,
+            ...(exact.has(node.path) ? { parameters: nativeSchema(node), output: node.output } : {}) });
+    return JSON.stringify({ members }, null, 2);
 }

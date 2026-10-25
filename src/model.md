@@ -6,7 +6,7 @@
 
 `integration/presentation.ts` 通过 config.mode 选择 native/ptc 工具呈现与初始提示词，按作用域继承 preset 配置。仅显式挂载 presentation 的 Intellisense / Intellisense PTC 模式启用命名空间；标准模式及其它模式保持原生工具与提示词。执行模式仅由 presentation 配置选择，主插件和独立入口不声明默认模式，也不自动为会话挂载模式。
 
-`integration/namespace_component.ts` 管理 Profile、工具目录与共享 manifest。Intellisense 模式按会话渐进注册原生工具，初始仅提供 tools.intellisense 和固定命令，查询后添加直接成员；挂载命令名称添加 ns_ 前缀，并以双下划线 __ 替换点号。命令通过 NamespaceCommand 对象表达，调用时使用已绑定的物理 tool 与命名参数，经 DSH 原生执行流水线派发，权限由 DSH 处理。代理不进入物理工具目录，卸载时清理。
+`integration/namespace_component.ts` 管理 Profile、工具目录与共享 manifest。Intellisense 模式按会话渐进注册原生工具，初始仅提供 tools.intellisense 和固定命令，查询后添加直接成员；挂载命令名称添加 ns_ 前缀，并以双下划线 __ 替换点号。命名空间通过 RootNamespaceNode → NamespaceNode → CommandNode 子节点引用表达，内置节点使用 InnerNamespaceNode / InnerCommandNode；命令路径从父节点链派生，Node 提供 type、serialize 和编辑/固定等级策略。命令通过 CommandNode 对象表达，调用时使用已绑定的物理 tool 与命名参数，经 DSH 原生执行流水线派发，权限由 DSH 处理。代理不进入物理工具目录，卸载时清理。
 
 Intellisense PTC 模式仅向模型提供插件自有 tools_run_code 工具。`integration/namespace_runtime.ts` 将已有受限 RuntimeHost 和 manifest 命名空间接入作用域执行入口，避免原生共享 run_code 选择部署的全局后端。两个模式在原生工具层均呈现 native，由插件组装器选择模型工具集合。PTC 初始化时将命令编译为 VM 函数绑定，VM 直接转换参数并通过 IPC 发送物理 tool 名称和底层参数；宿主不重复解析命名空间，不自行判定权限。子调用通过 DSH 原生执行流水线派发，保留父子审计、附加上下文和普通工具结果历史。本插件不拦截模型流，不解析代码围栏或提供源码续写。
 

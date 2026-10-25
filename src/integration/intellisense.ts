@@ -1,45 +1,35 @@
-import { builtinDeclaration, namespaceDeclaration, type NamespaceDeclaration } from './namespace_declaration.js';
+import { namespaceDeclaration, type NamespaceDeclaration } from './namespace_declaration.js';
 import { registerBuiltin } from './builtin_trace.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools';
 import { codeBlock } from '../protocol/code_block.js';
 import { appendPluginRecord } from '@deepseek-ai/dsh-session';
-import { declaration, normalizeIntellisenseQueries, type ManifestEntry } from './namespace.js';
-import { pluginCommands } from '../runtime/builtins.js';
+import { declaration, normalizeIntellisenseQueries, queryNodes, withRuntimeNodes, InnerCommandNode, NamespaceNode, type RootNamespaceNode } from './namespace.js';
 import { profileAnnotation } from '../registry/profile_tree.js';
 import type { NamespaceComponent } from './namespace_component.js';
 
 /** @brief Render queried members and signatures through the shared namespace declaration model. */
-export function intellisense(queries: readonly string[], entries: readonly ManifestEntry[], runtime = false, disabled: (path: string) => boolean = () => false): string {
+export function intellisense(queries: readonly string[], root: RootNamespaceNode, runtime = false, disabled: (path: string) => boolean = () => false): string {
+    if (runtime) withRuntimeNodes(root, disabled);
     const selected = new Map<string, NamespaceDeclaration>();
-    const commands = pluginCommands.builtinCommands.filter(command => !disabled(command.path) && (command.path !== 'tools.search' || entries.some(entry => entry.path === command.path)) && (runtime || command.path.startsWith('tools.')));
-    entries = entries.filter(entry => !disabled(entry.path));
-    const values = pluginCommands.profileValues.filter(item => !disabled(item.path));
-    const visibleEntries = runtime ? entries.filter(entry => !['tools_profile_annotation', 'tools_profile_commands'].includes(entry.tool)) : entries;
-    /** @brief Keep exact contracts when a later overlapping query requests shallow members. */
-    function insert(item: NamespaceDeclaration): void {
-        const previous = selected.get(item.path);
-        selected.set(item.path, { ...item, ...previous, ...(previous?.declaration || previous?.valueType ? { namespace: false } : {}) });
-    }
-    for (const query of normalizeIntellisenseQueries(queries)) {
-        const value = runtime ? values.find(item => item.path === query) : undefined;
-        if (value) { selected.set(query, { path: query, valueType: value.signature, description: value.description }); continue; }
-        const exact = query.endsWith('.') ? undefined : visibleEntries.find(entry => entry.path === query);
-        const fixed = query.endsWith('.') ? undefined : commands.find(command => command.path === query);
-        if (exact || fixed) {
-            selected.set(query, { path: query, declaration: exact ? declaration(exact, false) : builtinDeclaration(fixed!) });
+    const exact = new Set(normalizeIntellisenseQueries(queries));
+    for (const node of queryNodes(root, queries)) {
+        if (disabled(node.path)) continue;
+        if (node instanceof NamespaceNode) {
+            selected.set(node.path, { path: node.path, namespace: true });
             continue;
         }
-        const prefix = query ? query.replace(/\.$/, '') + '.' : '';
-        if (prefix) insert({ path: prefix.slice(0, -1), namespace: true });
-        for (const command of [...visibleEntries, ...commands, ...(runtime ? values : [])]) {
-            if (!command.path.startsWith(prefix)) continue;
-            const path = prefix + command.path.slice(prefix.length).split('.')[0]!;
-            insert(path !== command.path ? { path, namespace: true } : {
-                path, description: 'tool' in command ? command.doc : command.description,
-                ...(runtime && values.some(item => item.path === path) && 'signature' in command ? { valueType: command.signature } : {}),
-            });
-        }
+        const value = runtime && node instanceof InnerCommandNode && node.preload;
+        selected.set(node.path, {
+            path: node.path, description: node.doc,
+            ...(value ? { valueType: node.builtin.signature }
+                : exact.has(node.path) ? { declaration: declaration(node, false) } : {}),
+        });
+    }
+    // Preserve an explicitly queried namespace even when it has no direct children.
+    for (const query of exact) {
+        const path = query.replace(/\.$/, '');
+        if (path && root.resolve(path.split('.')) instanceof NamespaceNode) selected.set(path, { path, namespace: true });
     }
     return profileAnnotation + '\n\n' + namespaceDeclaration([...selected.values()]);
 }
@@ -66,7 +56,7 @@ export function registerIntellisense(ctx: Context, namespaces: NamespaceComponen
             const started = performance.now();
             const registry = await namespaces.registryFor(agent);
             const info = namespaces.isPtc(agent)
-                ? intellisense(queries, await namespaces.entries(agent), true, path => registry.disabled(path))
+                ? intellisense(queries, await namespaces.tree(agent), true, path => registry.disabled(path))
                 : await namespaces.discover(agent, queries);
             const position = namespaces.position(agent);
             appendPluginRecord(agent.session, 'plugin:ts_intellisense/intellisense', {

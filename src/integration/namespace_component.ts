@@ -8,8 +8,8 @@ import type { ScopeKey } from '@deepseek-ai/dsh-scope';
 import '@deepseek-ai/dsh-agent-preset-registry';
 import type { PhysicalTool, SemanticRegistry } from '../registry/registry.js';
 import type { ProfileSessions } from '../registry/profiles.js';
-import { declaration, manifest, nativeSchema, type Aliases, type ManifestEntry, type NamespaceCommand } from './namespace.js';
-import { builtinDeclaration, namespaceDirectory, type NamespaceHint } from './prompt.js';
+import { manifest, nativeSchema, withRuntimeNodes, type Aliases, InnerCommandNode, type RootNamespaceNode, type CommandNode } from './namespace.js';
+import { namespaceDirectory, type NamespaceHint } from './prompt.js';
 import { pluginCommands, ptcToolName } from '../runtime/builtins.js';
 import { type CommandBrief, profileAnnotation } from '../registry/profile_tree.js';
 import type { z } from 'zod';
@@ -98,7 +98,10 @@ export class NamespaceComponent {
     }
 
     /** @brief Resolve the current enabled namespace independently of prompt visibility. */
-    async entries(agent: Agent): Promise<NamespaceCommand[]> { return manifest(await this.registryFor(agent), this.aliases); }
+    async tree(agent: Agent): Promise<RootNamespaceNode> { return manifest(await this.registryFor(agent), this.aliases); }
+
+    /** @brief Flatten command bindings only for consumers that dispatch physical tools. */
+    async entries(agent: Agent): Promise<CommandNode[]> { return (await this.tree(agent)).commands(); }
 
     /** @brief List every known command, including commands outside the caller's current context. */
     async commandBriefs(): Promise<CommandBrief[]> {
@@ -121,45 +124,47 @@ export class NamespaceComponent {
         if (!this.isPtc(agent)) return '';
         const registry = await this.registryFor(agent);
         const state = registry.snapshot();
-        const entries = manifest(registry, this.aliases).filter(entry => !pluginCommands.find(entry.tool)?.preload);
+        const root = withRuntimeNodes(manifest(registry, this.aliases), path => registry.disabled(path));
         const hints: NamespaceHint[] = [];
-        for (const entry of entries) {
+        for (const entry of root.commands()) {
+            if (entry instanceof InnerCommandNode) {
+                const level = entry.fixLevel((state.builtinVisible ?? pluginCommands.defaultBuiltinVisible)[entry.path] ?? 0);
+                if (level) hints.push({ path: entry.path, description: entry.doc,
+                    ...(level === 2 ? { declaration: entry.preload ? `/** @brief ${entry.doc} */\nconst ${entry.name}: ${entry.builtin.signature};` : entry.declaration(false) } : {}) });
+                continue;
+            }
             const mapping = registry.effective().find(mapping => mapping.id === entry.tool);
-            if (mapping?.alwaysVisible) hints.push({ path: entry.path, description: state.toolComments?.[entry.tool] ?? mapping.description ?? entry.doc,
-                ...(mapping.alwaysVisible === 2 ? { declaration: declaration(entry, false) } : {}) });
+            const level = entry.fixLevel(mapping?.alwaysVisible);
+            if (level) hints.push({ path: entry.path, description: state.toolComments?.[entry.tool] ?? mapping?.description ?? entry.doc,
+                ...(level === 2 ? { declaration: entry.declaration(false) } : {}) });
         }
-        for (const item of state.namespaces ?? []) if (item.alwaysVisible && entries.some(entry => entry.path.startsWith(item.path + '.'))) hints.push({ ...item, namespace: true });
-        if (state.consolePinned && !registry.disabled('console')) hints.push({ path: 'console', description: 'Native console output', namespace: true });
-        for (const item of pluginCommands.builtinCommands) {
-            if (registry.disabled(item.path) || (item.path.startsWith('tools.') && !entries.some(entry => entry.path === item.path))) continue;
-            const level = item.path === pluginCommands.discoveryCommand.path ? 2 : (state.builtinVisible ?? pluginCommands.defaultBuiltinVisible)[item.path] ?? 0;
-            if (level) hints.push({ ...item, ...(level === 2 ? { declaration: item.path === 'tools.search' ? declaration(entries.find(entry => entry.path === item.path)!, false) : builtinDeclaration(item) } : {}) });
+        for (const item of state.namespaces ?? []) {
+            const node = root.resolve(item.path.split('.'));
+            if (item.alwaysVisible && node) hints.push({ ...item, namespace: true });
         }
-        for (const item of pluginCommands.profileValues) {
-            if (registry.disabled(item.path)) continue;
-            const level = state.builtinVisible?.[item.path] ?? 0;
-            if (level) hints.push({ ...item, ...(level === 2 ? { declaration: `/** @brief ${item.description} */\nconst ${item.path.split('.').at(-1)}: ${item.signature};` } : {}) });
-        }
+        if (state.consolePinned && root.children.has('console')) hints.push({ path: 'console', description: 'Native console output', namespace: true });
         return (hints.some(item => item.declaration && item.path.startsWith('tools.profile.')) ? '```ts\n' + profileAnnotation + '\n```\n\n' : '') + namespaceDirectory(hints);
     }
 
     /** @brief Keep native exposure limited to discovery, pinned commands and queried members. */
-    private async nativeEntries(agent: Agent): Promise<ManifestEntry[]> {
+    private async nativeEntries(agent: Agent): Promise<CommandNode[]> {
         const registry = await this.registryFor(agent);
         const state = registry.snapshot();
         const discovered = this.discovered.get(agent.id);
-        const available = new Set(manifest(registry, this.aliases).map(entry => entry.path));
+        const entries = manifest(registry, this.aliases).commands();
+        const available = new Set(entries.map(entry => entry.path));
         for (const path of discovered ?? []) if (!available.has(path)) discovered!.delete(path);
-        return manifest(registry, this.aliases).filter(entry => entry.path === pluginCommands.discoveryCommand.path || discovered?.has(entry.path)
+        return entries.filter(entry => !entry.permissions.disable || discovered?.has(entry.path)
             || registry.effective().some(mapping => mapping.id === entry.tool && mapping.alwaysVisible)
             || state.builtinVisible?.[entry.path]);
     }
 
     /** @brief Expand native tools for this conversation and invalidate the assembled system prompt. */
     async discover(agent: Agent, queries: readonly string[]): Promise<string> {
-        const entries = await this.entries(agent);
-        if (this.isPtc(agent)) return nativeDiscovery(queries, nativeBindings(entries, this.physical(agent).map(tool => tool.id)));
-        const selected = nativeQueryEntries(queries, entries);
+        const root = await this.tree(agent);
+        const entries = root.commands();
+        if (this.isPtc(agent)) return nativeDiscovery(queries, root, nativeBindings(entries, this.physical(agent).map(tool => tool.id)));
+        const selected = nativeQueryEntries(queries, root);
         let discovered = this.discovered.get(agent.id);
         if (!discovered) this.discovered.set(agent.id, discovered = new Set());
         for (const entry of selected) {
@@ -169,7 +174,7 @@ export class NamespaceComponent {
         while (discovered.size > 256) discovered.delete(discovered.values().next().value!);
         await this.syncNative(agent);
         this.ctx.emit('system-prompt/change');
-        return nativeDiscovery(queries, nativeBindings(entries, this.physical(agent).map(tool => tool.id)));
+        return nativeDiscovery(queries, root, nativeBindings(entries, this.physical(agent).map(tool => tool.id)));
     }
 
     /** @brief Install scoped namespace aliases while keeping dispatch inside native guards and auditing. */
@@ -177,7 +182,7 @@ export class NamespaceComponent {
         const entries = await this.entries(agent);
         const visible = new Set((await this.nativeEntries(agent)).map(entry => entry.path));
         const bindings = nativeBindings(entries, this.physical(agent).map(tool => tool.id)).filter(({ entry }) => visible.has(entry.path));
-        const fingerprint = JSON.stringify(bindings);
+        const fingerprint = JSON.stringify(bindings.map(({ entry, name }) => ({ name, path: entry.path, node: entry.serialize() })));
         const previous = this.nativeTools.get(agent.id);
         if (previous?.fingerprint === fingerprint) return bindings.map(binding => binding.name);
         for (const dispose of previous?.disposers ?? []) dispose();
@@ -206,7 +211,7 @@ export class NamespaceComponent {
     }
 
     /** @brief Dispatch a namespace call through native permission checks and paired child audit records. */
-    async dispatch(agent: Agent, entry: NamespaceCommand, args: unknown, parent: ToolRunContext, sequence: number): Promise<unknown> {
+    async dispatch(agent: Agent, entry: CommandNode, args: unknown, parent: ToolRunContext, sequence: number): Promise<unknown> {
         return entry.result(await this.dispatchTool(agent, entry.tool, args, parent, sequence));
     }
 

@@ -2,7 +2,7 @@ import { builtinDeclaration, namespaceDeclaration } from './namespace_declaratio
 import { decodeHTML } from 'entities';
 import { z } from 'zod';
 import { jsonSchemaToTs, validateJsonSchemaValue, type JsonSchemaNode } from '@deepseek-ai/dsh-tools';
-import { pluginCommands, ptcToolName } from '../runtime/builtins.js';
+import { pluginCommands, ptcToolName, type BuiltinTool } from '../runtime/builtins.js';
 import type { CommandBinding } from '../runtime/protocol.js';
 import type { SemanticRegistry } from '../registry/registry.js';
 
@@ -20,17 +20,106 @@ export const Aliases = z.array(z.strictObject({ path: z.string().regex(/^[A-Za-z
 /** @brief Trusted host-side namespace manifest entry. */
 export interface ManifestEntry { path: string; tool: string; argMap?: Record<string, string>; schema: Record<string, unknown>; output: unknown; doc: string }
 
-/** @brief A resolved namespace command owns its callable, declaration and native projections. */
-export class NamespaceCommand implements ManifestEntry {
+/** @brief Discriminator for executable namespace nodes. */
+export type NodeType = 'command' | 'namespace' | 'inner_command' | 'inner_namespace' | 'root_namespace';
+
+/** @brief Editing and pin choices owned by a node, independent of native execution guards. */
+export interface NodePermissions {
+    readonly rename: boolean;
+    readonly move: boolean;
+    readonly remove: boolean;
+    readonly disable: boolean;
+    readonly fixLevels: readonly (0 | 1 | 2)[];
+}
+
+/** @brief A transport-safe node snapshot without parent references. */
+export interface SerializedNode {
+    type: NodeType;
+    name: string;
+    permissions: NodePermissions;
+    children?: SerializedNode[];
+    command?: Omit<ManifestEntry, 'path'>;
+    builtin?: BuiltinTool;
+}
+
+/** @brief Common structured identity and serialization contract for the namespace tree. */
+export interface Node {
+    readonly type: NodeType;
+    readonly name: string;
+    readonly parent: NamespaceNode | undefined;
     readonly path: string;
+    readonly permissions: NodePermissions;
+    /** @brief Serialize a subtree without retaining parent references. */
+    serialize(): SerializedNode;
+}
+
+/** @brief An ordinary namespace owns direct child references and resolves node chains. */
+export class NamespaceNode implements Node {
+    readonly type: NodeType = 'namespace';
+    private readonly members = new Map<string, NamespaceNode | CommandNode>();
+
+    constructor(readonly name: string, readonly parent: NamespaceNode | undefined = undefined) {}
+
+    get path(): string { return this.parent?.path ? `${this.parent.path}.${this.name}` : this.name; }
+
+    get children(): ReadonlyMap<string, NamespaceNode | CommandNode> { return this.members; }
+
+    get permissions(): NodePermissions { return { rename: true, move: true, remove: true, disable: true, fixLevels: [0, 1] }; }
+
+    /** @brief Attach a direct child while preventing callable/namespace and identity collisions. */
+    add<T extends NamespaceNode | CommandNode>(node: T): T {
+        if (node.parent !== this || !/^[A-Za-z_$][\w$]*$/.test(node.name) || ['__proto__', 'constructor', 'prototype', 'then'].includes(node.name)) throw new Error(`Invalid namespace child: ${node.name}`);
+        const previous = this.members.get(node.name);
+        if (previous && previous !== node && !(previous instanceof CommandNode && node instanceof CommandNode && previous.tool === node.tool)) throw new Error(`Namespace overlaps an existing node: ${node.path}`);
+        this.members.set(node.name, node);
+        return node;
+    }
+
+    /** @brief Follow direct child references from this namespace. */
+    resolve(parts: readonly string[]): NamespaceNode | CommandNode | undefined {
+        const [name, ...remaining] = parts;
+        if (name === undefined) return this;
+        const child = this.children.get(name);
+        return remaining.length ? child instanceof NamespaceNode ? child.resolve(remaining) : undefined : child;
+    }
+
+    /** @brief Project command leaves only at execution and presentation boundaries. */
+    commands(): CommandNode[] {
+        return [...this.children.values()].flatMap(node => node instanceof NamespaceNode ? node.commands() : [node]);
+    }
+
+    serialize(): SerializedNode { return { type: this.type, name: this.name, permissions: this.permissions, children: [...this.children.values()].map(node => node.serialize()) }; }
+
+    /** @brief Keep JSON consumers from traversing cyclic parent references. */
+    toJSON(): SerializedNode { return this.serialize(); }
+}
+
+/** @brief Builtin namespace structure cannot be renamed, moved or removed. */
+export class InnerNamespaceNode extends NamespaceNode {
+    override readonly type: NodeType = 'inner_namespace';
+
+    override get permissions(): NodePermissions { return { rename: false, move: false, remove: false, disable: true, fixLevels: this.path === 'console' ? [0, 1] : [] }; }
+}
+
+/** @brief The anonymous root is the single entry to a resolved namespace tree. */
+export class RootNamespaceNode extends NamespaceNode {
+    override readonly type: NodeType = 'root_namespace';
+
+    constructor() { super(''); }
+
+    override get permissions(): NodePermissions { return { rename: false, move: false, remove: false, disable: false, fixLevels: [] }; }
+}
+
+/** @brief A resolved command owns its parent reference and callable contract. */
+export class CommandNode implements Node, ManifestEntry {
+    readonly type: NodeType = 'command';
     readonly tool: string;
     readonly argMap?: Record<string, string>;
     readonly schema: Record<string, unknown>;
     readonly output: unknown;
     readonly doc: string;
 
-    constructor(entry: ManifestEntry) {
-        this.path = entry.path;
+    constructor(readonly name: string, readonly parent: NamespaceNode, entry: Omit<ManifestEntry, 'path'>) {
         this.tool = entry.tool;
         this.argMap = entry.argMap;
         this.schema = entry.schema;
@@ -38,19 +127,31 @@ export class NamespaceCommand implements ManifestEntry {
         this.doc = entry.doc;
     }
 
+    get path(): string { return this.parent.path ? `${this.parent.path}.${this.name}` : this.name; }
+
+    get permissions(): NodePermissions { return { rename: true, move: true, remove: true, disable: true, fixLevels: [0, 1, 2] }; }
+
+    serialize(): SerializedNode {
+        return structuredClone({ type: this.type, name: this.name, permissions: this.permissions, command: { tool: this.tool, argMap: this.argMap, schema: this.schema, output: this.output, doc: this.doc } });
+    }
+
+    /** @brief Keep serialized commands independent of their parent object graph. */
+    toJSON(): SerializedNode { return this.serialize(); }
+
+    /** @brief Resolve a requested pin against this command's available levels. */
+    fixLevel(level: 0 | 1 | 2 = 0): 0 | 1 | 2 {
+        return this.permissions.fixLevels.includes(level) ? level : this.permissions.fixLevels[0] ?? 0;
+    }
+
     /** @brief Compile the physical target and argument/result adapters before installing the VM function. */
     binding(): CommandBinding {
-        const builtin = pluginCommands.find(this.tool);
         const fields = parameters(this);
         const result = resultField(this);
         return {
             path: this.path, tool: this.tool,
-            parameters: builtin?.rest ? { kind: 'rest', field: builtin.rest }
-                : builtin?.positional ? { kind: 'overloads', layouts: builtin.positional.map(layout => [...layout]) }
-                : fields ? { kind: 'fields', fields: fields.map(field => field.native) }
+            parameters: fields ? { kind: 'fields', fields: fields.map(field => field.native) }
                 : { kind: 'object', aliases: { ...this.argMap } },
-            result: builtin?.discardResult ? { kind: 'discard' }
-                : result ? { kind: 'field', field: result[0] } : { kind: 'identity' },
+            result: result ? { kind: 'field', field: result[0] } : { kind: 'identity' },
         };
     }
 
@@ -64,6 +165,38 @@ export class NamespaceCommand implements ManifestEntry {
     declaration(nested = true): string { return declaration(this, nested); }
 }
 
+/** @brief Builtin commands own their invocation adapters and restricted editing permissions. */
+export class InnerCommandNode extends CommandNode {
+    override readonly type: NodeType = 'inner_command';
+
+    constructor(name: string, parent: NamespaceNode, entry: Omit<ManifestEntry, 'path'>, readonly builtin: BuiltinTool) { super(name, parent, entry); }
+
+    override get permissions(): NodePermissions {
+        const discovery = this.tool === pluginCommands.discoveryCommand.tool;
+        return { rename: false, move: false, remove: false, disable: !discovery, fixLevels: discovery ? [2] : [0, 1, 2] };
+    }
+
+    /** @brief Identify data-only builtins before installing runtime command functions. */
+    get preload(): boolean { return this.builtin.preload ?? false; }
+
+    override binding(): CommandBinding {
+        const binding = super.binding();
+        if (this.builtin.rest) binding.parameters = { kind: 'rest', field: this.builtin.rest };
+        else if (this.builtin.positional) binding.parameters = { kind: 'overloads', layouts: this.builtin.positional.map(layout => [...layout]) };
+        if (this.builtin.discardResult) binding.result = { kind: 'discard' };
+        return binding;
+    }
+
+    override result(value: unknown): unknown { return this.builtin.discardResult ? undefined : super.result(value); }
+
+    override serialize(): SerializedNode { return { ...super.serialize(), builtin: structuredClone(this.builtin) }; }
+
+    override declaration(nested = true): string {
+        const contract = this.tool === 'tools_search' ? pluginCommands.searchContract(((this.schema.properties as Record<string, { enum?: string[] }> | undefined)?.method?.enum) ?? []) : this.builtin;
+        return namespaceDeclaration([{ path: nested ? this.path : this.name, declaration: builtinDeclaration(contract) }], false);
+    }
+}
+
 /** @brief Ignore the ambient global namespace prefix and validate discovery paths. */
 export function normalizeIntellisenseQueries(queries: readonly string[]): string[] {
     return queries.map(query => {
@@ -73,26 +206,60 @@ export function normalizeIntellisenseQueries(queries: readonly string[]): string
     });
 }
 
+/** @brief Add runtime-owned console nodes for PTC discovery and prompt projections. */
+export function withRuntimeNodes(root: RootNamespaceNode, disabled: (path: string) => boolean): RootNamespaceNode {
+    if (disabled('console') || root.children.has('console')) return root;
+    const console = root.add(new InnerNamespaceNode('console', root));
+    for (const builtin of pluginCommands.consoleCommands) {
+        if (disabled(builtin.path)) continue;
+        console.add(new InnerCommandNode(builtin.path.split('.').at(-1)!, console,
+            { tool: builtin.path, schema: {}, output: {}, doc: builtin.description }, { ...builtin, tool: builtin.path }));
+    }
+    return root;
+}
+
+/** @brief Select exact commands or direct members by following the node chain. */
+export function queryNodes(root: RootNamespaceNode, queries: readonly string[]): (NamespaceNode | CommandNode)[] {
+    const selected = new Set<NamespaceNode | CommandNode>();
+    for (const query of normalizeIntellisenseQueries(queries)) {
+        const path = query.replace(/\.$/, '');
+        const node = root.resolve(path ? path.split('.') : []);
+        if (node instanceof NamespaceNode) for (const child of node.children.values()) selected.add(child);
+        else if (node && !query.endsWith('.')) selected.add(node);
+    }
+    return [...selected];
+}
+
 /** @brief Build deterministic, scoped aliases from the current Profile and physical tool catalog. */
-export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Aliases>): NamespaceCommand[] {
-    const entries = new Map<string, NamespaceCommand>();
+export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Aliases>): RootNamespaceNode {
+    const root = new RootNamespaceNode();
     const managementPaths = Object.fromEntries(pluginCommands.builtinTools.map(command => [command.tool, command.path]));
     const insert = (entry: ManifestEntry): void => {
         if ((entry.path === 'tools' || entry.path.startsWith('tools.') || entry.tool.startsWith('tools_')) && managementPaths[entry.tool] !== entry.path) return;
         if (registry.disabled(entry.path)) return;
         const parts = entry.path.split('.');
         if (parts.some(part => ['__proto__', 'constructor', 'prototype', 'then'].includes(part)) || ['console', 'globalThis'].includes(parts[0]!)) throw new Error(`Reserved manifest path: ${entry.path}`);
-        const previous = entries.get(entry.path);
-        if (previous && previous.tool !== entry.tool) throw new Error(`Conflicting tool alias: ${entry.path}`);
-        for (const path of entries.keys()) if (path.startsWith(entry.path + '.') || entry.path.startsWith(path + '.')) throw new Error(`Namespace overlaps a callable path: ${entry.path}`);
-        entries.set(entry.path, new NamespaceCommand(entry));
+        let parent: NamespaceNode = root;
+        for (const name of parts.slice(0, -1)) {
+            const existing = parent.children.get(name);
+            if (existing && !(existing instanceof NamespaceNode)) throw new Error(`Namespace overlaps a callable path: ${entry.path}`);
+            parent = existing ?? parent.add(parts[0] === 'tools' ? new InnerNamespaceNode(name, parent) : new NamespaceNode(name, parent));
+        }
+        const name = parts.at(-1)!;
+        const previous = parent.children.get(name);
+        if (previous) {
+            if (!(previous instanceof CommandNode) || previous.tool !== entry.tool) throw new Error(`Conflicting tool alias: ${entry.path}`);
+        }
+        const builtin = pluginCommands.find(entry.tool);
+        parent.add(builtin ? new InnerCommandNode(name, parent, entry, builtin) : new CommandNode(name, parent, entry));
     };
-    for (const mapping of registry.effective().filter(mapping => !mapping.disabled && !['exec', 'run_code', ptcToolName].includes(mapping.id))) {
+    const effective = registry.effective().filter(mapping => !mapping.disabled);
+    for (const mapping of effective.filter(mapping => !['exec', 'run_code', ptcToolName].includes(mapping.id))) {
         const physical = mapping.tool;
         const paths = mapping.id.startsWith('tools_') ? [`tools.${mapping.id.slice(6)}`] : [mapping.path, ...mapping.aliases];
         for (const path of paths) insert({ path, tool: mapping.id, schema: physical.parameters, output: physical.output, doc: physical.description });
     }
-    const mounted = new Set(registry.effective().filter(mapping => !mapping.disabled).map(mapping => mapping.id));
+    const mounted = new Set(effective.map(mapping => mapping.id));
     for (const alias of aliases) {
         const tool = registry.tools().find(tool => tool.id === alias.tool);
         if (tool && mounted.has(tool.id)) insert({ ...alias, schema: tool.parameters, output: tool.output, doc: tool.description });
@@ -101,7 +268,7 @@ export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Ali
         const tool = registry.tools().find(tool => tool.id === id);
         if (tool) insert({ path, tool: tool.id, schema: tool.parameters, output: tool.output, doc: tool.description });
     }
-    return [...entries.values()];
+    return root;
 }
 
 /** @brief One positional parameter projected from a native object contract. */
@@ -149,21 +316,19 @@ function resultField(entry: ManifestEntry): [string, JsonSchemaNode] | undefined
 
 /** @brief Unwrap the native response using the same contract exposed by IntelliSense. */
 export function resultFor(entry: ManifestEntry, value: unknown): unknown {
-    if (pluginCommands.find(entry.tool)?.discardResult) return undefined;
     const field = resultField(entry);
     return field && value && typeof value === 'object' ? Object.hasOwn(value, field[0]) ? (value as Record<string, unknown>)[field[0]] : undefined : value;
 }
 
 /** @brief Emit positional signatures and scalar results with decoded Doxygen parameter documentation. */
 export function declaration(entry: ManifestEntry, nested = true): string {
+    if (entry instanceof InnerCommandNode) return entry.declaration(nested);
     return namespaceDeclaration([{ path: nested ? entry.path : entry.path.split('.').at(-1)!, declaration: commandDeclaration(entry) }], false);
 }
 
 /** @brief Project one manifest contract into a leaf declaration for the shared namespace tree. */
 function commandDeclaration(entry: ManifestEntry): string {
     const name = entry.path.split('.').at(-1)!;
-    const command = pluginCommands.find(entry.tool);
-    if (command) return builtinDeclaration(entry.tool === 'tools_search' ? pluginCommands.searchContract(((entry.schema.properties as Record<string, { enum?: string[] }> | undefined)?.method?.enum) ?? []) : command);
     const doc = (text: string): string => decodeHTML(text).replaceAll('*/', '* /');
     const types: string[] = [];
     /** @brief Keep complex field types out of the callable signature. */
