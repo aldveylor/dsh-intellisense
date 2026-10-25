@@ -5,7 +5,7 @@ import { NativeProfileSelect } from '../profile_picker/native_profile_select.js'
 import { ToolDetails } from './tool_details.js';
 import type { Mapping, PhysicalTool } from '../../registry/registry.js';
 
-/** @brief One tool card with a numeric call total and shared pointer-following details. */
+/** @brief One tool card with its binding path and shared pointer-following details. */
 function ToolCard({ tool, mapping, calls, busy, select }: {
     tool: PhysicalTool; mapping?: Mapping; calls: number; busy: boolean; select: (tool: PhysicalTool) => void;
 }) {
@@ -20,8 +20,7 @@ function ToolCard({ tool, mapping, calls, busy, select }: {
             tooltip.show(<ToolDetails tool={tool} calls={calls} />, rect.left, rect.bottom);
         }} onBlur={tooltip.leave} onClick={() => { tooltip.hide(); select(tool); }}>
         <strong>{tool.id}</strong>
-        <span className="ts-tool-footer"><code>{mapping?.path || t('unmounted')}</code>
-            <span className="ts-tool-calls" aria-label={t('tool_calls_label', { count: calls })}>{calls}</span></span>
+        <code className="ts-tool-footer">{mapping?.path || t('unmounted')}</code>
     </button>;
 }
 

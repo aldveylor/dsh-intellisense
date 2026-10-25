@@ -70,6 +70,11 @@ export function ToolDetails({ tool, calls }: { tool: PhysicalTool; calls: number
         <section className="ts-tool-detail-overview"><h4>{t('tool_description')}</h4><p>{tool.description || t('tool_no_description')}</p></section>
         <SchemaTable label={t('tool_parameters')} schema={tool.parameters} />
         <SchemaTable label={t('tool_returns')} schema={tool.output} />
-        <footer className="ts-tool-detail-footer"><span>{t('tool_total_calls')}</span><strong>{calls}</strong></footer>
+        <section className="ts-tool-statistics">
+            <table>
+                <caption>{t('tool_statistics')}</caption>
+                <tbody><tr><th scope="row">{t('tool_total_calls')}</th><td>{calls}</td></tr></tbody>
+            </table>
+        </section>
     </article>;
 }
