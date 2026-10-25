@@ -2,6 +2,7 @@
 export const enUs = {
     "original_command": "Original command",
     "command_summary": "Summary",
+    "command_no_summary": "None",
     "command_documentation": "Full documentation",
     "copy_code": "Copy code",
     "copied_code": "Copied",

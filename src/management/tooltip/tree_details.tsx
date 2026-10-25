@@ -49,7 +49,7 @@ export function CommandDetails({ path, tool, summary, calls }: { path: string; t
         <section><h4>{t('original_command')}</h4>
             <TooltipProvider><OriginalCommand tool={tool} calls={calls} /></TooltipProvider>
         </section>
-        <section><h4>{t('command_summary')}</h4><p>{summary || t('tool_no_description')}</p></section>
+        <section><h4>{t('command_summary')}</h4><p>{summary.trim() || t('command_no_summary')}</p></section>
         <section><h4>{t('command_documentation')}</h4><p>{tool.description || t('tool_no_description')}</p></section>
         <ToolStatistics calls={calls} />
     </article>;

@@ -120,7 +120,7 @@ function CommandNode({ node, tree }: { node: CommandTreeNode; tree: TreeProps })
     const tool = tree.tools.find(tool => tool.id === id) ?? {
         id: id ?? contract?.tool ?? path, description: description ?? '', parameters: contract?.schema ?? {}, output: contract?.output,
     };
-    const summary = (id && Object.hasOwn(tree.toolComments, id) ? tree.toolComments[id] : undefined) ?? mapping?.description ?? tool.description.split('\n')[0] ?? '';
+    const summary = (id && Object.hasOwn(tree.toolComments, id) ? tree.toolComments[id] : undefined) ?? mapping?.description ?? '';
     const tooltip = useTreeTooltip(<CommandDetails path={path} tool={tool} summary={summary} calls={tree.callsByTool[tool.id] ?? 0} />);
     const readOnly = !node.permissions.renamable;
     const invalid = !!mapping && !tree.tools.some(tool => tool.id === id);
