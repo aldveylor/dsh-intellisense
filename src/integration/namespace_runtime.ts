@@ -1,6 +1,5 @@
 import { Service, type Context } from '@deepseek-ai/cordis';
 import { CodeRunFailedError, defineTool, type ToolRunContext } from '@deepseek-ai/dsh-tools';
-import { argumentsFor } from './namespace.js';
 import type {} from './namespace_plugin.js';
 import { RuntimeHost, type RuntimeConfig } from '../runtime/host.js';
 import { pluginCommands, ptcToolName } from '../runtime/builtins.js';
@@ -71,12 +70,9 @@ export class NamespaceRuntime extends Service {
         let sequence = 0;
         try {
             const entries = (await namespaces.entries(agent)).filter(entry => !pluginCommands.find(entry.tool)?.preload);
-            const result = await this.runtime.execute(agent.id, `run-code-${++this.sequence}`, code, entries.map(entry => entry.path), async (path, input, signal) => {
+            const result = await this.runtime.execute(agent.id, `run-code-${++this.sequence}`, code, entries.map(entry => entry.binding()), async (tool, input, signal) => {
                 signal.throwIfAborted();
-                const entry = (await namespaces.entries(agent)).find(entry => entry.path === path);
-                signal.throwIfAborted();
-                if (!entry) throw new Error(`Execution denied: ${path}`);
-                const work = namespaces.dispatch(agent, entry, argumentsFor(entry, input), { ...parent, signal: controller.signal }, ++sequence);
+                const work = namespaces.dispatchTool(agent, tool, input, { ...parent, signal: controller.signal }, ++sequence);
                 pending.add(work);
                 void work.finally(() => { pending.delete(work); }).catch(() => {});
                 return bindingResult(work, signal);

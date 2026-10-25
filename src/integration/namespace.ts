@@ -3,6 +3,7 @@ import { decodeHTML } from 'entities';
 import { z } from 'zod';
 import { jsonSchemaToTs, validateJsonSchemaValue, type JsonSchemaNode } from '@deepseek-ai/dsh-tools';
 import { pluginCommands, ptcToolName } from '../runtime/builtins.js';
+import type { CommandBinding } from '../runtime/protocol.js';
 import type { SemanticRegistry } from '../registry/registry.js';
 
 /** @brief YAML aliases reference physical tools and rename argument fields without reimplementing tools. */
@@ -19,6 +20,50 @@ export const Aliases = z.array(z.strictObject({ path: z.string().regex(/^[A-Za-z
 /** @brief Trusted host-side namespace manifest entry. */
 export interface ManifestEntry { path: string; tool: string; argMap?: Record<string, string>; schema: Record<string, unknown>; output: unknown; doc: string }
 
+/** @brief A resolved namespace command owns its callable, declaration and native projections. */
+export class NamespaceCommand implements ManifestEntry {
+    readonly path: string;
+    readonly tool: string;
+    readonly argMap?: Record<string, string>;
+    readonly schema: Record<string, unknown>;
+    readonly output: unknown;
+    readonly doc: string;
+
+    constructor(entry: ManifestEntry) {
+        this.path = entry.path;
+        this.tool = entry.tool;
+        this.argMap = entry.argMap;
+        this.schema = entry.schema;
+        this.output = entry.output;
+        this.doc = entry.doc;
+    }
+
+    /** @brief Compile the physical target and argument/result adapters before installing the VM function. */
+    binding(): CommandBinding {
+        const builtin = pluginCommands.find(this.tool);
+        const fields = parameters(this);
+        const result = resultField(this);
+        return {
+            path: this.path, tool: this.tool,
+            parameters: builtin?.rest ? { kind: 'rest', field: builtin.rest }
+                : builtin?.positional ? { kind: 'overloads', layouts: builtin.positional.map(layout => [...layout]) }
+                : fields ? { kind: 'fields', fields: fields.map(field => field.native) }
+                : { kind: 'object', aliases: { ...this.argMap } },
+            result: builtin?.discardResult ? { kind: 'discard' }
+                : result ? { kind: 'field', field: result[0] } : { kind: 'identity' },
+        };
+    }
+
+    /** @brief Translate named alias arguments into the native schema. */
+    nativeArguments(input: unknown): unknown { return nativeArgumentsFor(this, input); }
+
+    /** @brief Project a native result into the public namespace return value. */
+    result(value: unknown): unknown { return resultFor(this, value); }
+
+    /** @brief Render the public positional TypeScript declaration. */
+    declaration(nested = true): string { return declaration(this, nested); }
+}
+
 /** @brief Ignore the ambient global namespace prefix and validate discovery paths. */
 export function normalizeIntellisenseQueries(queries: readonly string[]): string[] {
     return queries.map(query => {
@@ -29,8 +74,8 @@ export function normalizeIntellisenseQueries(queries: readonly string[]): string
 }
 
 /** @brief Build deterministic, scoped aliases from the current Profile and physical tool catalog. */
-export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Aliases>): ManifestEntry[] {
-    const entries = new Map<string, ManifestEntry>();
+export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Aliases>): NamespaceCommand[] {
+    const entries = new Map<string, NamespaceCommand>();
     const managementPaths = Object.fromEntries(pluginCommands.builtinTools.map(command => [command.tool, command.path]));
     const insert = (entry: ManifestEntry): void => {
         if ((entry.path === 'tools' || entry.path.startsWith('tools.') || entry.tool.startsWith('tools_')) && managementPaths[entry.tool] !== entry.path) return;
@@ -40,7 +85,7 @@ export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Ali
         const previous = entries.get(entry.path);
         if (previous && previous.tool !== entry.tool) throw new Error(`Conflicting tool alias: ${entry.path}`);
         for (const path of entries.keys()) if (path.startsWith(entry.path + '.') || entry.path.startsWith(path + '.')) throw new Error(`Namespace overlaps a callable path: ${entry.path}`);
-        entries.set(entry.path, entry);
+        entries.set(entry.path, new NamespaceCommand(entry));
     };
     for (const mapping of registry.effective().filter(mapping => !mapping.disabled && !['exec', 'run_code', ptcToolName].includes(mapping.id))) {
         const physical = mapping.tool;
@@ -70,33 +115,6 @@ function parameters(entry: ManifestEntry): Parameter[] | undefined {
     const names = new Map(Object.entries(entry.argMap ?? {}).map(([source, native]) => [native, source]));
     return fields.map(([native, schema]) => ({ name: names.get(native) ?? native, native, schema, required: (entry.schema.required as string[] | undefined)?.includes(native) ?? false }))
         .sort((a, b) => Number(b.required) - Number(a.required));
-}
-
-/** @brief Repack positional values into validated native arguments before guarded dispatch. */
-export function argumentsFor(entry: ManifestEntry, values: unknown): unknown {
-    if (!Array.isArray(values)) throw new Error('Expected positional arguments');
-    const command = pluginCommands.find(entry.tool);
-    if (command?.rest) return nativeArgumentsFor(entry, { [command.rest]: values });
-    if (command?.positional) {
-        const layout = command.positional.find(fields => fields.length === values.length);
-        if (!layout) throw new Error('Invalid positional argument count');
-        return nativeArgumentsFor(entry, Object.fromEntries(layout.flatMap((name, index) => values[index] === undefined ? [] : [[name, values[index]]])));
-    }
-    const fields = parameters(entry);
-    let args: unknown;
-    if (fields) {
-        if (values.length > fields.length) throw new Error('Too many arguments');
-        args = Object.fromEntries(fields.flatMap((field, index) => values[index] === undefined ? [] : [[field.native, values[index]]]));
-    } else {
-        if (values.length > 1) throw new Error('Too many arguments');
-        args = values[0] === undefined ? {} : values[0];
-        if (entry.argMap && args && typeof args === 'object' && !Array.isArray(args)) {
-            const input = args;
-            args = Object.fromEntries(Object.entries(input).map(([key, value]) => [entry.argMap![key] ?? key, value]));
-            if (Object.keys(args as object).length !== Object.keys(input).length) throw new Error('Argument mapping contains a duplicate target');
-        }
-    }
-    return nativeArgumentsFor({ ...entry, argMap: undefined }, args);
 }
 
 /** @brief Validate named DSML arguments after translating configured alias field names. */

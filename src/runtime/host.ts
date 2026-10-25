@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import ts from 'typescript';
 import { z } from 'zod';
-import { ExecutionId, HostMessage, RpcId, RunResult, WorkerMessage, type ExecutionResult } from './protocol.js';
+import { ExecutionId, HostMessage, RpcId, RunResult, WorkerMessage, type ExecutionResult, type CommandBinding } from './protocol.js';
 import { verifySandbox } from './sandbox.js';
 
 /** @brief Deployment-controlled process budgets; unsupported confinement fails during loading. */
@@ -25,7 +25,7 @@ interface ProcessState {
     sequence: number;
     pending: Map<number, { resolve(value: unknown): void; reject(error: Error): void; timer: NodeJS.Timeout }>;
     calls: Set<Promise<void>>;
-    active?: { id: string; controller: AbortController; invoke(path: string, args: unknown, signal: AbortSignal): Promise<unknown> };
+    active?: { id: string; controller: AbortController; invoke(tool: string, args: unknown, signal: AbortSignal): Promise<unknown> };
     closed: boolean;
 }
 
@@ -87,7 +87,7 @@ export class RuntimeHost {
             if (!active || active.id !== message.execution || state.calls.size > this.config.maxPendingCalls) throw new Error('RPC has no active owner or exceeds the pending limit');
             try {
                 active.controller.signal.throwIfAborted();
-                const value = await active.invoke(message.path, message.args.map(([present, value]) => present ? value : undefined), active.controller.signal);
+                const value = await active.invoke(message.tool, message.args, active.controller.signal);
                 this.send(state, { type: 'reply', id: message.id, value: value === undefined ? undefined : z.json().parse(value) });
             } catch (error) {
                 if (!state.closed) this.send(state, { type: 'reply', id: message.id, error: error instanceof Error ? error.message : String(error) });
@@ -115,7 +115,7 @@ export class RuntimeHost {
     }
 
     /** @brief Serialize owner executions; every invocation receives new strict AsyncFunction local bindings. */
-    execute(owner: string, id: string, code: string, paths: string[], invoke: (path: string, args: unknown, signal: AbortSignal) => Promise<unknown>, signal: AbortSignal, values: Record<string, z.infer<ReturnType<typeof z.json>>> = {}): Promise<ExecutionResult> {
+    execute(owner: string, id: string, code: string, commands: CommandBinding[], invoke: (tool: string, args: unknown, signal: AbortSignal) => Promise<unknown>, signal: AbortSignal, values: Record<string, z.infer<ReturnType<typeof z.json>>> = {}): Promise<ExecutionResult> {
         const previous = this.queues.get(owner) ?? Promise.resolve();
         const work = previous.catch(() => { /* A previous failed run does not prevent a new explicit execution. */ }).then(async () => {
             signal.throwIfAborted();
@@ -126,7 +126,7 @@ export class RuntimeHost {
             signal.addEventListener('abort', abort, { once: true });
             if (signal.aborted) abort();
             try {
-                await this.request(owner, state, { type: 'init', paths, values, maxOutputBytes: this.config.maxOutputBytes, syncTimeoutMs: this.config.syncTimeoutMs });
+                await this.request(owner, state, { type: 'init', commands, values, maxOutputBytes: this.config.maxOutputBytes, syncTimeoutMs: this.config.syncTimeoutMs });
                 signal.throwIfAborted();
                 state.active = { id, controller, invoke };
                 const source = `(async function(){"use strict";\n${code}\n})()`;

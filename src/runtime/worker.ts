@@ -2,7 +2,7 @@ import vm from 'node:vm';
 import { Console } from 'node:console';
 import { Writable } from 'node:stream';
 import { isProxy } from 'node:util/types';
-import { HostMessage, RpcId, WorkerMessage, RunResult, type ExecutionResult } from './protocol.js';
+import { HostMessage, RpcId, WorkerMessage, RunResult, type ExecutionResult, type CommandBinding } from './protocol.js';
 
 let context = vm.createContext(Object.create(null), { codeGeneration: { strings: false, wasm: false } });
 let global = vm.runInContext('globalThis', context) as object;
@@ -30,15 +30,15 @@ let console = new Console({ stdout: output, stderr: output, colorMode: false, in
 function send(message: unknown): void { process.send?.(WorkerMessage.parse(message)); }
 
 /** @brief Install only VM-realm wrapper functions; the captured host callbacks are never visible as guest properties. */
-function initialize(paths: string[], values: Record<string, unknown>): void {
+function initialize(commands: CommandBinding[], values: Record<string, unknown>): void {
     context = vm.createContext(Object.create(null), { codeGeneration: { strings: false, wasm: false } });
     global = vm.runInContext('globalThis', context) as object;
     Object.defineProperty(global, 'globalThis', { value: undefined, writable: false, configurable: false });
     console = new Console({ stdout: output, stderr: output, colorMode: false, inspectOptions: { customInspect: false, getters: false } });
-    const hostCall = (path: string, json: string): Promise<string> => {
+    const hostCall = (tool: string, json: string): Promise<string> => {
         if (!execution) return Promise.reject(new Error('No active execution'));
         const id = RpcId.parse(++sequence);
-        return new Promise((resolve, reject) => { outstanding.set(id, { resolve, reject }); send({ type: 'call', id, execution, path, args: JSON.parse(json) }); });
+        return new Promise((resolve, reject) => { outstanding.set(id, { resolve, reject }); send({ type: 'call', id, execution, tool, args: JSON.parse(json) }); });
     };
     const hostPrint = (method: string, args: unknown[]): void => {
         if (!execution) return;
@@ -46,7 +46,7 @@ function initialize(paths: string[], values: Record<string, unknown>): void {
         if (typeof fn !== 'function') throw new Error('Unknown console method');
         Reflect.apply(fn, console, args);
     };
-    const install = vm.runInContext(`(function(root, call, print, paths, methods, values) {
+    const install = vm.runInContext(`(function(root, call, print, commands, methods, values) {
         "use strict";
         const parse=JSON.parse, stringify=JSON.stringify;
         if(!Object.hasOwn(root,'ToolCallError')) {
@@ -57,14 +57,64 @@ function initialize(paths: string[], values: Record<string, unknown>): void {
             Object.defineProperty(root,'ToolCallError',{value:ToolCallError,configurable:false});
         }
         const tree=Object.create(null);
-        const wrap=target=>(...args)=>new Promise((resolve,reject)=>{
-                try { call(target,stringify(args.map(value=>[value!==undefined,value??null]))).then(json=>{try{const [present,value]=parse(json);resolve(present?value:undefined)}catch(error){reject(new Error(String(error))) }},error=>reject(new ToolCallError(String(error.message??error),target))); }
-                catch(error){reject(new Error(String(error.message??error)))}
-            });
-        for(const path of parse(paths)) {
-            const parts=path.split('.'); let node=tree;
-            for(const part of parts.slice(0,-1)) node=node[part]??=(Object.create(null));
-            const fn=wrap(path);
+        /** @brief A guest-owned command with its physical target and precompiled argument/result adapters. */
+        class NamespaceCommand {
+            constructor(binding) {
+                this.path=binding.path;
+                this.tool=binding.tool;
+                const parameters=binding.parameters;
+                const named=(fields,args)=>Object.fromEntries(fields.flatMap((name,index)=>args[index]===undefined?[]:[[name,args[index]]]));
+                switch(parameters.kind) {
+                    case 'fields':
+                        this.arguments=args=>{
+                            if(args.length>parameters.fields.length)throw new Error('Too many arguments');
+                            return named(parameters.fields,args);
+                        };
+                        break;
+                    case 'rest': this.arguments=args=>({[parameters.field]:args}); break;
+                    case 'overloads': {
+                        const layouts=new Map(parameters.layouts.map(fields=>[fields.length,fields]));
+                        this.arguments=args=>{
+                            const fields=layouts.get(args.length);
+                            if(!fields)throw new Error('Invalid positional argument count');
+                            return named(fields,args);
+                        };
+                        break;
+                    }
+                    case 'object':
+                        this.arguments=args=>{
+                            if(args.length>1)throw new Error('Too many arguments');
+                            const input=args[0]===undefined?{}:args[0];
+                            if(!input||typeof input!=='object'||Array.isArray(input))return input;
+                            const pairs=Object.entries(input).map(([key,value])=>[Object.hasOwn(parameters.aliases,key)?parameters.aliases[key]:key,value]);
+                            const output=Object.fromEntries(pairs);
+                            if(Object.keys(output).length!==pairs.length)throw new Error('Argument mapping contains a duplicate target');
+                            return output;
+                        };
+                }
+                const result=binding.result;
+                this.result=result.kind==='discard'?()=>undefined
+                    :result.kind==='field'?value=>value&&typeof value==='object'?(Object.hasOwn(value,result.field)?value[result.field]:undefined):value
+                    :value=>value;
+            }
+
+            /** @brief Send the already resolved native tool and native argument object over IPC. */
+            invoke(args) {
+                return new Promise((resolve,reject)=>{
+                    try {
+                        call(this.tool,stringify(this.arguments(args))).then(json=>{
+                            try {const [present,value]=parse(json);resolve(this.result(present?value:undefined));}
+                            catch(error){reject(new Error(String(error)));}
+                        },error=>reject(new ToolCallError(String(error.message??error),this.path)));
+                    } catch(error){reject(new Error(String(error)));}
+                });
+            }
+        }
+        for(const binding of parse(commands)) {
+            const command=new NamespaceCommand(binding);
+            const parts=command.path.split('.'); let node=tree;
+            for(const part of parts.slice(0,-1)) node=node[part]??=Object.create(null);
+            const fn=(...args)=>command.invoke(args);
             Object.setPrototypeOf(fn,null); node[parts.at(-1)]=Object.freeze(fn);
         }
         for(const [path,value] of Object.entries(parse(values))) {
@@ -81,8 +131,8 @@ function initialize(paths: string[], values: Record<string, unknown>): void {
             Object.setPrototypeOf(fn,null);logger[method]=Object.freeze(fn);
         }
         if(!Object.hasOwn(root,'console')||Object.getOwnPropertyDescriptor(root,'console').configurable)Object.defineProperty(root,'console',{value:Object.freeze(logger),configurable:false});
-    })`, context, { timeout: syncTimeoutMs }) as (root: object, call: typeof hostCall, print: typeof hostPrint, paths: string, methods: string, values: string) => void;
-    install(global, hostCall, hostPrint, JSON.stringify(paths), JSON.stringify(Object.keys(console).filter(name => !name.startsWith('_'))), JSON.stringify(values));
+    })`, context, { timeout: syncTimeoutMs }) as (root: object, call: typeof hostCall, print: typeof hostPrint, commands: string, methods: string, values: string) => void;
+    install(global, hostCall, hostPrint, JSON.stringify(commands), JSON.stringify(Object.keys(console).filter(name => !name.startsWith('_'))), JSON.stringify(values));
 }
 
 /** @brief Traverse only own data descriptors; accessors and proxies never run during completion. */
@@ -115,7 +165,7 @@ process.on('message', async raw => {
         if (message.type === 'init') {
             if (execution) throw new Error('Cannot replace namespaces during an active execution');
             maxOutputBytes = message.maxOutputBytes; syncTimeoutMs = message.syncTimeoutMs;
-            initialize(message.paths, message.values);
+            initialize(message.commands, message.values);
             send({ type: 'result', id: message.id, value: null });
         } else if (message.type === 'describe') {
             send({ type: 'result', id: message.id, value: describe(message.path).slice(0, maxOutputBytes) });

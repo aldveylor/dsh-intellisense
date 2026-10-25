@@ -8,7 +8,7 @@ import type { ScopeKey } from '@deepseek-ai/dsh-scope';
 import '@deepseek-ai/dsh-agent-preset-registry';
 import type { PhysicalTool, SemanticRegistry } from '../registry/registry.js';
 import type { ProfileSessions } from '../registry/profiles.js';
-import { declaration, manifest, nativeArgumentsFor, nativeSchema, resultFor, type Aliases, type ManifestEntry } from './namespace.js';
+import { declaration, manifest, nativeSchema, type Aliases, type ManifestEntry, type NamespaceCommand } from './namespace.js';
 import { builtinDeclaration, namespaceDirectory, type NamespaceHint } from './prompt.js';
 import { pluginCommands, ptcToolName } from '../runtime/builtins.js';
 import { type CommandBrief, profileAnnotation } from '../registry/profile_tree.js';
@@ -98,7 +98,7 @@ export class NamespaceComponent {
     }
 
     /** @brief Resolve the current enabled namespace independently of prompt visibility. */
-    async entries(agent: Agent): Promise<ManifestEntry[]> { return manifest(await this.registryFor(agent), this.aliases); }
+    async entries(agent: Agent): Promise<NamespaceCommand[]> { return manifest(await this.registryFor(agent), this.aliases); }
 
     /** @brief List every known command, including commands outside the caller's current context. */
     async commandBriefs(): Promise<CommandBrief[]> {
@@ -191,15 +191,13 @@ export class NamespaceComponent {
                 execute: async (args, parent) => {
                     const caller = parent.agent;
                     if (!caller) throw new Error('A live conversation is required');
-                    const current = (await this.entries(caller)).find(candidate => candidate.path === entry.path && candidate.tool === entry.tool);
-                    if (!current) throw new Error(`Execution denied: ${entry.path}`);
-                    return await this.dispatch(caller, current, nativeArgumentsFor(current, args), parent, 1) ?? null;
+                    return await this.dispatch(caller, entry, entry.nativeArguments(args), parent, 1) ?? null;
                 },
             };
             if (entry.tool === 'tools_intellisense') {
                 const physical = agent.ctx.tools.get(entry.tool, agent)!;
-                definition.presentCall = args => physical.presentCall?.(nativeArgumentsFor(entry, args));
-                definition.presentResult = (args, result) => physical.presentResult?.(nativeArgumentsFor(entry, args), result);
+                definition.presentCall = args => physical.presentCall?.(entry.nativeArguments(args));
+                definition.presentResult = (args, result) => physical.presentResult?.(entry.nativeArguments(args), result);
             }
             this.generatedTools.add(definition);
             state.disposers.push(agent.ctx.tools.register(definition));
@@ -208,17 +206,21 @@ export class NamespaceComponent {
     }
 
     /** @brief Dispatch a namespace call through native permission checks and paired child audit records. */
-    async dispatch(agent: Agent, entry: ManifestEntry, args: unknown, parent: ToolRunContext, sequence: number): Promise<unknown> {
-        if (!agent.ctx.tools.get(entry.tool, agent)) throw new Error(`Execution denied: ${entry.path}`);
+    async dispatch(agent: Agent, entry: NamespaceCommand, args: unknown, parent: ToolRunContext, sequence: number): Promise<unknown> {
+        return entry.result(await this.dispatchTool(agent, entry.tool, args, parent, sequence));
+    }
+
+    /** @brief Dispatch a physical tool through DSH, which owns permission checks and execution. */
+    async dispatchTool(agent: Agent, tool: string, args: unknown, parent: ToolRunContext, sequence: number): Promise<unknown> {
         const callId = ToolCallId(`${parent.callId}:tool:${sequence}`);
-        const ids = { rootCallId: parent.rootCallId, parentCallId: parent.callId, subCallId: callId, name: entry.tool, arguments: args };
+        const ids = { rootCallId: parent.rootCallId, parentCallId: parent.callId, subCallId: callId, name: tool, arguments: args };
         agent.session.append('tool/ptc-dispatch-start', ids);
-        const settled = await agent.ctx.tools.execute({ agent, callId, rootCallId: parent.rootCallId, parent: parent.token, name: entry.tool, arguments: args, signal: parent.signal });
+        const settled = await agent.ctx.tools.execute({ agent, callId, rootCallId: parent.rootCallId, parent: parent.token, name: tool, arguments: args, signal: parent.signal });
         agent.session.append('tool/ptc-dispatch', { ...ids, isError: settled.isError, content: settled.content, ...(settled.meta ? { meta: settled.meta } : {}) });
         for (const context of settled.additionalContexts ?? []) parent.deferContext(context);
         if (settled.concludesTurn) parent.concludeTurn();
         if (settled.isError) throw new Error(settled.error.message);
-        return resultFor(entry, settled.value);
+        return settled.value;
     }
 
     /** @brief Release scoped aliases and the live Profile reference. */

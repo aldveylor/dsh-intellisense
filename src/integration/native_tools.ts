@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
-import { nativeSchema, normalizeIntellisenseQueries, type ManifestEntry } from './namespace.js';
+import { nativeSchema, normalizeIntellisenseQueries, type ManifestEntry, type NamespaceCommand } from './namespace.js';
 
 /** @brief Bind namespace paths to unique API-safe names without shadowing physical tools. */
-export function nativeBindings(entries: ManifestEntry[], reserved: Iterable<string>): { entry: ManifestEntry; name: string }[] {
+export function nativeBindings(entries: NamespaceCommand[], reserved: Iterable<string>): { entry: NamespaceCommand; name: string }[] {
     const physical = new Set(reserved);
     const used = new Set<string>();
     const counters = new Map<string, number>();
