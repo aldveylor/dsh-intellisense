@@ -17,6 +17,7 @@ export function useTreeTooltip(content: ReactNode) {
             tooltip.show(content, rect.left, rect.bottom);
         },
         onBlur: tooltip.leave,
+        onClick: tooltip.hide,
         onDoubleClick: tooltip.hide,
         onDragStartCapture: tooltip.hide,
     };
