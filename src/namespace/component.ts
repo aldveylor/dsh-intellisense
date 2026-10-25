@@ -11,7 +11,7 @@ import type { PhysicalTool, SemanticRegistry } from '../registry/registry.js';
 import type { ProfileSessions } from '../registry/profiles.js';
 import { manifest, nativeSchema, type Aliases, NamespaceNode, type CommandNode } from './namespace.js';
 import { namespaceDirectory, type NamespaceHint } from './prompt.js';
-import { pluginCommands, ptcToolName } from '../runtime/builtins.js';
+import { pluginCommands, reservedToolIds } from '../runtime/builtins.js';
 import { type CommandBrief, profileAnnotation } from '../registry/profile_tree.js';
 import type { z } from 'zod';
 import { createSearchEngines } from '../search/search.js';
@@ -66,7 +66,7 @@ export class NamespaceComponent {
     physical(agent?: Agent, scope: ScopeKey | undefined = agent): PhysicalTool[] {
         const tools = agent?.ctx.tools ?? this.ctx.tools;
         return tools.schemas(scope).flatMap(tool => {
-            if (['exec', 'run_code', ptcToolName].includes(tool.name)) return [];
+            if (reservedToolIds.includes(tool.name)) return [];
             const definition = tools.get(tool.name, scope);
             if (!definition) {
                 this.ctx.logger.warn(`Tool schema has no definition: ${tool.name}`);

@@ -4,6 +4,7 @@ import { TooltipProvider, useTooltip } from '../tooltip/tooltip.js';
 import { NativeProfileSelect } from '../profile_picker/native_profile_select.js';
 import { ToolDetails } from './tool_details.js';
 import type { Mapping, PhysicalTool } from '../../registry/registry.js';
+import { reservedToolIds } from '../../runtime/builtins.js';
 
 /** @brief One tool card with its binding path and shared pointer-following details. */
 function ToolCard({ tool, mapping, builtinPath, calls, busy, select }: {
@@ -36,7 +37,7 @@ export function ToolPicker({ parent, tools, mappings, protectedTools = [], calls
     const totalCalls = Object.values(callsByTool).reduce((total, count) => total + count, 0);
     const filter = search.trim().toLowerCase();
     const protectedIds = new Set(protectedTools.map(entry => entry.tool.id));
-    const matches = [...tools.filter(tool => !protectedIds.has(tool.id) && !['exec', 'run_code', 'tools_run_code'].includes(tool.id)), ...protectedTools.map(entry => entry.tool)].filter(tool => {
+    const matches = [...tools.filter(tool => !protectedIds.has(tool.id) && !reservedToolIds.includes(tool.id)), ...protectedTools.map(entry => entry.tool)].filter(tool => {
         const mapping = mappings.find(m => m.id === tool.id);
         return `${tool.id} ${mapping?.path ?? ''} ${mapping?.aliases.join(' ') ?? ''} ${tool.description} ${mapping?.description ?? ''}`.toLowerCase().includes(filter);
     });

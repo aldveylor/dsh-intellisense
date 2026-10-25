@@ -19,7 +19,7 @@ import { nodePermissions, type CommandContract } from './node.js';
 export type { Node, NodeType, Permission, SerializedNode } from './node.js';
 import { namespaceDeclaration } from './declaration.js';
 import { z } from 'zod';
-import { pluginCommands, ptcToolName } from '../runtime/builtins.js';
+import { pluginCommands, reservedToolIds } from '../runtime/builtins.js';
 import type { SemanticRegistry } from '../registry/registry.js';
 
 /** @brief YAML aliases reference physical tools and rename argument fields without reimplementing tools. */
@@ -89,7 +89,7 @@ export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Ali
         }
         parent.add(new CommandNode(name, parent, entry));
     };
-    const effective = registry.effective().filter(mapping => !mapping.disabled && !pluginCommands.find(mapping.id) && !['exec', 'run_code', ptcToolName].includes(mapping.id));
+    const effective = registry.effective().filter(mapping => !mapping.disabled && !pluginCommands.find(mapping.id) && !reservedToolIds.includes(mapping.id));
     for (const mapping of effective) {
         for (const path of [mapping.path, ...mapping.aliases]) {
             // Unmounted physical tools are not synthesized below the protected tools namespace.
