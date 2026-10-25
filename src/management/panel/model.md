@@ -20,6 +20,8 @@ consolePinned 为随 Profile 保存的命名空间固定提示开关，默认 fa
 
 树中 tools.search 默认不固定，图钉支持全部等级，禁用状态随当前 Profile 保存。方法签名从服务端实际工具 schema 的 method 枚举投影。自定义命令及命名空间支持禁用按钮，位置在删除按钮左侧；禁用节点保留可编辑状态并变灰。
 
+启用与禁用按钮图标表示当前状态：启用显示圆圈加号，禁用显示圆圈斜线；按钮文字提示仍描述点击后的操作。
+
 拖动到命名空间中心时高亮目标节点；前后插入时，在目标同级节点之间绘制横线。命名空间之后的插入线位于完整展开子树之后，不贴在标题块边缘。
 
 `tree_node.ts` 定义 `NamespaceTree`、抽象 `TreeNode` 与 `TreeRenderer` 渲染接口。树在构造时合并 Profile 命名空间、映射别名和内置节点，并计算层级及混合排序。`CommandTreeNode` / `NamespaceTreeNode` 表达普通节点，`BuiltinCommandTreeNode` / `BuiltinNamespaceTreeNode` 通过继承限定结构编辑、拖动、文档和计数行为；`ConsoleNamespaceTreeNode` 单独覆写 console 命名空间图钉策略。管理面板通过节点的 render 接口分派视图，递归渲染 children，不再在每层扫描扁平映射重建子树。

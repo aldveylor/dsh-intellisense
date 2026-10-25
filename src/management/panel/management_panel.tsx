@@ -94,7 +94,7 @@ function DisableButton({ disabled, busy, toggle }: { disabled: boolean; busy: bo
     const t = useTranslation();
     const label = t(disabled ? 'enable_node' : 'disable_node');
     return <button className="ts-disable ts-remove" type="button" aria-label={label} title={label} aria-pressed={disabled} disabled={busy} onClick={toggle}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><circle cx="12" cy="12" r="8" /><path d={disabled ? 'M8 12h8M12 8v8' : 'm6 6 12 12'} /></svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><circle cx="12" cy="12" r="8" /><path d={disabled ? 'm6 6 12 12' : 'M8 12h8M12 8v8'} /></svg>
     </button>;
 }
 
