@@ -5,16 +5,16 @@ import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools';
 import { codeBlock } from '../protocol/code_block.js';
 import { appendPluginRecord } from '@deepseek-ai/dsh-session';
 import { declaration, normalizeIntellisenseQueries, type ManifestEntry } from './namespace.js';
-import { builtinCommands, profileValues } from '../runtime/builtins.js';
+import { pluginCommands } from '../runtime/builtins.js';
 import { profileAnnotation } from '../registry/profile_tree.js';
 import type { NamespaceComponent } from './namespace_component.js';
 
 /** @brief Render queried members and signatures through the shared namespace declaration model. */
 export function intellisense(queries: readonly string[], entries: readonly ManifestEntry[], runtime = false, disabled: (path: string) => boolean = () => false): string {
     const selected = new Map<string, NamespaceDeclaration>();
-    const commands = builtinCommands.filter(command => !disabled(command.path) && (command.path !== 'tools.search' || entries.some(entry => entry.path === command.path)) && (runtime || command.path.startsWith('tools.')));
+    const commands = pluginCommands.builtinCommands.filter(command => !disabled(command.path) && (command.path !== 'tools.search' || entries.some(entry => entry.path === command.path)) && (runtime || command.path.startsWith('tools.')));
     entries = entries.filter(entry => !disabled(entry.path));
-    const values = profileValues.filter(item => !disabled(item.path));
+    const values = pluginCommands.profileValues.filter(item => !disabled(item.path));
     const visibleEntries = runtime ? entries.filter(entry => !['tools_profile_annotation', 'tools_profile_commands'].includes(entry.tool)) : entries;
     /** @brief Keep exact contracts when a later overlapping query requests shallow members. */
     function insert(item: NamespaceDeclaration): void {

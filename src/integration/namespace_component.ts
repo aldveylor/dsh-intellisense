@@ -10,7 +10,7 @@ import type { PhysicalTool, SemanticRegistry } from '../registry/registry.js';
 import type { ProfileSessions } from '../registry/profiles.js';
 import { declaration, manifest, nativeArgumentsFor, nativeSchema, resultFor, type Aliases, type ManifestEntry } from './namespace.js';
 import { builtinDeclaration, namespaceDirectory, type NamespaceHint } from './prompt.js';
-import { builtinTool, builtinCommands, defaultBuiltinVisible, discoveryCommand, profileValues, ptcToolName } from '../runtime/builtins.js';
+import { pluginCommands, ptcToolName } from '../runtime/builtins.js';
 import { type CommandBrief, profileAnnotation } from '../registry/profile_tree.js';
 import type { z } from 'zod';
 import { createSearchEngines } from '../search/search.js';
@@ -121,7 +121,7 @@ export class NamespaceComponent {
         if (!this.isPtc(agent)) return '';
         const registry = await this.registryFor(agent);
         const state = registry.snapshot();
-        const entries = manifest(registry, this.aliases).filter(entry => !builtinTool(entry.tool)?.preload);
+        const entries = manifest(registry, this.aliases).filter(entry => !pluginCommands.find(entry.tool)?.preload);
         const hints: NamespaceHint[] = [];
         for (const entry of entries) {
             const mapping = registry.effective().find(mapping => mapping.id === entry.tool);
@@ -130,12 +130,12 @@ export class NamespaceComponent {
         }
         for (const item of state.namespaces ?? []) if (item.alwaysVisible && entries.some(entry => entry.path.startsWith(item.path + '.'))) hints.push({ ...item, namespace: true });
         if (state.consolePinned && !registry.disabled('console')) hints.push({ path: 'console', description: 'Native console output', namespace: true });
-        for (const item of builtinCommands) {
+        for (const item of pluginCommands.builtinCommands) {
             if (registry.disabled(item.path) || (item.path.startsWith('tools.') && !entries.some(entry => entry.path === item.path))) continue;
-            const level = item.path === discoveryCommand.path ? 2 : (state.builtinVisible ?? defaultBuiltinVisible)[item.path] ?? 0;
+            const level = item.path === pluginCommands.discoveryCommand.path ? 2 : (state.builtinVisible ?? pluginCommands.defaultBuiltinVisible)[item.path] ?? 0;
             if (level) hints.push({ ...item, ...(level === 2 ? { declaration: item.path === 'tools.search' ? declaration(entries.find(entry => entry.path === item.path)!, false) : builtinDeclaration(item) } : {}) });
         }
-        for (const item of profileValues) {
+        for (const item of pluginCommands.profileValues) {
             if (registry.disabled(item.path)) continue;
             const level = state.builtinVisible?.[item.path] ?? 0;
             if (level) hints.push({ ...item, ...(level === 2 ? { declaration: `/** @brief ${item.description} */\nconst ${item.path.split('.').at(-1)}: ${item.signature};` } : {}) });
@@ -150,7 +150,7 @@ export class NamespaceComponent {
         const discovered = this.discovered.get(agent.id);
         const available = new Set(manifest(registry, this.aliases).map(entry => entry.path));
         for (const path of discovered ?? []) if (!available.has(path)) discovered!.delete(path);
-        return manifest(registry, this.aliases).filter(entry => entry.path === discoveryCommand.path || discovered?.has(entry.path)
+        return manifest(registry, this.aliases).filter(entry => entry.path === pluginCommands.discoveryCommand.path || discovered?.has(entry.path)
             || registry.effective().some(mapping => mapping.id === entry.tool && mapping.alwaysVisible)
             || state.builtinVisible?.[entry.path]);
     }

@@ -3,7 +3,7 @@ import styles from './management_panel.css';
 import { ErrorDialog } from './error_dialog.js';
 import { useEffect, useState, type ComponentType, type DragEvent } from 'react';
 import type { Namespace, Mapping, PhysicalTool, RegistryState, PinLevel, CommandVisibility, RegistryConfiguration } from '../../registry/registry.js';
-import { defaultBuiltinVisible } from '../../runtime/builtins.js';
+import { pluginCommands } from '../../runtime/builtins.js';
 import { validatePath } from '../../registry/path.js';
 import { TreeProvider, unmountedTools, type ProvidedCommand, type ProvidedNamespace } from './tree_provider.js';
 import { ProfilePicker, ProfileSelect as PortableProfileSelect, type ProfileSelectProps } from '../profile_picker/profile_picker.js';
@@ -37,9 +37,9 @@ async function request<T>(api: string, body?: unknown, signal?: AbortSignal): Pr
 function profileDraft(state: Pick<RegistryState, keyof RegistryConfiguration>): RegistryConfiguration {
     const mappings = state.mappings.map(mapping => ({ ...mapping, path: mapping.path.trim(), aliases: mapping.aliases.map(alias => alias.trim()).filter(Boolean) }));
     const namespaces = state.namespaces ?? [];
-    const paths = [...TreeProvider(state.builtinVisible ?? defaultBuiltinVisible).map(node => node.path), ...namespacePaths({ mappings, namespaces }), ...mappings.flatMap(mapping => [mapping.path, ...mapping.aliases])];
+    const paths = [...TreeProvider(state.builtinVisible ?? pluginCommands.defaultBuiltinVisible).map(node => node.path), ...namespacePaths({ mappings, namespaces }), ...mappings.flatMap(mapping => [mapping.path, ...mapping.aliases])];
     return {
-        mappings, namespaces, unmountedVisible: state.unmountedVisible ?? {}, builtinVisible: state.builtinVisible ?? defaultBuiltinVisible,
+        mappings, namespaces, unmountedVisible: state.unmountedVisible ?? {}, builtinVisible: state.builtinVisible ?? pluginCommands.defaultBuiltinVisible,
         builtinDisabled: state.builtinDisabled ?? [], consolePinned: state.consolePinned ?? false, toolComments: state.toolComments ?? {},
         order: orderedPaths([...new Set(paths)], (state.order ?? []).map(path => path.trim())),
     };
@@ -262,7 +262,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
     const [expanded, setExpanded] = useState<Record<string, boolean>>({});
     const [builtinDisabled, setBuiltinDisabled] = useState<string[]>([]);
     const [consolePinned, setConsolePinned] = useState(false);
-    const [builtinVisible, setBuiltinVisible] = useState<CommandVisibility>({ ...defaultBuiltinVisible });
+    const [builtinVisible, setBuiltinVisible] = useState<CommandVisibility>({ ...pluginCommands.defaultBuiltinVisible });
     const [unmountedVisible, setUnmountedVisible] = useState<CommandVisibility>({});
     const [toolComments, setToolComments] = useState<Record<string, string>>({});
     const [descriptionEditor, setDescriptionEditor] = useState<{ id: string; text?: string }>();
@@ -282,7 +282,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
         setView(snapshot); setMappings(structuredClone(snapshot.state.mappings));
         setNamespaces(structuredClone(snapshot.state.namespaces ?? []));
         setUnmountedVisible(structuredClone(snapshot.state.unmountedVisible ?? {}));
-        setBuiltinVisible(structuredClone(snapshot.state.builtinVisible ?? defaultBuiltinVisible));
+        setBuiltinVisible(structuredClone(snapshot.state.builtinVisible ?? pluginCommands.defaultBuiltinVisible));
         setConsolePinned(snapshot.state.consolePinned ?? false);
         setBuiltinDisabled(snapshot.state.builtinDisabled ?? []);
         setToolComments(structuredClone(snapshot.state.toolComments ?? {}));
@@ -328,7 +328,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
     /** @brief Create a local empty profile; persistence occurs only when saving. */
     function createProfile(name: string): void {
         if (!view) return;
-        applyView({ ...view, state: { ...view.state, profile: name, mappings: [], namespaces: [], order: [], unmountedVisible: {}, builtinDisabled: [], builtinVisible: { ...defaultBuiltinVisible }, consolePinned: false, toolComments: {} } });
+        applyView({ ...view, state: { ...view.state, profile: name, mappings: [], namespaces: [], order: [], unmountedVisible: {}, builtinDisabled: [], builtinVisible: { ...pluginCommands.defaultBuiltinVisible }, consolePinned: false, toolComments: {} } });
         setExpanded({}); setToolPicker(undefined); setDescriptionEditor(undefined);
     }
 

@@ -2,7 +2,7 @@ import { builtinDeclaration, namespaceDeclaration } from './namespace_declaratio
 import { decodeHTML } from 'entities';
 import { z } from 'zod';
 import { jsonSchemaToTs, validateJsonSchemaValue, type JsonSchemaNode } from '@deepseek-ai/dsh-tools';
-import { builtinTool, builtinTools, ptcToolName, searchContract } from '../runtime/builtins.js';
+import { pluginCommands, ptcToolName } from '../runtime/builtins.js';
 import type { SemanticRegistry } from '../registry/registry.js';
 
 /** @brief YAML aliases reference physical tools and rename argument fields without reimplementing tools. */
@@ -31,7 +31,7 @@ export function normalizeIntellisenseQueries(queries: readonly string[]): string
 /** @brief Build deterministic, scoped aliases from the current Profile and physical tool catalog. */
 export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Aliases>): ManifestEntry[] {
     const entries = new Map<string, ManifestEntry>();
-    const managementPaths = Object.fromEntries(builtinTools.map(command => [command.tool, command.path]));
+    const managementPaths = Object.fromEntries(pluginCommands.builtinTools.map(command => [command.tool, command.path]));
     const insert = (entry: ManifestEntry): void => {
         if ((entry.path === 'tools' || entry.path.startsWith('tools.') || entry.tool.startsWith('tools_')) && managementPaths[entry.tool] !== entry.path) return;
         if (registry.disabled(entry.path)) return;
@@ -75,7 +75,7 @@ function parameters(entry: ManifestEntry): Parameter[] | undefined {
 /** @brief Repack positional values into validated native arguments before guarded dispatch. */
 export function argumentsFor(entry: ManifestEntry, values: unknown): unknown {
     if (!Array.isArray(values)) throw new Error('Expected positional arguments');
-    const command = builtinTool(entry.tool);
+    const command = pluginCommands.find(entry.tool);
     if (command?.rest) return nativeArgumentsFor(entry, { [command.rest]: values });
     if (command?.positional) {
         const layout = command.positional.find(fields => fields.length === values.length);
@@ -131,7 +131,7 @@ function resultField(entry: ManifestEntry): [string, JsonSchemaNode] | undefined
 
 /** @brief Unwrap the native response using the same contract exposed by IntelliSense. */
 export function resultFor(entry: ManifestEntry, value: unknown): unknown {
-    if (builtinTool(entry.tool)?.discardResult) return undefined;
+    if (pluginCommands.find(entry.tool)?.discardResult) return undefined;
     const field = resultField(entry);
     return field && value && typeof value === 'object' ? Object.hasOwn(value, field[0]) ? (value as Record<string, unknown>)[field[0]] : undefined : value;
 }
@@ -144,8 +144,8 @@ export function declaration(entry: ManifestEntry, nested = true): string {
 /** @brief Project one manifest contract into a leaf declaration for the shared namespace tree. */
 function commandDeclaration(entry: ManifestEntry): string {
     const name = entry.path.split('.').at(-1)!;
-    const command = builtinTool(entry.tool);
-    if (command) return builtinDeclaration(entry.tool === 'tools_search' ? searchContract(((entry.schema.properties as Record<string, { enum?: string[] }> | undefined)?.method?.enum) ?? []) : command);
+    const command = pluginCommands.find(entry.tool);
+    if (command) return builtinDeclaration(entry.tool === 'tools_search' ? pluginCommands.searchContract(((entry.schema.properties as Record<string, { enum?: string[] }> | undefined)?.method?.enum) ?? []) : command);
     const doc = (text: string): string => decodeHTML(text).replaceAll('*/', '* /');
     const types: string[] = [];
     /** @brief Keep complex field types out of the callable signature. */

@@ -1,4 +1,4 @@
-import { defaultBuiltinVisible } from '../runtime/builtins.js';
+import { pluginCommands } from '../runtime/builtins.js';
 import { toolName, validatePath } from './path.js';
 export { validatePath } from './path.js';
 import type { Store } from '../storage/store.js';
@@ -94,13 +94,13 @@ export class SemanticRegistry {
             if (!configuration) throw new Error('Profile does not exist');
             return structuredClone(configuration);
         }
-        return structuredClone({ mappings: this.state.mappings, namespaces: this.state.namespaces ?? [], order: this.state.order ?? [], unmountedVisible: this.state.unmountedVisible ?? {}, toolComments: this.state.toolComments ?? {}, builtinDisabled: this.state.builtinDisabled ?? [], builtinVisible: this.state.builtinVisible ?? defaultBuiltinVisible, consolePinned: this.state.consolePinned ?? false });
+        return structuredClone({ mappings: this.state.mappings, namespaces: this.state.namespaces ?? [], order: this.state.order ?? [], unmountedVisible: this.state.unmountedVisible ?? {}, toolComments: this.state.toolComments ?? {}, builtinDisabled: this.state.builtinDisabled ?? [], builtinVisible: this.state.builtinVisible ?? pluginCommands.defaultBuiltinVisible, consolePinned: this.state.consolePinned ?? false });
     }
 
     /** @brief Replace one reference's working configuration without modifying other holders. */
     async replaceConfiguration(configuration: RegistryConfiguration, profile: string): Promise<void> {
         const detached = structuredClone(configuration);
-        detached.builtinVisible ??= { ...defaultBuiltinVisible };
+        detached.builtinVisible ??= { ...pluginCommands.defaultBuiltinVisible };
         detached.consolePinned ??= false;
         detached.builtinDisabled ??= [];
         await this.transaction(async () => {
@@ -121,7 +121,7 @@ export class SemanticRegistry {
     /** @brief Publish a new named version; existing session references retain their own snapshots. */
     async saveProfile(name: string, configuration: RegistryConfiguration): Promise<void> {
         const detached = structuredClone(configuration);
-        detached.builtinVisible ??= { ...defaultBuiltinVisible };
+        detached.builtinVisible ??= { ...pluginCommands.defaultBuiltinVisible };
         detached.consolePinned ??= false;
         detached.builtinDisabled ??= [];
         await this.transaction(async () => {
@@ -162,7 +162,7 @@ export class SemanticRegistry {
             let next = { ...this.state, revision: revision + 1, inactiveProfiles: archive };
             if (action === 'create') {
                 if (exists(name)) throw new Error('Profile name already exists');
-                const empty: RegistryConfiguration = { mappings: [], namespaces: [], order: [], unmountedVisible: {}, builtinDisabled: [], consolePinned: false, builtinVisible: { ...defaultBuiltinVisible }, toolComments: {} };
+                const empty: RegistryConfiguration = { mappings: [], namespaces: [], order: [], unmountedVisible: {}, builtinDisabled: [], consolePinned: false, builtinVisible: { ...pluginCommands.defaultBuiltinVisible }, toolComments: {} };
                 if (activate) {
                     archive[active] = this.configuration();
                     next = { ...next, ...empty, profile: name };
@@ -273,14 +273,14 @@ export class SemanticRegistry {
                 if (profile === (this.state.profile ?? 'Default') || Object.hasOwn(this.state.inactiveProfiles ?? {}, profile)) throw new Error('Profile name already exists');
             }
             const base: RegistryConfiguration = !activate && profile !== undefined && editingProfile === undefined
-                ? { mappings: [], namespaces: [], order: [], unmountedVisible: {}, builtinDisabled: [], builtinVisible: { ...defaultBuiltinVisible }, consolePinned: false, toolComments: {} }
+                ? { mappings: [], namespaces: [], order: [], unmountedVisible: {}, builtinDisabled: [], builtinVisible: { ...pluginCommands.defaultBuiltinVisible }, consolePinned: false, toolComments: {} }
                 : this.configuration(editingProfile);
             this.validateMappings(detached);
             this.validateConsolePinned(consolePinned);
             const comments = structuredClone(toolComments ?? base.toolComments ?? {});
             this.validateComments(comments);
             this.validateDisabled(builtinDisabled);
-            const builtins = structuredClone(builtinVisible ?? base.builtinVisible ?? defaultBuiltinVisible);
+            const builtins = structuredClone(builtinVisible ?? base.builtinVisible ?? pluginCommands.defaultBuiltinVisible);
             this.validateVisibility(builtins);
             const selected = structuredClone(unmountedVisible ?? base.unmountedVisible ?? {});
             this.validateVisibility(selected);

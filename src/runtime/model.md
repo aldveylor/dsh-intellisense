@@ -17,3 +17,5 @@
 插件自有 tools_run_code 通过 integration/namespace_runtime.ts 使用本运行时。命名空间调用按实际调用者 manifest 投影参数和返回值，通过 NamespaceComponent.dispatch 进入原生工具权限与执行流水线，不依赖全局 ptcRuntime。worker 内的 ToolCallError 属于 guest realm，包含失败命名空间路径 toolName。
 
 init 消息携带 data-only values，VM realm 内解析并递归冻结，执行前预加载 tools.profile.annotation 与 tools.profile.commands；不传递宿主对象。每次运行刷新这些值，工具仍通过原生 PTC 闭包派发。
+
+`builtins.ts` 的 `PluginCommands` 持有插件命令契约表，通过共享实例 `pluginCommands` 提供物理命令查找、搜索签名、默认提示等级及运行时/UI 投影所需的命令分组。

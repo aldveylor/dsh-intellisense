@@ -1,5 +1,5 @@
 import type { Mapping, PhysicalTool, PinLevel, CommandVisibility } from '../../registry/registry.js';
-import { consoleCommands, managementCommands, defaultBuiltinVisible, discoveryCommand, profileValues, searchContract } from '../../runtime/builtins.js';
+import { pluginCommands } from '../../runtime/builtins.js';
 
 /** @brief Provider command metadata supplies interaction rules independently of its name. */
 export interface ProvidedCommand {
@@ -17,12 +17,12 @@ export function unmountedTools(tools: PhysicalTool[], mappings: Mapping[]): Phys
 }
 
 /** @brief Provider owns visible, fixed runtime namespaces; unmounted tools use the picker. */
-export function TreeProvider(visible: CommandVisibility = defaultBuiltinVisible, searchMethods?: readonly string[]): ProvidedNamespace[] {
+export function TreeProvider(visible: CommandVisibility = pluginCommands.defaultBuiltinVisible, searchMethods?: readonly string[]): ProvidedNamespace[] {
     return [{ path: 'tools', description: 'Tool discovery and Profile management', fixed: true,
-        commands: [{ ...discoveryCommand, id: 'tools_intellisense', fixed: true, draggable: false, alwaysVisible: 2 }, { ...searchContract(searchMethods), id: 'tools_search', fixed: true, draggable: false, alwaysVisible: visible['tools.search'] ?? 0 }],
-        children: [{ path: 'tools.profile', description: 'Profile data and configuration', fixed: true, commands: [...managementCommands, ...profileValues].map(command => ({ ...command, fixed: true, draggable: false, alwaysVisible: visible[command.path] ?? 0 })) }] },
+        commands: [{ ...pluginCommands.discoveryCommand, id: 'tools_intellisense', fixed: true, draggable: false, alwaysVisible: 2 }, { ...pluginCommands.searchContract(searchMethods), id: 'tools_search', fixed: true, draggable: false, alwaysVisible: visible['tools.search'] ?? 0 }],
+        children: [{ path: 'tools.profile', description: 'Profile data and configuration', fixed: true, commands: [...pluginCommands.managementCommands, ...pluginCommands.profileValues].map(command => ({ ...command, fixed: true, draggable: false, alwaysVisible: visible[command.path] ?? 0 })) }] },
         { path: 'console', description: 'Native console output', fixed: true,
-        commands: consoleCommands.map(command => ({ ...command, fixed: true, draggable: false, alwaysVisible: visible[command.path] ?? 0 })) }];
+        commands: pluginCommands.consoleCommands.map(command => ({ ...command, fixed: true, draggable: false, alwaysVisible: visible[command.path] ?? 0 })) }];
 }
 
 /** @brief Resolve fixed runtime namespaces and their descendants. */

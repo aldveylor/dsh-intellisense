@@ -16,52 +16,58 @@ export interface BuiltinTool extends BuiltinCommand {
     preload?: boolean;
 }
 
-/** @brief Native Node Console methods with their public signatures and English documentation. */
-export const consoleCommands: readonly BuiltinCommand[] = [
-    ...['log', 'info', 'debug', 'warn', 'error', 'dirxml'].map(name => ({ path: `console.${name}`, signature: '(...data: unknown[]) => void', description: 'Format and write values to the execution output.' })),
-    { path: 'console.dir', signature: '(value: unknown, options?: { depth?: number | null; colors?: boolean; showHidden?: boolean }) => void', description: 'Inspect an object and write it to the execution output.' },
-    ...['time', 'timeEnd', 'count', 'countReset'].map(name => ({ path: `console.${name}`, signature: '(label?: string) => void', description: 'Manage a labeled console timer or counter.' })),
-    ...['timeLog', 'trace', 'group', 'groupCollapsed'].map(name => ({ path: `console.${name}`, signature: '(...data: unknown[]) => void', description: 'Write a timer, trace or group to the execution output.' })),
-    { path: 'console.assert', signature: '(condition?: unknown, ...data: unknown[]) => void', description: 'Write an assertion failure when the condition is falsy.' },
-    { path: 'console.table', signature: '(data: unknown, properties?: readonly string[]) => void', description: 'Display tabular data in the execution output.' },
-    ...['clear', 'groupEnd'].map(name => ({ path: `console.${name}`, signature: '() => void', description: 'Clear the console or close the current console group.' })),
-];
+/** @brief Own the shared plugin command table and its runtime and presentation projections. */
+export class PluginCommands {
+    /** @brief Native Node Console methods with their public signatures and English documentation. */
+    readonly consoleCommands: readonly BuiltinCommand[] = [
+        ...['log', 'info', 'debug', 'warn', 'error', 'dirxml'].map(name => ({ path: `console.${name}`, signature: '(...data: unknown[]) => void', description: 'Format and write values to the execution output.' })),
+        { path: 'console.dir', signature: '(value: unknown, options?: { depth?: number | null; colors?: boolean; showHidden?: boolean }) => void', description: 'Inspect an object and write it to the execution output.' },
+        ...['time', 'timeEnd', 'count', 'countReset'].map(name => ({ path: `console.${name}`, signature: '(label?: string) => void', description: 'Manage a labeled console timer or counter.' })),
+        ...['timeLog', 'trace', 'group', 'groupCollapsed'].map(name => ({ path: `console.${name}`, signature: '(...data: unknown[]) => void', description: 'Write a timer, trace or group to the execution output.' })),
+        { path: 'console.assert', signature: '(condition?: unknown, ...data: unknown[]) => void', description: 'Write an assertion failure when the condition is falsy.' },
+        { path: 'console.table', signature: '(data: unknown, properties?: readonly string[]) => void', description: 'Display tabular data in the execution output.' },
+        ...['clear', 'groupEnd'].map(name => ({ path: `console.${name}`, signature: '() => void', description: 'Clear the console or close the current console group.' })),
+    ];
 
-/** @brief Profile commands available through ordinary guarded native dispatch. */
-export const managementCommands: readonly BuiltinTool[] = [
-    { tool: 'tools_profile_load', path: 'tools.profile.load', signature: '(name?: string) => Promise<Profile>', description: 'Load a named Profile, or return the current conversation Profile when name is omitted.' },
-    { tool: 'tools_profile_save', positional: [['profile'], ['name', 'profile']], overloads: ['(profile: Profile) => Promise<void>'], discardResult: true, path: 'tools.profile.save', signature: '(name: string | undefined, profile: Profile) => Promise<void>', description: 'Save a Profile tree under name, defaulting to the current Profile name. Also accepts save(profile).' },
-];
+    /** @brief Profile commands available through ordinary guarded native dispatch. */
+    readonly managementCommands: readonly BuiltinTool[] = [
+        { tool: 'tools_profile_load', path: 'tools.profile.load', signature: '(name?: string) => Promise<Profile>', description: 'Load a named Profile, or return the current conversation Profile when name is omitted.' },
+        { tool: 'tools_profile_save', positional: [['profile'], ['name', 'profile']], overloads: ['(profile: Profile) => Promise<void>'], discardResult: true, path: 'tools.profile.save', signature: '(name: string | undefined, profile: Profile) => Promise<void>', description: 'Save a Profile tree under name, defaulting to the current Profile name. Also accepts save(profile).' },
+    ];
 
-/** @brief Preloaded Profile values, with visibility preferences stored alongside builtin commands. */
-export const profileValues: readonly BuiltinTool[] = [
-    { tool: 'tools_profile_annotation', preload: true, path: 'tools.profile.annotation', signature: 'string', description: 'English TypeScript declarations for the Profile data model.' },
-    { tool: 'tools_profile_commands', preload: true, path: 'tools.profile.commands', signature: 'CommandBrief[]', description: 'Show all commands, including commands absent from the current context, with their original physical names and summaries.' },
-];
+    /** @brief Preloaded Profile values, with visibility preferences stored alongside builtin commands. */
+    readonly profileValues: readonly BuiltinTool[] = [
+        { tool: 'tools_profile_annotation', preload: true, path: 'tools.profile.annotation', signature: 'string', description: 'English TypeScript declarations for the Profile data model.' },
+        { tool: 'tools_profile_commands', preload: true, path: 'tools.profile.commands', signature: 'CommandBrief[]', description: 'Show all commands, including commands absent from the current context, with their original physical names and summaries.' },
+    ];
 
-/** @brief Fixed discovery command available in both native and PTC modes. */
-export const discoveryCommand: BuiltinTool = { tool: 'tools_intellisense', rest: 'queries', path: 'tools.intellisense', signature: '(...args: string[]) => Promise<string>', description: 'Query namespace members and complete TypeScript tool signatures. Pass an empty string ("") to query root namespace members.' };
+    /** @brief Fixed discovery command available in both native and PTC modes. */
+    readonly discoveryCommand: BuiltinTool = { tool: 'tools_intellisense', rest: 'queries', path: 'tools.intellisense', signature: '(...args: string[]) => Promise<string>', description: 'Query namespace members and complete TypeScript tool signatures. Pass an empty string ("") to query root namespace members.' };
 
-/** @brief Optional-ranked command search, unpinned by default and independently disableable. */
-export const searchCommand: BuiltinTool = {
-    tool: 'tools_search', path: 'tools.search',
-    signature: "(keywords: string[], method?: string, max_results?: number, target?: 'name' | 'description' | 'parameters' | 'returns' | 'all', namespace_path?: string) => Promise<string[]>",
-    description: 'Search command names, descriptions, parameters or returns within a namespace subtree; defaults to the configured method, 10 results, all fields and the entire tree. Returns full command paths matching any keyword. Use tools.intellisense for complete command details.',
-};
+    /** @brief Optional-ranked command search, unpinned by default and independently disableable. */
+    readonly searchCommand: BuiltinTool = {
+        tool: 'tools_search', path: 'tools.search',
+        signature: "(keywords: string[], method?: string, max_results?: number, target?: 'name' | 'description' | 'parameters' | 'returns' | 'all', namespace_path?: string) => Promise<string[]>",
+        description: 'Search command names, descriptions, parameters or returns within a namespace subtree; defaults to the configured method, 10 results, all fields and the entire tree. Returns full command paths matching any keyword. Use tools.intellisense for complete command details.',
+    };
 
-/** @brief Derive the positional search signature from the installed physical contract. */
-export function searchContract(methods?: readonly string[]): BuiltinTool {
-    return methods === undefined ? searchCommand : methods.length > 1 ? { ...searchCommand, signature: searchCommand.signature.replace('method?: string', `method?: ${methods.map(method => JSON.stringify(method)).join(' | ')}`) } : { ...searchCommand, signature: searchCommand.signature.replace("method?: string, ", '') };
+    /** @brief Derive the positional search signature from the installed physical contract. */
+    searchContract(methods?: readonly string[]): BuiltinTool {
+        return methods === undefined ? this.searchCommand : methods.length > 1 ? { ...this.searchCommand, signature: this.searchCommand.signature.replace('method?: string', `method?: ${methods.map(method => JSON.stringify(method)).join(' | ')}`) } : { ...this.searchCommand, signature: this.searchCommand.signature.replace("method?: string, ", '') };
+    }
+
+    /** @brief Default discovery includes custom commands and excludes standard console methods. */
+    readonly defaultBuiltinVisible: CommandVisibility = { [this.discoveryCommand.path]: 2 };
+
+    /** @brief Callable runtime commands and permanently visible signature discovery. */
+    readonly builtinCommands = [...this.consoleCommands, this.discoveryCommand, this.searchCommand, ...this.managementCommands];
+
+    /** @brief Builtin contracts indexed by physical identity for all namespace projections. */
+    readonly builtinTools: readonly BuiltinTool[] = [this.discoveryCommand, this.searchCommand, ...this.managementCommands, ...this.profileValues];
+
+    /** @brief Resolve a builtin contract once for declarations, invocation and runtime filtering. */
+    find(tool: string): BuiltinTool | undefined { return this.builtinTools.find(command => command.tool === tool); }
 }
 
-/** @brief Default discovery includes custom commands and excludes standard console methods. */
-export const defaultBuiltinVisible: CommandVisibility = { [discoveryCommand.path]: 2 };
-
-/** @brief Callable runtime commands and permanently visible signature discovery. */
-export const builtinCommands = [...consoleCommands, discoveryCommand, searchCommand, ...managementCommands];
-
-/** @brief Builtin contracts indexed by physical identity for all namespace projections. */
-export const builtinTools: readonly BuiltinTool[] = [discoveryCommand, searchCommand, ...managementCommands, ...profileValues];
-
-/** @brief Resolve a builtin contract once for declarations, invocation and runtime filtering. */
-export function builtinTool(tool: string): BuiltinTool | undefined { return builtinTools.find(command => command.tool === tool); }
+/** @brief Shared command contracts used by all plugin components. */
+export const pluginCommands = new PluginCommands();
