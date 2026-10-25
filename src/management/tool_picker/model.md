@@ -101,4 +101,4 @@ export function ToolDetails({ tool, calls }: { tool: PhysicalTool; calls: number
     </article>;
 }
 
-参数表类型列使用完整 schema 展开，避免把具有 properties 的对象及对象数组简化为 object；开放且无具名字段的对象显示 Record<string, unknown>。返回代码块隐藏宿主标题栏及外框，保留 TypeScript 高亮。
+参数类型列保持 object、对象数组和基础类型等简洁标签；完整对象结构、数组、联合、枚举及原始字段注释放在第二层 Tooltip 的代码块中。返回代码块隐藏宿主标题栏及外框，保留 TypeScript 高亮。

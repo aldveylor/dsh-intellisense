@@ -41,4 +41,6 @@
 
 .ts-tool-details .ts-tool-return h4{font-size:15px;margin-bottom:6px}.ts-tool-return>p{margin-bottom:8px;color:var(--dsw-alias-label-secondary,#bdbdbd)}.ts-tooltip .ts-tool-return>pre{margin:0;padding:0;border:0;border-radius:0;background:transparent;white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.6 ui-monospace,monospace}
 
-.ts-tooltip .ts-tool-return .ts-code-block-unframed{--dsl-code-block-background:transparent;--dsl-code-block-border-radius:0;margin:0;border:0;border-radius:0;box-shadow:none;background:transparent}.ts-tooltip .ts-tool-return .ts-code-block-unframed pre{padding:0;border:0;box-shadow:none}
+.ts-tooltip .ts-code-block-unframed{--dsl-code-block-background:transparent;--dsl-code-block-border-radius:0;margin:0;border:0;border-radius:0;box-shadow:none;background:transparent}.ts-tooltip .ts-code-block-unframed pre{padding:0;border:0;box-shadow:none}
+
+.ts-parameter-type{cursor:help;text-decoration:underline dotted;text-underline-offset:3px}.ts-parameter-type:focus-visible{outline:1px solid var(--ts-border-focus);outline-offset:3px}.ts-parameter-type-code{width:480px;max-width:100%;font:12px/1.6 ui-monospace,monospace}.ts-tooltip .ts-parameter-type-code pre{white-space:pre-wrap;overflow-wrap:anywhere}

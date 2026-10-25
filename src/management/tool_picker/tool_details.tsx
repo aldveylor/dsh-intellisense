@@ -1,9 +1,7 @@
+import { TooltipProvider, useTooltip } from '../tooltip/tooltip.js';
 import { TypeScriptBlock } from '../code_block/code_block.js';
 import type { PhysicalTool } from '../../registry/registry.js';
 import { useTranslation } from '../locale/locale.js';
-
-/** @brief One documented schema field, including its complete nested path. */
-interface SchemaField { name: string; type: string; description: string }
 
 /** @brief Normalize a JSON schema node without interpreting metadata as HTML. */
 function schemaRecord(value: unknown): Record<string, unknown> {
@@ -43,19 +41,18 @@ function schemaType(value: unknown, detailed = false, depth = 0): string {
     return schema.properties ? 'object' : 'unknown';
 }
 
-/** @brief Flatten nested properties, array items and union variants into documented rows. */
-function schemaFields(value: unknown, name: string): SchemaField[] {
-    const schema = schemaRecord(value);
-    const rows: SchemaField[] = [{ name, type: schemaType(value, true), description: typeof schema.description === 'string' ? schema.description : '' }];
-    for (const [key, field] of Object.entries(schemaRecord(schema.properties))) {
-        rows.push(...schemaFields(field, name ? `${name}.${key}` : key));
-    }
-    if (schema.items) rows.push(...schemaFields(schema.items, `${name}[]`));
-    for (const key of ['anyOf', 'oneOf', 'allOf']) {
-        const variants = schema[key];
-        if (Array.isArray(variants)) variants.forEach((variant, index) => rows.push(...schemaFields(variant, `${name} (${index + 1})`)));
-    }
-    return rows;
+/** @brief Keep parameter types compact and reveal their full declaration in a nested tooltip. */
+function ParameterType({ name, schema }: { name: string; schema: unknown }) {
+    const tooltip = useTooltip();
+    const typeName = /^[A-Za-z_$][\w$]*$/.test(name) ? name[0]!.toUpperCase() + name.slice(1) : 'Parameter';
+    const details = <div className="ts-parameter-type-code"><TypeScriptBlock code={`type ${typeName} = ${schemaType(schema, true)};`} /></div>;
+    return <code className="ts-parameter-type" tabIndex={0} aria-describedby={tooltip.id}
+        onPointerEnter={event => { event.stopPropagation(); tooltip.show(details, event.clientX, event.clientY); }}
+        onPointerMove={event => { event.stopPropagation(); tooltip.move(event.clientX, event.clientY, event.altKey); }}
+        onPointerLeave={tooltip.leave} onFocus={event => {
+            const rect = event.currentTarget.getBoundingClientRect();
+            tooltip.show(details, rect.left, rect.bottom);
+        }} onBlur={tooltip.leave}>{schemaType(schema)}</code>;
 }
 
 /** @brief Render a schema as a semantic table of field names, types and descriptions. */
@@ -63,8 +60,8 @@ function SchemaTable({ label, schema }: { label: string; schema: unknown }) {
     const t = useTranslation();
     const definition = schemaRecord(schema);
     const properties = Object.entries(schemaRecord(definition.properties));
-    const rows = properties.length ? properties.flatMap(([name, field]) => schemaFields(field, name))
-        : definition.type === 'object' && !definition.additionalProperties ? [] : schemaFields(schema, label);
+    const rows = properties.length ? properties.map(([name, field]) => ({ name, schema: field }))
+        : definition.type === 'object' && !definition.additionalProperties ? [] : [{ name: label, schema }];
 
     return <section className="ts-tool-schema">
         {(properties.length > 0 || !rows.length) && typeof definition.description === 'string' && <p>{definition.description}</p>}
@@ -72,7 +69,7 @@ function SchemaTable({ label, schema }: { label: string; schema: unknown }) {
             <caption>{label}</caption>
             <thead><tr><th scope="col">{t('tool_field_name')}</th><th scope="col">{t('tool_field_type')}</th><th scope="col">{t('tool_field_description')}</th></tr></thead>
             <tbody>{rows.length ? rows.map((row, index) => <tr key={index}>
-                <th scope="row"><code>{row.name}</code></th><td><code>{row.type}</code></td><td>{row.description || t('tool_no_description')}</td>
+                <th scope="row"><code>{row.name}</code></th><td><ParameterType name={row.name} schema={row.schema} /></td><td>{String(schemaRecord(row.schema).description || t('tool_no_description'))}</td>
             </tr>) : <tr><td colSpan={3}>{t('tool_no_fields')}</td></tr>}</tbody>
         </table>
     </section>;
@@ -88,7 +85,7 @@ export function ToolDetails({ tool, calls }: { tool: PhysicalTool; calls: number
             {tool.source && <span className="ts-tool-detail-source" aria-label={`${t('tool_source')}: ${tool.source}`}>{tool.source}</span>}
         </header>
         <section className="ts-tool-detail-overview"><h4>{t('tool_description')}</h4><p>{tool.description || t('tool_no_description')}</p></section>
-        <SchemaTable label={t('tool_parameters')} schema={tool.parameters} />
+        <TooltipProvider><SchemaTable label={t('tool_parameters')} schema={tool.parameters} /></TooltipProvider>
         <section className="ts-tool-return">
             <h4>{t('tool_returns')}</h4>
             {typeof output.description === 'string' && output.description.trim() && <p>{output.description}</p>}
