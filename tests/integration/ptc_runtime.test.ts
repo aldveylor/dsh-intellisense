@@ -7,13 +7,13 @@ import ToolRuntime, { defineTool } from '@deepseek-ai/dsh-tools';
 import { createScope } from '@deepseek-ai/dsh-scope';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
 import * as presentation from '../../src/integration/presentation.js';
-import { NamespaceComponent } from '../../src/integration/namespace_component.js';
+import { NamespaceComponent } from '../../src/namespace/component.js';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { ProfileSessions } from '../../src/registry/profiles.js';
 import { MemoryStore } from '../../src/storage/store.js';
 import { RuntimeConfig } from '../../src/runtime/host.js';
 import { ptcToolName } from '../../src/runtime/builtins.js';
-import { executionInstructions } from '../../src/integration/prompt.js';
+import { executionInstructions } from '../../src/namespace/prompt.js';
 
 /** @brief Mount the real scoped presentation beside a deployment-default runtime that must never execute namespace code. */
 async function fixture() {
@@ -135,7 +135,7 @@ test('PTC cancellation drains native children and timeout permits the next execu
             },
         }));
         const registry = await namespaces.registryFor(agent);
-        await registry.configure([{ id: 'wait_tool', path: 'std.wait', aliases: [], enabled: true, pinned: false }], registry.snapshot().revision);
+        await registry.configure([{ id: 'wait_tool', path: 'std.wait', aliases: [], pinned: false }], registry.snapshot().revision);
         const controller = new AbortController();
         const work = run('return await std.wait();', undefined, controller.signal);
         await ready;
@@ -161,7 +161,7 @@ test('PTC projects results once, preserves void results and supports parallel na
             execute: async ({ path }) => ({ value: { value: path } }),
         }));
         const registry = await namespaces.registryFor(agent);
-        await registry.configure([{ id: 'read_tool', path: 'std.read', aliases: [], enabled: true, pinned: false }], registry.snapshot().revision);
+        await registry.configure([{ id: 'read_tool', path: 'std.read', aliases: [], pinned: false }], registry.snapshot().revision);
         const result = await run('return await Promise.all([std.read("a"), std.read("b")]);');
         assert.equal(result.isError, false, JSON.stringify(result));
         assert.deepEqual(result.value, { logs: [], result: [{ value: 'a' }, { value: 'b' }] });

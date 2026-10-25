@@ -1,3 +1,4 @@
+import { namespace, positionalArguments } from '../namespace/fixtures.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import ts from 'typescript';
@@ -5,11 +6,11 @@ import { Context } from '@deepseek-ai/cordis';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { ProfileSessions } from '../../src/registry/profiles.js';
-import { profileAnnotation } from '../../src/registry/profile_tree.js';
+import { profileAnnotation, profileTree } from '../../src/registry/profile_tree.js';
 import { MemoryStore } from '../../src/storage/store.js';
-import { registerToolCommands } from '../../src/integration/tool_commands.js';
-import { argumentsFor, manifest } from '../../src/integration/namespace.js';
-import { intellisense } from '../../src/integration/intellisense.js';
+import { registerToolCommands } from '../../src/tools/tool_commands.js';
+import { manifest } from '../../src/namespace/namespace.js';
+import { intellisense } from '../../src/tools/intellisense.js';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
 import { RuntimeHost } from '../../src/runtime/host.js';
 
@@ -36,9 +37,9 @@ test('native Profile data tools and optional-name save/load use session defaults
     assert.deepEqual([...definitions.keys()].sort(), ['tools_profile_annotation', 'tools_profile_commands', 'tools_profile_load', 'tools_profile_save']);
     assert.equal(await call('tools_profile_annotation'), profileAnnotation);
     assert.deepEqual(await call('tools_profile_commands'), [{ name: 'read_file', brief: 'Read a file.' }, { name: 'outside_scope', brief: 'Outside this session.' }]);
-    const profile = { name: 'Ignored', root: { type: 'namespace', fixed: false, children: { files: { type: 'namespace', fixed: true, children: { read: { type: 'command', command: 'read_file', fixedLevel: 'fixed-detail', simplifiedBrief: 'Read text' } } } } } };
+    const profile = JSON.parse(JSON.stringify(profileTree('Ignored', { ...registry.configuration(), namespaces: [{ path: 'files', description: '', alwaysVisible: true }], mappings: [{ id: 'read_file', path: 'files.read', aliases: [], pinned: false, alwaysVisible: 2 }], toolComments: { read_file: 'Read text' } }))); 
     await call('tools_profile_save', { profile });
-    assert.deepEqual(await call('tools_profile_load'), { ...profile, name: 'Default' });
+    assert.deepEqual(JSON.parse(JSON.stringify(await call('tools_profile_load'))), { ...profile, name: 'Default' });
     await call('tools_profile_save', { name: 'Copy', profile });
     assert.equal(registry.snapshot().profile, 'Copy');
     await call('tools_profile_load', { name: 'Default' });
@@ -52,11 +53,11 @@ test('manifest exposes only the new tools API and projects VM array arguments', 
         { id: 'tools_mount', description: 'Old command.', parameters: {}, output: {} },
     ]));
     const entries = manifest(registry, []);
-    assert.deepEqual(entries.map(entry => entry.path).sort(), ['tools.intellisense', 'tools.profile.annotation', 'tools.profile.commands', 'tools.profile.load', 'tools.profile.save']);
-    const discovery = entries.find(entry => entry.path === 'tools.intellisense')!;
-    assert.deepEqual(argumentsFor(discovery, ['files.']), { queries: ['files.'] });
-    assert.throws(() => argumentsFor(discovery, [['files.']]));
-    assert.deepEqual(argumentsFor(entries.find(entry => entry.path === 'tools.profile.save')!, [{ name: 'Default', root: {} }]), { profile: { name: 'Default', root: {} } });
+    assert.deepEqual(entries.commands().filter(entry => entry.deployment === 'tool').map(entry => entry.path).sort(), ['tools.intellisense', 'tools.profile.annotation', 'tools.profile.commands', 'tools.profile.load', 'tools.profile.save']);
+    const discovery = entries.commands().find(entry => entry.path === 'tools.intellisense')!;
+    assert.deepEqual(await positionalArguments(discovery, ['files.']), { queries: ['files.'] });
+    await assert.rejects(positionalArguments(discovery, [['files.']]));
+    assert.deepEqual(await positionalArguments(entries.commands().find(entry => entry.path === 'tools.profile.save')!, [{ name: 'Default', root: {} }]), { profile: { name: 'Default', root: {} } });
     const vm = intellisense(['tools.profile.', 'tools.profile.save', 'tools.intellisense'], entries, true);
     assert(vm.includes('const annotation: string'));
     assert(vm.includes('function save(profile: Profile)'));
@@ -75,7 +76,7 @@ test('guest constants preload as frozen data before execution', async () => {
         const calls: unknown[] = [];
         const result = await host.execute('profile', 'one', `
             return [tools.profile.annotation,tools.profile.commands[0].name,
-                Object.isFrozen(tools.profile.commands[0]),Object.getPrototypeOf(files.read) === null];`, ['files.read'], async (path, args) => { calls.push([path, args]); return true; }, new AbortController().signal,
+                Object.isFrozen(tools.profile.commands[0]),Object.getPrototypeOf(files.read) === null];`, [namespace([{ path: 'files.read', tool: 'read_file', doc: '', schema: {}, output: {} }]).commands().find(node => node.path === 'files.read')!.binding()], async (path, args) => { calls.push([path, args]); return true; }, new AbortController().signal,
         { 'tools.profile.annotation': 'declarations', 'tools.profile.commands': [{ name: 'read_file', brief: 'Read a file.' }] });
         assert.equal(result.error, undefined);
         assert.deepEqual(result.value, ['declarations', 'read_file', true, true]);

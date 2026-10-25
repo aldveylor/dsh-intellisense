@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
 
-const mapping = { id: 'read', path: 'files.read', aliases: [], enabled: true, pinned: false };
+const mapping = { id: 'read', path: 'files.read', aliases: [], pinned: false };
 
 test('profiles isolate all configuration fields and persist create, select, rename and delete', async () => {
     const store = new MemoryStore(); const registry = new SemanticRegistry(store);
@@ -50,15 +50,15 @@ test('editor profile saves and copies preserve the default profile and enforce r
     await registry.manageProfile('create', 'Editor', 0, undefined, false);
     assert.equal(registry.snapshot().profile, 'Default');
     const namespaces = [{ path: 'editor', description: 'Editor namespace', alwaysVisible: false }];
-    await registry.configure([], 1, namespaces, [], {}, undefined, {}, {}, false, 'Editor');
+    await registry.configure([], 1, namespaces, [], {}, undefined, {}, {}, {}, 'Editor');
     assert.equal(registry.snapshot().profile, 'Default');
     assert.deepEqual(registry.configuration().namespaces, []);
     assert.deepEqual(registry.configuration('Editor').namespaces, namespaces);
-    await registry.configure([], 2, namespaces, [], {}, 'Copy', {}, {}, false, 'Editor');
+    await registry.configure([], 2, namespaces, [], {}, 'Copy', {}, {}, {}, 'Editor');
     assert.equal(registry.snapshot().profile, 'Default');
     assert.deepEqual(registry.configuration('Copy').namespaces, namespaces);
-    await assert.rejects(registry.configure([], 2, [], [], {}, undefined, {}, {}, false, 'Editor'), /revision conflict/);
-    await assert.rejects(registry.configure([], 3, [], [], {}, undefined, {}, {}, false, 'Missing'), /does not exist/);
+    await assert.rejects(registry.configure([], 2, [], [], {}, undefined, {}, {}, {}, 'Editor'), /revision conflict/);
+    await assert.rejects(registry.configure([], 3, [], [], {}, undefined, {}, {}, {}, 'Missing'), /does not exist/);
     assert.deepEqual(registry.configuration('Editor').namespaces, namespaces);
 });
 
@@ -66,7 +66,7 @@ test('saving a new local draft does not inherit or change the default profile', 
     const registry = new SemanticRegistry(new MemoryStore());
     registry.refresh([{ id: 'read', description: 'Read', parameters: {}, output: {} }]);
     await registry.configure([{ ...mapping, pinned: true }], 0);
-    await registry.configure([], 1, [], [], {}, 'Draft', {}, {}, false, undefined, false);
+    await registry.configure([], 1, [], [], {}, 'Draft', {}, {}, {}, undefined, false);
     assert.equal(registry.snapshot().profile, 'Default');
     assert.equal(registry.configuration().mappings[0]?.pinned, true);
     assert.deepEqual(registry.configuration('Draft').mappings, []);

@@ -6,7 +6,7 @@ import { dropTree, namespacePaths, orderedPaths, type TreeDraft } from '../../sr
 function draft(): TreeDraft {
     return {
         namespaces: [{ path: 'left', alwaysVisible: false, description: 'Left' }, { path: 'left.child', alwaysVisible: true, description: 'Child' }, { path: 'right', alwaysVisible: false, description: 'Right' }],
-        mappings: [{ id: 'read', path: 'left.child.read', aliases: [], enabled: true, pinned: false }, { id: 'write', path: 'right.write', aliases: [], enabled: true, pinned: false }],
+        mappings: [{ id: 'read', path: 'left.child.read', aliases: [], pinned: false }, { id: 'write', path: 'right.write', aliases: [], pinned: false }],
         order: ['left', 'left.child', 'left.child.read', 'right', 'right.write'],
     };
 }

@@ -4,7 +4,7 @@ import { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import ToolRuntime, { defineTool } from '@deepseek-ai/dsh-tools';
 import { createScope } from '@deepseek-ai/dsh-scope';
-import { NamespaceComponent } from '../../src/integration/namespace_component.js';
+import { NamespaceComponent } from '../../src/namespace/component.js';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { ProfileSessions } from '../../src/registry/profiles.js';
 import { MemoryStore } from '../../src/storage/store.js';
@@ -42,8 +42,8 @@ test('editor discovers standing preset tools without live agents and keeps execu
         const component = new NamespaceComponent(ctx, registry, new ProfileSessions(registry, store), []);
         await component.refresh();
         await registry.configure([
-            { id: 'read_file', path: 'fs.read', aliases: [], enabled: true, pinned: false },
-            { id: 'write_file', path: 'fs.write', aliases: [], enabled: true, pinned: false },
+            { id: 'read_file', path: 'fs.read', aliases: [], pinned: false },
+            { id: 'write_file', path: 'fs.write', aliases: [], pinned: false },
         ], 0);
         assert.deepEqual(registry.tools().map(tool => tool.id).sort(), ['read_file', 'working_directory', 'write_file']);
         assert.deepEqual(released, ['first', 'second']);

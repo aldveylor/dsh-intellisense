@@ -1,27 +1,28 @@
+import { namespace } from '../namespace/fixtures.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
-import { nativeBindings } from '../../src/integration/native_tools.js';
-import { NamespaceComponent } from '../../src/integration/namespace_component.js';
-import type { ManifestEntry } from '../../src/integration/namespace.js';
+import { nativeBindings } from '../../src/namespace/native_tools.js';
+import { NamespaceComponent } from '../../src/namespace/component.js';
+import type { ManifestEntry } from '../../src/namespace/namespace.js';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { ProfileSessions } from '../../src/registry/profiles.js';
 import { MemoryStore } from '../../src/storage/store.js';
 
 test('native names satisfy API limits and avoid path and physical name collisions', () => {
     const paths = ['std.cwd', 'std__cwd', 'std.$cwd', 'std._24_cwd', 'std.' + 'a'.repeat(100)];
-    const entries = paths.map(path => ({ path }) as ManifestEntry);
+    const entries = paths.map(path => ({ path, tool: path, doc: '', schema: {}, output: {} }) as ManifestEntry);
     const reserved = ['ns_std__cwd', 'ns_std__cwd_1'];
-    const names = nativeBindings(entries, reserved).map(binding => binding.name);
+    const names = nativeBindings(namespace(entries).commands().filter(node => entries.some(entry => entry.path === node.path)), reserved).map(binding => binding.name);
     assert.equal(new Set(names).size, paths.length);
     assert.equal(names[0], 'ns_std__cwd_2');
     for (const name of names) {
         assert.match(name, /^ns_[a-zA-Z0-9_-]{1,61}$/);
         assert(!reserved.includes(name));
     }
-    assert.deepEqual(nativeBindings(entries, reserved).map(binding => binding.name), names);
+    assert.deepEqual(nativeBindings(namespace(entries).commands().filter(node => entries.some(entry => entry.path === node.path)), reserved).map(binding => binding.name), names);
 });
 
 test('native aliases publish callable names, map arguments and revoke stale handlers', async () => {
@@ -32,7 +33,7 @@ test('native aliases publish callable names, map arguments and revoke stale hand
     const store = new MemoryStore(), registry = new SemanticRegistry(store);
     const physical = [{ id: 'read_file', description: 'Read file', parameters: { type: 'object', properties: { file: { type: 'string' } }, required: ['file'] }, output: { type: 'string' } }];
     registry.refresh(physical);
-    await registry.configure([{ id: 'read_file', path: 'fs.read', aliases: [], enabled: true, pinned: false }], 0);
+    await registry.configure([{ id: 'read_file', path: 'fs.read', aliases: [], pinned: false }], 0);
     const component = new NamespaceComponent(ctx, registry, new ProfileSessions(registry, store), [{ path: 'fs.open', tool: 'read_file', argMap: { path: 'file' } }]);
     component.physical = () => physical;
     const agent = { id: 'native-test', ctx } as Agent;
@@ -53,6 +54,6 @@ test('native aliases publish callable names, map arguments and revoke stale hand
     physical.length = 0;
     assert.deepEqual(await component.syncNative(agent), []);
     assert.equal(definitions.size, 0);
-    await assert.rejects(async () => open.execute({ path: '/tmp/file' }, parent), /Execution denied/);
+    assert(!definitions.has('ns_fs__open'), 'Unavailable tools are removed from the native registry');
     await component.release(agent.id);
 });

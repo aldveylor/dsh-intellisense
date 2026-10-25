@@ -1,3 +1,4 @@
+import { namespace } from '../namespace/fixtures.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { RuntimeConfig, RuntimeHost } from '../../src/runtime/host.js';
@@ -6,6 +7,12 @@ import { verifySandbox } from '../../src/runtime/sandbox.js';
 
 const signal = () => new AbortController().signal;
 const unused = async () => null;
+
+/** @brief Compile actual command contracts for guest-to-native argument conversion. */
+function binding(path: string) {
+    const fields = path === 'std.call' ? ['path', 'optional', 'nullable', 'options'] : path === 'std.read' ? ['path'] : [];
+    return namespace([{ path, tool: path.slice(4), doc: '', schema: { type: 'object', properties: Object.fromEntries(fields.map(name => [name, {}])), additionalProperties: false }, output: {} }]).commands().find(node => node.path === path)!.binding();
+}
 
 test('Node permissions initialize and runtime configuration rejects unknown fields', () => {
     assert.equal(RuntimeConfig.safeParse({ unknownOption: true }).success, false);
@@ -36,7 +43,7 @@ test('A12: no modules, process binding or constructor escape is exposed inside t
         assert.deepEqual(result.value, ['undefined', 'undefined', 'undefined', true, true, true, true, true]);
         const direct = await host.execute('isolation', 'two', 'return await import("node:fs");', [], unused, signal());
         assert(direct.error);
-        const bridge = await host.execute('isolation', 'three', 'return Object.getPrototypeOf(std.read) === null;', ['std.read'], unused, signal());
+        const bridge = await host.execute('isolation', 'three', 'return Object.getPrototypeOf(std.read) === null;', [binding('std.read')], unused, signal());
         assert.equal(bridge.value, true);
     } finally { await host.dispose(); }
 });
@@ -45,10 +52,10 @@ test('RPC values and rejections cross IPC without exposing host objects', async 
     const host = new RuntimeHost({ timeoutMs: 3000 });
     try {
         const calls: unknown[] = [];
-        const result = await host.execute('rpc', 'one', 'return await std.read("a");', ['std.read'], async (path, args) => { calls.push([path, args]); return { text: 'contents' }; }, signal());
+        const result = await host.execute('rpc', 'one', 'return await std.read("a");', [binding('std.read')], async (path, args) => { calls.push([path, args]); return { text: 'contents' }; }, signal());
         assert.deepEqual(result.value, { text: 'contents' });
-        assert.deepEqual(calls, [['std.read', ['a']]]);
-        const denied = await host.execute('rpc', 'two', 'try{await std.read({})}catch(error){return error.message}', ['std.read'], async () => { throw new Error('Denied 原文'); }, signal());
+        assert.deepEqual(calls, [['read', { path: 'a' }]]);
+        const denied = await host.execute('rpc', 'two', 'try{await std.read({})}catch(error){return error.message}', [binding('std.read')], async () => { throw new Error('Denied 原文'); }, signal());
         assert.equal(denied.value, 'Denied 原文');
     } finally { await host.dispose(); }
 });
@@ -64,7 +71,7 @@ test('timeout and cancellation terminate a process, abort pending RPC and advanc
         let started: () => void = () => {};
         let rpcSignal: AbortSignal | undefined;
         const ready = new Promise<void>(resolve => { started = resolve; });
-        const run = host.execute('abort', 'one', 'return await std.wait({});', ['std.wait'], async (_path, _args, abort) => {
+        const run = host.execute('abort', 'one', 'return await std.wait();', [binding('std.wait')], async (_path, _args, abort) => {
             rpcSignal = abort; started();
             return new Promise((_resolve, reject) => abort.addEventListener('abort', () => reject(abort.reason), { once: true }));
         }, controller.signal);
@@ -92,11 +99,11 @@ test('positional RPC preserves optional holes, explicit null and undefined resul
     const host = new RuntimeHost({ timeoutMs: 3000 });
     try {
         const received: unknown[] = [];
-        const result = await host.execute('positional', 'one', 'return [await std.call("x",undefined,null,{nested:true}),typeof await std.empty()];', ['std.call', 'std.empty'], async (path, args) => {
+        const result = await host.execute('positional', 'one', 'return [await std.call("x",undefined,null,{nested:true}),typeof await std.empty()];', [binding('std.call'), binding('std.empty')], async (path, args) => {
             received.push([path, args]);
-            return path === 'std.call' ? 'ok' : undefined;
+            return path === 'call' ? 'ok' : undefined;
         }, signal());
         assert.deepEqual(result.value, ['ok', 'undefined']);
-        assert.deepEqual(received, [['std.call', ['x', undefined, null, { nested: true }]], ['std.empty', []]]);
+        assert.deepEqual(received, [['call', { path: 'x', nullable: null, options: { nested: true } }], ['empty', {}]]);
     } finally { await host.dispose(); }
 });

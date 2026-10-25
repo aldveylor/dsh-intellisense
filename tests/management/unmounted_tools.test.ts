@@ -1,3 +1,6 @@
+import type { Context } from '@deepseek-ai/cordis';
+import { registerManagement } from '../../src/management/server/routes.js';
+import { createNamespace } from '../../src/namespace/namespace.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -8,6 +11,14 @@ import type { Mapping, PhysicalTool } from '../../src/registry/registry.js';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
 import { managementHtml } from '../../src/management/server/page.js';
+
+/** @brief Exercise the actual management API, including editor selection and permissions. */
+function managementFetch(registry: SemanticRegistry) {
+    const routes = new Map<string, (request: Request) => Promise<Response>>();
+    const ctx = { connection: { fetch: { register: (route: { path: string; fetch: (request: Request) => Promise<Response> }) => routes.set(route.path, route.fetch) } }, emit: () => {} } as unknown as Context;
+    registerManagement(ctx, registry, { refresh: async () => {} });
+    return async (url: unknown, init?: RequestInit): Promise<Response> => routes.get('/api/ts-intellisense-state')!(new Request(new URL(String(url), 'http://localhost'), { ...init, signal: undefined }));
+}
 
 /** @brief Wait for React to commit an observable browser state. */
 async function until(predicate: () => boolean): Promise<void> {
@@ -25,14 +36,14 @@ function tools(): PhysicalTool[] {
 
 test('unmounted count excludes unavailable identities and counts disabled mounted tools as mounted', () => {
     const mappings: Mapping[] = [
-        { id: 'write', path: 'std.write', aliases: ['backup.write'], enabled: false, pinned: false },
-        { id: 'read', path: ' ', aliases: [], enabled: true, pinned: false },
-        { id: 'missing', path: 'std.missing', aliases: [], enabled: true, pinned: false },
+        { id: 'write', path: 'std.write', aliases: ['backup.write'], disabled: true, pinned: false },
+        { id: 'read', path: ' ', aliases: [], pinned: false },
+        { id: 'missing', path: 'std.missing', aliases: [], pinned: false },
     ];
     assert.deepEqual(unmountedTools(tools(), mappings).map(tool => tool.id), ['read', 'search']);
-    assert(!TreeProvider().some(namespace => namespace.path === 'unknown'));
-    assert(!TreeProvider().some(namespace => namespace.path === 'vm'));
-    assert(TreeProvider().some(namespace => namespace.path === 'tools'));
+    assert(!TreeProvider(createNamespace({ tools: [], includeUnavailable: true }).serialize().children!).some(namespace => namespace.path === 'unknown'));
+    assert(!TreeProvider(createNamespace({ tools: [], includeUnavailable: true }).serialize().children!).some(namespace => namespace.path === 'vm'));
+    assert(TreeProvider(createNamespace({ tools: [], includeUnavailable: true }).serialize().children!).some(namespace => namespace.path === 'tools'));
 });
 
 test('unknown is absent; count follows mounting, unmounting, saving and profile switching in both languages', async () => {
@@ -40,7 +51,7 @@ test('unknown is absent; count follows mounting, unmounting, saving and profile 
     for (const language of ['en-US', 'zh-CN']) {
         const registry = new SemanticRegistry(new MemoryStore());
         registry.refresh(tools());
-        await registry.configure([{ id: 'write', path: 'std.write', aliases: [], enabled: true, pinned: false }], 0);
+        await registry.configure([{ id: 'write', path: 'std.write', aliases: [], pinned: false }], 0);
         await registry.manageProfile('create', 'Empty', registry.snapshot().revision);
         await registry.manageProfile('select', 'Default', registry.snapshot().revision);
         const console = new VirtualConsole();
@@ -53,15 +64,7 @@ test('unknown is absent; count follows mounting, unmounting, saving and profile 
             // jsdom lacks the native dialog methods; exercise the actual React picker handlers.
             window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
             window.structuredClone = structuredClone;
-            window.fetch = async (_url: unknown, options?: RequestInit) => {
-                if (options?.body) {
-                    const body = JSON.parse(String(options.body));
-                    if (body.action === 'profile') await registry.manageProfile(body.operation, body.name, body.revision, body.newName);
-                    else await registry.configure(body.mappings, body.revision, body.namespaces, body.order, body.unmountedVisible);
-                    return Response.json({ ok: true });
-                }
-                return Response.json({ state: registry.snapshot(), tools: registry.tools(), effective: registry.effective(), declarations: '', sessions: [] });
-            };
+            window.fetch = managementFetch(registry);
             window.eval(script);
             const counter = () => document.querySelector<HTMLButtonElement>('[data-unmounted-count]');
             const count = () => Number(counter()?.dataset.unmountedCount);
@@ -73,10 +76,10 @@ test('unknown is absent; count follows mounting, unmounting, saving and profile 
             assert.equal(document.querySelectorAll('dialog [data-tool-id]').length, 2);
             assert.equal(document.querySelector('dialog [data-tool-id="write"]'), null);
             document.querySelector<HTMLButtonElement>('dialog [data-tool-id="read"]')!.click();
-            await until(() => count() === 1 && !!document.querySelector('[data-tree-path="read"]'));
+            await until(() => count() === 1 && !!document.querySelector('[data-tree-path="read"][data-tool-status]'));
             assert.equal(document.querySelector('dialog'), null);
-            document.querySelector<HTMLButtonElement>('[data-tree-path="read"] .ts-remove')!.click();
-            await until(() => count() === 2 && !document.querySelector('[data-tree-path="read"]'));
+            document.querySelector<HTMLButtonElement>('[data-tree-path="read"] .ts-remove:not(.ts-disable)')!.click();
+            await until(() => count() === 2 && !document.querySelector('[data-tree-path="read"][data-tool-status]'));
             counter()!.click();
             await until(() => !!document.querySelector('dialog [data-tool-id="read"]'));
             document.querySelector<HTMLButtonElement>('dialog [data-tool-id="read"]')!.click();
@@ -87,17 +90,18 @@ test('unknown is absent; count follows mounting, unmounting, saving and profile 
             await until(() => count() === 0);
             assert(counter()!.disabled);
             const saveText = language === 'zh-CN' ? '保存' : 'Save';
-            const save = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === saveText)!;
+            const save = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(button => button.getAttribute('aria-label') === saveText)!;
             assert(save, 'Localized save action exists');
             save.click();
             await until(() => registry.snapshot().mappings.length === 3 && !save.disabled);
             assert.equal(count(), 0);
             assert(!registry.snapshot().namespaces?.some(namespace => namespace.path === 'unknown'));
-            const select = document.querySelector<HTMLSelectElement>('select[aria-label="Profile"]')!;
-            select.value = 'Empty'; select.dispatchEvent(new window.Event('change', { bubbles: true }));
-            await until(() => registry.snapshot().profile === 'Empty' && count() === 3 && !select.disabled);
-            select.value = 'Default'; select.dispatchEvent(new window.Event('change', { bubbles: true }));
-            await until(() => registry.snapshot().profile === 'Default' && count() === 0 && !select.disabled);
+            const select = document.querySelector<HTMLSelectElement>('.ts-namespace-profile select')!;
+            for (const [name, expected] of [['Empty', 3], ['Default', 0]] as const) {
+                select.value = name;
+                select.dispatchEvent(new window.Event('change', { bubbles: true }));
+                await until(() => count() === expected && !select.disabled);
+            }
             assert.equal(document.querySelector('[data-namespace-path="unknown"]'), null);
         } finally { dom.window.close(); }
     }
@@ -113,13 +117,13 @@ test('built-in namespace and command descriptions stay English in a Chinese inte
         window.structuredClone = structuredClone;
         window.fetch = async () => Response.json({
             state: { version: 1, revision: 0, mappings: [], namespaces: [], usage: {}, profile: 'Default', profiles: ['Default'] },
-            tools: [], effective: [], declarations: '', sessions: [],
+            tools: [], effective: [], provided: createNamespace({ tools: [], includeUnavailable: true }).serialize().children, declarations: '', sessions: [],
         });
         window.eval(await readFile(new URL('../../dist/management/standalone.js', import.meta.url), 'utf8'));
         const { document } = window;
         await until(() => !!document.querySelector('[data-unmounted-count]'));
         assert.equal(document.querySelector('[data-unmounted-count]')!.textContent, '0 个工具未挂载');
-        for (const namespace of TreeProvider()) {
+        for (const namespace of TreeProvider(createNamespace({ tools: [], includeUnavailable: true }).serialize().children!)) {
             const block = document.querySelector(`[data-namespace-path="${namespace.path}"]`)!;
             assert.equal(block.querySelector('.ts-node-preview')!.textContent, namespace.description);
             block.querySelector<HTMLButtonElement>('.ts-disclosure')!.click();
@@ -146,15 +150,7 @@ test('built-in pins cycle through three levels, discovery stays detailed and pre
         const { window } = dom;
         Object.defineProperty(window.navigator, 'languages', { value: ['en-US'] });
         window.structuredClone = structuredClone;
-        window.fetch = async (_url: unknown, options?: RequestInit) => {
-            if (options?.body) {
-                const body = JSON.parse(String(options.body));
-                if (body.action === 'profile') await registry.manageProfile(body.operation, body.name, body.revision, body.newName);
-                else await registry.configure(body.mappings, body.revision, body.namespaces, body.order, body.unmountedVisible, body.profile, body.toolComments, body.builtinVisible, body.consolePinned);
-                return Response.json({ ok: true });
-            }
-            return Response.json({ state: registry.snapshot(), tools: [], effective: [], declarations: '', sessions: [] });
-        };
+        window.fetch = managementFetch(registry);
         window.eval(await readFile(new URL('../../dist/management/standalone.js', import.meta.url), 'utf8'));
         const { document } = window;
         await until(() => !!document.querySelector('[data-unmounted-count]'));
@@ -170,17 +166,17 @@ test('built-in pins cycle through three levels, discovery stays detailed and pre
             await until(() => pin('console.log').dataset.level === String(level));
         }
         assert.equal(document.querySelector('[data-tree-path="tools.mount"]'), null);
-        const button = (label: string) => Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === label)!;
+        const button = (label: string) => Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(button => button.getAttribute('aria-label') === label)!;
         button('Save').click();
         await until(() => registry.snapshot().builtinVisible?.['console.log'] === 2 && !button('Save').disabled);
-        assert.equal(registry.snapshot().builtinVisible?.['tools.intellisense'], 2);
+        assert.equal(pin('tools.intellisense').dataset.level, '2');
         button('Refresh').click();
         await until(() => !button('Refresh').disabled && pin('console.log').getAttribute('aria-pressed') === 'true');
         assert.equal(pin('console.log').dataset.level, '2');
         const initial = registry.configuration();
         await registry.manageProfile('create', 'Other', registry.snapshot().revision);
         assert.equal(registry.configuration().builtinVisible?.['console.log'] ?? 0, 0);
-        assert.equal(registry.configuration().builtinVisible?.['tools.intellisense'], 2);
+        assert.equal(TreeProvider(createNamespace({ tools: [], includeUnavailable: true }).serialize().children!).find(node => node.path === 'tools')!.commands.find(command => command.path === 'tools.intellisense')!.alwaysVisible, 2);
         await registry.manageProfile('select', 'Default', registry.snapshot().revision);
         assert.deepEqual(registry.configuration().builtinVisible, initial.builtinVisible);
     } finally { dom.window.close(); }

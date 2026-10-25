@@ -1,3 +1,5 @@
+import { namespace } from '../namespace/fixtures.js';
+import { positionalArguments } from '../namespace/fixtures.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Context } from '@deepseek-ai/cordis';
@@ -7,19 +9,19 @@ import type { KvUnit } from '@deepseek-ai/dsh-storage';
 import { DshStore, MemoryStore } from '../../src/storage/store.js';
 import { ProfileSessions } from '../../src/registry/profiles.js';
 import { SemanticRegistry } from '../../src/registry/registry.js';
-import { argumentsFor, declaration, type ManifestEntry } from '../../src/integration/namespace.js';
-import { nativeBindings } from '../../src/integration/native_tools.js';
+import { declaration, type ManifestEntry } from '../../src/namespace/namespace.js';
+import { nativeBindings } from '../../src/namespace/native_tools.js';
 import { RuntimeHost } from '../../src/runtime/host.js';
 
-test('optional Profile names are omitted and both save overloads retain the Profile', () => {
+test('optional Profile names are omitted and both save overloads retain the Profile', async () => {
     const entry: ManifestEntry = { path: 'tools.profile.save', tool: 'tools_profile_save', doc: 'Save', output: { type: 'null' },
         schema: { type: 'object', additionalProperties: false, required: ['profile'], properties: { name: { type: 'string' }, profile: { type: 'object' } } } };
     const profile = { root: { type: 'namespace', children: {} } };
-    assert.deepEqual(argumentsFor(entry, [undefined, profile]), { profile });
-    assert.deepEqual(argumentsFor(entry, [profile]), { profile });
-    assert.deepEqual(argumentsFor(entry, ['Copy', profile]), { name: 'Copy', profile });
-    assert.throws(() => argumentsFor(entry, [3, profile]), /Invalid arguments/);
-    assert.match(declaration(entry), /function save\(profile: Profile\)/);
+    assert.deepEqual(await positionalArguments(entry, [undefined, profile]), { profile });
+    assert.deepEqual(await positionalArguments(entry, [profile]), { profile });
+    assert.deepEqual(await positionalArguments(entry, ['Copy', profile]), { name: 'Copy', profile });
+    await assert.rejects(positionalArguments(entry, [3, profile]), /Invalid arguments/);
+    assert.match(declaration(namespace([entry]).commands().find(node => node.path === entry.path)!), /function save\(profile: Profile\)/);
 });
 
 test('session edits overwrite one working record and release removes it without changing other sessions', async () => {
@@ -32,9 +34,9 @@ test('session edits overwrite one working record and release removes it without 
     const profiles = new ProfileSessions(catalog, store);
     const first = await profiles.forSession('first');
     const second = await profiles.forSession('second');
-    for (let revision = 0; revision < 20; revision++) await first.configure([], revision, [], [], {}, undefined, {}, {}, true);
+    for (let revision = 0; revision < 20; revision++) await first.configure([], revision, [], [], {}, undefined, {}, {}, { console: true });
     assert.equal(records.size, 1);
-    assert.equal(second.snapshot().consolePinned ?? false, false);
+    assert.equal(second.snapshot().namespaceVisible?.console ?? false, false);
     assert.equal(catalog.snapshot().revision, 0);
     await profiles.release('first');
     assert.equal(records.size, 0);
@@ -57,10 +59,10 @@ test('DSH store observes external updates and deletes through the KV backend', a
     assert.equal(await store.load('value'), undefined);
 });
 
-test('long native names remain unique when their complete digest is already reserved', () => {
-    const entries = Array.from({ length: 40 }, (_, index) => ({ path: `files.${'a'.repeat(100)}${index}`, tool: `physical_${index}` }) as ManifestEntry);
-    const reserved = nativeBindings(entries, []).map(binding => binding.name);
-    const rebound = nativeBindings(entries, reserved).map(binding => binding.name);
+test('long native names remain unique when their complete digest is already reserved', async () => {
+    const entries = Array.from({ length: 40 }, (_, index) => ({ path: `files.${'a'.repeat(100)}${index}`, tool: `physical_${index}`, doc: '', schema: {}, output: {} }) as ManifestEntry);
+    const reserved = nativeBindings(namespace(entries).commands().filter(node => entries.some(entry => entry.path === node.path)), []).map(binding => binding.name);
+    const rebound = nativeBindings(namespace(entries).commands().filter(node => entries.some(entry => entry.path === node.path)), reserved).map(binding => binding.name);
     assert.equal(new Set(rebound).size, entries.length);
     for (const name of rebound) { assert.match(name, /^[a-zA-Z0-9_-]{1,64}$/); assert(!reserved.includes(name)); }
 });
@@ -90,7 +92,7 @@ test('management rejects malformed writes and requires an explicit complete save
     const malformed = await post('{');
     assert.equal(malformed.status, 400);
     assert.deepEqual(await malformed.json(), { error: 'Invalid JSON body' });
-    const configuration = { revision: 0, mappings: [], namespaces: [], order: [], unmountedVisible: {}, builtinVisible: {}, consolePinned: false, toolComments: {} };
+    const configuration = { revision: 0, mappings: [], namespaces: [], order: [], unmountedVisible: {}, builtinVisible: {}, namespaceVisible: {}, builtinDisabled: [], toolComments: {} };
     assert.equal((await post(JSON.stringify({ action: 'configure', profile: 'Copy', ...configuration }))).status, 400);
     assert.equal((await post(JSON.stringify({ action: 'save_as', profile: 'Copy', revision: 0 }))).status, 400);
     assert.equal(registry.snapshot().revision, 0);

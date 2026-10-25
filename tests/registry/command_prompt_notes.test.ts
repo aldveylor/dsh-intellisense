@@ -3,14 +3,14 @@ import assert from 'node:assert/strict';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import { SemanticRegistry, type Mapping } from '../../src/registry/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
-import { NamespaceComponent } from '../../src/integration/namespace_component.js';
-import { manifest } from '../../src/integration/namespace.js';
-import { intellisense } from '../../src/integration/intellisense.js';
+import { NamespaceComponent } from '../../src/namespace/component.js';
+import { manifest } from '../../src/namespace/namespace.js';
+import { intellisense } from '../../src/tools/intellisense.js';
 
 test('custom pinned briefs preserve original IntelliSense documentation at every pin level', async () => {
     const registry = new SemanticRegistry(new MemoryStore());
     registry.refresh([{ id: 'read', description: 'Original command documentation', parameters: { type: 'object', properties: { path: { type: 'string', description: 'Absolute path' } }, required: ['path'] }, output: { type: 'string' } }]);
-    const mapping: Mapping = { id: 'read', path: 'files.read', aliases: [], enabled: true, pinned: false };
+    const mapping: Mapping = { id: 'read', path: 'files.read', aliases: [], pinned: false };
     const component = { registryFor: async () => registry, aliases: [], isPtc: () => true } as unknown as NamespaceComponent;
     for (const level of [0, 1, 2] as const) {
         await registry.configure([{ ...mapping, alwaysVisible: level, description: 'Custom prompt note' }], registry.snapshot().revision);

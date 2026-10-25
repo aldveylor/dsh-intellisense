@@ -7,8 +7,8 @@ function draft(): TreeDraft {
     return {
         namespaces: [{ path: 'files', alwaysVisible: true, description: 'Files' }, { path: 'files.disk', alwaysVisible: false, description: 'Disk' }],
         mappings: [
-            { id: 'read', path: 'files.disk.read', aliases: ['other.read'], enabled: true, pinned: false, alwaysVisible: 2 },
-            { id: 'write', path: 'files.write', aliases: [], enabled: true, pinned: false },
+            { id: 'read', path: 'files.disk.read', aliases: ['other.read'], pinned: false, alwaysVisible: 2 },
+            { id: 'write', path: 'files.write', aliases: [], pinned: false },
         ],
         order: ['files', 'files.write', 'files.disk', 'files.disk.read', 'other', 'other.read'],
     };
@@ -27,7 +27,7 @@ test('namespace rename migrates descendants, mappings, pin state and order witho
     assert.deepEqual(next.order.slice(0, 4), ['workspace', 'workspace.write', 'workspace.disk', 'workspace.disk.read']);
     assert.equal(original.mappings[0]!.path, 'files.disk.read');
     assert.throws(() => renameNamespace(original, 'files', 'other'), /namespace_name_conflict/);
-    assert.throws(() => renameNamespace(original, 'files', 'Promise'), /reserved/);
+    assert.throws(() => renameNamespace(original, 'files', 'constructor'), /Invalid namespace path/);
 });
 
 test('namespace deletion removes the subtree while retaining outside mappings and tool identity', () => {

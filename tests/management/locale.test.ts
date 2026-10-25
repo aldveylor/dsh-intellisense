@@ -1,3 +1,4 @@
+import { createNamespace } from '../../src/namespace/namespace.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { build } from 'esbuild';
@@ -18,6 +19,7 @@ async function until(predicate: () => boolean): Promise<void> {
 
 /** @brief Supply a minimal editor response with untrusted external tool documentation. */
 const view = {
+    provided: createNamespace({ tools: [], includeUnavailable: true }).serialize().children,
     state: { version: 1, revision: 1, mappings: [], namespaces: [], usage: {}, profile: 'Default', profiles: ['Default'] },
     tools: [{ id: 'read', description: '<b>工具原始说明</b>', parameters: {} }], effective: [], declarations: '', sessions: [],
 };

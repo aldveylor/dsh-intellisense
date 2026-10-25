@@ -15,7 +15,7 @@ import Storage from '@deepseek-ai/dsh-storage';
 import * as JsonStorage from '@deepseek-ai/dsh-storage-json';
 import type { ConnectionFetchRoute } from '@deepseek-ai/dsh-client-connection';
 import * as plugin from '../../src/index.js';
-import * as namespacePlugin from '../../src/integration/namespace_plugin.js';
+import * as namespacePlugin from '../../src/namespace/plugin.js';
 import * as presentation from '../../src/integration/presentation.js';
 
 /** @brief Capture assembled requests and reply without external model access. */
@@ -59,6 +59,8 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
             assert.equal(namespaces.enabled(agent), false);
             if (mode !== 'standard') {
                 await agent.ctx.plugin(presentation, { mode });
+                const registry = await namespaces.registryFor(agent);
+                await registry.configure([{ id: 'read_file', path: 'std.fs.read', aliases: [], pinned: false }], registry.snapshot().revision);
                 await namespaces.configure(agent);
             }
             const errors: unknown[] = [];
@@ -89,9 +91,9 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
                 assert.equal(agent.ctx.get('codeRuntime'), undefined);
                 assert(!systemOf(request).includes('TypeScript/JavaScript'));
                 const info = JSON.parse(await namespaces.discover(agent, ['std.fs.read']));
-                assert(info.members.some((member: { tool: string }) => member.tool === 'ns_std__ns_fs__read'));
+                assert(info.members.some((member: { tool: string }) => member.tool === 'ns_std__fs__read'));
                 await send();
-                assert(model.requests[1]!.tools?.some(tool => tool.name === 'ns_std__ns_fs__read'));
+                assert(model.requests[1]!.tools?.some(tool => tool.name === 'ns_std__fs__read'));
             }
             assert(!agent.session.snapshotEvents().some(event => String(event.type) === 'plugin:ts_intellisense/rewrite'));
             await mounted.dispose();

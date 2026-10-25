@@ -4,7 +4,7 @@ import { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import { createScope } from '@deepseek-ai/dsh-scope';
 import * as presentation from '../../src/integration/presentation.js';
-import { NamespaceComponent } from '../../src/integration/namespace_component.js';
+import { NamespaceComponent } from '../../src/namespace/component.js';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { ProfileSessions } from '../../src/registry/profiles.js';
 import { MemoryStore } from '../../src/storage/store.js';

@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import { Context } from '@deepseek-ai/cordis';
 import { defineTool, type ToolDefinition, type ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
-import type { NamespaceComponent } from '../../src/integration/namespace_component.js';
-import { registerToolCommands } from '../../src/integration/tool_commands.js';
+import type { NamespaceComponent } from '../../src/namespace/component.js';
+import { registerToolCommands } from '../../src/tools/tool_commands.js';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { ProfileSessions } from '../../src/registry/profiles.js';
 import { ProfileSchema, profileAnnotation } from '../../src/registry/profile_tree.js';
 import { MemoryStore } from '../../src/storage/store.js';
-import { registerBuiltin } from '../../src/integration/builtin_trace.js';
+import { registerBuiltin } from '../../src/tools/builtin_trace.js';
 
 test('builtin recording captures the actual contract and preserves canonical results and failures', async () => {
     let registered: ToolDefinition | undefined;

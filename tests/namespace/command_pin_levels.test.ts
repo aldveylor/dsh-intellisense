@@ -1,9 +1,10 @@
+import { createNamespace } from '../../src/namespace/namespace.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import { SemanticRegistry, type Mapping, type PinLevel } from '../../src/registry/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
-import { NamespaceComponent } from '../../src/integration/namespace_component.js';
+import { NamespaceComponent } from '../../src/namespace/component.js';
 import { TreeProvider } from '../../src/management/panel/tree_provider.js';
 
 const tool = {
@@ -22,7 +23,7 @@ test('three command levels hide, summarize, or publish complete documented signa
     const registry = new SemanticRegistry(new MemoryStore());
     registry.refresh([tool]);
     for (const level of [0, 1, 2] as const) {
-        const mapping: Mapping = { id: tool.id, path: 'files.read', aliases: [], enabled: true, pinned: false, alwaysVisible: level };
+        const mapping: Mapping = { id: tool.id, path: 'files.read', aliases: [], pinned: false, alwaysVisible: level };
         await registry.configure([mapping], registry.snapshot().revision, undefined, undefined, undefined, undefined, { read_file: 'Custom brief' }, { 'console.dir': level });
         const text = await prompt(registry);
         assert.equal(text.includes('namespace files'), level > 0);
@@ -47,7 +48,7 @@ test('detailed pins survive mount, unmount, profile save, and storage reload', a
     const registry = new SemanticRegistry(store);
     registry.refresh([tool]);
     await registry.configure([], 0, undefined, undefined, { read_file: 2 }, undefined, undefined, { 'console.log': 2 });
-    await registry.configure([{ id: tool.id, path: 'files.read', aliases: [], enabled: true, pinned: false }], 1);
+    await registry.configure([{ id: tool.id, path: 'files.read', aliases: [], pinned: false }], 1);
     assert.equal(registry.snapshot().mappings[0]?.alwaysVisible, 2);
     assert.deepEqual(registry.snapshot().unmountedVisible, {});
     await registry.configure([], 2);
@@ -58,12 +59,12 @@ test('detailed pins survive mount, unmount, profile save, and storage reload', a
     assert.equal(restored.configuration('Detailed').unmountedVisible.read_file, 2);
     assert.equal(restored.effective()[0]?.alwaysVisible, 2);
     assert.equal(restored.snapshot().builtinVisible?.['console.log'], 2);
-    await assert.rejects(restored.configure([{ id: tool.id, path: 'files.read', aliases: [], enabled: true, pinned: false, alwaysVisible: 3 as PinLevel }], 4), /Invalid mapping/);
+    await assert.rejects(restored.configure([{ id: tool.id, path: 'files.read', aliases: [], pinned: false, alwaysVisible: 3 as PinLevel }], 4), /Invalid mapping/);
 });
 
 test('builtin provider preserves detailed pins and keeps discovery pinned', () => {
-    const tree = TreeProvider({ 'console.log': 2, 'tools.intellisense': 2 });
+    const tree = TreeProvider(createNamespace({ tools: [], includeUnavailable: true }).serialize().children!, { 'console.log': 2, 'tools.intellisense': 2 });
     assert.equal(tree.find(node => node.path === 'console')?.commands.find(command => command.path === 'console.log')?.alwaysVisible, 2);
-    assert.equal(tree[0]?.commands[0]?.alwaysVisible, 2);
-    assert.equal(TreeProvider({ 'tools.intellisense': 0 })[0]?.commands[0]?.alwaysVisible, 2);
+    assert.equal(tree.find(node => node.path === 'tools')?.commands.find(command => command.path === 'tools.intellisense')?.alwaysVisible, 2);
+    assert.equal(TreeProvider(createNamespace({ tools: [], includeUnavailable: true }).serialize().children!, { 'tools.intellisense': 0 }).find(node => node.path === 'tools')?.commands.find(command => command.path === 'tools.intellisense')?.alwaysVisible, 2);
 });
