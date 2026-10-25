@@ -108,11 +108,14 @@ export class NamespaceComponent {
     /** @brief List every known command, including commands outside the caller's current context. */
     async commandBriefs(): Promise<CommandBrief[]> {
         await this.refresh();
-        return this.registry.tools().filter(tool => !tool.id.startsWith('tools_')).map(tool => ({ name: tool.id, brief: tool.description }));
+        const { callsByTool } = await this.statistics.snapshot();
+        return this.registry.tools().filter(tool => !tool.id.startsWith('tools_')).map(tool => ({
+            name: tool.id, brief: tool.description, totalCalls: Object.hasOwn(callsByTool, tool.id) ? callsByTool[tool.id]! : 0,
+        }));
     }
 
     /** @brief Preload data-only Profile metadata before guest execution. */
-    async values(agent?: Agent): Promise<{ [path: string]: string | { name: string; brief: string }[] }> {
+    async values(agent?: Agent): Promise<{ [path: string]: string | { name: string; brief: string; totalCalls: number }[] }> {
         const values = { 'tools.profile.annotation': profileAnnotation, 'tools.profile.commands': await this.commandBriefs() };
         const registry = agent ? await this.registryFor(agent) : this.registry;
         return Object.fromEntries(Object.entries(values).filter(([path]) => !registry.disabled(path)));

@@ -6,8 +6,8 @@ import { fixLevel, type SerializedNode } from '../namespace/node.js';
 /** @brief Physical command identity used by editable Profile trees. */
 export type CommandName = string;
 
-/** @brief Original command summary, independent of its mounted path. */
-export interface CommandBrief { name: CommandName; brief: string }
+/** @brief Original command summary and global usage, independent of its mounted path. */
+export interface CommandBrief { name: CommandName; brief: string; totalCalls: number }
 
 /** @brief Profiles expose the same serialized tree/leaf node description as management clients. */
 export interface Profile { name: string; root: SerializedNode }
@@ -103,8 +103,8 @@ export function profileConfiguration(profile: Profile, current: RegistryConfigur
 }
 
 /** @brief Shared Profile transport definition preloaded for PTC programs. */
-export const profileAnnotation = `/** @brief Original physical command identity and summary. */
-interface CommandBrief { name: string; brief: string; }
+export const profileAnnotation = `/** @brief Original physical command identity, summary and total calls across all sessions. Use totalCalls to prioritize frequently used commands when organizing Profiles. */
+interface CommandBrief { name: string; brief: string; totalCalls: number; }
 /** @brief Server-owned edit and pin choices; clients must honor these permissions. */
 interface Permission { renamable: boolean; movable: boolean; removable: boolean; disableable: boolean; acceptsChildren: boolean; availableFixLevels: (0 | 1 | 2)[]; }
 /** @brief Shared namespace tree or command leaf; protected children must remain present. */

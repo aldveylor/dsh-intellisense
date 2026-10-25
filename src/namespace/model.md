@@ -30,7 +30,7 @@ console 等环境接口是 EnvironmentCommandNode 普通 leaf，带环境声明�
 
 namespaceVisible 为随 Profile 保存的命名空间路径 → 固定提示布尔值映射，默认空对象；不使用 console 专有存储字段。管理面板始终展示 console 及其命令，console 命名空间图钉可切换是否固定提示；命令各自保留独立的提示等级。IntelliSense 与原生 console 的可用性不受固定状态影响。PTC 初始 prompt 提示可使用运行时提供的原生 Node.js 变量。
 
-PTC 每次执行重建 VM Context，不保证环境连续，不支持 globalThis，不提供 vm 命名空间或 vm.restart。tools.profile.commands 使用完整管理目录，含当前上下文没有的命令；save 校验同一目录，但执行仍受调用者作用域权限控制。内置命令描述固定英文。整理入口创建未提交的新 PTC 对话草稿，不再调用维护子代理。
+PTC 每次执行重建 VM Context，不保证环境连续，不支持 globalThis，不提供 vm 命名空间或 vm.restart。tools.profile.commands 使用完整管理目录，含当前上下文没有的命令；每项包含 name、brief 和 totalCalls（全局按物理工具 ID 累计的调用次数，包含失败派发，未调用为 0）。PTC 构建 VM 时由 values 读取一次统计快照并预加载为冻结数据，不在执行期间刷新；native 数据工具读取相同结构。save 校验同一目录，但执行仍受调用者作用域权限控制。内置命令描述固定英文。整理入口创建未提交的新 PTC 对话草稿，不再调用维护子代理。
 
 原生发现集合仅在 native 模式维护，最多保留最近查询的 256 个路径；同步时移除已失效路径。PTC 生命周期直接订阅 agent/disposed，运行时释放等待队列退出并移除进程、队列与 epoch。
 

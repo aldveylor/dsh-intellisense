@@ -55,11 +55,11 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
             ? JSON.stringify(ProfileSchema.toJSONSchema()) : profileAnnotation,
     })));
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_commands', description: 'Show all commands, including commands absent from the current context, with their original physical names and descriptions.', parameters: {},
+        name: 'tools_profile_commands', description: 'Show all commands, including commands absent from the current context, with their original physical names, descriptions and totalCalls across all sessions to guide Profile organization.', parameters: {},
         output: { ...output, schema: { type: 'array', items: { type: 'object', additionalProperties: true } } },
         execute: async (_args, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
-            return (await commands()).map(({ name, brief }) => ({ name, brief }));
+            return (await commands()).map(({ name, brief, totalCalls }) => ({ name, brief, totalCalls }));
         },
     })));
 }
