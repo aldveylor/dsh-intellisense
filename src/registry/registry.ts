@@ -1,3 +1,4 @@
+import { createNamespace } from '../integration/namespace.js';
 import { pluginCommands } from '../runtime/builtins.js';
 import { toolName, validatePath } from './path.js';
 export { validatePath } from './path.js';
@@ -41,6 +42,7 @@ interface StoredRegistryState extends RegistryState { inactiveProfiles?: Record<
 /** @brief Transactional semantic registry; unconfigured identities use encoded tools paths. */
 export class SemanticRegistry {
     private physical = new Map<string, PhysicalTool>();
+    private readonly protectedNodes = createNamespace({ tools: [], includeUnavailable: true });
     private state: StoredRegistryState = { version: 1, revision: 0, mappings: [], profile: 'Default', inactiveProfiles: {} };
     private writeChain: Promise<unknown> = Promise.resolve();
 
@@ -195,7 +197,8 @@ export class SemanticRegistry {
 
     /** @brief Resolve explicit command and inherited namespace disablement without dropping editor state. */
     disabled(path: string): boolean {
-        if (path === 'tools' || path === 'tools.intellisense') return false;
+        const node = this.protectedNodes.resolve(path.split('.'));
+        if (node && !node.permissions.disableable) return false;
         return [...(this.state.builtinDisabled ?? []), ...(this.state.namespaces ?? []).filter(node => node.disabled).map(node => node.path)]
             .some(prefix => path === prefix || path.startsWith(prefix + '.'))
             || this.state.mappings.some(mapping => mapping.disabled && [mapping.path, ...mapping.aliases].includes(path));
@@ -203,7 +206,11 @@ export class SemanticRegistry {
 
     /** @brief Validate disabled builtin paths while preserving the tools namespace and discovery entry point. */
     private validateDisabled(paths: string[] | undefined): void {
-        if (paths !== undefined && (!Array.isArray(paths) || paths.some(path => typeof path !== 'string' || !/^(tools|console)(\.[A-Za-z_$][\w$]*)*$/.test(path) || path === 'tools' || path === 'tools.intellisense'))) throw new Error('Invalid disabled builtin paths');
+        if (paths !== undefined && (!Array.isArray(paths) || paths.some(path => {
+            if (typeof path !== 'string') return true;
+            const node = this.protectedNodes.resolve(path.split('.'));
+            return !node || !node.permissions.disableable;
+        }))) throw new Error('Invalid disabled protected-node paths');
     }
 
     tools(): PhysicalTool[] { return structuredClone([...this.physical.values()]); }
