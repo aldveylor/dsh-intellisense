@@ -60,6 +60,40 @@ test('RPC values and rejections cross IPC without exposing host objects', async 
     } finally { await host.dispose(); }
 });
 
+test('guest command wrappers update readonly command counts locally without extra RPC', async () => {
+    const host = new RuntimeHost({ timeoutMs: 3000 });
+    const values = { 'tools.profile.commands': [{ name: 'read', brief: 'Read', totalCalls: 8 }] };
+    const calls: unknown[] = [];
+    try {
+        const read = binding('std.read');
+        const result = await host.execute('statistics', 'one', `
+            const commands=tools.profile.commands, row=commands[0];
+            const before=row.totalCalls;
+            const pending=std.read("a");
+            const immediate=row.totalCalls;
+            await pending;
+            await Promise.all([std.read("b"),other.read("c")]);
+            try{await std.read("denied")}catch{}
+            try{await std.read("a","extra")}catch{}
+            let readonly=false;
+            try{row.totalCalls=900}catch{readonly=true}
+            return [before,immediate,row.totalCalls,tools.profile.commands[0].totalCalls,readonly,Object.isFrozen(commands),Object.isFrozen(row)];
+        `, [read, { ...read, path: 'other.read' }], async (tool, args) => {
+            calls.push([tool, args]);
+            if ((args as { path: string }).path === 'denied') throw new Error('Denied');
+            return null;
+        }, signal(), values);
+        assert.equal(result.error, undefined);
+        assert.deepEqual(result.value, [8, 9, 12, 12, true, true, true]);
+        assert.equal(calls.length, 4);
+        assert.equal(values['tools.profile.commands'][0]!.totalCalls, 8);
+        const next = await host.execute('statistics', 'two', 'return tools.profile.commands[0].totalCalls;', [read], unused, signal(), {
+            'tools.profile.commands': [{ name: 'read', brief: 'Read', totalCalls: 42 }],
+        });
+        assert.equal(next.value, 42);
+    } finally { await host.dispose(); }
+});
+
 test('timeout and cancellation terminate a process, abort pending RPC and advance epoch', async () => {
     const host = new RuntimeHost({ timeoutMs: 3000, syncTimeoutMs: 50 });
     try {

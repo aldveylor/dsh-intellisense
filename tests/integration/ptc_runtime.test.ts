@@ -22,8 +22,8 @@ import { DshStore, type Store } from '../../src/storage/store.js';
 import { CommandStatistics } from '../../src/namespace/statistics.js';
 import { createSearchEngines } from '../../src/search/search.js';
 
-/** @brief Mount the real scoped presentation beside a deployment-default runtime that must never execute namespace code. */
-async function fixture(store: Store = new MemoryStore()) {
+/** @brief Mount a scoped presentation beside a deployment-default runtime that must never execute namespace code. */
+async function fixture(store: Store = new MemoryStore(), mode: 'ptc' | 'native' = 'ptc') {
     const ctx = new Context();
     ctx.provide('systemPrompt', { tools: () => () => {}, section: () => () => {}, getSectionOrder: () => 1 });
     await ctx.plugin(ToolRuntime, { mode: 'ptc' });
@@ -41,7 +41,7 @@ async function fixture(store: Store = new MemoryStore()) {
     await ctx.plugin({ inject: ['tools'], apply: (scope: Context) => { toolContext = scope; } });
     const key = {};
     const standing = createScope(toolContext, key);
-    const mounted = await standing.ctx.plugin(presentation, { mode: 'ptc' });
+    const mounted = await standing.ctx.plugin(presentation, { mode });
     const agent = { id: 'ptc-runtime', session: Session.create(SessionId('ptc-runtime')) } as Agent;
     const live = createScope(toolContext, agent, { parent: key });
     Object.assign(agent, { ctx: live.ctx });
@@ -105,6 +105,67 @@ test('PTC worker dispatches and discovery persist session and global statistics 
         await backend.close();
         await rm(directory, { recursive: true, force: true });
     }
+});
+
+test('PTC command counts update within a program and refresh from host counts on the next execution', async () => {
+    const { agent, namespaces, run, dispose } = await fixture();
+    try {
+        agent.ctx.tools.register(defineTool({ name: 'read_tool', description: 'Read', parameters: {},
+            output: { schema: { type: 'string' }, render: () => [] }, execute: async () => 'ok',
+        }));
+        const registry = await namespaces.registryFor(agent);
+        await registry.configure([{ id: 'read_tool', path: 'std.read', aliases: ['std.again'], pinned: false }], registry.snapshot().revision);
+        const result = await run(`
+            const row=tools.profile.commands.find(row=>row.name==='read_tool');
+            const before=row.totalCalls;
+            const first=std.read();
+            const immediate=row.totalCalls;
+            await first;
+            await std.again();
+            return [before,immediate,row.totalCalls];
+        `);
+        assert.equal(result.isError, false, JSON.stringify(result));
+        assert.deepEqual(result.value, { logs: [], result: [0, 1, 2] });
+        assert.equal((await namespaces.statistics.snapshot()).callsByTool.read_tool, 2);
+        const next = await run(`
+            const row=tools.profile.commands.find(row=>row.name==='read_tool');
+            const before=row.totalCalls;
+            await std.read();
+            return [before,row.totalCalls];
+        `);
+        assert.equal(next.isError, false, JSON.stringify(next));
+        assert.deepEqual(next.value, { logs: [], result: [2, 3] });
+        assert.equal((await namespaces.statistics.snapshot()).callsByTool.read_tool, 3);
+    } finally { await dispose(); }
+});
+
+test('native commands rereads current global counts after each namespace dispatch', async () => {
+    const { ctx, agent, namespaces, dispose } = await fixture(new MemoryStore(), 'native');
+    try {
+        agent.ctx.tools.register(defineTool({ name: 'read_tool', description: 'Read', parameters: {},
+            output: { schema: { type: 'string' }, render: () => [] }, execute: async () => 'ok',
+        }));
+        const registry = await namespaces.registryFor(agent);
+        await registry.configure([{ id: 'read_tool', path: 'std.read', aliases: [], pinned: false }], registry.snapshot().revision);
+        await namespaces.discover(agent, ['std.', 'tools.profile.commands']);
+        let sequence = 0;
+        const call = (name: string) => ctx.tools.execute({ agent, callId: ToolCallId(`native-statistics-${++sequence}`), name, arguments: {}, signal: new AbortController().signal });
+        const before = await call('ns_tools__profile__commands');
+        assert.equal(before.isError, false, JSON.stringify(before));
+        assert.equal((await call('ns_std__read')).isError, false);
+        const after = await call('ns_tools__profile__commands');
+        assert.equal(after.isError, false, JSON.stringify(after));
+        const count = (value: unknown): number | undefined => (value as { name: string; totalCalls: number }[]).find(row => row.name === 'read_tool')?.totalCalls;
+        assert.equal(count(before.value), 0);
+        assert.equal(count(after.value), 1);
+        const unguard = ctx.tools.guard(execution => execution.name === 'read_tool' ? 'Denied' : undefined);
+        try { assert.equal((await call('ns_std__read')).isError, true); }
+        finally { unguard(); }
+        const latest = await call('ns_tools__profile__commands');
+        assert.equal(latest.isError, false, JSON.stringify(latest));
+        assert.equal(count(latest.value), 2);
+        assert.equal((await namespaces.statistics.snapshot(agent.id)).callsByTool.read_tool, 2);
+    } finally { await dispose(); }
 });
 
 test('PTC discovery uses namespace execution instead of the deployment Node runtime', async () => {

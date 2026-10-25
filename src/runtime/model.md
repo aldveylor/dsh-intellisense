@@ -18,6 +18,8 @@
 
 init 消息携带 data-only values，VM realm 内解析并递归冻结，执行前预加载 tools.profile.annotation 与 tools.profile.commands；不传递宿主对象。每次运行刷新这些值，工具仍通过原生 PTC 闭包派发。
 
+tools.profile.commands 中各项 totalCalls 使用 VM 内只读 getter，从预加载的全局计数起算。NamespaceCommand 包装在参数转换和序列化成功、发出调用后，按物理 tool ID 同步递增闭包内的计数；同一执行中多次读取同一行即可看到更新，别名共享计数，失败派发也计数，未发出调用的参数错误不计数。数组、行对象及其它预加载数据仍冻结；计数增量不额外发送 IPC 或写回宿主，宿主继续由 dispatchTool 独立计数和持久化。下一次执行从宿主最新全局统计重新初始化，不重复叠加 VM 增量。
+
 `builtins.ts` 的 `PluginCommands` 持有插件命令契约表，通过共享实例 `pluginCommands` 提供物理命令查找、搜索签名、默认提示等级及运行时/UI 投影所需的命令分组。
 
 PTC 初始化先建立运行时环境（包括 console 输出对象），再安装生成的命令与预加载数据。部署只写入环境中不存在的根属性，不覆盖已有 console、标准对象或其它运行时全局。生成树内重复命令或命令/值冲突会明确拒绝，不以后写覆盖先写。environment 节点参与普通 IntelliSense 查询，但不进入物理工具绑定。

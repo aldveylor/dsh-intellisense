@@ -63,11 +63,20 @@ function initialize(commands: CommandBinding[], values: Record<string, unknown>)
         }
         if(!Object.hasOwn(root,'console')||Object.getOwnPropertyDescriptor(root,'console').configurable)Object.defineProperty(root,'console',{value:Object.freeze(logger),configurable:false});
         const tree=Object.create(null);
+        const data=parse(values);
+        const counters=new Map();
+        for(const entry of Array.isArray(data['tools.profile.commands'])?data['tools.profile.commands']:[]) {
+            if(!entry||typeof entry.name!=='string'||typeof entry.totalCalls!=='number')continue;
+            let totalCalls=entry.totalCalls;
+            counters.set(entry.name,()=>{totalCalls++;});
+            Object.defineProperty(entry,'totalCalls',{get:()=>totalCalls,enumerable:true,configurable:false});
+        }
         /** @brief A guest-owned command with its physical target and precompiled argument/result adapters. */
         class NamespaceCommand {
             constructor(binding) {
                 this.path=binding.path;
                 this.tool=binding.tool;
+                this.count=counters.get(this.tool)??(()=>{});
                 const parameters=binding.parameters;
                 const named=(fields,args)=>Object.fromEntries(fields.flatMap((name,index)=>args[index]===undefined?[]:[[name,args[index]]]));
                 switch(parameters.kind) {
@@ -108,7 +117,9 @@ function initialize(commands: CommandBinding[], values: Record<string, unknown>)
             invoke(args) {
                 return new Promise((resolve,reject)=>{
                     try {
-                        call(this.tool,stringify(this.arguments(args))).then(json=>{
+                        const pending=call(this.tool,stringify(this.arguments(args)));
+                        this.count();
+                        pending.then(json=>{
                             try {const [present,value]=parse(json);resolve(this.result(present?value:undefined));}
                             catch(error){reject(new Error(String(error)));}
                         },error=>reject(new ToolCallError(String(error.message??error),this.path)));
@@ -125,7 +136,7 @@ function initialize(commands: CommandBinding[], values: Record<string, unknown>)
             if(Object.hasOwn(node,parts.at(-1)))throw new Error('Duplicate command deployment: '+command.path);
             node[parts.at(-1)]=Object.freeze(fn);
         }
-        for(const [path,value] of Object.entries(parse(values))) {
+        for(const [path,value] of Object.entries(data)) {
             const parts=path.split('.');let node=tree;
             for(const part of parts.slice(0,-1))node=node[part]??=Object.create(null);
             if(Object.hasOwn(node,parts.at(-1)))throw new Error('Conflicting value deployment: '+path);
