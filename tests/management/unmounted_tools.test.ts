@@ -73,7 +73,7 @@ test('unknown is absent; count follows mounting, unmounting, saving and profile 
             assert.equal(document.querySelector('[data-namespace-path="unknown"],[data-tree-path^="unknown."]'), null);
             counter()!.click();
             await until(() => document.querySelector('dialog[open]') !== null);
-            assert.equal(document.querySelectorAll('dialog [data-tool-id]').length, 2);
+            assert.equal(document.querySelectorAll('dialog [data-tool-id]:not(:disabled)').length, 2);
             assert.equal(document.querySelector('dialog [data-tool-id="write"]'), null);
             document.querySelector<HTMLButtonElement>('dialog [data-tool-id="read"]')!.click();
             await until(() => count() === 1 && !!document.querySelector('[data-tree-path="read"][data-tool-status]'));
@@ -131,7 +131,8 @@ test('built-in namespace and command descriptions stay English in a Chinese inte
             for (const command of namespace.commands) {
                 const row = document.querySelector(`[data-tree-path="${command.path}"]`)!;
                 assert.equal(row.querySelector('.ts-tool-preview')!.textContent, command.description);
-                assert.equal(row.getAttribute('title'), command.description);
+                assert.equal(row.getAttribute('title'), null);
+                assert(row.hasAttribute('aria-describedby'));
                 assert.equal((row as HTMLElement).draggable, false);
             }
         }

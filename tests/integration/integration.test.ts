@@ -91,7 +91,8 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
                 assert.equal(agent.ctx.get('codeRuntime'), undefined);
                 assert(!systemOf(request).includes('TypeScript/JavaScript'));
                 const info = JSON.parse(await namespaces.discover(agent, ['std.fs.read']));
-                assert(info.members.some((member: { tool: string }) => member.tool === 'ns_std__fs__read'));
+                assert(info.members.some((member: { path: string }) => member.path === 'std.fs.read'));
+                assert(info.members.every((member: object) => !Object.hasOwn(member, 'tool')));
                 await send();
                 assert(model.requests[1]!.tools?.some(tool => tool.name === 'ns_std__fs__read'));
             }
