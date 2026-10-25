@@ -8,10 +8,10 @@ export type CommandName = string;
 export interface CommandBrief { name: CommandName; brief: string }
 
 /** @brief A mounted physical command with an optional simplified description. */
-export interface CommandNode { type: 'command'; command: CommandName; simplifiedBrief?: string; fixedLevel: 'none' | 'fixed-brief' | 'fixed-detail' }
+export interface CommandNode { disabled?: boolean; type: 'command'; command: CommandName; simplifiedBrief?: string; fixedLevel: 'none' | 'fixed-brief' | 'fixed-detail' }
 
 /** @brief Recursive namespace members keyed by their local names. */
-export interface NamespaceNode { type: 'namespace'; children: Record<string, CommandNode | NamespaceNode>; fixed: boolean }
+export interface NamespaceNode { disabled?: boolean; type: 'namespace'; children: Record<string, CommandNode | NamespaceNode>; fixed: boolean }
 
 /** @brief Public editable Profile representation. */
 export interface Profile { name: string; root: NamespaceNode }
@@ -19,8 +19,8 @@ export interface Profile { name: string; root: NamespaceNode }
 /** @brief Validate recursive Profile input before converting it into registry configuration. */
 export const ProfileSchema: z.ZodType<Profile> = z.lazy(() => z.strictObject({ name: z.string(), root: namespaceSchema }));
 const namespaceSchema: z.ZodType<NamespaceNode> = z.lazy(() => z.strictObject({
-    type: z.literal('namespace'), fixed: z.boolean(),
-    children: z.record(z.string(), z.union([z.strictObject({ type: z.literal('command'), command: z.string(), simplifiedBrief: z.string().optional(), fixedLevel: z.enum(['none', 'fixed-brief', 'fixed-detail']) }), namespaceSchema])),
+    type: z.literal('namespace'), disabled: z.boolean().optional(), fixed: z.boolean(),
+    children: z.record(z.string(), z.union([z.strictObject({ type: z.literal('command'), disabled: z.boolean().optional(), command: z.string(), simplifiedBrief: z.string().optional(), fixedLevel: z.enum(['none', 'fixed-brief', 'fixed-detail']) }), namespaceSchema])),
 }));
 
 /** @brief Export only configured paths and comments; runtime metadata remains internal. */
@@ -35,11 +35,11 @@ export function profileTree(name: string, configuration: RegistryConfiguration):
         }
         return node;
     };
-    for (const item of configuration.namespaces) nodeFor(item.path).fixed = item.alwaysVisible;
+    for (const item of configuration.namespaces) Object.assign(nodeFor(item.path), { fixed: item.alwaysVisible, ...(item.disabled === undefined ? {} : { disabled: item.disabled }) });
     for (const mapping of configuration.mappings) for (const path of [mapping.path, ...mapping.aliases]) {
         const parts = path.split('.');
         const brief = configuration.toolComments?.[mapping.id] ?? mapping.description;
-        nodeFor(parts.slice(0, -1).join('.')).children[parts.at(-1)!] = { type: 'command', command: mapping.id, fixedLevel: (['none', 'fixed-brief', 'fixed-detail'] as const)[mapping.alwaysVisible ?? 0], ...(brief === undefined ? {} : { simplifiedBrief: brief }) };
+        nodeFor(parts.slice(0, -1).join('.')).children[parts.at(-1)!] = { type: 'command', command: mapping.id, ...(mapping.disabled === undefined ? {} : { disabled: mapping.disabled }), fixedLevel: (['none', 'fixed-brief', 'fixed-detail'] as const)[mapping.alwaysVisible ?? 0], ...(brief === undefined ? {} : { simplifiedBrief: brief }) };
     }
     return { name, root };
 }
@@ -56,11 +56,11 @@ export function profileConfiguration(profile: Profile, current: RegistryConfigur
                 if (!commands.some(item => item.name === command.command)) throw new Error(`Unknown command: ${command.command}`);
                 const mounted = configuration.mappings.find(item => item.id === command.command);
                 if (mounted) mounted.aliases.push(path);
-                else configuration.mappings.push({ id: command.command, path, aliases: [], pinned: false, alwaysVisible: command.fixedLevel === 'fixed-detail' ? 2 : command.fixedLevel === 'fixed-brief' ? 1 : 0 });
+                else configuration.mappings.push({ id: command.command, path, aliases: [], pinned: false, ...(command.disabled === undefined ? {} : { disabled: command.disabled }), alwaysVisible: command.fixedLevel === 'fixed-detail' ? 2 : command.fixedLevel === 'fixed-brief' ? 1 : 0 });
                 if (command.simplifiedBrief !== undefined) configuration.toolComments![command.command] = command.simplifiedBrief;
             } else {
                 const previous = current.namespaces.find(item => item.path === path);
-                configuration.namespaces.push({ path, description: previous?.description ?? '', alwaysVisible: child.fixed });
+                configuration.namespaces.push({ path, description: previous?.description ?? '', alwaysVisible: child.fixed, ...(child.disabled === undefined ? {} : { disabled: child.disabled }) });
                 visit(child, path);
             }
         }
@@ -76,6 +76,8 @@ type CommandName = string;
 interface CommandBrief { name: CommandName; brief: string; }
 /** @brief A mounted command and its optional simplified description. */
 interface CommandNode {
+    /** @brief Hide this command from discovery and execution. */
+    disabled?: boolean;
     type: 'command';
     command: CommandName;
     /** @brief Short description of what the command does. */
@@ -85,6 +87,8 @@ interface CommandNode {
 }
 /** @brief Recursive namespace members keyed by local name. */
 interface NamespaceNode {
+    /** @brief Hide all descendant commands from discovery and execution. */
+    disabled?: boolean;
     type: 'namespace';
     children: Record<string, CommandNode | NamespaceNode>;
     /** @brief Include this namespace in the initial prompt. */

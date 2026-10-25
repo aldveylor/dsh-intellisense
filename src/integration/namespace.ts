@@ -34,6 +34,7 @@ export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Ali
     const managementPaths = Object.fromEntries(builtinTools.map(command => [command.tool, command.path]));
     const insert = (entry: ManifestEntry): void => {
         if ((entry.path === 'tools' || entry.path.startsWith('tools.') || entry.tool.startsWith('tools_')) && managementPaths[entry.tool] !== entry.path) return;
+        if (registry.disabled(entry.path)) return;
         const parts = entry.path.split('.');
         if (parts.some(part => ['__proto__', 'constructor', 'prototype', 'then'].includes(part)) || ['console', 'globalThis'].includes(parts[0]!)) throw new Error(`Reserved manifest path: ${entry.path}`);
         const previous = entries.get(entry.path);

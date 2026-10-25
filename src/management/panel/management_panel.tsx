@@ -40,7 +40,7 @@ function profileDraft(state: Pick<RegistryState, keyof RegistryConfiguration>): 
     const paths = [...TreeProvider(state.builtinVisible ?? defaultBuiltinVisible).map(node => node.path), ...namespacePaths({ mappings, namespaces }), ...mappings.flatMap(mapping => [mapping.path, ...mapping.aliases])];
     return {
         mappings, namespaces, unmountedVisible: state.unmountedVisible ?? {}, builtinVisible: state.builtinVisible ?? defaultBuiltinVisible,
-        consolePinned: state.consolePinned ?? false, toolComments: state.toolComments ?? {},
+        builtinDisabled: state.builtinDisabled ?? [], consolePinned: state.consolePinned ?? false, toolComments: state.toolComments ?? {},
         order: orderedPaths([...new Set(paths)], (state.order ?? []).map(path => path.trim())),
     };
 }
@@ -88,6 +88,15 @@ function RemoveButton({ label, busy, remove }: { label: string; busy: boolean; r
     </button>;
 }
 
+/** @brief Toggle command or namespace availability while retaining its editable tree node. */
+function DisableButton({ disabled, busy, toggle }: { disabled: boolean; busy: boolean; toggle: () => void }) {
+    const t = useTranslation();
+    const label = t(disabled ? 'enable_node' : 'disable_node');
+    return <button className="ts-disable ts-remove" type="button" aria-label={label} title={label} aria-pressed={disabled} disabled={busy} onClick={toggle}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><circle cx="12" cy="12" r="8" /><path d={disabled ? 'M8 12h8M12 8v8' : 'm6 6 12 12'} /></svg>
+    </button>;
+}
+
 /** @brief Mark a node as a drag target without intercepting ordinary text editing. */
 function acceptTreeDrag(event: DragEvent<HTMLElement>, busy: boolean): void {
     if (event.currentTarget.dataset.dropDisabled === 'true') { event.stopPropagation(); return; }
@@ -108,7 +117,7 @@ function CommandNode({ mapping, path, description, tree, fixed = false, command 
     const invalid = !!mapping && !tree.tools.some(tool => tool.id === id);
     const draggable = !tree.busy && (command ? command.draggable : !fixed && !mapping?.pinned);
     return <li className={`ts-tree-tool${fixed ? ' ts-fixed-node' : ''}${invalid ? ' ts-tool-invalid' : ''}`}
-        aria-disabled={command?.disabled || undefined} data-tool-status={command?.disabled ? 'disabled' : invalid ? 'invalid' : 'available'} data-tree-path={path} data-tool-id={id} data-drop-disabled={readOnly || undefined}
+        aria-disabled={tree.disabled(path) || undefined} data-tool-status={tree.disabled(path) ? 'disabled' : invalid ? 'invalid' : 'available'} data-tree-path={path} data-tool-id={id} data-drop-disabled={readOnly || undefined}
         title={invalid ? t('invalid_tool') : description} draggable={draggable}
         onDragStart={event => {
             if (!draggable || (event.target as HTMLElement).tagName === 'INPUT') { event.preventDefault(); return; }
@@ -128,6 +137,7 @@ function CommandNode({ mapping, path, description, tree, fixed = false, command 
         <span className="ts-node-actions">
             <PinButton label={t('pin_command', { path })} active={!!(command?.alwaysVisible ?? mapping?.alwaysVisible)} level={command?.alwaysVisible ?? mapping?.alwaysVisible ?? 0} busy={tree.busy || !!command?.disabled || path === 'tools.intellisense'}
                 toggle={() => { if (command) tree.pinBuiltin(command.path); else if (mapping) tree.pinTool(mapping); else if (id) tree.pinUnmounted(id); }} />
+            {path !== 'tools.intellisense' && <DisableButton disabled={tree.disabled(path)} busy={tree.busy} toggle={() => tree.toggleDisabled(path)} />}
             {!readOnly && <RemoveButton label={t('remove_mapping', { path })} busy={tree.busy || !!mapping?.pinned} remove={() => tree.remove(path)} />}
         </span>
     </li>;
@@ -178,6 +188,7 @@ function NamespacePlaceholder({ parent = '', busy, create, drop, pick }: {
 
 /** @brief Shared namespace tree data and actions for recursively rendered mixed node types. */
 interface TreeProps {
+    disabled: (path: string) => boolean; toggleDisabled: (path: string) => void;
     paths: string[]; mappings: Mapping[]; namespaces: Namespace[]; tools: PhysicalTool[]; busy: boolean;
     order: string[]; expanded: Record<string, boolean>;
     configure: (path: string, patch: Partial<Namespace>) => void;
@@ -201,7 +212,7 @@ function NamespaceNode({ path, tree, fixed = false, provided }: { path: string; 
     const nodes = orderedPaths([...children, ...mounted.map(m => m.path)], tree.order);
     const count = provided ? provided.commands.length + (provided.children?.length ?? 0) : tree.mappings
         .flatMap(mapping => [mapping.path, ...mapping.aliases]).filter(command => inNamespace(command, path)).length;
-    return <li data-tree-path={path}>
+    return <li data-tree-path={path} data-disabled={tree.disabled(path) || undefined}>
         <div className={`ts-node-block${fixed ? ' ts-fixed-node' : ''}`} data-namespace-path={path} data-drop-disabled={fixed || undefined} draggable={!tree.busy && !fixed} onDragStart={event => {
             if (fixed) { event.preventDefault(); return; }
             if ((event.target as HTMLElement).tagName === 'INPUT') { event.preventDefault(); return; }
@@ -219,12 +230,15 @@ function NamespaceNode({ path, tree, fixed = false, provided }: { path: string; 
             <span className="ts-node-actions">
                 <PinButton label={t('pin_namespace', { path })} active={config?.alwaysVisible ?? false} busy={tree.busy}
                     toggle={() => tree.configure(path, { alwaysVisible: !config?.alwaysVisible })} />
+                <DisableButton disabled={tree.disabled(path)} busy={tree.busy} toggle={() => tree.toggleDisabled(path)} />
                 <RemoveButton label={t('delete_namespace', { path })} busy={tree.busy} remove={() => tree.deleteNamespace(path)} />
             </span></>}
             {fixed && path !== 'console' && <span className="ts-node-actions">
+                <DisableButton disabled={tree.disabled(path)} busy={tree.busy} toggle={() => tree.toggleDisabled(path)} />
                 <PinButton label={t('fixed_namespace')} tooltip={t('fixed_namespace')} active busy={tree.busy} locked toggle={() => {}} />
             </span>}
             {path === 'console' && <span className="ts-node-actions">
+                <DisableButton disabled={tree.disabled(path)} busy={tree.busy} toggle={() => tree.toggleDisabled(path)} />
                 <PinButton label={t('pin_namespace', { path })} active={tree.consolePinned} busy={tree.busy} toggle={tree.toggleConsole} />
             </span>}
         </div>
@@ -246,6 +260,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
     const [namespaces, setNamespaces] = useState<Namespace[]>([]);
     const [order, setOrder] = useState<string[]>([]);
     const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+    const [builtinDisabled, setBuiltinDisabled] = useState<string[]>([]);
     const [consolePinned, setConsolePinned] = useState(false);
     const [builtinVisible, setBuiltinVisible] = useState<CommandVisibility>({ ...defaultBuiltinVisible });
     const [unmountedVisible, setUnmountedVisible] = useState<CommandVisibility>({});
@@ -269,6 +284,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
         setUnmountedVisible(structuredClone(snapshot.state.unmountedVisible ?? {}));
         setBuiltinVisible(structuredClone(snapshot.state.builtinVisible ?? defaultBuiltinVisible));
         setConsolePinned(snapshot.state.consolePinned ?? false);
+        setBuiltinDisabled(snapshot.state.builtinDisabled ?? []);
         setToolComments(structuredClone(snapshot.state.toolComments ?? {}));
         setOrder(orderedPaths([...namespacePaths({ mappings: snapshot.state.mappings, namespaces: snapshot.state.namespaces ?? [] }), ...snapshot.state.mappings.flatMap(m => [m.path, ...m.aliases])], snapshot.state.order ?? []));
         setStatus('');
@@ -276,7 +292,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
 
     useEffect(() => {
         const controller = new AbortController();
-        setView(undefined); setConsolePinned(false); setMappings([]); setNamespaces([]); setUnmountedVisible({}); setToolComments({}); setOrder([]); setExpanded({}); setDescriptionEditor(undefined); setToolPicker(undefined); setStatus('loading');
+        setView(undefined); setBuiltinDisabled([]); setConsolePinned(false); setMappings([]); setNamespaces([]); setUnmountedVisible({}); setToolComments({}); setOrder([]); setExpanded({}); setDescriptionEditor(undefined); setToolPicker(undefined); setStatus('loading');
         void reload(controller.signal, null).catch(error => { if (!controller.signal.aborted) setStatus(String(error instanceof Error ? error.message : error)); });
         return () => controller.abort();
     }, [api]);
@@ -293,7 +309,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
     const unmounted = unmountedTools(view?.tools ?? [], mappings);
     const paths = [...new Set([...provided.map(node => node.path), ...namespacePaths({ mappings, namespaces })])];
     const saved = view?.state;
-    const draft = profileDraft({ mappings, namespaces, unmountedVisible, builtinVisible, consolePinned, toolComments, order });
+    const draft = profileDraft({ mappings, namespaces, unmountedVisible, builtinVisible, builtinDisabled, consolePinned, toolComments, order });
     const newProfile = !!saved && !saved.profiles?.includes(saved.profile!);
     const dirty = !!saved && (newProfile || JSON.stringify(draft) !== JSON.stringify(profileDraft(saved)));
 
@@ -312,7 +328,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
     /** @brief Create a local empty profile; persistence occurs only when saving. */
     function createProfile(name: string): void {
         if (!view) return;
-        applyView({ ...view, state: { ...view.state, profile: name, mappings: [], namespaces: [], order: [], unmountedVisible: {}, builtinVisible: { ...defaultBuiltinVisible }, consolePinned: false, toolComments: {} } });
+        applyView({ ...view, state: { ...view.state, profile: name, mappings: [], namespaces: [], order: [], unmountedVisible: {}, builtinDisabled: [], builtinVisible: { ...defaultBuiltinVisible }, consolePinned: false, toolComments: {} } });
         setExpanded({}); setToolPicker(undefined); setDescriptionEditor(undefined);
     }
 
@@ -444,6 +460,19 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
     const drag = useTreeDrag(applyDrop);
 
     const tree: TreeProps = {
+        disabled: path => path !== 'tools.intellisense' && (builtinDisabled.some(prefix => inNamespace(path, prefix))
+            || namespaces.some(node => node.disabled && inNamespace(path, node.path))
+            || mappings.some(mapping => mapping.disabled && [mapping.path, ...mapping.aliases].includes(path))),
+        toggleDisabled: path => {
+            if (busy || path === 'tools.intellisense') return;
+            if (path.startsWith('tools.') || path === 'tools' || path === 'console' || path.startsWith('console.')) {
+                setBuiltinDisabled(current => current.includes(path) ? current.filter(item => item !== path) : [...current, path]);
+            } else {
+                const mapping = mappings.find(item => [item.path, ...item.aliases].includes(path));
+                if (mapping) setMappings(current => current.map(item => item.id === mapping.id ? { ...item, disabled: !item.disabled } : item));
+                else configureNamespace(path, { disabled: !namespaces.find(node => node.path === path)?.disabled });
+            }
+        },
         consolePinned, toggleConsole: () => setConsolePinned(current => !current),
         paths, mappings, namespaces, order, expanded, tools: view?.tools ?? [], busy: busy || !view,
         pinBuiltin: path => setBuiltinVisible(current => ({ ...current, [path]: path === 'tools.intellisense' ? 2 : nextPinLevel(current[path] ?? 0) })),

@@ -104,8 +104,10 @@ export class NamespaceComponent {
     }
 
     /** @brief Preload data-only Profile metadata before guest execution. */
-    async values(): Promise<{ [path: string]: string | { name: string; brief: string }[] }> {
-        return { 'tools.profile.annotation': profileAnnotation, 'tools.profile.commands': await this.commandBriefs() };
+    async values(agent?: Agent): Promise<{ [path: string]: string | { name: string; brief: string }[] }> {
+        const values = { 'tools.profile.annotation': profileAnnotation, 'tools.profile.commands': await this.commandBriefs() };
+        const registry = agent ? await this.registryFor(agent) : this.registry;
+        return Object.fromEntries(Object.entries(values).filter(([path]) => !registry.disabled(path)));
     }
 
     /** @brief Notify the native system-prompt assembler after session configuration changes. */
@@ -124,12 +126,14 @@ export class NamespaceComponent {
                 ...(mapping.alwaysVisible === 2 ? { declaration: declaration(entry, false) } : {}) });
         }
         for (const item of state.namespaces ?? []) if (item.alwaysVisible && entries.some(entry => entry.path.startsWith(item.path + '.'))) hints.push({ ...item, namespace: true });
-        if (state.consolePinned) hints.push({ path: 'console', description: 'Native console output', namespace: true });
+        if (state.consolePinned && !registry.disabled('console')) hints.push({ path: 'console', description: 'Native console output', namespace: true });
         for (const item of builtinCommands) {
+            if (registry.disabled(item.path) || (item.path.startsWith('tools.') && !entries.some(entry => entry.path === item.path))) continue;
             const level = item.path === discoveryCommand.path ? 2 : (state.builtinVisible ?? defaultBuiltinVisible)[item.path] ?? 0;
             if (level) hints.push({ ...item, ...(level === 2 ? { declaration: builtinDeclaration(item) } : {}) });
         }
         for (const item of profileValues) {
+            if (registry.disabled(item.path)) continue;
             const level = state.builtinVisible?.[item.path] ?? 0;
             if (level) hints.push({ ...item, ...(level === 2 ? { declaration: `/** @brief ${item.description} */\nconst ${item.path.split('.').at(-1)}: ${item.signature};` } : {}) });
         }

@@ -25,15 +25,16 @@ export interface Mapping {
     description?: string;
     pinned: boolean;
     alwaysVisible?: PinLevel;
+    disabled?: boolean;
 }
 
 /** @brief Persisted namespace documentation and unconditional prompt visibility. */
-export interface Namespace { path: string; alwaysVisible: boolean; description: string }
+export interface Namespace { disabled?: boolean; path: string; alwaysVisible: boolean; description: string }
 
 /** @brief Versioned complete registry state, committed atomically. */
-export interface RegistryState { version: 1; revision: number; mappings: Mapping[]; namespaces?: Namespace[]; order?: string[]; unmountedVisible?: CommandVisibility; builtinVisible?: CommandVisibility; consolePinned?: boolean; toolComments?: Record<string, string>; profile?: string; profiles?: string[] }
+export interface RegistryState { version: 1; revision: number; mappings: Mapping[]; namespaces?: Namespace[]; order?: string[]; unmountedVisible?: CommandVisibility; builtinDisabled?: string[]; builtinVisible?: CommandVisibility; consolePinned?: boolean; toolComments?: Record<string, string>; profile?: string; profiles?: string[] }
 /** @brief A named configuration contains only tool tree settings. */
-export interface RegistryConfiguration { mappings: Mapping[]; namespaces: Namespace[]; order: string[]; unmountedVisible: CommandVisibility; builtinVisible?: CommandVisibility; consolePinned?: boolean; toolComments?: Record<string, string> }
+export interface RegistryConfiguration { mappings: Mapping[]; namespaces: Namespace[]; order: string[]; unmountedVisible: CommandVisibility; builtinDisabled?: string[]; builtinVisible?: CommandVisibility; consolePinned?: boolean; toolComments?: Record<string, string> }
 /** @brief Only inactive configurations are archived, so the active configuration has one source of truth. */
 interface StoredRegistryState extends RegistryState { inactiveProfiles?: Record<string, RegistryConfiguration> }
 
@@ -54,6 +55,7 @@ export class SemanticRegistry {
             this.validateNamespaces(saved.namespaces ?? [], saved.mappings);
             this.validateVisibility(saved.unmountedVisible ?? {});
             this.validateVisibility(saved.builtinVisible ?? {});
+            this.validateDisabled(saved.builtinDisabled);
             this.validateConsolePinned(saved.consolePinned);
             this.validateComments(saved.toolComments ?? {});
             for (const [name, configuration] of Object.entries(saved.inactiveProfiles ?? {})) {
@@ -63,6 +65,7 @@ export class SemanticRegistry {
                 this.validateNamespaces(configuration.namespaces, configuration.mappings);
                 this.validateVisibility(configuration.unmountedVisible);
                 this.validateVisibility(configuration.builtinVisible ?? {});
+                this.validateDisabled(configuration.builtinDisabled);
                 this.validateConsolePinned(configuration.consolePinned);
                 this.validateComments(configuration.toolComments ?? {});
             }
@@ -91,7 +94,7 @@ export class SemanticRegistry {
             if (!configuration) throw new Error('Profile does not exist');
             return structuredClone(configuration);
         }
-        return structuredClone({ mappings: this.state.mappings, namespaces: this.state.namespaces ?? [], order: this.state.order ?? [], unmountedVisible: this.state.unmountedVisible ?? {}, toolComments: this.state.toolComments ?? {}, builtinVisible: this.state.builtinVisible ?? defaultBuiltinVisible, consolePinned: this.state.consolePinned ?? false });
+        return structuredClone({ mappings: this.state.mappings, namespaces: this.state.namespaces ?? [], order: this.state.order ?? [], unmountedVisible: this.state.unmountedVisible ?? {}, toolComments: this.state.toolComments ?? {}, builtinDisabled: this.state.builtinDisabled ?? [], builtinVisible: this.state.builtinVisible ?? defaultBuiltinVisible, consolePinned: this.state.consolePinned ?? false });
     }
 
     /** @brief Replace one reference's working configuration without modifying other holders. */
@@ -99,12 +102,14 @@ export class SemanticRegistry {
         const detached = structuredClone(configuration);
         detached.builtinVisible ??= { ...defaultBuiltinVisible };
         detached.consolePinned ??= false;
+        detached.builtinDisabled ??= [];
         await this.transaction(async () => {
             this.validateProfileName(profile);
             this.validateMappings(detached.mappings);
             this.validateNamespaces(detached.namespaces, detached.mappings);
             this.validateVisibility(detached.unmountedVisible);
             this.validateVisibility(detached.builtinVisible ?? {});
+            this.validateDisabled(detached.builtinDisabled);
             this.validateConsolePinned(detached.consolePinned);
             this.validateComments(detached.toolComments ?? {});
             const next = { ...this.state, ...detached, toolComments: detached.toolComments ?? {}, profile, revision: this.state.revision + 1 };
@@ -118,12 +123,14 @@ export class SemanticRegistry {
         const detached = structuredClone(configuration);
         detached.builtinVisible ??= { ...defaultBuiltinVisible };
         detached.consolePinned ??= false;
+        detached.builtinDisabled ??= [];
         await this.transaction(async () => {
             this.validateProfileName(name);
             this.validateMappings(detached.mappings);
             this.validateNamespaces(detached.namespaces, detached.mappings);
             this.validateVisibility(detached.unmountedVisible);
             this.validateVisibility(detached.builtinVisible ?? {});
+            this.validateDisabled(detached.builtinDisabled);
             this.validateConsolePinned(detached.consolePinned);
             this.validateComments(detached.toolComments ?? {});
             const next = { ...this.state, revision: this.state.revision + 1 };
@@ -155,7 +162,7 @@ export class SemanticRegistry {
             let next = { ...this.state, revision: revision + 1, inactiveProfiles: archive };
             if (action === 'create') {
                 if (exists(name)) throw new Error('Profile name already exists');
-                const empty: RegistryConfiguration = { mappings: [], namespaces: [], order: [], unmountedVisible: {}, consolePinned: false, builtinVisible: { ...defaultBuiltinVisible }, toolComments: {} };
+                const empty: RegistryConfiguration = { mappings: [], namespaces: [], order: [], unmountedVisible: {}, builtinDisabled: [], consolePinned: false, builtinVisible: { ...defaultBuiltinVisible }, toolComments: {} };
                 if (activate) {
                     archive[active] = this.configuration();
                     next = { ...next, ...empty, profile: name };
@@ -172,18 +179,31 @@ export class SemanticRegistry {
                     if (name === active) return;
                     const configuration = archive[name]!;
                     delete archive[name]; archive[active] = this.configuration();
-                    next = { ...next, ...configuration, toolComments: configuration.toolComments ?? {}, consolePinned: configuration.consolePinned ?? false, profile: name };
+                    next = { ...next, ...configuration, builtinDisabled: configuration.builtinDisabled ?? [], toolComments: configuration.toolComments ?? {}, consolePinned: configuration.consolePinned ?? false, profile: name };
                 } else if (action === 'delete') {
                     if (!Object.keys(archive).length) throw new Error('At least one profile is required');
                     if (name === active) {
                         const fallback = Object.keys(archive)[0]!;
-                        next = { ...next, ...archive[fallback]!, toolComments: archive[fallback]!.toolComments ?? {}, consolePinned: archive[fallback]!.consolePinned ?? false, profile: fallback }; delete archive[fallback];
+                        next = { ...next, ...archive[fallback]!, builtinDisabled: archive[fallback]!.builtinDisabled ?? [], toolComments: archive[fallback]!.toolComments ?? {}, consolePinned: archive[fallback]!.consolePinned ?? false, profile: fallback }; delete archive[fallback];
                     } else delete archive[name];
                 } else throw new Error('Invalid profile action');
             }
             await this.store.save('registry', next);
             this.state = next;
         });
+    }
+
+    /** @brief Resolve explicit command and inherited namespace disablement without dropping editor state. */
+    disabled(path: string): boolean {
+        if (path === 'tools.intellisense') return false;
+        return [...(this.state.builtinDisabled ?? []), ...(this.state.namespaces ?? []).filter(node => node.disabled).map(node => node.path)]
+            .some(prefix => path === prefix || path.startsWith(prefix + '.'))
+            || this.state.mappings.some(mapping => mapping.disabled && [mapping.path, ...mapping.aliases].includes(path));
+    }
+
+    /** @brief Validate disabled builtin paths while preserving the discovery entry point. */
+    private validateDisabled(paths: string[] | undefined): void {
+        if (paths !== undefined && (!Array.isArray(paths) || paths.some(path => typeof path !== 'string' || !/^(tools|console)(\.[A-Za-z_$][\w$]*)*$/.test(path) || path === 'tools.intellisense'))) throw new Error('Invalid disabled builtin paths');
     }
 
     tools(): PhysicalTool[] { return structuredClone([...this.physical.values()]); }
@@ -205,7 +225,7 @@ export class SemanticRegistry {
         const ids = new Set<string>();
         const paths: string[] = [];
         for (const m of mappings) {
-            if (!m || typeof m.id !== 'string' || ids.has(m.id) || !Array.isArray(m.aliases) || m.aliases.some(a => typeof a !== 'string') || typeof m.pinned !== 'boolean' || (m.description !== undefined && typeof m.description !== 'string') || (m.alwaysVisible !== undefined && ![0, 1, 2].includes(m.alwaysVisible))) throw new Error('Invalid mapping');
+            if (!m || typeof m.id !== 'string' || ids.has(m.id) || !Array.isArray(m.aliases) || m.aliases.some(a => typeof a !== 'string') || typeof m.pinned !== 'boolean' || (m.description !== undefined && typeof m.description !== 'string') || (m.disabled !== undefined && typeof m.disabled !== 'boolean') || (m.alwaysVisible !== undefined && ![0, 1, 2].includes(m.alwaysVisible))) throw new Error('Invalid mapping');
             ids.add(m.id);
             for (const path of [m.path, ...m.aliases]) {
                 validatePath(path);
@@ -220,7 +240,7 @@ export class SemanticRegistry {
         if (!Array.isArray(namespaces)) throw new Error('Invalid namespaces');
         const seen = new Set<string>();
         for (const entry of namespaces) {
-            if (!entry || typeof entry.path !== 'string' || typeof entry.alwaysVisible !== 'boolean' || typeof entry.description !== 'string' || seen.has(entry.path)) throw new Error('Invalid namespace');
+            if (!entry || typeof entry.path !== 'string' || typeof entry.alwaysVisible !== 'boolean' || typeof entry.description !== 'string' || (entry.disabled !== undefined && typeof entry.disabled !== 'boolean') || seen.has(entry.path)) throw new Error('Invalid namespace');
             validatePath(`${entry.path}.namespace_check`);
             if (mappings.flatMap(m => [m.path, ...m.aliases]).some(path => entry.path === path || entry.path.startsWith(`${path}.`))) throw new Error(`Namespace collision: ${entry.path}`);
             seen.add(entry.path);
@@ -244,7 +264,7 @@ export class SemanticRegistry {
     }
 
     /** @brief Save a configuration; an explicit editor target preserves the default profile even for named copies. */
-    async configure(mappings: Mapping[], revision: number, namespaces?: Namespace[], order?: string[], unmountedVisible?: CommandVisibility, profile?: string, toolComments?: Record<string, string>, builtinVisible?: CommandVisibility, consolePinned?: boolean, editingProfile?: string, activate = true): Promise<void> {
+    async configure(mappings: Mapping[], revision: number, namespaces?: Namespace[], order?: string[], unmountedVisible?: CommandVisibility, profile?: string, toolComments?: Record<string, string>, builtinVisible?: CommandVisibility, consolePinned?: boolean, editingProfile?: string, activate = true, builtinDisabled?: string[]): Promise<void> {
         const detached = structuredClone(mappings);
         await this.transaction(async () => {
             if (revision !== this.state.revision) throw new Error('Registry revision conflict; reload before saving');
@@ -253,12 +273,13 @@ export class SemanticRegistry {
                 if (profile === (this.state.profile ?? 'Default') || Object.hasOwn(this.state.inactiveProfiles ?? {}, profile)) throw new Error('Profile name already exists');
             }
             const base: RegistryConfiguration = !activate && profile !== undefined && editingProfile === undefined
-                ? { mappings: [], namespaces: [], order: [], unmountedVisible: {}, builtinVisible: { ...defaultBuiltinVisible }, consolePinned: false, toolComments: {} }
+                ? { mappings: [], namespaces: [], order: [], unmountedVisible: {}, builtinDisabled: [], builtinVisible: { ...defaultBuiltinVisible }, consolePinned: false, toolComments: {} }
                 : this.configuration(editingProfile);
             this.validateMappings(detached);
             this.validateConsolePinned(consolePinned);
             const comments = structuredClone(toolComments ?? base.toolComments ?? {});
             this.validateComments(comments);
+            this.validateDisabled(builtinDisabled);
             const builtins = structuredClone(builtinVisible ?? base.builtinVisible ?? defaultBuiltinVisible);
             this.validateVisibility(builtins);
             const selected = structuredClone(unmountedVisible ?? base.unmountedVisible ?? {});
@@ -284,7 +305,7 @@ export class SemanticRegistry {
             const known = new Set([...metadata.map(n => n.path), ...detached.flatMap(m => [m.path, ...m.aliases])]
                 .flatMap(path => path.split('.').map((_, i, parts) => parts.slice(0, i + 1).join('.'))));
             const treeOrder = [...new Set([...requestedOrder, ...known])].filter(path => known.has(path));
-            const configuration = { mappings: detached, namespaces: metadata, order: treeOrder, toolComments: comments, builtinVisible: builtins, consolePinned: consolePinned ?? base.consolePinned ?? false,
+            const configuration = { builtinDisabled: builtinDisabled ?? base.builtinDisabled ?? [], mappings: detached, namespaces: metadata, order: treeOrder, toolComments: comments, builtinVisible: builtins, consolePinned: consolePinned ?? base.consolePinned ?? false,
                 unmountedVisible: Object.fromEntries(Object.entries(selected).filter(([id]) => !detached.some(mapping => mapping.id === id))),
             };
             let next = { ...this.state, revision: this.state.revision + 1 };

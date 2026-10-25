@@ -1,5 +1,7 @@
 /** @brief Chinese interface dictionary. */
 export const zh = {
+    "disable_node": "禁用",
+    "enable_node": "启用",
     "builtin_schema": "Schema",
     "builtin_arguments": "调用参数",
     "builtin_error": "执行失败",

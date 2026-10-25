@@ -1,5 +1,7 @@
 /** @brief American English interface dictionary. */
 export const enUs = {
+    "disable_node": "Disable",
+    "enable_node": "Enable",
     "builtin_schema": "Schema",
     "builtin_arguments": "Arguments",
     "builtin_error": "Execution failed",

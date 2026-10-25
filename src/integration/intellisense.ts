@@ -10,9 +10,11 @@ import { profileAnnotation } from '../registry/profile_tree.js';
 import type { NamespaceComponent } from './namespace_component.js';
 
 /** @brief Render queried members and signatures through the shared namespace declaration model. */
-export function intellisense(queries: readonly string[], entries: readonly ManifestEntry[], runtime = false): string {
+export function intellisense(queries: readonly string[], entries: readonly ManifestEntry[], runtime = false, disabled: (path: string) => boolean = () => false): string {
     const selected = new Map<string, NamespaceDeclaration>();
-    const commands = runtime ? builtinCommands : builtinCommands.filter(command => command.path.startsWith('tools.'));
+    const commands = builtinCommands.filter(command => !disabled(command.path) && (runtime || command.path.startsWith('tools.')));
+    entries = entries.filter(entry => !disabled(entry.path));
+    const values = profileValues.filter(item => !disabled(item.path));
     const visibleEntries = runtime ? entries.filter(entry => !['tools_profile_annotation', 'tools_profile_commands'].includes(entry.tool)) : entries;
     /** @brief Keep exact contracts when a later overlapping query requests shallow members. */
     function insert(item: NamespaceDeclaration): void {
@@ -20,7 +22,7 @@ export function intellisense(queries: readonly string[], entries: readonly Manif
         selected.set(item.path, { ...item, ...previous, ...(previous?.declaration || previous?.valueType ? { namespace: false } : {}) });
     }
     for (const query of normalizeIntellisenseQueries(queries)) {
-        const value = runtime ? profileValues.find(item => item.path === query) : undefined;
+        const value = runtime ? values.find(item => item.path === query) : undefined;
         if (value) { selected.set(query, { path: query, valueType: value.signature, description: value.description }); continue; }
         const exact = query.endsWith('.') ? undefined : visibleEntries.find(entry => entry.path === query);
         const fixed = query.endsWith('.') ? undefined : commands.find(command => command.path === query);
@@ -30,12 +32,12 @@ export function intellisense(queries: readonly string[], entries: readonly Manif
         }
         const prefix = query ? query.replace(/\.$/, '') + '.' : '';
         if (prefix) insert({ path: prefix.slice(0, -1), namespace: true });
-        for (const command of [...visibleEntries, ...commands, ...(runtime ? profileValues : [])]) {
+        for (const command of [...visibleEntries, ...commands, ...(runtime ? values : [])]) {
             if (!command.path.startsWith(prefix)) continue;
             const path = prefix + command.path.slice(prefix.length).split('.')[0]!;
             insert(path !== command.path ? { path, namespace: true } : {
                 path, description: 'tool' in command ? command.doc : command.description,
-                ...(runtime && profileValues.some(item => item.path === path) && 'signature' in command ? { valueType: command.signature } : {}),
+                ...(runtime && values.some(item => item.path === path) && 'signature' in command ? { valueType: command.signature } : {}),
             });
         }
     }
@@ -62,8 +64,9 @@ export function registerIntellisense(ctx: Context, namespaces: NamespaceComponen
             if (!agent) throw new Error('A live conversation is required');
             execution.signal.throwIfAborted();
             const started = performance.now();
+            const registry = await namespaces.registryFor(agent);
             const info = namespaces.isPtc(agent)
-                ? intellisense(queries, await namespaces.entries(agent), true)
+                ? intellisense(queries, await namespaces.entries(agent), true, path => registry.disabled(path))
                 : await namespaces.discover(agent, queries);
             const position = namespaces.position(agent);
             appendPluginRecord(agent.session, 'plugin:ts_intellisense/intellisense', {

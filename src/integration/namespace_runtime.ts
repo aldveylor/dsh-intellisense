@@ -80,7 +80,7 @@ export class NamespaceRuntime extends Service {
                 pending.add(work);
                 void work.finally(() => { pending.delete(work); }).catch(() => {});
                 return bindingResult(work, signal);
-            }, controller.signal, await namespaces.values());
+            }, controller.signal, await namespaces.values(agent));
             if (result.error) throw new Error(result.error + (result.logs.length ? `\nCaptured output:\n${result.logs.join('\n')}` : ''));
             return { logs: result.logs, ...(result.value === undefined ? {} : { result: result.value }) };
         } catch (error) {
