@@ -36,7 +36,8 @@ test('three command levels hide, summarize, or publish complete documented signa
             assert(text.includes('function read(path: string): Promise<string>;'));
             assert(text.includes('@brief Read a file.'));
             assert(text.includes('@param path File path.'));
-            assert(text.includes('@returns File contents.'));
+            assert(!text.includes('@returns'));
+            assert(!text.includes('File contents.'));
             assert(text.includes('@param options Inspection depth, colors and hidden-property options.'));
             assert(!text.includes('@param depth'));
         }

@@ -18,8 +18,11 @@ test('accurate search applies OR, field selectors, namespace boundaries and resu
     assert.deepEqual(await searchEntries(entries, { keywords: ['READ', 'write'], method: 'accurate', target: 'name' }, selector), ['files.read', 'files.write']);
     assert.deepEqual(await searchEntries(entries, { keywords: ['document'], method: 'accurate', namespace_path: 'global.files.' }, selector), ['files.read', 'files.write']);
     assert.deepEqual(await searchEntries(entries, { keywords: ['filename'], method: 'accurate', target: 'parameters' }, selector), ['files.read']);
-    assert.deepEqual(await searchEntries(entries, { keywords: ['filename'], method: 'accurate', target: 'returns' }, selector), []);
-    assert.deepEqual(await searchEntries(entries, { keywords: ['successfully'], method: 'accurate', target: 'returns' }, selector), ['files.write']);
+    assert.deepEqual(searchParameters(selector).target.enum, ['name', 'description', 'parameters', 'all']);
+    for (const method of selector.engines.map(engine => engine.name)) {
+        assert.deepEqual(await searchEntries(entries, { keywords: ['successfully'], method, target: 'all' }, selector), []);
+    }
+    await assert.rejects(searchEntries(entries, { keywords: ['successfully'], target: 'returns' as never }, selector), /Invalid search target/);
     assert.deepEqual(await searchEntries(entries, { keywords: ['document'], method: 'accurate', max_results: 1 }, selector), ['files.read']);
     assert.deepEqual(await searchEntries(entries, { keywords: ['', '   '] }, selector), []);
     assert.deepEqual(await searchEntries(entries, { keywords: ['document'], max_results: 0 }, selector), []);

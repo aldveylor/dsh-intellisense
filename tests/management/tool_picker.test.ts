@@ -19,7 +19,7 @@ async function until(predicate: () => boolean): Promise<void> {
     assert(predicate(), 'Expected tool picker state');
 }
 
-test('picker shows global call counts, sortable cards and pointer-following YAML details', async () => {
+test('picker shows global call counts, sortable cards and pointer-following tool details', async () => {
     const registry = new SemanticRegistry(new MemoryStore());
     registry.refresh(['zebra', 'alpha', 'beta'].map(id => ({ id, source: id === 'alpha' ? 'Example plugin' : undefined,
         description: `${id} documentation`, parameters: { type: 'object', properties: { path: { type: 'string', description: 'File path' } } },
@@ -44,24 +44,29 @@ test('picker shows global call counts, sortable cards and pointer-following YAML
         await until(() => !!document.querySelector('[data-unmounted-count]'));
         document.querySelector<HTMLButtonElement>('[data-unmounted-count]')!.click();
         await until(() => !!document.querySelector('dialog[open]'));
-        const order = (): string[] => Array.from(document.querySelectorAll<HTMLElement>('dialog [data-tool-id]'), card => card.dataset.toolId!);
+        const order = (): string[] => Array.from(document.querySelectorAll<HTMLElement>('dialog [data-tool-id]:not(:disabled)'), card => card.dataset.toolId!);
         assert.deepEqual(order(), ['zebra', 'alpha', 'beta']);
-        assert.equal(document.querySelector('[data-tool-id="alpha"] .ts-tool-calls')!.textContent, '2');
-        assert.equal(document.querySelector('[data-tool-id="zebra"] .ts-tool-calls')!.textContent, '0');
-        const sort = document.querySelector<HTMLSelectElement>('.ts-tool-picker-summary select')!;
+        assert(document.querySelector('.ts-tool-picker-footer')!.textContent!.includes('3'));
+        assert(document.querySelectorAll('dialog .ts-builtin-tool:disabled').length > 0);
+        const sort = document.querySelector<HTMLButtonElement>('.ts-tool-picker-sort .ts-profile-select > button')!;
         for (const [value, expected] of [
             ['calls_desc', ['alpha', 'beta', 'zebra']], ['calls_asc', ['zebra', 'beta', 'alpha']],
             ['name_asc', ['alpha', 'beta', 'zebra']], ['name_desc', ['zebra', 'beta', 'alpha']],
             ['default', ['zebra', 'alpha', 'beta']],
         ] as const) {
-            sort.value = value; sort.dispatchEvent(new window.Event('change', { bubbles: true }));
+            sort.click();
+            await until(() => sort.getAttribute('aria-expanded') === 'true');
+            const options = document.querySelectorAll<HTMLButtonElement>('.ts-tool-picker-sort .ts-profile-option');
+            options[['default', 'name_asc', 'name_desc', 'calls_desc', 'calls_asc'].indexOf(value)]!.click();
             await until(() => order().join() === expected.join());
         }
         const card = document.querySelector<HTMLButtonElement>('[data-tool-id="alpha"]')!;
         card.dispatchEvent(new window.MouseEvent('pointerover', { bubbles: true, clientX: 100, clientY: 100 }));
         await until(() => !!document.querySelector('[role="tooltip"]'));
         const tooltip = document.querySelector<HTMLElement>('[role="tooltip"]')!;
-        for (const line of ['工具名: alpha', '来源: Example plugin', '工具描述: alpha documentation', '参数:', 'path: File path', '返回值:', 'content: File content', '总调用次数: 2']) assert(tooltip.textContent!.includes(line), line);
+        for (const line of ['alpha', 'Example plugin', 'alpha documentation', '参数', 'path', 'File path', '返回值', 'content', '总调用次数', '2']) assert(tooltip.textContent!.includes(line), line);
+        assert(!tooltip.textContent!.includes('File content'));
+        assert(tooltip.querySelector('.ts-tool-return')!.textContent!.includes('string'));
         const previous = tooltip.style.left;
         card.dispatchEvent(new window.MouseEvent('pointermove', { bubbles: true, clientX: 200, clientY: 150 }));
         assert.notEqual(tooltip.style.left, previous);
