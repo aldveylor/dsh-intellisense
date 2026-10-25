@@ -8,6 +8,8 @@
 
 `tool_commands.ts` 仅注册 Profile load/save/annotation/commands。save 支持显式名称或当前会话名称，验证递归树与物理命令身份，发布目录并替换当前会话配置；load 无名称只返回草稿，有名称切换会话版本。`../namespace/runtime.ts` 将 annotation 和原始命令列表作为数据传给 VM init，不安装同名函数。
 
+Profile 数据模型声明通过 tools.profile.annotation 按需读取；tools_intellisense 查询结果不自动附加这些声明。
+
 `builtin_trace.ts` 在 presentation 作用域包装内置工具注册，保存实际参数/输出 schema、调用参数、返回值、错误与耗时到独立插件审计。结果保持原始模型内容，字符串结果不再额外 JSON 编码。审计和 Profile annotation 通过调用者上下文的 get() 获取命名空间服务，不要求调用者插件显式注入 commandNamespaces。
 
 `intellisense.ts` 在物理 tools_intellisense 执行内调用 CommandStatistics.recordQueries，使用 intellisenseQueryTargets 解析有效查询目标；native/PTC 共享计数口径，不在 UI 或声明渲染器中计数。命名空间成员查询只计目标命名空间，精确命令查询计该命令路径，重复参数分别累计；运行时 environment 目标排除。详见 namespace/model.md。

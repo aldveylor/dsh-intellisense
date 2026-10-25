@@ -151,7 +151,7 @@ export class NamespaceComponent {
             const node = root.resolve(path.split('.'));
             if (pinned && !registry.disabled(path) && node && node.permissions.availableFixLevels.length) hints.push({ path, namespace: true, description: node instanceof NamespaceNode ? node.description : node.doc });
         }
-        return (hints.some(item => item.declaration && item.path.startsWith('tools.profile.')) ? '```ts\n' + profileAnnotation + '\n```\n\n' : '') + namespaceDirectory(hints);
+        return namespaceDirectory(hints);
     }
 
     /** @brief Keep native exposure limited to discovery, pinned commands and queried members. */

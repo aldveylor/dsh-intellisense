@@ -5,7 +5,6 @@ import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools';
 import { codeBlock } from '../protocol/code_block.js';
 import { appendPluginRecord } from '@deepseek-ai/dsh-session';
 import { declaration, normalizeIntellisenseQueries, queryNodes, NamespaceNode } from '../namespace/namespace.js';
-import { profileAnnotation } from '../registry/profile_tree.js';
 import type { NamespaceComponent } from '../namespace/component.js';
 import type { QueryTarget } from '../namespace/statistics.js';
 
@@ -46,7 +45,7 @@ export function intellisense(queries: readonly string[], root: NamespaceNode, ru
         const path = query.replace(/\.$/, '');
         if (path && root.resolve(path.split('.')) instanceof NamespaceNode) selected.set(path, { path, namespace: true });
     }
-    return profileAnnotation + '\n\n' + namespaceDeclaration([...selected.values()]);
+    return namespaceDeclaration([...selected.values()]);
 }
 
 /** @brief Register batched signature discovery as an ordinary guarded native tool. */
