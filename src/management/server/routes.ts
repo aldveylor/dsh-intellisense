@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
 import type { SemanticRegistry } from '../../registry/registry.js';
 import { createNamespace } from '../../namespace/namespace.js';
-import type { NamespaceComponent } from '../../namespace/namespace_component.js';
+import type { NamespaceComponent } from '../../namespace/component.js';
 import '@deepseek-ai/dsh-client-connection';
 import { managementHtml } from './page.js';
 

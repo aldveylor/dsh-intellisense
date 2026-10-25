@@ -1,7 +1,7 @@
 import { InnerNamespaceNode } from './inner_namespace_node.js';
 import { EnvironmentCommandNode } from './environment_command_node.js';
-import type { NamespaceNode } from './namespace_node.js';
-import type { NamespaceContext } from './namespace_context.js';
+import type { NamespaceNode } from './node.js';
+import type { NamespaceContext } from './context.js';
 import { pluginCommands } from '../../runtime/builtins.js';
 
 /** @brief Console describes the existing runtime object and owns its protected environment leaves. */

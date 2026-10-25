@@ -1,7 +1,7 @@
 import { nodePermissions } from '../node.js';
 import { CommandNode } from './command_node.js';
-import type { NamespaceNode } from './namespace_node.js';
-import { namespaceDeclaration, builtinDeclaration } from '../namespace_declaration.js';
+import type { NamespaceNode } from './node.js';
+import { namespaceDeclaration, builtinDeclaration } from '../declaration.js';
 import type { BuiltinCommand } from '../../runtime/builtins.js';
 
 /** @brief A native environment function is a normal leaf with a declaration and no tool deployment. */

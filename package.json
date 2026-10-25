@@ -26,8 +26,8 @@
       "default": "./dist/integration/preset.js"
     },
     "./namespace": {
-      "types": "./dist/namespace/namespace_plugin.d.ts",
-      "default": "./dist/namespace/namespace_plugin.js"
+      "types": "./dist/namespace/plugin.d.ts",
+      "default": "./dist/namespace/plugin.js"
     },
     "./presentation": {
       "types": "./dist/integration/presentation.d.ts",

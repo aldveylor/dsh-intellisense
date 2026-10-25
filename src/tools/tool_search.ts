@@ -2,7 +2,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools';
 import { searchEntries, searchParameters } from '../search/search.js';
 import { pluginCommands } from '../runtime/builtins.js';
-import type { NamespaceComponent } from '../namespace/namespace_component.js';
+import type { NamespaceComponent } from '../namespace/component.js';
 import { registerBuiltin } from './builtin_trace.js';
 
 /** @brief Build the search contract directly from the current registered engine selector. */

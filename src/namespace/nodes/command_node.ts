@@ -1,8 +1,8 @@
 import { nodePermissions, fixLevel, type Permission, type Node, type NodeType, type SerializedNode } from '../node.js';
 import type { ManifestEntry } from '../namespace.js';
 import type { CommandBinding } from '../../runtime/protocol.js';
-import type { NamespaceNode } from './namespace_node.js';
-import { namespaceDeclaration } from '../namespace_declaration.js';
+import type { NamespaceNode } from './node.js';
+import { namespaceDeclaration } from '../declaration.js';
 import { parameters, resultField, nativeArgumentsFor, resultFor, commandDeclaration } from './command_contract.js';
 
 /** @brief A resolved command owns its parent reference and callable contract. */

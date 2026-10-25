@@ -7,7 +7,7 @@ import { DshStore } from '../storage/store.js';
 import { SemanticRegistry } from '../registry/registry.js';
 import { ProfileSessions } from '../registry/profiles.js';
 import { createSearchEngines } from '../search/search.js';
-import { NamespaceComponent } from './namespace_component.js';
+import { NamespaceComponent } from './component.js';
 import { Aliases } from './namespace.js';
 import { registerManagement } from '../management/server/routes.js';
 import { ptcToolName } from '../runtime/builtins.js';

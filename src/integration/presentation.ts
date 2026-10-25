@@ -2,8 +2,8 @@ import type { Context } from '@deepseek-ai/cordis';
 import { scopeChainOf, scopeOf, type ScopeKey } from '@deepseek-ai/dsh-scope';
 import { z } from 'zod';
 import '@deepseek-ai/dsh-tools';
-import type {} from '../namespace/namespace_plugin.js';
-import { NamespaceRuntime } from '../namespace/namespace_runtime.js';
+import type {} from '../namespace/plugin.js';
+import { NamespaceRuntime } from '../namespace/runtime.js';
 
 export const name = 'intellisense-presentation';
 export const inject = ['tools', 'commandNamespaces'];

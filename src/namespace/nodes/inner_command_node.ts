@@ -1,10 +1,10 @@
 import { nodePermissions, type Permission } from '../node.js';
 import { CommandNode } from './command_node.js';
-import type { NamespaceNode } from './namespace_node.js';
+import type { NamespaceNode } from './node.js';
 import type { ManifestEntry } from '../namespace.js';
 import { pluginCommands, type BuiltinTool } from '../../runtime/builtins.js';
 import type { CommandBinding } from '../../runtime/protocol.js';
-import { namespaceDeclaration, builtinDeclaration } from '../namespace_declaration.js';
+import { namespaceDeclaration, builtinDeclaration } from '../declaration.js';
 
 /** @brief Restricted server commands own adapters and policies without exposing their class to clients. */
 export class InnerCommandNode extends CommandNode {

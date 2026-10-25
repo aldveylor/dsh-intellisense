@@ -1,6 +1,6 @@
 import { Service, type Context } from '@deepseek-ai/cordis';
 import { CodeRunFailedError, defineTool, type ToolRunContext } from '@deepseek-ai/dsh-tools';
-import type {} from './namespace_plugin.js';
+import type {} from './plugin.js';
 import { RuntimeHost, type RuntimeConfig } from '../runtime/host.js';
 import { ptcToolName } from '../runtime/builtins.js';
 import { codeBlock } from '../protocol/code_block.js';

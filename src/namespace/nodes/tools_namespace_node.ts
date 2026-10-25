@@ -2,8 +2,8 @@ import { InnerNamespaceNode } from './inner_namespace_node.js';
 import { InnerCommandNode } from './inner_command_node.js';
 import { IntellisenseCommandNode } from './intellisense_command_node.js';
 import { ProfileNamespaceNode } from './profile_namespace_node.js';
-import type { NamespaceNode } from './namespace_node.js';
-import type { NamespaceContext } from './namespace_context.js';
+import type { NamespaceNode } from './node.js';
+import type { NamespaceContext } from './context.js';
 import { pluginCommands } from '../../runtime/builtins.js';
 
 /** @brief Tools owns its protected discovery, search and Profile children and cannot be disabled. */

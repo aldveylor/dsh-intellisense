@@ -1,5 +1,5 @@
 import { nodePermissions, type Permission } from '../node.js';
-import { NamespaceNode } from './namespace_node.js';
+import { NamespaceNode } from './node.js';
 
 /** @brief Restricted namespaces own their children and reject external structural edits. */
 export class InnerNamespaceNode extends NamespaceNode {

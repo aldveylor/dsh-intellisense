@@ -1,4 +1,4 @@
-import { namespaceDeclaration, type NamespaceDeclaration } from '../namespace/namespace_declaration.js';
+import { namespaceDeclaration, type NamespaceDeclaration } from '../namespace/declaration.js';
 import { registerBuiltin } from './builtin_trace.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools';
@@ -6,7 +6,7 @@ import { codeBlock } from '../protocol/code_block.js';
 import { appendPluginRecord } from '@deepseek-ai/dsh-session';
 import { declaration, normalizeIntellisenseQueries, queryNodes, NamespaceNode } from '../namespace/namespace.js';
 import { profileAnnotation } from '../registry/profile_tree.js';
-import type { NamespaceComponent } from '../namespace/namespace_component.js';
+import type { NamespaceComponent } from '../namespace/component.js';
 
 /** @brief Render queried members and signatures through the shared namespace declaration model. */
 export function intellisense(queries: readonly string[], root: NamespaceNode, runtime = false, disabled: (path: string) => boolean = () => false): string {

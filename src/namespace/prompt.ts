@@ -1,6 +1,6 @@
 import { ptcToolName } from '../runtime/builtins.js';
-import { namespaceDeclaration, type NamespaceDeclaration } from './namespace_declaration.js';
-export { builtinDeclaration } from './namespace_declaration.js';
+import { namespaceDeclaration, type NamespaceDeclaration } from './declaration.js';
+export { builtinDeclaration } from './declaration.js';
 
 /** @brief Select the initial command instructions from the configured presentation mode. */
 export function executionInstructions(mode: 'native' | 'ptc'): string {
