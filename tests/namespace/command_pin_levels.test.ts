@@ -69,3 +69,18 @@ test('builtin provider preserves detailed pins and keeps discovery pinned', () =
     assert.equal(tree.find(node => node.path === 'tools')?.commands.find(command => command.path === 'tools.intellisense')?.alwaysVisible, 2);
     assert.equal(TreeProvider(createNamespace({ tools: [], includeUnavailable: true }).serialize().children!, { 'tools.intellisense': 0 }).find(node => node.path === 'tools')?.commands.find(command => command.path === 'tools.intellisense')?.alwaysVisible, 2);
 });
+
+test('PTC initial prompts retain descriptions of parents of pinned commands only', async () => {
+    const registry = new SemanticRegistry(new MemoryStore());
+    registry.refresh([tool, { id: 'tools_intellisense', description: 'Discover tools', parameters: {}, output: {} }]);
+    for (const level of [0, 1, 2] as const) {
+        await registry.configure([{ id: tool.id, path: 'files.library.read', aliases: [], pinned: false, alwaysVisible: level }], registry.snapshot().revision, [
+            { path: 'files', description: 'File operations', alwaysVisible: false },
+            { path: 'files.library', description: 'Library files', alwaysVisible: false },
+        ]);
+        const text = await prompt(registry);
+        assert(text.includes('namespace tools {  // Tool discovery and Profile management'));
+        assert.equal(text.includes('namespace files {  // File operations'), level > 0);
+        assert.equal(text.includes('namespace library {  // Library files'), level > 0);
+    }
+});

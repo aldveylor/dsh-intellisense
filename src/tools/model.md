@@ -19,3 +19,5 @@ Profile 数据模型声明通过 tools.profile.annotation 按需读取；tools_i
 tools.profile.commands 返回完整命令目录的 name、brief、totalCalls；totalCalls 复用命名空间全局统计，供 AI 整理 Profile 时判断调用频率。运行时提示不描述统计更新时机。
 
 PTC 在每次执行前预加载 commands，并由 VM 命令包装同步更新本次执行内对应物理工具的 totalCalls，只更新 VM 视图，不额外通知宿主。native 的 tools.profile.commands 是实际工具函数，每次调用均重新读取 CommandStatistics 全局快照，返回该次读取时的最新累计值，不复用上次返回的数组。
+
+命名空间成员同样保留注释：native 命名空间条目返回 brief；PTC 对直接命中的命名空间、显式查询的命名空间及返回成员的父命名空间链输出描述注释。Profile 自定义描述与内置 tools 等节点描述均从共享运行时树读取。

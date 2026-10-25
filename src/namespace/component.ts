@@ -152,6 +152,17 @@ export class NamespaceComponent {
             const node = root.resolve(path.split('.'));
             if (pinned && !registry.disabled(path) && node && node.permissions.availableFixLevels.length) hints.push({ path, namespace: true, description: node instanceof NamespaceNode ? node.description : node.doc });
         }
+        const included = new Set(hints.map(hint => hint.path));
+        for (const hint of [...hints]) {
+            let parent = root.resolve(hint.path.split('.'))?.parent;
+            while (parent?.path) {
+                if (!included.has(parent.path)) {
+                    hints.push({ path: parent.path, namespace: true, description: parent.description });
+                    included.add(parent.path);
+                }
+                parent = parent.parent;
+            }
+        }
         return namespaceDirectory(hints);
     }
 

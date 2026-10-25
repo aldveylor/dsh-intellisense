@@ -30,7 +30,7 @@ export function intellisense(queries: readonly string[], root: NamespaceNode, ru
     for (const node of queryNodes(root, queries)) {
         if (disabled(node.path)) continue;
         if (node instanceof NamespaceNode) {
-            selected.set(node.path, { path: node.path, namespace: true });
+            selected.set(node.path, { path: node.path, namespace: true, description: node.description });
             continue;
         }
         const value = runtime && node.preload;
@@ -43,7 +43,15 @@ export function intellisense(queries: readonly string[], root: NamespaceNode, ru
     // Preserve an explicitly queried namespace even when it has no direct children.
     for (const query of exact) {
         const path = query.replace(/\.$/, '');
-        if (path && root.resolve(path.split('.')) instanceof NamespaceNode) selected.set(path, { path, namespace: true });
+        const node = root.resolve(path.split('.'));
+        if (path && node instanceof NamespaceNode) selected.set(path, { path, namespace: true, description: node.description });
+    }
+    for (const path of [...selected.keys()]) {
+        let parent = root.resolve(path.split('.'))?.parent;
+        while (parent?.path) {
+            selected.set(parent.path, { path: parent.path, namespace: true, description: parent.description });
+            parent = parent.parent;
+        }
     }
     return namespaceDeclaration([...selected.values()]);
 }

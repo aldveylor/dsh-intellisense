@@ -69,6 +69,7 @@ export function queryNodes(root: NamespaceNode, queries: readonly string[]): (Na
 /** @brief Build deterministic, scoped aliases from the current Profile and physical tool catalog. */
 export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Aliases>): NamespaceNode {
     const root = createNamespace({ tools: registry.tools(), disabled: path => registry.disabled(path) });
+    const descriptions = new Map(registry.snapshot().namespaces?.map(item => [item.path, item.description]));
     const insert = (entry: ManifestEntry): void => {
         if (registry.disabled(entry.path)) return;
         const parts = entry.path.split('.');
@@ -78,7 +79,7 @@ export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Ali
             const existing = parent.children.get(name);
             if (existing && !(existing instanceof NamespaceNode)) throw new Error(`Namespace overlaps a callable path: ${entry.path}`);
             if (existing && !existing.permissions.acceptsChildren) throw new Error(`Namespace does not accept mappings: ${entry.path}`);
-            parent = existing ?? parent.add(new NamespaceNode(name, parent));
+            parent = existing ?? parent.add(new NamespaceNode(name, parent, descriptions.get(parent.path ? `${parent.path}.${name}` : name) ?? ''));
         }
         const name = parts.at(-1)!;
         const previous = parent.children.get(name);

@@ -83,6 +83,7 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
                 assert.deepEqual(names, ['tools_run_code']);
                 assert(systemOf(request).includes('Each execution uses a fresh context'));
                 assert(systemOf(request).includes('function intellisense('));
+                assert(systemOf(request).includes('namespace tools {  // Tool discovery and Profile management'));
                 const execution = await agent.ctx.tools.execute({ agent, callId: ToolCallId('integration-code'), name: 'tools_run_code', arguments: { code: 'return 42;', description: 'Check scoped runtime' }, signal: new AbortController().signal });
                 assert.equal(execution.isError, false, JSON.stringify(execution));
                 assert.deepEqual(execution.value, { logs: [], result: 42 });
@@ -90,12 +91,15 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
                 assert.deepEqual(names, ['ns_tools__intellisense']);
                 assert.equal(agent.ctx.get('codeRuntime'), undefined);
                 assert(!systemOf(request).includes('TypeScript/JavaScript'));
+                let discoverySequence = 0;
                 const discover = async (queries: string[]) => {
-                    const result = await agent.ctx.tools.execute({ agent, callId: ToolCallId(`integration-discovery-${model.requests.length}`), name: 'ns_tools__intellisense', arguments: { queries }, signal: new AbortController().signal });
+                    const result = await agent.ctx.tools.execute({ agent, callId: ToolCallId(`integration-discovery-${++discoverySequence}`), name: 'ns_tools__intellisense', arguments: { queries }, signal: new AbortController().signal });
                     assert.equal(result.isError, false, JSON.stringify(result));
                     assert(!JSON.stringify(result.value).includes('Complete file documentation.'));
                     return JSON.parse(result.value as string);
                 };
+                const roots = await discover(['']);
+                assert.equal(roots.members.find((member: { path: string }) => member.path === 'tools').brief, 'Tool discovery and Profile management');
                 const listing = await discover(['global.std.fs.']);
                 assert.deepEqual(listing.members, [{ path: 'std.fs.read', deployment: 'tool', brief: 'Read file contents' }]);
                 await send();

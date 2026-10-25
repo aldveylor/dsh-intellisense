@@ -5,6 +5,7 @@ import ts from 'typescript';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
 import { Aliases, manifest, resultFor, declaration } from '../../src/namespace/namespace.js';
+import { nativeDiscovery } from '../../src/namespace/native_tools.js';
 import { intellisense } from '../../src/tools/intellisense.js';
 
 /** @brief Provide a scoped catalog with preserved native command documentation. */
@@ -88,4 +89,26 @@ test('zero-argument closed objects and unstructured object inputs keep unambiguo
     const open = { ...entry, schema: { type: 'object' } };
     assert.deepEqual(await positionalArguments(open, [{ key: 'value' }]), { key: 'value' });
     await assert.rejects(positionalArguments(open, [null]), /Invalid arguments/);
+});
+
+test('namespace descriptions survive native discovery and PTC member and exact queries', async () => {
+    const catalog = await registry();
+    await catalog.configure([{ id: 'read_file', path: 'files.library.read', aliases: [], pinned: false }], catalog.snapshot().revision, [
+        { path: 'files', description: 'File operations', alwaysVisible: false },
+        { path: 'files.library', description: 'Library files', alwaysVisible: false },
+    ]);
+    const root = manifest(catalog, []);
+    const members = JSON.parse(nativeDiscovery(['', 'files.'], root, [])).members;
+    assert.equal(members.find((member: { path: string }) => member.path === 'files').brief, 'File operations');
+    assert.equal(members.find((member: { path: string }) => member.path === 'files.library').brief, 'Library files');
+    assert.equal(members.find((member: { path: string }) => member.path === 'tools').brief, 'Tool discovery and Profile management');
+    for (const query of ['files.library.', 'global.files.library.read']) {
+        const text = intellisense([query], root, true);
+        assert(text.includes('namespace files {  // File operations'));
+        assert(text.includes('namespace library {  // Library files'));
+        assert(!text.includes('namespace tools'));
+    }
+    for (const query of ['', 'tools.', 'tools.profile.']) {
+        assert(intellisense([query], root, true).includes('namespace tools {  // Tool discovery and Profile management'));
+    }
 });

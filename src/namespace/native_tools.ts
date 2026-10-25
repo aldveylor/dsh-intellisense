@@ -33,7 +33,7 @@ export function nativeDiscovery(queries: readonly string[], root: NamespaceNode,
     const names = new Map(bindings.map(({ entry, name }) => [entry, name]));
     const exact = new Set(normalizeIntellisenseQueries(queries));
     const members = queryNodes(root, queries).sort((a, b) => a.path.localeCompare(b.path)).map(node => node instanceof NamespaceNode
-        ? { path: node.path, namespace: true }
+        ? { path: node.path, namespace: true, brief: node.description }
         : { path: node.path, deployment: node.deployment, brief: brief(node.tool) ?? node.doc.trim().split(/\r?\n/, 1)[0],
             ...(node.deployment === 'tool' ? {} : { tool: names.get(node), description: node.doc }),
             ...(exact.has(node.path) ? { parameters: nativeSchema(node), output: outputSchema(node.output) } : {}) });
