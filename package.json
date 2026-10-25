@@ -2,6 +2,19 @@
   "name": "dsh-intellisense",
   "version": "0.1.1",
   "description": "Namespace-based DSML and isolated JavaScript/TypeScript execution with on-demand IntelliSense for DeepSeek Harness",
+  "author": "aldveylor",
+  "keywords": [
+    "deepseek",
+    "deepseek-harness",
+    "dsh",
+    "intellisense",
+    "dsml",
+    "typescript",
+    "javascript",
+    "namespace",
+    "code-execution",
+    "agent-tools"
+  ],
   "icon": "./docs/icon.svg",
   "type": "module",
   "main": "dist/index.js",
@@ -47,7 +60,15 @@
       "patch": "./cordis.patch.yml"
     },
     "client": {
-      "inject": [],
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-api-session-controller",
+        "@deepseek-ai/dsh-client-ui-workspace",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-plugin-manager"
+      ],
       "platform": "web",
       "immediately": true
     }
