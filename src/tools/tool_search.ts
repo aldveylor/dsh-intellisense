@@ -11,7 +11,7 @@ export function searchDefinition(namespaces: Pick<NamespaceComponent, 'entries' 
     return defineTool({
         name: 'tools_search', description: pluginCommands.searchCommand.description,
         parameters: searchParameters(selector),
-        output: { schema: { type: 'array', items: { type: 'string' }, description: 'Fully qualified command paths. Use tools.intellisense for full command details.' }, render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }] },
+        output: { schema: { type: 'array', items: { type: 'string' } }, render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }] },
         execute: async (args, execution) => {
             const agent = execution.agent;
             if (!agent) throw new Error('A live conversation is required');

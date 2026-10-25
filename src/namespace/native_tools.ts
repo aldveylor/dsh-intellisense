@@ -1,3 +1,4 @@
+import { outputSchema } from '../output_schema.js';
 import { createHash } from 'node:crypto';
 import { nativeSchema, normalizeIntellisenseQueries, queryNodes, CommandNode, NamespaceNode } from './namespace.js';
 
@@ -34,6 +35,6 @@ export function nativeDiscovery(queries: readonly string[], root: NamespaceNode,
         ? { path: node.path, namespace: true }
         : { path: node.path, deployment: node.deployment,
             ...(node.deployment === 'tool' ? {} : { tool: names.get(node), description: node.doc }),
-            ...(exact.has(node.path) ? { parameters: nativeSchema(node), output: node.output } : {}) });
+            ...(exact.has(node.path) ? { parameters: nativeSchema(node), output: outputSchema(node.output) } : {}) });
     return JSON.stringify({ members }, null, 2);
 }

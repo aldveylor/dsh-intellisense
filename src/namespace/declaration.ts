@@ -62,7 +62,7 @@ export function builtinDeclaration(command: BuiltinCommand & Partial<Pick<Builti
     }
     const descriptions: Record<string, string> = {
         keywords: 'Keywords to search with OR semantics.', method: 'Registered search method; defaults to the configured engine.',
-        max_results: 'Maximum results; defaults to 10.', target: 'Search name, description, parameters, returns, or all (default).',
+        max_results: 'Maximum results; defaults to 10.', target: 'Search name, description, parameters, or all (default).',
         namespace_path: 'Namespace subtree; an empty string searches the entire tree (default).',
         data: 'Values to format or display.', value: 'Object to inspect.', options: 'Inspection depth, colors and hidden-property options.',
         label: 'Timer or counter label.', condition: 'Condition to check.', properties: 'Properties to include in the table.',
@@ -70,8 +70,7 @@ export function builtinDeclaration(command: BuiltinCommand & Partial<Pick<Builti
     };
     /** @brief Keep builtin documentation inside its comment and prompt fence. */
     const clean = (text: string): string => decodeHTML(text).replaceAll('*/', '* /').replace(/[`\r\n\u2028\u2029]/g, ' ').replace(/<\|/g, '< |');
-    const docs = [` * @brief ${clean(command.description)}`, ...names.map(name => ` * @param ${name} ${descriptions[name] ?? 'Command arguments.'}`),
-        ` * @returns ${command.path === 'tools.intellisense' ? 'Complete TypeScript declarations for the requested paths.' : 'No return value.'}`];
+    const docs = [` * @brief ${clean(command.description)}`, ...names.map(name => ` * @param ${name} ${descriptions[name] ?? 'Command arguments.'}`)];
     const signatures = command.preload ? [`() => Promise<${command.signature}>`] : [command.signature, ...command.overloads ?? []];
     return `/**\n${docs.join('\n')}\n */\n${signatures.map(signature => `function ${command.path.split('.').at(-1)}${signature.replace(' => ', ': ')};`).join('\n')}`;
 }

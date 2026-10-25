@@ -1,3 +1,4 @@
+import { outputSchema } from '../output_schema.js';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 import * as presentation from '../integration/presentation.js';
@@ -72,7 +73,7 @@ export class NamespaceComponent {
                 return [];
             }
             if (this.generatedTools.has(definition)) return [];
-            return [{ id: tool.name, description: tool.description, parameters: tool.parameters, output: definition.output.schema }];
+            return [{ id: tool.name, description: tool.description, parameters: tool.parameters, output: outputSchema(definition.output.schema) }];
         });
     }
 

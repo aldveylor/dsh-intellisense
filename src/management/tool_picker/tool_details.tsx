@@ -1,3 +1,4 @@
+import { outputSchema } from '../../output_schema.js';
 import { TooltipProvider, useTooltip } from '../tooltip/tooltip.js';
 import { TypeScriptBlock } from '../code_block/code_block.js';
 import type { PhysicalTool } from '../../registry/registry.js';
@@ -77,7 +78,7 @@ function SchemaTable({ label, schema }: { label: string; schema: unknown }) {
 /** @brief Present tool metadata, parameter fields and a TypeScript return declaration. */
 export function ToolDetails({ tool, calls }: { tool: PhysicalTool; calls: number }) {
     const t = useTranslation();
-    const output = schemaRecord(tool.output);
+    const output = outputSchema(tool.output);
     return <article className="ts-tool-details">
         <header className="ts-tool-detail-header">
             <div><h3><code>{tool.id}</code></h3><p>{tool.description || t('tool_no_description')}</p></div>
@@ -86,8 +87,7 @@ export function ToolDetails({ tool, calls }: { tool: PhysicalTool; calls: number
         <TooltipProvider><SchemaTable label={t('tool_parameters')} schema={tool.parameters} /></TooltipProvider>
         <section className="ts-tool-return">
             <h4>{t('tool_returns')}</h4>
-            {typeof output.description === 'string' && output.description.trim() && <p>{output.description}</p>}
-            <TypeScriptBlock code={tool.outputDeclaration ?? schemaType(tool.output, true)} />
+            <TypeScriptBlock code={tool.outputDeclaration ?? schemaType(output, true)} />
         </section>
         <ToolStatistics calls={calls} />
     </article>;

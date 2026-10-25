@@ -1,4 +1,5 @@
 import { decodeHTML } from 'entities';
+import { outputSchema } from '../../output_schema.js';
 import { jsonSchemaToTs, validateJsonSchemaValue, type JsonSchemaNode } from '@deepseek-ai/dsh-tools';
 import type { ManifestEntry } from '../namespace.js';
 
@@ -69,7 +70,7 @@ export function commandDeclaration(entry: ManifestEntry): string {
         : `args: ${typeName(entry.schema, 'args')}`;
     const parameterDocs = fields ? fields.map(field => ` * @param ${field.name} ${doc(field.schema.description ?? 'Tool argument')}`).join('\n') : ' * @param args Tool arguments';
     const field = resultField(entry);
-    const result = typeName(field?.[1] ?? entry.output, 'result');
+    const result = typeName(outputSchema(field?.[1] ?? entry.output), 'result');
     const optionalResult = field && !(entry.output as JsonSchemaNode).required?.includes(field[0]) ? ' | undefined' : '';
-    return `${types.length ? types.join('\n') + '\n\n' : ''}/**\n * @brief ${doc(entry.doc)}\n${parameterDocs ? parameterDocs + '\n' : ''} * @returns ${field?.[1].description ? doc(field[1].description) : 'Tool result'}\n */\nfunction ${name}(${args}): Promise<${result}${optionalResult}>;\n`;
+    return `${types.length ? types.join('\n') + '\n\n' : ''}/**\n * @brief ${doc(entry.doc)}\n${parameterDocs ? parameterDocs + '\n' : ''} */\nfunction ${name}(${args}): Promise<${result}${optionalResult}>;\n`;
 }
