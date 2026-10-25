@@ -28,7 +28,7 @@ tools.intellisense 固定映射到内置 tools_intellisense，强制固定等级
 
 UI 不再显示 unknown 块。树上方显示当前可用但未挂载的工具数量，点击打开只含未挂载工具的选择器；数量随挂载、移除映射和切换 Profile 更新。失效工具不计入，映射不再保存 enabled 标志，移除映射即取消挂载；内置管理工具、run_code 和 tools_run_code 不计入未挂载工具。
 
-`management/panel/tree_node.ts` 以 `NamespaceTree` 和 `TreeNode` 派生类表达节点层级、交互策略及渲染分派；`management/panel/namespace_tree.ts` 处理路径、树迁移和混合拖动排序，固定内置节点禁止落入或移动。工具选择器仍可搜索普通可用工具并挂入根或指定命名空间。`management/profile_picker/` 实现 Profile 切换、创建、删除、重命名、保存和另存为；草稿名称带 *。`management/locale/` 保留本地化与原生语言桥接。运行时预算由 zod Config 管理；旧历史偏好接口及控件已移除。
+`management/panel/tree_node.ts` 的 `TreeNode` 派生类实现共享 `Node` 接口，`NamespaceTree.root` 持有根节点，路径从父子引用派生，支持 type 和无父引用的 serialize。UI 与 integration 共用编辑、禁用及 fixLevels 权限；内置命令按钮按禁用、固定排列，不可禁用时隐藏禁用按钮；`management/panel/namespace_tree.ts` 处理路径、树迁移和混合拖动排序，固定内置节点禁止落入或移动。工具选择器仍可搜索普通可用工具并挂入根或指定命名空间。`management/profile_picker/` 实现 Profile 切换、创建、删除、重命名、保存和另存为；草稿名称带 *。`management/locale/` 保留本地化与原生语言桥接。运行时预算由 zod Config 管理；旧历史偏好接口及控件已移除。
 
 `management/server/routes.ts` 的管理接口沿用原生 Connection 的认证和 Host/Origin 保护。“生成整理提案”由客户端创建默认模型的 Intellisense PTC 新会话，按界面语言预填整理提示，等待用户点击提交；服务端不再提供提案生成或批准接口。
 

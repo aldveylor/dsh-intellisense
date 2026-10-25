@@ -4,6 +4,7 @@ import { ErrorDialog } from './error_dialog.js';
 import { NamespaceTree, type TreeNode, type CommandTreeNode, type NamespaceTreeNode } from './tree_node.js';
 import { useEffect, useState, type ComponentType, type DragEvent } from 'react';
 import type { Namespace, Mapping, PhysicalTool, RegistryState, PinLevel, CommandVisibility, RegistryConfiguration } from '../../registry/registry.js';
+import { nextFixLevel } from '../../integration/node.js';
 import { pluginCommands } from '../../runtime/builtins.js';
 import { validatePath } from '../../registry/path.js';
 import { TreeProvider, unmountedTools } from './tree_provider.js';
@@ -115,6 +116,10 @@ function CommandNode({ node, tree }: { node: CommandTreeNode; tree: TreeProps })
     const readOnly = node.fixed;
     const invalid = !!mapping && !tree.tools.some(tool => tool.id === id);
     const draggable = !tree.busy && node.draggable;
+    const disableButton = node.permissions.disable ? <DisableButton disabled={tree.disabled(path)} busy={tree.busy} toggle={() => tree.toggleDisabled(path)} /> : null;
+    const pinButton = <PinButton label={t('pin_command', { path })} active={!!node.level} level={node.level} busy={tree.busy || !!command?.disabled}
+        locked={node.permissions.fixLevels.length <= 1}
+        toggle={() => { if (command) tree.pinBuiltin(path); else if (mapping) tree.pinTool(mapping); else if (id) tree.pinUnmounted(id); }} />;
     return <li className={`ts-tree-tool${fixed ? ' ts-fixed-node' : ''}${invalid ? ' ts-tool-invalid' : ''}`}
         aria-disabled={tree.disabled(path) || undefined} data-tool-status={tree.disabled(path) ? 'disabled' : invalid ? 'invalid' : 'available'} data-tree-path={path} data-tool-id={id} data-drop-disabled={readOnly || undefined}
         title={invalid ? t('invalid_tool') : description} draggable={draggable}
@@ -134,9 +139,9 @@ function CommandNode({ node, tree }: { node: CommandTreeNode; tree: TreeProps })
                 if (!fixed && id && event.key === 'Enter') { event.preventDefault(); tree.editDescription(id); }
             }}>{(id && Object.hasOwn(tree.toolComments, id) ? tree.toolComments[id] : undefined) ?? mapping?.description ?? description ?? t('edit_comment')}</span>
         <span className="ts-node-actions">
-            <PinButton label={t('pin_command', { path })} active={!!(command?.alwaysVisible ?? mapping?.alwaysVisible)} level={command?.alwaysVisible ?? mapping?.alwaysVisible ?? 0} busy={tree.busy || !!command?.disabled || path === 'tools.intellisense'}
-                toggle={() => { if (command) tree.pinBuiltin(command.path); else if (mapping) tree.pinTool(mapping); else if (id) tree.pinUnmounted(id); }} />
-            {path !== 'tools.intellisense' && <DisableButton disabled={tree.disabled(path)} busy={tree.busy} toggle={() => tree.toggleDisabled(path)} />}
+            {command && disableButton}
+            {pinButton}
+            {!command && disableButton}
             {!readOnly && <RemoveButton label={t('remove_mapping', { path })} busy={tree.busy || !!mapping?.pinned} remove={() => tree.remove(path)} />}
         </span>
     </li>;
@@ -227,11 +232,11 @@ function NamespaceNode({ node, tree }: { node: NamespaceTreeNode; tree: TreeProp
                 <RemoveButton label={t('delete_namespace', { path })} busy={tree.busy} remove={() => tree.deleteNamespace(path)} />
             </span></>}
             {node.pinMode === 'locked' && <span className="ts-node-actions">
-                <DisableButton disabled={tree.disabled(path)} busy={tree.busy} toggle={() => tree.toggleDisabled(path)} />
+                {node.permissions.disable && <DisableButton disabled={tree.disabled(path)} busy={tree.busy} toggle={() => tree.toggleDisabled(path)} />}
                 <PinButton label={t('fixed_namespace')} tooltip={t('fixed_namespace')} active busy={tree.busy} locked toggle={() => {}} />
             </span>}
             {node.pinMode === 'console' && <span className="ts-node-actions">
-                <DisableButton disabled={tree.disabled(path)} busy={tree.busy} toggle={() => tree.toggleDisabled(path)} />
+                {node.permissions.disable && <DisableButton disabled={tree.disabled(path)} busy={tree.busy} toggle={() => tree.toggleDisabled(path)} />}
                 <PinButton label={t('pin_namespace', { path })} active={tree.consolePinned} busy={tree.busy} toggle={tree.toggleConsole} />
             </span>}
         </div>
@@ -454,12 +459,13 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
     const drag = useTreeDrag(applyDrop);
 
     const tree: TreeProps = {
-        disabled: path => path !== 'tools.intellisense' && (builtinDisabled.some(prefix => inNamespace(path, prefix))
+        disabled: path => !!namespaceTree.root.resolve(path.split('.'))?.permissions.disable && (builtinDisabled.some(prefix => inNamespace(path, prefix))
             || namespaces.some(node => node.disabled && inNamespace(path, node.path))
             || mappings.some(mapping => mapping.disabled && [mapping.path, ...mapping.aliases].includes(path))),
         toggleDisabled: path => {
-            if (busy || path === 'tools.intellisense') return;
-            if (path.startsWith('tools.') || path === 'tools' || path === 'console' || path.startsWith('console.')) {
+            const node = namespaceTree.root.resolve(path.split('.'));
+            if (busy || !node?.permissions.disable) return;
+            if (node.type === 'inner_command' || node.type === 'inner_namespace') {
                 setBuiltinDisabled(current => current.includes(path) ? current.filter(item => item !== path) : [...current, path]);
             } else {
                 const mapping = mappings.find(item => [item.path, ...item.aliases].includes(path));
@@ -469,7 +475,11 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
         },
         consolePinned, toggleConsole: () => setConsolePinned(current => !current),
         expanded, tools: view?.tools ?? [], busy: busy || !view,
-        pinBuiltin: path => setBuiltinVisible(current => ({ ...current, [path]: path === 'tools.intellisense' ? 2 : nextPinLevel(current[path] ?? 0) })),
+        pinBuiltin: path => {
+            const node = namespaceTree.root.resolve(path.split('.'));
+            if (busy || !node || node.permissions.fixLevels.length <= 1) return;
+            setBuiltinVisible(current => ({ ...current, [path]: nextFixLevel(node.permissions, current[path] ?? 0) }));
+        },
         toolComments, unmountedVisible, pinUnmounted: id => setUnmountedVisible(current => ({ ...current, [id]: nextPinLevel(current[id] ?? 0) })),
         editDescription: id => { if (!busy) setDescriptionEditor({ id, text: Object.hasOwn(toolComments, id) ? toolComments[id] : mappings.find(m => m.id === id)?.description }); },
         pick: parent => setToolPicker({ parent }), configure: configureNamespace, drop: (event, parent) => nativeDrop(event, { path: parent, position: 'inside' }), create: createNamespace, rename: renameMapping, remove: removeMapping,

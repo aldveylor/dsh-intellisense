@@ -6,7 +6,10 @@ import type { Mapping, Namespace } from '../../registry/registry.js';
 export interface TreeDraft { mappings: Mapping[]; namespaces: Namespace[]; order: string[] }
 
 /** @brief Fixed namespaces are display-only and cannot receive configurable tree nodes. */
-export function isFixedNamespace(path: string): boolean { return providedNamespace(path)?.fixed ?? false; }
+export function isFixedNamespace(path: string): boolean {
+    const permissions = providedNamespace(path)?.permissions;
+    return !!permissions && !permissions.rename && !permissions.move && !permissions.remove;
+}
 
 /** @brief List explicit and inferred namespace paths. */
 export function namespacePaths(draft: Pick<TreeDraft, 'mappings' | 'namespaces'>): string[] {
@@ -86,7 +89,7 @@ export interface TreeDropTarget { path: string; position: 'inside' | 'before' | 
 export function dropTree(draft: TreeDraft, source: TreeDragSource, target: TreeDropTarget, defaultName = 'command'): TreeDraft {
     const parent = target.position === 'inside' ? target.path : target.path.split('.').slice(0, -1).join('.');
     if (isFixedNamespace(parent)) throw new Error('fixed_drop_target');
-    if ((source.namespace && source.path && isFixedNamespace(source.path)) || (source.path && providedNamespace(source.path)?.commands.some(command => command.path === source.path && !command.draggable))) throw new Error('fixed_move_source');
+    if ((source.namespace && source.path && isFixedNamespace(source.path)) || (source.path && providedNamespace(source.path)?.commands.some(command => command.path === source.path && !command.permissions.move))) throw new Error('fixed_move_source');
     const namespaces = namespacePaths(draft);
     if (parent && !namespaces.includes(parent)) throw new Error('missing_drop_namespace');
     if (target.position !== 'inside' && ![...namespaces, ...draft.mappings.flatMap(m => [m.path, ...m.aliases])].includes(target.path)) throw new Error('missing_drop_node');

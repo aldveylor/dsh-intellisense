@@ -24,4 +24,6 @@ consolePinned 为随 Profile 保存的命名空间固定提示开关，默认 fa
 
 拖动到命名空间中心时高亮目标节点；前后插入时，在目标同级节点之间绘制横线。命名空间之后的插入线位于完整展开子树之后，不贴在标题块边缘。
 
-`tree_node.ts` 定义 `NamespaceTree`、抽象 `TreeNode` 与 `TreeRenderer` 渲染接口。树在构造时合并 Profile 命名空间、映射别名和内置节点，并计算层级及混合排序。`CommandTreeNode` / `NamespaceTreeNode` 表达普通节点，`BuiltinCommandTreeNode` / `BuiltinNamespaceTreeNode` 通过继承限定结构编辑、拖动、文档和计数行为；`ConsoleNamespaceTreeNode` 单独覆写 console 命名空间图钉策略。管理面板通过节点的 render 接口分派视图，递归渲染 children，不再在每层扫描扁平映射重建子树。
+`tree_node.ts` 的抽象 `TreeNode` 实现 `integration/node.ts` 的共享 `Node` 接口。`CommandTreeNode`、`NamespaceTreeNode`、`BuiltinCommandTreeNode`、`BuiltinNamespaceTreeNode`、`RootNamespaceTreeNode` 分别对应 integration 的五类节点及 type。`NamespaceTree.root` 是匿名根，节点持有 parent 引用，命名空间持有直接 children 引用；path 仅由父节点链派生。`resolve(parts)` 沿子节点查找；`serialize()` 和 `toJSON()` 输出共享节点快照，不包含 parent，避免循环引用。树从 Profile 与内置 provider 输入建立，按 Profile 排序，管理面板通过 render 接口递归渲染。
+
+宿主与 UI 共用 `nodePermissions`、`fixLevel`、`nextFixLevel`；provider 只保存 permissions，不再额外保存 fixed/draggable 状态。内置命令的图钉按其 fixLevels 循环，仅一个可选等级时锁定；tools.intellisense 仅允许等级 2 且不可禁用。禁用按钮及操作回调读取 permissions.disable，不允许禁用时不渲染禁用图标；继承命名空间禁用时，同样按命令权限保留不可禁用命令。内置命令操作区从左到右为禁用、固定，普通命令保持固定、禁用、删除。console 命名空间是否允许提示固定由共享权限决定，不再使用单独的 ConsoleNamespaceTreeNode 类。
