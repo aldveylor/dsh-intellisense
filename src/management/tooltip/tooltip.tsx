@@ -16,6 +16,8 @@ export function Tooltip({ id, children, position, element, enter, leave }: {
     id: string; children: ReactNode; position: () => void; element: React.RefObject<HTMLDivElement>;
     enter: () => void; leave: () => void;
 }) {
+    const pointerInside = useRef(false);
+
     useLayoutEffect(() => {
         const node = element.current;
         node?.setAttribute('popover', 'manual');
@@ -24,7 +26,41 @@ export function Tooltip({ id, children, position, element, enter, leave }: {
         return () => { node?.hidePopover?.(); };
     }, [children, element, position]);
 
-    return <div ref={element} id={id} role="tooltip" className="ts-tooltip" onPointerEnter={enter} onPointerLeave={leave}>{children}</div>;
+    useEffect(() => {
+        const node = element.current;
+        if (!node) return;
+        let previous = performance.now();
+        let resumeAt = previous + 800;
+        let offset = node.scrollTop;
+        let direction = 1;
+        let frame: number;
+
+        /** @brief Slowly scroll overflowing content, pausing for hover and at either end. */
+        function scroll(time: number): void {
+            if (!node) return;
+            const elapsed = Math.min(time - previous, 64);
+            previous = time;
+            if (pointerInside.current || document.hidden) {
+                offset = node.scrollTop;
+                resumeAt = time + 600;
+            } else {
+                const limit = Math.max(0, node.scrollHeight - node.clientHeight);
+                if (limit > 0 && time >= resumeAt) {
+                    offset = Math.max(0, Math.min(limit, offset + direction * elapsed * 0.025));
+                    node.scrollTop = offset;
+                    if (offset === 0 || offset === limit) { direction *= -1; resumeAt = time + 1000; }
+                }
+            }
+            frame = requestAnimationFrame(scroll);
+        }
+
+        frame = requestAnimationFrame(scroll);
+        return () => cancelAnimationFrame(frame);
+    }, [children, element]);
+
+    return <div ref={element} id={id} role="tooltip" className="ts-tooltip"
+        onPointerEnter={() => { pointerInside.current = true; enter(); }}
+        onPointerLeave={() => { pointerInside.current = false; leave(); }}>{children}</div>;
 }
 
 /** @brief Share one floating tooltip across anchors without rerendering cards on pointer movement. */
