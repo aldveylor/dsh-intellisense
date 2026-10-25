@@ -40,7 +40,9 @@ async function request<T>(api: string, body?: unknown, signal?: AbortSignal): Pr
 
 /** @brief Normalize the same Profile configuration for comparison and persistence. */
 function profileDraft(state: Pick<RegistryState, keyof RegistryConfiguration>, provided: readonly SerializedNode[] = []): RegistryConfiguration {
-    const mappings = state.mappings.map(mapping => ({ ...mapping, path: mapping.path.trim(), aliases: mapping.aliases.map(alias => alias.trim()).filter(Boolean) }));
+    const mappings = state.mappings.map(({ id, path, aliases, description, pinned, disabled, alwaysVisible }) => ({
+        id, path: path.trim(), aliases: aliases.map(alias => alias.trim()).filter(Boolean), description, pinned, disabled, alwaysVisible,
+    }));
     const namespaces = state.namespaces ?? [];
     const paths = [...TreeProvider(provided, state.builtinVisible ?? {}).map(node => node.path), ...namespacePaths({ mappings, namespaces }), ...mappings.flatMap(mapping => [mapping.path, ...mapping.aliases])];
     return {

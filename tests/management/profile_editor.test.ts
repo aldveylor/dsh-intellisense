@@ -18,7 +18,12 @@ async function until(predicate: () => boolean): Promise<void> {
 }
 
 test('editor selection, local creation and saving remain independent from the default selector', async () => {
-    const registry = new SemanticRegistry(new MemoryStore());
+    const store = new MemoryStore();
+    const mapping = { id: 'read', path: 'file.read', aliases: [], pinned: false, alwaysVisible: 1 };
+    await store.save('registry', { version: 1, revision: 19, profile: 'Default', mappings: [{ ...mapping, enabled: true }] });
+    const registry = new SemanticRegistry(store);
+    await registry.load();
+    registry.refresh([{ id: 'read', description: 'Read a file', parameters: {}, output: {} }]);
     const routes = new Map<string, (request: Request) => Promise<Response>>();
     const ctx = { connection: { fetch: { register: (route: { path: string; fetch: (request: Request) => Promise<Response> }) => routes.set(route.path, route.fetch) } }, emit: () => {} } as unknown as Context;
     registerManagement(ctx, registry, { refresh: async () => {} });
@@ -41,6 +46,10 @@ test('editor selection, local creation and saving remain independent from the de
         dom.window.eval(result.outputFiles[0]!.text);
         const button = (selector: string): HTMLButtonElement => document.querySelector<HTMLButtonElement>(selector)!;
         await until(() => !!document.querySelector('.ts-default-profile button:not(:disabled)'));
+        button('.ts-namespace-profile button[aria-label="Save"]').click();
+        await until(() => registry.snapshot().revision === 20);
+        await until(() => !button('.ts-namespace-profile button[aria-label="Save"]').disabled);
+        assert.deepEqual(registry.snapshot().mappings, [mapping]);
         button('.ts-default-profile button').click();
         await until(() => !!document.querySelector('.ts-default-profile .ts-profile-option'));
         assert.equal(document.querySelector('.ts-default-profile .ts-profile-delete'), null);
