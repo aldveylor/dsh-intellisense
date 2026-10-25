@@ -6,6 +6,7 @@ export const zh = {
     "tool_parameters": "参数",
     "tool_returns": "返回值",
     "tool_total_calls": "总调用次数",
+    "tool_all_calls_label": "所有命令总调用次数：{count}",
     "tool_no_description": "暂无描述",
     "tool_calls_label": "总调用次数：{count}",
     "tool_sort": "工具排序",

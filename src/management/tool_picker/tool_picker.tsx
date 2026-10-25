@@ -33,6 +33,7 @@ export function ToolPicker({ parent, tools, mappings, callsByTool = {}, busy, se
     const dialog = useRef<HTMLDialogElement>(null);
     const [search, setSearch] = useState('');
     const [sort, setSort] = useState('default');
+    const totalCalls = Object.values(callsByTool).reduce((total, count) => total + count, 0);
     const filter = search.trim().toLowerCase();
     const matches = tools.filter(tool => !tool.id.startsWith('tools_') && !['exec', 'run_code'].includes(tool.id)).filter(tool => {
         const mapping = mappings.find(m => m.id === tool.id);
@@ -58,7 +59,7 @@ export function ToolPicker({ parent, tools, mappings, callsByTool = {}, busy, se
             <button type="button" aria-label={t('close_picker')} onClick={close}>{t('close')}</button>
         </header>
         <input type="search" autoFocus aria-label={t('search_tools')} placeholder={t('search_hint')} value={search} onChange={event => setSearch(event.target.value)} />
-        <div className="ts-tool-picker-summary"><small>{t('tool_count', { count: matches.length })}</small>
+        <div className="ts-tool-picker-summary">
             <select aria-label={t('tool_sort')} value={sort} onChange={event => setSort(event.target.value)}>
                 {['default', 'name_asc', 'name_desc', 'calls_desc', 'calls_asc'].map(value =>
                     <option key={value} value={value}>{t(`tool_sort_${value}`)}</option>)}
@@ -67,6 +68,10 @@ export function ToolPicker({ parent, tools, mappings, callsByTool = {}, busy, se
         <div className="ts-blocks">{matches.map(tool => <ToolCard key={tool.id} tool={tool}
             mapping={mappings.find(mapping => mapping.id === tool.id)} calls={callsByTool[tool.id] ?? 0} busy={busy} select={select} />)}</div>
         {!matches.length && <p>{filter ? t('no_matches') : t('no_tools')}</p>}
+        <footer className="ts-tool-picker-footer">
+            <small>{t('tool_count', { count: matches.length })}</small>
+            <small>{t('tool_all_calls_label', { count: totalCalls })}</small>
+        </footer>
         </TooltipProvider>
     </dialog>;
 }

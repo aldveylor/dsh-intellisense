@@ -6,6 +6,7 @@ export const enUs = {
     "tool_parameters": "Parameters",
     "tool_returns": "Returns",
     "tool_total_calls": "Total calls",
+    "tool_all_calls_label": "Total calls across all commands: {count}",
     "tool_no_description": "No description",
     "tool_calls_label": "Total calls: {count}",
     "tool_sort": "Sort tools",
