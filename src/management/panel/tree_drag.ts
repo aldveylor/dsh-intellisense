@@ -10,6 +10,33 @@ export function treeDropTarget(element: HTMLElement, clientY: number): TreeDropT
     return { path: namespace ?? element.dataset.treePath ?? '', position: namespace !== undefined && ratio >= .25 && ratio <= .75 ? 'inside' : ratio > .5 ? 'after' : 'before' };
 }
 
+/** @brief Clear shared drop feedback for pointer and native drag completion. */
+export function clearTreeDropFeedback(root: ParentNode = document): void {
+    root.querySelectorAll('[data-drop-edge]').forEach(node => node.removeAttribute('data-drop-edge'));
+    root.querySelectorAll('.ts-drop-insertion').forEach(node => node.remove());
+}
+
+/** @brief Show a line in the destination sibling gap, or highlight a namespace destination. */
+export function showTreeDropFeedback(element: HTMLElement, clientY: number): void {
+    const tree = element.closest<HTMLElement>('.ts-tree');
+    if (!tree) return;
+    clearTreeDropFeedback(tree);
+    const destination = treeDropTarget(element, clientY);
+    element.dataset.dropEdge = destination.position;
+    if (destination.position === 'inside') return;
+    const row = element.closest('li')!;
+    const rect = row.getBoundingClientRect();
+    const before = destination.position === 'before';
+    const sibling = before ? row.previousElementSibling : row.nextElementSibling;
+    const edge = before ? rect.top : rect.bottom;
+    const other = sibling?.getBoundingClientRect();
+    const y = other ? (edge + (before ? other.bottom : other.top)) / 2 : edge + (before ? -5 : 5);
+    const marker = document.createElement('div');
+    marker.className = 'ts-drop-insertion';
+    marker.style.cssText = `left:${rect.left}px;top:${y}px;width:${rect.width}px`;
+    tree.append(marker);
+}
+
 /** @brief Pointer-based dragging leaves wheel events native and adds edge scrolling without browser HTML drag capture. */
 export function useTreeDrag(drop: (source: TreeDragSource, target: TreeDropTarget) => void) {
     const container = useRef<HTMLDivElement>(null);
@@ -25,16 +52,17 @@ export function useTreeDrag(drop: (source: TreeDragSource, target: TreeDropTarge
 
         /** @brief Refresh the hit target after pointer movement, wheel scrolling or automatic scrolling. */
         function locate(): void {
-            target?.removeAttribute('data-drop-edge');
+            if (container.current) clearTreeDropFeedback(container.current);
             const hit = document.elementFromPoint(x, y)?.closest<HTMLElement>('.ts-node-block,.ts-tree-tool,.ts-namespace-placeholder');
             target = hit && hit.dataset.dropDisabled !== 'true' && container.current?.contains(hit) ? hit : undefined;
-            if (target) target.dataset.dropEdge = treeDropTarget(target, y).position;
+            if (target) showTreeDropFeedback(target, y);
         }
 
         /** @brief Stop scrolling and clear transient drag feedback on every completion path. */
         function finish(): void {
             cancelAnimationFrame(frame); frame = 0;
             target?.removeAttribute('data-drop-edge'); target = undefined;
+            if (container.current) clearTreeDropFeedback(container.current);
             ghost?.remove(); ghost = undefined;
             container.current?.classList.remove('ts-dragging');
             active = false; pending.current = undefined;

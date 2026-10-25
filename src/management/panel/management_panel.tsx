@@ -8,7 +8,7 @@ import { validatePath } from '../../registry/path.js';
 import { TreeProvider, unmountedTools, type ProvidedCommand, type ProvidedNamespace } from './tree_provider.js';
 import { ProfilePicker, ProfileSelect as PortableProfileSelect, type ProfileSelectProps } from '../profile_picker/profile_picker.js';
 import { ToolPicker } from '../tool_picker/tool_picker.js';
-import { useTreeDrag, treeDropTarget } from './tree_drag.js';
+import { useTreeDrag, treeDropTarget, showTreeDropFeedback, clearTreeDropFeedback } from './tree_drag.js';
 import { isFixedNamespace, namespacePaths, orderedPaths, inNamespace, renameNamespace, deleteNamespace, dropTree, type TreeDragSource, type TreeDropTarget } from './namespace_tree.js';
 
 /** @brief Authenticated management metadata, shared by embedded and standalone React views. */
@@ -93,7 +93,7 @@ function acceptTreeDrag(event: DragEvent<HTMLElement>, busy: boolean): void {
     if (event.currentTarget.dataset.dropDisabled === 'true') { event.stopPropagation(); return; }
     if (!busy && event.dataTransfer.types.some(type => ['application/x-ts-tool', 'application/x-ts-namespace'].includes(type))) {
         event.preventDefault(); event.stopPropagation();
-        event.currentTarget.dataset.dropEdge = treeDropTarget(event.currentTarget, event.clientY).position;
+        showTreeDropFeedback(event.currentTarget, event.clientY);
     }
 }
 
@@ -115,7 +115,7 @@ function CommandNode({ mapping, path, description, tree, fixed = false, command 
             event.stopPropagation(); event.dataTransfer.setData('application/x-ts-tool', id!);
             event.dataTransfer.setData('application/x-ts-mapping', path); event.dataTransfer.effectAllowed = 'move';
         }} onDragOver={event => acceptTreeDrag(event, tree.busy || readOnly)}
-        onDragLeave={event => event.currentTarget.removeAttribute('data-drop-edge')}
+        onDragLeave={() => clearTreeDropFeedback()}
         onDrop={event => { if (readOnly) { event.preventDefault(); event.stopPropagation(); } else tree.dropNode(event, path, false); }}>
         {readOnly ? <code title={`${command?.signature ?? path}\n${description ?? ''}`}>{path.split('.').at(-1)}</code> :
             <EditableText className="ts-node-name" value={path.split('.').at(-1)!} label={t('mapping_name', { path })} busy={tree.busy || !!mapping?.pinned}
@@ -206,7 +206,7 @@ function NamespaceNode({ path, tree, fixed = false, provided }: { path: string; 
             if (fixed) { event.preventDefault(); return; }
             if ((event.target as HTMLElement).tagName === 'INPUT') { event.preventDefault(); return; }
             event.stopPropagation(); event.dataTransfer.setData('application/x-ts-namespace', path); event.dataTransfer.effectAllowed = 'move';
-        }} onDragOver={event => acceptTreeDrag(event, tree.busy || fixed)} onDragLeave={event => { event.currentTarget.removeAttribute('data-drop-edge'); }} onDrop={event => tree.dropNode(event, path, true)}>
+        }} onDragOver={event => acceptTreeDrag(event, tree.busy || fixed)} onDragLeave={() => clearTreeDropFeedback()} onDrop={event => tree.dropNode(event, path, true)}>
             <button className="ts-disclosure" type="button" aria-label={t('toggle_namespace', { path })} aria-expanded={open} disabled={tree.busy}
                 onClick={() => tree.toggle(path)}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
@@ -436,7 +436,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
 
     /** @brief Keep HTML drag compatibility while using the same center/edge resolution as pointer dragging. */
     function nativeDrop(event: DragEvent<HTMLElement>, target: TreeDropTarget): void {
-        event.preventDefault(); event.stopPropagation(); event.currentTarget.removeAttribute('data-drop-edge');
+        event.preventDefault(); event.stopPropagation(); clearTreeDropFeedback();
         if (event.currentTarget.dataset.dropDisabled === 'true') return;
         const namespace = event.dataTransfer.getData('application/x-ts-namespace');
         applyDrop({ namespace: !!namespace, path: namespace || event.dataTransfer.getData('application/x-ts-mapping') || undefined, id: event.dataTransfer.getData('application/x-ts-tool') || undefined }, target);
