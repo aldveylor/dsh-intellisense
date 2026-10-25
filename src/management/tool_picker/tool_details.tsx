@@ -59,9 +59,10 @@ function SchemaTable({ label, schema }: { label: string; schema: unknown }) {
     </section>;
 }
 
-/** @brief Present tool metadata as HTML and parameter/return contracts as separate tables. */
+/** @brief Present tool metadata, parameter fields and a TypeScript return declaration. */
 export function ToolDetails({ tool, calls }: { tool: PhysicalTool; calls: number }) {
     const t = useTranslation();
+    const output = schemaRecord(tool.output);
     return <article className="ts-tool-details">
         <header className="ts-tool-detail-header">
             <div><span className="ts-tool-detail-label">{t('tool_name')}</span><h3><code>{tool.id}</code></h3></div>
@@ -69,7 +70,11 @@ export function ToolDetails({ tool, calls }: { tool: PhysicalTool; calls: number
         </header>
         <section className="ts-tool-detail-overview"><h4>{t('tool_description')}</h4><p>{tool.description || t('tool_no_description')}</p></section>
         <SchemaTable label={t('tool_parameters')} schema={tool.parameters} />
-        <SchemaTable label={t('tool_returns')} schema={tool.output} />
+        <section className="ts-tool-return">
+            <h4>{t('tool_returns')}</h4>
+            {typeof output.description === 'string' && output.description.trim() && <p>{output.description}</p>}
+            <pre><code className="language-typescript">{`type Result = ${tool.outputType ?? schemaType(tool.output)};`}</code></pre>
+        </section>
         <section className="ts-tool-statistics">
             <table>
                 <caption>{t('tool_statistics')}</caption>
