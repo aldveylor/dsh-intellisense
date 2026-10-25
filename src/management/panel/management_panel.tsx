@@ -294,7 +294,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
         setNamespaceVisible(snapshot.state.namespaceVisible ?? {});
         setBuiltinDisabled(snapshot.state.builtinDisabled ?? []);
         setToolComments(structuredClone(snapshot.state.toolComments ?? {}));
-        setOrder(orderedPaths([...namespacePaths({ mappings: snapshot.state.mappings, namespaces: snapshot.state.namespaces ?? [] }), ...snapshot.state.mappings.flatMap(m => [m.path, ...m.aliases])], snapshot.state.order ?? []));
+        setOrder(profileDraft(snapshot.state, snapshot.provided).order);
         setStatus('');
     }
 
