@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import type { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
-import { nativeBindings } from '../../src/namespace/native_tools.js';
+import { nativeBindings, nativeDiscovery } from '../../src/namespace/native_tools.js';
 import { NamespaceComponent } from '../../src/namespace/component.js';
 import type { ManifestEntry } from '../../src/namespace/namespace.js';
 import { SemanticRegistry } from '../../src/registry/registry.js';
@@ -31,7 +31,7 @@ test('native aliases publish callable names, map arguments and revoke stale hand
         register: (tool: ToolDefinition) => { definitions.set(tool.name, tool); return () => { definitions.delete(tool.name); }; },
     } } as unknown as Context;
     const store = new MemoryStore(), registry = new SemanticRegistry(store);
-    const physical = [{ id: 'read_file', description: 'Read file', parameters: { type: 'object', properties: { file: { type: 'string' } }, required: ['file'] }, output: { type: 'string' } }];
+    const physical = [{ id: 'read_file', description: 'Read file\nFull file documentation.', parameters: { type: 'object', properties: { file: { type: 'string' } }, required: ['file'] }, output: { type: 'string' } }];
     registry.refresh(physical);
     await registry.configure([{ id: 'read_file', path: 'fs.read', aliases: [], pinned: false }], 0);
     const component = new NamespaceComponent(ctx, registry, new ProfileSessions(registry, store), [{ path: 'fs.open', tool: 'read_file', argMap: { path: 'file' } }]);
@@ -40,6 +40,15 @@ test('native aliases publish callable names, map arguments and revoke stale hand
     assert.deepEqual(await component.syncNative(agent), []);
     const discovery = JSON.parse(await component.discover(agent, ['fs.']));
     assert.deepEqual(discovery.members.map((item: { path: string }) => item.path).sort(), ['fs.open', 'fs.read']);
+    assert(discovery.members.every((item: { brief: string }) => item.brief === 'Read file'));
+    assert.deepEqual(await component.syncNative(agent), []);
+    assert.equal(definitions.size, 0);
+    await component.discover(agent, ['fs', '', 'global.fs.', 'fs.read.']);
+    assert.deepEqual(await component.syncNative(agent), []);
+    const exact = JSON.parse(await component.discover(agent, ['global.fs.open']));
+    assert.equal(exact.members[0].brief, 'Read file');
+    assert.deepEqual(await component.syncNative(agent), ['ns_fs__open']);
+    await component.discover(agent, ['fs.', 'fs.read']);
     const names = await component.syncNative(agent);
     assert.deepEqual(names, ['ns_fs__read', 'ns_fs__open']);
     assert.deepEqual(await component.syncNative(agent), names);
@@ -56,4 +65,13 @@ test('native aliases publish callable names, map arguments and revoke stale hand
     assert.equal(definitions.size, 0);
     assert(!definitions.has('ns_fs__open'), 'Unavailable tools are removed from the native registry');
     await component.release(agent.id);
+});
+
+test('native discovery prefers Profile briefs and keeps full documentation out of results', () => {
+    const root = namespace([{ path: 'fs.read', tool: 'read_file', doc: 'Read file\nFull file documentation.', schema: {}, output: {} }]);
+    for (const queries of [['fs.'], ['fs.read']]) {
+        const discovery = JSON.parse(nativeDiscovery(queries, root, [], () => 'Profile brief'));
+        assert.equal(discovery.members[0].brief, 'Profile brief');
+        assert(!JSON.stringify(discovery).includes('Full file documentation.'));
+    }
 });

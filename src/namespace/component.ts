@@ -155,7 +155,7 @@ export class NamespaceComponent {
         return namespaceDirectory(hints);
     }
 
-    /** @brief Keep native exposure limited to discovery, pinned commands and queried members. */
+    /** @brief Keep native exposure limited to discovery, pinned commands and explicitly queried functions. */
     private async nativeEntries(agent: Agent): Promise<CommandNode[]> {
         const registry = await this.registryFor(agent);
         const state = registry.snapshot();
@@ -170,9 +170,11 @@ export class NamespaceComponent {
 
     /** @brief Expand native tools for this conversation and invalidate the assembled system prompt. */
     async discover(agent: Agent, queries: readonly string[]): Promise<string> {
-        const root = await this.tree(agent);
+        const registry = await this.registryFor(agent);
+        const root = manifest(registry, this.aliases);
         const entries = root.commands().filter(entry => entry.deployment === 'tool');
-        if (this.isPtc(agent)) return nativeDiscovery(queries, root, nativeBindings(entries, this.physical(agent).map(tool => tool.id)));
+        const briefs = new Map(registry.effective().map(mapping => [mapping.id, mapping.description]));
+        if (this.isPtc(agent)) return nativeDiscovery(queries, root, nativeBindings(entries, this.physical(agent).map(tool => tool.id)), tool => briefs.get(tool));
         const selected = nativeQueryEntries(queries, root);
         let discovered = this.discovered.get(agent.id);
         if (!discovered) this.discovered.set(agent.id, discovered = new Set());
@@ -183,7 +185,7 @@ export class NamespaceComponent {
         while (discovered.size > 256) discovered.delete(discovered.values().next().value!);
         await this.syncNative(agent);
         this.ctx.emit('system-prompt/change');
-        return nativeDiscovery(queries, root, nativeBindings(entries, this.physical(agent).map(tool => tool.id)));
+        return nativeDiscovery(queries, root, nativeBindings(entries, this.physical(agent).map(tool => tool.id)), tool => briefs.get(tool));
     }
 
     /** @brief Install scoped namespace aliases while keeping dispatch inside native guards and auditing. */

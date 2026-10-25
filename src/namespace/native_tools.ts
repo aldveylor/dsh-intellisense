@@ -22,18 +22,19 @@ export function nativeBindings(entries: CommandNode[], reserved: Iterable<string
     });
 }
 
-/** @brief Select exact commands or immediate namespace members without expanding descendants. */
+/** @brief Select only explicitly queried command paths for native tool registration. */
 export function nativeQueryEntries(queries: readonly string[], root: NamespaceNode): CommandNode[] {
-    return queryNodes(root, queries).filter((node): node is CommandNode => node instanceof CommandNode && node.deployment === 'tool');
+    const exact = new Set(normalizeIntellisenseQueries(queries));
+    return queryNodes(root, queries).filter((node): node is CommandNode => node instanceof CommandNode && node.deployment === 'tool' && exact.has(node.path));
 }
 
 /** @brief Render shallow native discovery and exact named-argument contracts as JSON. */
-export function nativeDiscovery(queries: readonly string[], root: NamespaceNode, bindings: readonly { entry: CommandNode; name: string }[]): string {
+export function nativeDiscovery(queries: readonly string[], root: NamespaceNode, bindings: readonly { entry: CommandNode; name: string }[], brief: (tool: string) => string | undefined = () => undefined): string {
     const names = new Map(bindings.map(({ entry, name }) => [entry, name]));
     const exact = new Set(normalizeIntellisenseQueries(queries));
     const members = queryNodes(root, queries).sort((a, b) => a.path.localeCompare(b.path)).map(node => node instanceof NamespaceNode
         ? { path: node.path, namespace: true }
-        : { path: node.path, deployment: node.deployment,
+        : { path: node.path, deployment: node.deployment, brief: brief(node.tool) ?? node.doc.trim().split(/\r?\n/, 1)[0],
             ...(node.deployment === 'tool' ? {} : { tool: names.get(node), description: node.doc }),
             ...(exact.has(node.path) ? { parameters: nativeSchema(node), output: outputSchema(node.output) } : {}) });
     return JSON.stringify({ members }, null, 2);
