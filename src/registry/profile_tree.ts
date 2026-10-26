@@ -18,10 +18,10 @@ export interface Profile { name: string; root: SerializedNode }
 /** @brief Validate shared permissions without trusting them as the server's authority. */
 const permissionSchema = z.strictObject({
     renamable: z.boolean().describe('Whether this node may be renamed.'),
-    movable: z.boolean().describe('Whether this node may be moved; false preserves its path.'),
-    removable: z.boolean().describe('Whether this node may be removed; false requires retaining the node.'),
+    movable: z.boolean().describe('Whether this node may be moved.'),
+    removable: z.boolean().describe('Whether this node may be removed.'),
     disableable: z.boolean().describe('Whether disabled may be set to true.'),
-    acceptsChildren: z.boolean().describe('Whether new children may be inserted. Existing protected children must remain.'),
+    acceptsChildren: z.boolean().describe('Whether new children may be inserted.'),
     availableFixLevels: z.array(z.union([z.literal(0), z.literal(1), z.literal(2)])).describe('Supported pin levels; an empty list means preserve the existing level.'),
 });
 
@@ -31,11 +31,12 @@ const nodeSchema: z.ZodType<SerializedNode> = z.lazy(() => z.strictObject({
     children: z.array(nodeSchema).optional(),
     command: z.strictObject({ tool: z.string(), argMap: z.record(z.string(), z.string()).optional(), schema: z.record(z.string(), z.unknown()), output: z.unknown().optional(), doc: z.string() }).optional(),
     description: z.string().optional(), signature: z.string().optional(), deployment: z.enum(['tool', 'environment']).optional(), preload: z.boolean().optional(),
-    fixedLevel: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(), disabled: z.boolean().optional(),
+    fixedLevel: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional().describe('Pin level: 0 none, 1 brief, 2 detailed; allowed values come from permissions.availableFixLevels.'),
+    disabled: z.boolean().optional().describe('Disable this node and its subtree when permissions.disableable is true.'),
 }));
 
 /** @brief Validate editable Profile input; server-owned permissions remain authoritative. */
-export const ProfileSchema: z.ZodType<Profile> = z.strictObject({ name: z.string(), root: nodeSchema.describe('Anonymous root. Preserve the complete console and tools subtrees: their protected nodes cannot be renamed, moved or deleted. Edit disabled and fixedLevel only as permitted by server-owned permissions.') });
+export const ProfileSchema: z.ZodType<Profile> = z.strictObject({ name: z.string(), root: nodeSchema.describe("Anonymous root. Each node's permissions govern its edits independently.") });
 
 /** @brief Create protected children first, then add configured mappings without replacing existing nodes. */
 export function profileTree(name: string, configuration: RegistryConfiguration): Profile {
@@ -143,13 +144,13 @@ export function profileConfiguration(profile: Profile, current: RegistryConfigur
 }
 
 /** @brief Shared Profile transport definition preloaded for PTC programs. */
-export const profileAnnotation = `/** @brief Original physical command identity, summary and total calls across all sessions. Use totalCalls to prioritize frequently used commands when organizing Profiles. */
+export const profileAnnotation = `/** @brief Original physical command identity, summary and total calls across all sessions. */
 interface CommandBrief { name: string; brief: string; totalCalls: number; }
 /** @brief Available catalog Profile names and the current conversation selection. */
 interface Profiles { profiles: string[]; selected: string; }
-/** @brief Server-owned edit and pin choices, the sole source of edit restrictions. renamable=false forbids renaming; movable=false preserves the path; removable=false requires keeping the node; acceptsChildren=false forbids adding members; protected children must remain. disableable controls disabled, and availableFixLevels lists supported pin levels. Submitted permissions do not override server policy. */
+/** @brief Server-owned permissions. Each field governs its own operation: removable controls removal, disableable controls disabled, and availableFixLevels controls fixedLevel. Submitted permissions cannot override them. */
 interface Permission { renamable: boolean; movable: boolean; removable: boolean; disableable: boolean; acceptsChildren: boolean; availableFixLevels: (0 | 1 | 2)[]; }
-/** @brief Shared namespace tree or command leaf; protected children must remain present. */
+/** @brief Namespace tree or command leaf. disabled applies to the node and its subtree; fixedLevel controls pinning (0: none, 1: brief, 2: detailed). */
 interface NamespaceNode {
     type: 'tree' | 'leaf'; name: string; permissions: Permission;
     children?: NamespaceNode[];
@@ -157,6 +158,6 @@ interface NamespaceNode {
     description?: string; signature?: string; deployment?: 'tool' | 'environment'; preload?: boolean;
     fixedLevel?: 0 | 1 | 2; disabled?: boolean;
 }
-/** @brief Named namespace configuration with an anonymous root. Preserve the complete console and tools subtrees: their protected nodes cannot be renamed, moved or deleted. Disable nodes or change pin levels only where permissions allow. Runtime console remains available independently of tree visibility. */
+/** @brief Named namespace configuration with an anonymous root. */
 interface Profile { name: string; root: NamespaceNode; }
 `;
