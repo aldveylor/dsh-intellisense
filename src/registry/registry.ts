@@ -284,12 +284,12 @@ export class SemanticRegistry {
                     if (name === active) return;
                     const configuration = archive[name]!;
                     delete archive[name]; archive[active] = this.configuration();
-                    next = { ...next, ...configuration, builtinDisabled: configuration.builtinDisabled ?? [], toolComments: configuration.toolComments ?? {}, namespaceVisible: configuration.namespaceVisible ?? {}, profile: name };
+                    next = { ...next, ...configuration, brief: configuration.brief, builtinDisabled: configuration.builtinDisabled ?? [], toolComments: configuration.toolComments ?? {}, namespaceVisible: configuration.namespaceVisible ?? {}, profile: name };
                 } else if (action === 'delete') {
                     if (!Object.keys(archive).length) throw new Error('At least one profile is required');
                     if (name === active) {
                         const fallback = Object.keys(archive)[0]!;
-                        next = { ...next, ...archive[fallback]!, builtinDisabled: archive[fallback]!.builtinDisabled ?? [], toolComments: archive[fallback]!.toolComments ?? {}, namespaceVisible: archive[fallback]!.namespaceVisible ?? {}, profile: fallback }; delete archive[fallback];
+                        next = { ...next, ...archive[fallback]!, brief: archive[fallback]!.brief, builtinDisabled: archive[fallback]!.builtinDisabled ?? [], toolComments: archive[fallback]!.toolComments ?? {}, namespaceVisible: archive[fallback]!.namespaceVisible ?? {}, profile: fallback }; delete archive[fallback];
                     } else delete archive[name];
                 } else throw new Error('Invalid profile action');
             }

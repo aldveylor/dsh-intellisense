@@ -188,3 +188,17 @@ test('Profile brief survives schema, tree conversion and detached persistence', 
     assert.equal(reloaded.configuration('开发').save().brief, undefined);
     assert.deepEqual(reloaded.profileBriefs(), {});
 });
+
+
+test('selecting or deleting a described default does not leak its brief into an undescribed Profile', async () => {
+    const registry = new SemanticRegistry(new MemoryStore());
+    await registry.load();
+    await registry.saveProfile('Default', { ...registry.configuration(), brief: 'General tools' });
+    await registry.saveProfile('Empty', { ...registry.configuration(), brief: undefined });
+    await registry.manageProfile('select', 'Empty', registry.snapshot().revision);
+    assert.equal(registry.configuration().brief, undefined);
+    await registry.manageProfile('select', 'Default', registry.snapshot().revision);
+    assert.equal(registry.configuration().brief, 'General tools');
+    await registry.manageProfile('delete', 'Default', registry.snapshot().revision);
+    assert.equal(registry.configuration().brief, undefined);
+});
