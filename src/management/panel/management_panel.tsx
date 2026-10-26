@@ -344,7 +344,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
     const unmounted = useMemo(() => unmountedTools(view?.tools ?? [], mappings, provided), [view?.tools, mappings, provided]);
     const toolsById = useMemo(() => new Map(view?.tools.map(tool => [tool.id, tool])), [view?.tools]);
     const paths = useMemo(() => [...new Set([...provided.map(node => node.path), ...namespacePaths({ mappings, namespaces })])], [provided, mappings, namespaces]);
-    const saved = useMemo(() => view ? profileDraft(view.state, view.provided) : undefined, [view?.state, view?.provided]);
+    const saved = useMemo(() => view ? profileDraft(view.state, view.provided) : undefined, [view?.state.mappings, view?.state.namespaces, view?.state.order, view?.state.unmountedVisible, view?.state.builtinVisible, view?.state.builtinDisabled, view?.state.namespaceVisible, view?.state.toolComments, view?.provided]);
     const draft = useMemo(() => profileDraft({ mappings, namespaces, unmountedVisible, builtinVisible, builtinDisabled, namespaceVisible, toolComments, order }, view?.provided),
         [mappings, namespaces, unmountedVisible, builtinVisible, builtinDisabled, namespaceVisible, toolComments, order, view?.provided]);
     const newProfile = !!view && !view.state.profiles?.includes(view.state.profile!);
@@ -357,7 +357,8 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
             const url = URL.createObjectURL(new Blob([JSON.stringify(draft, null, 2) + '\n'], { type: 'application/json' }));
             const link = document.createElement('a');
             link.href = url;
-            link.download = `${(view.state.profile ?? 'Profile').replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')}.json`;
+            const filename = Array.from(view.state.profile ?? 'Profile', char => char.charCodeAt(0) < 32 || '<>:"/\\|?*'.includes(char) ? '_' : char).join('');
+            link.download = `${filename}.json`;
             document.body.append(link);
             try { link.click(); }
             finally { link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
@@ -373,7 +374,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
             catch { throw new Error(t('invalid_profile_json')); }
             applyDraft(configuration);
             setStatus('');
-            setExpanded({}); setToolPicker(undefined); setDescriptionEditor(undefined);
+            setToolPicker(undefined); setDescriptionEditor(undefined);
         });
     }
 
@@ -381,11 +382,9 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
     function selectDefault(name: string): void {
         if (!view || name === view.defaultProfile) return;
         void action('', async () => {
-            await request(api, { action: 'profile', operation: 'select', name, revision: view.state.revision });
-            const url = new URL(api, document.baseURI);
-            if (!newProfile) url.searchParams.set('profile', view.state.profile!);
-            const snapshot = await request<View>(url.href);
-            setView(current => current && ({ ...current, defaultProfile: snapshot.defaultProfile, state: { ...current.state, revision: snapshot.state.revision, profiles: snapshot.state.profiles } }));
+            const snapshot = await request<{ defaultProfile: string; revision: number; profiles: string[] }>(api,
+                { action: 'profile', operation: 'select', name, revision: view.state.revision });
+            setView(current => current && ({ ...current, defaultProfile: snapshot.defaultProfile, state: { ...current.state, revision: snapshot.revision, profiles: retain(current.state.profiles, snapshot.profiles) } }));
         }, 'default');
     }
 
@@ -597,7 +596,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
             </div>
         </div>
             <small>{t('tree_hint')}</small>
-            {view && <button className="ts-unmounted-count" type="button" data-unmounted-count={unmounted.length} aria-live="polite" disabled={busy || !unmounted.length}
+            {view && <button className="ts-unmounted-count" type="button" data-unmounted-count={unmounted.length} aria-live="polite" disabled={!unmounted.length}
                 onClick={() => setToolPicker({ parent: '', unmountedOnly: true })}>{t('unmounted_count', { count: unmounted.length })}</button>}
             <div aria-busy={pending === 'editor' || undefined} ref={element => { if (element) element.inert = pending === 'editor'; }}>
                 <NamespaceTreeView roots={namespaceTree.roots} tree={tree} />

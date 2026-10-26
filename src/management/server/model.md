@@ -11,3 +11,5 @@ POST 在事务前校验严格请求结构，畸形 JSON 返回稳定的 Invalid 
 Mapping 请求按单个挂载路径保存，移除 aliases 字段；同一物理工具 ID 可对应多条路径，各条配置独立生效。
 
 配置字段校验与 `profile_picker/profile_json.ts` 共用，确保浏览器上传 JSON 和管理接口使用相同的配置结构。
+
+管理写入成功时返回 ok、revision、defaultProfile、profiles，默认 Profile 选择可只更新返回的元数据，无需重新 GET 全部工具和配置。

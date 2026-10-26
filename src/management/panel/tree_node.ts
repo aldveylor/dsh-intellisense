@@ -32,11 +32,12 @@ export class NamespaceTree {
             return node;
         };
         for (const path of namespacePaths(draft)) ensureNamespace(path);
+        const toolsById = new Map(tools.map(tool => [tool.id, tool]));
         for (const mapping of draft.mappings) {
             const path = mapping.path;
             const parts = path.split('.');
             const parent = ensureNamespace(parts.slice(0, -1).join('.'));
-            const tool = tools.find(tool => tool.id === mapping.id);
+            const tool = toolsById.get(mapping.id);
             if (parent.permissions.acceptsChildren) parent.children.push(new CommandTreeNode(parts.at(-1)!, parent, mapping, tool?.description, tool));
         }
         /** @brief Apply Profile ordering recursively to editable branches. */

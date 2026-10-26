@@ -50,7 +50,8 @@ export function registerManagement(ctx: Context, globalRegistry: SemanticRegistr
             if (body.action === 'profile') await registry.manageProfile(body.operation, body.name, body.revision, body.newName, body.activate);
             else await registry.configure(body.mappings, body.revision, body.namespaces, body.order, body.unmountedVisible, body.action === 'save_as' ? body.profile : undefined, body.toolComments, body.builtinVisible, body.namespaceVisible, body.editingProfile, body.activate, body.builtinDisabled);
             ctx.emit('system-prompt/change');
-            return Response.json({ ok: true }, { headers });
+            const state = registry.snapshot();
+            return Response.json({ ok: true, revision: state.revision, defaultProfile: state.profile, profiles: state.profiles }, { headers });
         } catch (error) { return Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: 400, headers }); }
     } });
 }
