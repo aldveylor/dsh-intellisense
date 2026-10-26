@@ -34,6 +34,7 @@ export class PluginCommands {
 
     /** @brief Profile commands available through ordinary guarded native dispatch. */
     readonly managementCommands: readonly BuiltinTool[] = [
+        { tool: 'tools_profile_setdefault', path: 'tools.profile.setdefault', signature: '(name: string) => Promise<void>', discardResult: true, description: 'Set an existing catalog Profile as the global default for new conversations. Existing conversations keep their working configurations.', parameterDocs: { name: 'Existing catalog Profile to use by default for new conversations.' } },
         { tool: 'tools_profile_delete', path: 'tools.profile.delete', signature: '(name: string) => Promise<void>', discardResult: true, description: 'Delete a named catalog Profile. The current conversation Profile cannot be deleted.', parameterDocs: { name: 'Catalog Profile to delete.' } },
         { tool: 'tools_profile_switch', path: 'tools.profile.switch', signature: '(name: string) => Promise<void>', discardResult: true, description: 'Switch this conversation to a named catalog Profile.', parameterDocs: { name: 'Existing catalog Profile to select for this conversation.' } },
         { tool: 'tools_profile_load', path: 'tools.profile.load', signature: '(name?: string) => Promise<Profile>', description: 'Read a named catalog Profile as JSON data without changing the conversation, or return the current draft when name is omitted.' },

@@ -36,7 +36,7 @@ async function fixture() {
 
 test('native Profile data tools and optional-name save/load use session defaults', async () => {
     const { definitions, call, registry, catalog } = await fixture();
-    assert.deepEqual([...definitions.keys()].sort(), ['tools_profile_annotation', 'tools_profile_commands', 'tools_profile_delete', 'tools_profile_load', 'tools_profile_profiles', 'tools_profile_save', 'tools_profile_switch']);
+    assert.deepEqual([...definitions.keys()].sort(), ['tools_profile_annotation', 'tools_profile_commands', 'tools_profile_delete', 'tools_profile_load', 'tools_profile_profiles', 'tools_profile_save', 'tools_profile_setdefault', 'tools_profile_switch']);
     assert.equal(await call('tools_profile_annotation'), profileAnnotation);
     assert.deepEqual(await call('tools_profile_profiles'), { profiles: ['Default'], selected: 'Default' });
     assert.deepEqual(await call('tools_profile_commands'), [{ name: 'read_file', brief: 'Read a file.', paths: ['files.read', 'files.cat'], totalCalls: 2 }, { name: 'outside_scope', brief: 'Outside this session.', paths: [], totalCalls: 0 }]);
@@ -62,7 +62,7 @@ test('manifest exposes only the new tools API and projects VM array arguments', 
         { id: 'tools_mount', description: 'Old command.', parameters: {}, output: {} },
     ]));
     const entries = manifest(registry, []);
-    assert.deepEqual(entries.commands().filter(entry => entry.deployment === 'tool').map(entry => entry.path).sort(), ['tools.intellisense', 'tools.profile.annotation', 'tools.profile.commands', 'tools.profile.delete', 'tools.profile.load', 'tools.profile.profiles', 'tools.profile.save', 'tools.profile.switch']);
+    assert.deepEqual(entries.commands().filter(entry => entry.deployment === 'tool').map(entry => entry.path).sort(), ['tools.intellisense', 'tools.profile.annotation', 'tools.profile.commands', 'tools.profile.delete', 'tools.profile.load', 'tools.profile.profiles', 'tools.profile.save', 'tools.profile.setdefault', 'tools.profile.switch']);
     const discovery = entries.commands().find(entry => entry.path === 'tools.intellisense')!;
     assert.deepEqual(await positionalArguments(discovery, ['files.']), { queries: ['files.'] });
     await assert.rejects(positionalArguments(discovery, [['files.']]));
@@ -199,4 +199,37 @@ test('Profile load reads catalog data without replacing the working draft or ref
     await assert.rejects(call('tools_profile_load', { name: 'Missing' }), /Profile does not exist/);
     assert.deepEqual(registry.snapshot(), before);
     assert.deepEqual(changed, []);
+});
+
+
+test('Profile setdefault persists the default for new sessions and preserves existing drafts', async () => {
+    const { call, load, catalog, registry, changed, definitions } = await fixture();
+    const profile = await load();
+    await call('tools_profile_save', { name: 'Copy', profile });
+    const before = registry.snapshot();
+    assert.equal(await call('tools_profile_setdefault', { name: 'Copy' }), null);
+    assert.equal(catalog.snapshot().profile, 'Copy');
+    assert.deepEqual(registry.snapshot(), before);
+    assert.deepEqual(changed, []);
+    assert.equal((await new ProfileSessions(catalog, new MemoryStore()).forSession('new')).snapshot().profile, 'Copy');
+    const revision = catalog.snapshot().revision;
+    await call('tools_profile_setdefault', { name: 'Copy' });
+    assert.equal(catalog.snapshot().revision, revision);
+    for (const args of [{}, { name: undefined }, { name: null }, { name: '' }, { name: 42 }, { name: 'Missing' }]) {
+        await assert.rejects(call('tools_profile_setdefault', args));
+    }
+    assert.equal(catalog.snapshot().profile, 'Copy');
+    await call('tools_profile_setdefault', { name: 'Default' });
+    assert.equal(catalog.snapshot().profile, 'Default');
+    registry.refresh([...definitions.values()].map(tool => ({ id: tool.name, description: tool.description, parameters: tool.parameters, output: tool.output.schema })));
+    const entry = manifest(registry, []).commands().find(node => node.path === 'tools.profile.setdefault')!;
+    assert.deepEqual(await positionalArguments(entry, ['Copy']), { name: 'Copy' });
+    assert(intellisense(['tools.profile.setdefault'], manifest(registry, []), true).includes('setdefault(name: string)'));
+    const edited = await load();
+    const command = edited.root.children!.find(node => node.name === 'tools')!.children!.find(node => node.name === 'profile')!.children!.find(node => node.name === 'setdefault')!;
+    assert.equal(command.permissions.disableable, true);
+    command.disabled = true;
+    await call('tools_profile_save', { profile: edited });
+    await call('tools_profile_switch', { name: 'Default' });
+    assert(!manifest(registry, []).commands().some(node => node.path === 'tools.profile.setdefault'));
 });

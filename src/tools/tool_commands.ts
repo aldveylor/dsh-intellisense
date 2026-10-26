@@ -8,7 +8,7 @@ import type { SemanticRegistry } from '../registry/registry.js';
 import type { ProfileSessions } from '../registry/profiles.js';
 import { type CommandBrief, ProfileSchema, profileConfiguration, profileTree, profileAnnotation } from '../registry/profile_tree.js';
 
-/** @brief Register Profile load/save/delete and data access. */
+/** @brief Register Profile management commands and data access. */
 export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, profiles: ProfileSessions, registryFor: (agent: Agent) => Promise<SemanticRegistry>, changed: (agent: Agent) => Promise<void>, commands: (agent: Agent) => Promise<CommandBrief[]>): void {
     const queues = new Map<string, Promise<unknown>>();
     /** @brief Serialize configuration changes belonging to one conversation. */
@@ -44,6 +44,17 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
             await changed(execution.agent);
             const text = `Profile updated to ${name}`;
             execution.agent.inject(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'intellisense-profile', form: 'notice', summary: text } }));
+            return null;
+        },
+    })));
+    ctx.effect(() => register(defineTool({
+        name: 'tools_profile_setdefault', description: 'Set an existing catalog Profile as the global default for new conversations. Existing conversations keep their working configurations.',
+        parameters: { name: { type: 'string', required: true, description: 'Existing catalog Profile to use by default for new conversations.' } },
+        output: { ...output, schema: { type: 'null' } },
+        execute: async (args, execution) => {
+            if (!execution.agent) throw new Error('A live conversation is required');
+            const { name } = z.strictObject({ name: z.string().min(1) }).parse(args);
+            await catalog.manageProfile('select', name, catalog.snapshot().revision);
             return null;
         },
     })));
