@@ -97,11 +97,15 @@ test('unknown is absent; count follows mounting, unmounting, saving and profile 
             await until(() => registry.snapshot().mappings.length === 3 && !save.disabled);
             assert.equal(count(), 0);
             assert(!registry.snapshot().namespaces?.some(namespace => namespace.path === 'unknown'));
-            const select = document.querySelector<HTMLSelectElement>('.ts-namespace-profile select')!;
+            const select = document.querySelector<HTMLButtonElement>('.ts-namespace-profile .ts-profile-select > button')!;
+            select.click();
+            await until(() => document.querySelectorAll('.ts-namespace-profile .ts-profile-option').length === 2);
             for (const [name, expected] of [['Empty', 3], ['Default', 0]] as const) {
-                select.value = name;
-                select.dispatchEvent(new window.Event('change', { bubbles: true }));
+                const option = document.querySelector<HTMLButtonElement>(`.ts-namespace-profile [data-profile-value="${name}"] .ts-profile-option`);
+                assert(option, `Profile option exists: ${name}`);
+                option.click();
                 await until(() => count() === expected && !select.disabled);
+                assert.equal(document.querySelector('.ts-namespace-profile .ts-profile-label')?.textContent, name);
             }
             assert.equal(document.querySelector('[data-namespace-path="unknown"]'), null);
         } finally { dom.window.close(); }

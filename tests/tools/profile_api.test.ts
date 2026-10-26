@@ -10,6 +10,7 @@ import { Profile, ProfileSchema, profileAnnotation, profileTree } from '../../sr
 import { MemoryStore } from '../../src/storage/store.js';
 import { registerToolCommands } from '../../src/tools/tool_commands.js';
 import { manifest } from '../../src/namespace/namespace.js';
+import { nodePermissions } from '../../src/namespace/node.js';
 import { intellisense } from '../../src/tools/intellisense.js';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
 import { RuntimeHost } from '../../src/runtime/host.js';
@@ -169,7 +170,8 @@ test('Profile switch requires a name and supports disabling through server permi
     }
     const edited = await load();
     const command = edited.root.children!.find(node => node.name === 'tools')!.children!.find(node => node.name === 'profile')!.children!.find(node => node.name === 'switch')!;
-    assert.equal(command.permissions.disableable, true);
+    assert.equal(command.permissions?.disableable, undefined);
+    assert.equal(nodePermissions('leaf', command.permissions).disableable, true);
     command.disabled = true;
     await call('tools_profile_save', { profile: edited });
     assert(!registry.configuration().builtinDisabled?.includes('tools.profile.switch'));
@@ -227,7 +229,8 @@ test('Profile setdefault persists the default for new sessions and preserves exi
     assert(intellisense(['tools.profile.setdefault'], manifest(registry, []), true).includes('setdefault(name: string)'));
     const edited = await load();
     const command = edited.root.children!.find(node => node.name === 'tools')!.children!.find(node => node.name === 'profile')!.children!.find(node => node.name === 'setdefault')!;
-    assert.equal(command.permissions.disableable, true);
+    assert.equal(command.permissions?.disableable, undefined);
+    assert.equal(nodePermissions('leaf', command.permissions).disableable, true);
     command.disabled = true;
     await call('tools_profile_save', { profile: edited });
     await call('tools_profile_switch', { name: 'Default' });

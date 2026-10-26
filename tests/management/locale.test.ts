@@ -84,19 +84,20 @@ test('host language switches update an open editor while preserving its unsaved 
     try {
         dom.window.eval(result.outputFiles[0]!.text);
         const document = dom.window.document;
-        await until(() => Array.from(document.querySelectorAll('button')).some(button => button.textContent === '新建 Profile' && !button.disabled));
-        Array.from(document.querySelectorAll('button')).find(button => button.textContent === '新建 Profile')!.click();
-        await until(() => !!document.querySelector('input[aria-label="Profile 名称"]'));
-        const input = document.querySelector<HTMLInputElement>('input[aria-label="Profile 名称"]')!;
+        await until(() => !!document.querySelector('.ts-namespace-profile .ts-profile-select > button:not(:disabled)'));
+        document.querySelector<HTMLButtonElement>('.ts-namespace-profile .ts-profile-select > button')!.click();
+        await until(() => !!document.querySelector('.ts-namespace-profile .ts-profile-create input'));
+        const input = document.querySelector<HTMLInputElement>('.ts-namespace-profile .ts-profile-create input')!;
         Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value')!.set!.call(input, 'Unsaved profile');
         input.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
         (dom.window as unknown as { switchLanguage(): void }).switchLanguage();
         await until(() => document.querySelector('h1')?.textContent === 'Tool Namespace Table');
-        assert.equal(document.querySelector<HTMLInputElement>('input[aria-label="Profile name"]')?.value, 'Unsaved profile');
+        assert.equal(document.querySelector('.ts-profile-create input')?.getAttribute('aria-label'), 'Create profile');
+        assert.equal(document.querySelector<HTMLInputElement>('.ts-namespace-profile .ts-profile-create input')?.value, 'Unsaved profile');
         assert(document.body.textContent?.includes('Native console output'));
         assert(document.body.textContent?.includes('1 unmounted tools'));
         (dom.window as unknown as { switchLanguage(): void }).switchLanguage();
         await until(() => document.querySelector('h1')?.textContent === '工具命名空间表');
-        assert.equal(document.querySelector<HTMLInputElement>('input[aria-label="Profile 名称"]')?.value, 'Unsaved profile');
+        assert.equal(document.querySelector<HTMLInputElement>('.ts-namespace-profile .ts-profile-create input')?.value, 'Unsaved profile');
     } finally { dom.window.close(); }
 });

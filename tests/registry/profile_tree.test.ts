@@ -98,9 +98,9 @@ test('save fills protected descendants without replacing submitted pin and disab
     const restored = profileTree('Work', profileConfiguration(ProfileSchema.parse(input), current, []));
     assert.deepEqual(input, before);
     const result = restored.root.children!.find(node => node.name === 'tools')!.children!.find(node => node.name === 'profile')!;
-    assert.equal(result.fixedLevel, 0);
+    assert.equal(result.fixedLevel, undefined);
     assert.equal(result.disabled, true);
-    assert.equal(result.children!.find(node => node.name === 'load')!.fixedLevel, 0);
+    assert.equal(result.children!.find(node => node.name === 'load')!.fixedLevel, undefined);
     assert.equal(result.children!.find(node => node.name === 'save')!.fixedLevel, 1);
     assert.equal(result.children!.find(node => node.name === 'delete')!.disabled, true);
     assert.equal(restored.root.children!.find(node => node.name === 'console')!.children!.find(node => node.name === 'info')!.fixedLevel, 2);
