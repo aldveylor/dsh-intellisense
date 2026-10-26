@@ -1,27 +1,54 @@
-name: Publish artifact tag
+name: Publish version release
 
 on:
   push:
     branches: [master]
+    paths: [package.json]
 
 permissions:
   contents: write
 
 concurrency:
-  group: publish-build
+  group: publish-version-release
   cancel-in-progress: false
 
 jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.version.outputs.changed }}
+      name: ${{ steps.version.outputs.name }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout source history
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Detect package version change
+        id: version
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          node --input-type=commonjs <<'NODE'
+          const { readFileSync, appendFileSync } = require('node:fs');
+          const { execFileSync } = require('node:child_process');
+          const current = JSON.parse(readFileSync('package.json', 'utf8'));
+          let previous;
+          if (!/^0+$/.test(process.env.BEFORE)) {
+            previous = JSON.parse(execFileSync('git', ['show', `${process.env.BEFORE}:package.json`], { encoding: 'utf8' }));
+          }
+          appendFileSync(process.env.GITHUB_OUTPUT, `changed=${previous?.version !== current.version}\nname=${current.name}\nversion=${current.version}\n`);
+          NODE
+
   publish:
+    needs: version
+    if: needs.version.outputs.changed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - name: Checkout source
         uses: actions/checkout@v6
-
-      - name: Create temporary build branch
-        shell: bash
-        run: git switch --create build_build "$GITHUB_SHA"
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -35,24 +62,26 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Commit build and tag build
-        shell: bash
+      - name: Package release
+        env:
+          PROJECT_NAME: ${{ needs.version.outputs.name }}
+          VERSION: ${{ needs.version.outputs.version }}
         run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          node --input-type=commonjs <<'NODE'
+          const { mkdirSync, renameSync } = require('node:fs');
+          const { execFileSync } = require('node:child_process');
+          const directory = 'build/release';
+          mkdirSync(directory, { recursive: true });
+          const [archive] = JSON.parse(execFileSync('npm', ['pack', '--ignore-scripts', '--json', '--pack-destination', directory], { encoding: 'utf8' }));
+          renameSync(`${directory}/${archive.filename}`, `${directory}/${process.env.PROJECT_NAME}-v${process.env.VERSION}.tar.gz`);
+          NODE
 
-          # Keep the complete checkout and generated artifacts, excluding dependencies and agent files.
-          git add --all --force -- . ':!node_modules' ':!AGENTS' ':!AGENTS.md' ':!*.agent.md'
-          git commit --allow-empty -m "chore: build from $GITHUB_SHA"
-          git tag --force build
-          git switch --detach
-          git branch --delete --force build_build
-
-      - name: Push build tag
-        shell: bash
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PROJECT_NAME: ${{ needs.version.outputs.name }}
+          VERSION: ${{ needs.version.outputs.version }}
         run: |
-          branch_deletion=()
-          if [[ -n "$(git ls-remote --heads origin refs/heads/build)" ]]; then
-            branch_deletion=(':refs/heads/build')
-          fi
-          git push --atomic origin '+refs/tags/build:refs/tags/build' "${branch_deletion[@]}"
+          printf '# %s v%s\n' "$PROJECT_NAME" "$VERSION" > build/release/notes.md
+          gh release create "v$VERSION" "build/release/$PROJECT_NAME-v$VERSION.tar.gz" \
+            --target "$GITHUB_SHA" --title "$PROJECT_NAME v$VERSION" --notes-file build/release/notes.md

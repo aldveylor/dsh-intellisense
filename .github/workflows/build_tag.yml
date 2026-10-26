@@ -1,0 +1,58 @@
+name: Publish artifact tag
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-build
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v6
+
+      - name: Create temporary build branch
+        shell: bash
+        run: git switch --create build_build "$GITHUB_SHA"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Commit build and tag build
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          # Keep the complete checkout and generated artifacts, excluding dependencies and agent files.
+          git add --all --force -- . ':!node_modules' ':!AGENTS' ':!AGENTS.md' ':!*.agent.md'
+          git commit --allow-empty -m "chore: build from $GITHUB_SHA"
+          git tag --force build
+          git switch --detach
+          git branch --delete --force build_build
+
+      - name: Push build tag
+        shell: bash
+        run: |
+          branch_deletion=()
+          if [[ -n "$(git ls-remote --heads origin refs/heads/build)" ]]; then
+            branch_deletion=(':refs/heads/build')
+          fi
+          git push --atomic origin '+refs/tags/build:refs/tags/build' "${branch_deletion[@]}"
