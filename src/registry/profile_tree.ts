@@ -55,7 +55,7 @@ const nodeSchema: z.ZodType<ProfileTreeNode> = z.lazy(() => z.union([
     namespaceSchema,
     z.strictObject({
         ...nodeProperties, type: z.literal('command'),
-        command: z.strictObject({ tool: z.string().describe('Exact physical name from tools.profile.commands, including unmounted commands; do not use a namespace path.'), argMap: z.record(z.string(), z.string()).optional(), doc: z.string().optional() }),
+        command: z.strictObject({ tool: z.string().describe('Exact physical name from tools.profile.commands, including unmounted commands; do not use a namespace path.'), argMap: z.record(z.string(), z.string()).optional(), doc: z.string().optional().describe('One-sentence summary of the command functionality; cannot modify the original command documentation or schema.') }),
     }),
 ]));
 
@@ -179,7 +179,7 @@ interface Profiles { profiles: string[]; selected: string; }
 interface Permission { commentable: boolean; renamable: boolean; movable: boolean; removable: boolean; disableable: boolean; acceptsChildren: boolean; availableFixLevels: (0 | 1 | 2)[]; }
 /** @brief Start from tools.profile.load(). Save recursively restores missing protected nodes from the existing Profile; submitted nodes retain their fixedLevel and other settings. Protected nodes still cannot be moved, renamed, replaced or extended. New commands may use any exact physical name from tools.profile.commands, even when absent from the loaded tree. A missing tree member is not a command template.
  * To mount a new command, append { type: 'command', name: 'cwd', permissions: { commentable: true, renamable: true, movable: true, removable: true, disableable: true, acceptsChildren: false, availableFixLevels: [0, 1, 2] }, command: { tool: '<exact physical name>', doc: '<one sentence>' } } to an ordinary namespace's children.
- * Edit optional command.doc for command descriptions and optional description for namespace descriptions. Server permissions.commentable governs edits; forbidden descriptions are ignored. Omitted command.doc uses the original command brief. Saving replaces the named catalog tree without switching the conversation. A rejected save or delete preserves saved Profiles.
+ * Edit optional command.doc for a one-sentence summary of the command functionality; it cannot modify the original command documentation or schema. Edit optional description for namespace descriptions. Server permissions.commentable governs edits; forbidden descriptions are ignored. Omitted command.doc uses the original command brief. Saving replaces the named catalog tree without switching the conversation. A rejected save or delete preserves saved Profiles.
  */
 /** @brief Shared editable identity and visibility. disabled applies to the node and its subtree; fixedLevel controls pinning (0: none, 1: brief, 2: detailed). */
 interface ProfileNode {
@@ -189,7 +189,11 @@ interface ProfileNode {
 /** @brief Physical command mounted at a named Profile member. */
 interface CommandNode extends ProfileNode {
     type: 'command'; fixedLevel?: 0 | 1 | 2;
-    command: { tool: string; argMap?: Record<string, string>; doc?: string };
+    command: {
+        tool: string; argMap?: Record<string, string>;
+        /** @brief One-sentence summary of the command functionality; cannot modify the original command documentation or schema. */
+        doc?: string;
+    };
 }
 /** @brief Namespace containing directly nested Profile members. */
 interface NamespaceTreeNode extends ProfileNode {

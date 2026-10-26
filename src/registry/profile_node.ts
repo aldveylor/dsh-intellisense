@@ -13,7 +13,11 @@ export interface ProfileNode {
 export interface CommandNode extends ProfileNode {
     type: 'command';
     fixedLevel?: 0 | 1 | 2;
-    command: { tool: string; argMap?: Record<string, string>; doc?: string };
+    command: {
+        tool: string; argMap?: Record<string, string>;
+        /** @brief One-sentence summary of the command functionality; cannot modify the original command documentation or schema. */
+        doc?: string;
+    };
     children?: never;
     description?: never;
 }
