@@ -352,3 +352,21 @@ test('PTC Profile save overloads persist the selected name and reject invalid ca
         assert.deepEqual(loaded.value, { logs: [], result: 'Copy' });
     } finally { await dispose(); }
 });
+
+
+test('PTC Profile deletion protects the selection and refreshes preloaded names', async () => {
+    const { run, dispose } = await fixture();
+    try {
+        const result = await run(`
+            const profile = await tools.profile.load();
+            await tools.profile.save('Copy', profile);
+            let blocked = false;
+            try { await tools.profile.delete(); } catch { blocked = true; }
+            const state = tools.profile.profiles;
+            const returned = await tools.profile.delete('Default');
+            return [blocked, typeof returned, state.profiles, state.selected];
+        `);
+        assert.equal(result.isError, false, JSON.stringify(result));
+        assert.deepEqual(result.value, { logs: [], result: [true, 'undefined', ['Copy'], 'Copy'] });
+    } finally { await dispose(); }
+});

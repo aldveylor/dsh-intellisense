@@ -27,11 +27,27 @@ export function namespaceDeclaration(items: readonly NamespaceDeclaration[], amb
     const lines: string[] = ambient ? ['declare namespace global {'] : [];
     /** @brief Keep comments and declarations within their prompt fences. */
     const clean = (text: string): string => decodeHTML(text).replace(/[`\r\n\u2028\u2029]/g, ' ').replaceAll('*/', '* /').replaceAll('<|', '< |').trim();
+    /** @brief Render reserved method names as object members, since namespace function bindings cannot use keywords. */
+    function objectMembers(node: DeclarationNode, indent: string): void {
+        for (const [name, child] of [...node.children].sort(([a], [b]) => a.localeCompare(b))) {
+            if (child.namespace || child.children.size) {
+                lines.push(`${indent}${name}: {`);
+                objectMembers(child, indent + '  ');
+                lines.push(`${indent}};`);
+            } else if (child.declaration) {
+                lines.push(...child.declaration.trim().replaceAll('`', '\u02cb').replaceAll('<|', '< |').replace(/\bfunction (\w+)\(/g, '$1(').split('\n').map(line => indent + line));
+            } else lines.push(`${indent}readonly ${name}: ${child.valueType ?? 'Function'};`);
+        }
+    }
     /** @brief Render namespaces and leaves in deterministic name order. */
     function visit(node: DeclarationNode, indent: string): void {
         for (const [name, child] of [...node.children].sort(([a], [b]) => a.localeCompare(b))) {
             const brief = child.description ? `  // ${clean(child.description)}` : '';
-            if (child.namespace || child.children.size) {
+            if ((child.namespace || child.children.size) && [...child.children.keys()].some(member => ['delete', 'switch'].includes(member))) {
+                lines.push(`${indent}const ${name}: {${brief}`);
+                objectMembers(child, indent + '  ');
+                lines.push(`${indent}};`);
+            } else if (child.namespace || child.children.size) {
                 lines.push(`${indent}namespace ${name} {${brief}`);
                 visit(child, indent + '  ');
                 lines.push(`${indent}}`);
