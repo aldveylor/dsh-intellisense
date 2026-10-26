@@ -610,9 +610,9 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
                 : <ErrorDialog message={t(status)} close={() => setStatus('')} />)}
             <div className="ts-toolbar"><div className="ts-actions">
                 <div className="ts-default-profile" aria-busy={pending === 'default' || undefined} ref={element => { if (element) element.inert = pending === 'default'; }}><span>{t('default_profile')}</span>
-                    <Select value={view?.defaultProfile ?? ''} options={(view?.state.profiles ?? []).map(name => ({ value: name, label: name, brief: view?.profileBriefs?.[name] }))}
+                    <div className="ts-default-profile-control"><Select value={view?.defaultProfile ?? ''} options={(view?.state.profiles ?? []).map(name => ({ value: name, label: name, brief: view?.profileBriefs?.[name] }))}
                         disabled={!view} label={t('default_profile')} readOnly allowCreate={false} onChange={selectDefault}
-                        onCreate={createProfile} onRename={(name, newName) => manageProfile('rename', name, newName)} onRemove={name => manageProfile('delete', name)} />
+                        onCreate={createProfile} onRename={(name, newName) => manageProfile('rename', name, newName)} onRemove={name => manageProfile('delete', name)} /></div>
                 </div>
                 <button className="ts-organize" disabled={pending === 'organize' || !organize} onClick={() => void action('organizing', async () => {
                     await organize!(t('organization_prompt')); setStatus('');

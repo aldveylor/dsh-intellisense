@@ -92,3 +92,5 @@
 }
 
 .ts-profile-summary{display:flex;align-items:center;gap:8px;margin-top:12px}.ts-profile-summary .ts-unmounted-count{margin-top:0}.ts-profile-option>.ts-profile-text{white-space:normal}
+
+.ts-default-profile{flex:1}.ts-default-profile-control{min-width:50%}.ts-default-profile-control>span,.ts-default-profile-control>.ts-profile-select{width:100%}.ts-default-profile-control button[aria-haspopup=menu]{display:flex;align-items:center;justify-content:space-between;width:100%}
