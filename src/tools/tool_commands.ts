@@ -34,6 +34,18 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         },
     })));
     ctx.effect(() => register(defineTool({
+        name: 'tools_profile_switch', description: 'Switch this conversation to a named catalog Profile. The name is required. This command can be disabled in a Profile.',
+        parameters: { name: { type: 'string', required: true, description: 'Existing catalog Profile to select for this conversation.' } },
+        output: { ...output, schema: { type: 'null' } },
+        execute: async (args, execution) => {
+            if (!execution.agent) throw new Error('A live conversation is required');
+            const { name } = z.strictObject({ name: z.string().min(1) }).parse(args);
+            await profiles.load(execution.agent.id, name);
+            await changed(execution.agent);
+            return null;
+        },
+    })));
+    ctx.effect(() => register(defineTool({
         name: 'tools_profile_save', description: 'Save an editable Profile tree to the named catalog entry and this conversation. Omitted or undefined name uses the current conversation Profile name, ignoring profile.name. Invalid arguments or failed writes throw.',
         parameters: { name: { type: 'string', description: 'Target catalog name. Omitted or undefined uses the current conversation Profile name, not profile.name. Pass an explicit name to create another Profile.' }, profile: { type: 'object', additionalProperties: true, required: true, description: 'Complete editable Profile tree. Required in both save(profile) and save(name, profile); invalid arguments and failed writes throw.' } }, output: { ...output, schema: { type: 'null' } },
         execute: async (args, execution) => {

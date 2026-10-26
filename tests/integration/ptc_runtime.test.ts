@@ -370,3 +370,21 @@ test('PTC Profile deletion protects the selection and refreshes preloaded names'
         assert.deepEqual(result.value, { logs: [], result: [true, 'undefined', ['Copy'], 'Copy'] });
     } finally { await dispose(); }
 });
+
+
+test('PTC Profile switch changes the selection and rejects an omitted name', async () => {
+    const { run, dispose } = await fixture();
+    try {
+        const result = await run(`
+            const profile = await tools.profile.load();
+            await tools.profile.save('Copy', profile);
+            const state = tools.profile.profiles;
+            const returned = await tools.profile.switch('Default');
+            let blocked = false;
+            try { await tools.profile.switch(); } catch { blocked = true; }
+            return [typeof returned, state.selected, blocked];
+        `);
+        assert.equal(result.isError, false, JSON.stringify(result));
+        assert.deepEqual(result.value, { logs: [], result: ['undefined', 'Default', true] });
+    } finally { await dispose(); }
+});

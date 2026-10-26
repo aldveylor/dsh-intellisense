@@ -34,7 +34,7 @@ async function fixture() {
 
 test('native Profile data tools and optional-name save/load use session defaults', async () => {
     const { definitions, call, registry } = await fixture();
-    assert.deepEqual([...definitions.keys()].sort(), ['tools_profile_annotation', 'tools_profile_commands', 'tools_profile_delete', 'tools_profile_load', 'tools_profile_profiles', 'tools_profile_save']);
+    assert.deepEqual([...definitions.keys()].sort(), ['tools_profile_annotation', 'tools_profile_commands', 'tools_profile_delete', 'tools_profile_load', 'tools_profile_profiles', 'tools_profile_save', 'tools_profile_switch']);
     assert.equal(await call('tools_profile_annotation'), profileAnnotation);
     assert.deepEqual(await call('tools_profile_profiles'), { profiles: ['Default'], selected: 'Default' });
     assert.deepEqual(await call('tools_profile_commands'), [{ name: 'read_file', brief: 'Read a file.', totalCalls: 2 }, { name: 'outside_scope', brief: 'Outside this session.', totalCalls: 0 }]);
@@ -55,7 +55,7 @@ test('manifest exposes only the new tools API and projects VM array arguments', 
         { id: 'tools_mount', description: 'Old command.', parameters: {}, output: {} },
     ]));
     const entries = manifest(registry, []);
-    assert.deepEqual(entries.commands().filter(entry => entry.deployment === 'tool').map(entry => entry.path).sort(), ['tools.intellisense', 'tools.profile.annotation', 'tools.profile.commands', 'tools.profile.delete', 'tools.profile.load', 'tools.profile.profiles', 'tools.profile.save']);
+    assert.deepEqual(entries.commands().filter(entry => entry.deployment === 'tool').map(entry => entry.path).sort(), ['tools.intellisense', 'tools.profile.annotation', 'tools.profile.commands', 'tools.profile.delete', 'tools.profile.load', 'tools.profile.profiles', 'tools.profile.save', 'tools.profile.switch']);
     const discovery = entries.commands().find(entry => entry.path === 'tools.intellisense')!;
     assert.deepEqual(await positionalArguments(discovery, ['files.']), { queries: ['files.'] });
     await assert.rejects(positionalArguments(discovery, [['files.']]));
@@ -141,4 +141,25 @@ test('Profile deletion rejects the current selection and missing entries, and ca
     assert.equal(registry.snapshot().profile, 'Copy');
     assert.equal(catalog.snapshot().profile, 'Copy');
     await assert.rejects(call('tools_profile_delete', { name: 'Default' }), /Profile does not exist/);
+});
+
+
+test('Profile switch requires a name and supports disabling through server permissions', async () => {
+    const { call, catalog, registry, definitions } = await fixture();
+    const profile = await call('tools_profile_load');
+    await call('tools_profile_save', { name: 'Copy', profile });
+    await call('tools_profile_switch', { name: 'Default' });
+    assert.equal(registry.snapshot().profile, 'Default');
+    assert.equal(catalog.snapshot().profile, 'Default');
+    for (const args of [{}, { name: null }, { name: '' }, { name: 42 }, { name: 'Missing' }]) {
+        await assert.rejects(call('tools_profile_switch', args));
+    }
+    const edited = await call('tools_profile_load');
+    const command = edited.root.children.find(node => node.name === 'tools').children.find(node => node.name === 'profile').children.find(node => node.name === 'switch');
+    assert.equal(command.permissions.disableable, true);
+    command.disabled = true;
+    await call('tools_profile_save', { profile: edited });
+    registry.refresh([...definitions.values()].map(tool => ({ id: tool.name, description: tool.description, parameters: tool.parameters, output: tool.output.schema })));
+    assert(!manifest(registry, []).commands().some(node => node.path === 'tools.profile.switch'));
+    assert((await call('tools_profile_load')).root.children.find(node => node.name === 'tools').children.find(node => node.name === 'profile').children.find(node => node.name === 'switch').disabled);
 });
