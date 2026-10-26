@@ -85,7 +85,8 @@ export class SemanticRegistry {
     }
 
     snapshot(): RegistryState {
-        const { inactiveProfiles, ...state } = structuredClone(this.state);
+        const { inactiveProfiles, ...current } = this.state;
+        const state = structuredClone(current);
         const profile = state.profile ?? 'Default';
         return { ...state, profile, profiles: [profile, ...Object.keys(inactiveProfiles ?? {})].sort((a, b) => a.localeCompare(b)) };
     }
@@ -223,8 +224,14 @@ export class SemanticRegistry {
     }
 
     effective(): Array<Mapping & { tool: PhysicalTool }> {
+        const byId = new Map<string, Mapping[]>();
+        for (const mapping of this.state.mappings) {
+            const group = byId.get(mapping.id);
+            if (group) group.push(mapping);
+            else byId.set(mapping.id, [mapping]);
+        }
         return [...this.physical.values()].flatMap(tool => {
-            const mappings = this.state.mappings.filter(mapping => mapping.id === tool.id);
+            const mappings = byId.get(tool.id) ?? [];
             return (mappings.length ? mappings : [{ id: tool.id,
                 path: `tools.${tool.id.startsWith('tools_') ? tool.id.slice(6) : toolName(tool.id)}`,
                 pinned: false, alwaysVisible: this.state.unmountedVisible?.[tool.id] ?? 0,

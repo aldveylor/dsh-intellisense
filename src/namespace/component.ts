@@ -24,6 +24,9 @@ import { MemoryStore } from '../storage/store.js';
 
 /** @brief Profile-backed namespace discovery, independent of any execution runtime. */
 export class NamespaceComponent {
+    private catalogRevision = 0;
+    private refreshedRevision = -1;
+    private refreshing?: Promise<void>;
     private generatedTools = new WeakSet<ToolDefinition>();
     private positions = new Map<string, Position>();
     private discovered = new Map<string, Set<string>>();
@@ -31,6 +34,7 @@ export class NamespaceComponent {
 
     constructor(private ctx: Context, private registry: SemanticRegistry, readonly profiles: ProfileSessions, private aliases: z.infer<typeof Aliases>, readonly searchEngines = createSearchEngines(), readonly statistics = new CommandStatistics(new MemoryStore())) {
         ctx.effect(() => async () => { await Promise.all([...new Set([...this.nativeTools.keys(), ...this.positions.keys(), ...this.discovered.keys()])].map(id => this.release(id))); await this.profiles.dispose(); });
+        ctx.on('tools/change', () => { this.catalogRevision++; });
         ctx.on('agent/request', async (payload, next) => {
             if (this.enabled(payload.agent)) this.positions.set(payload.agent.id, { turn: payload.turn, step: payload.step });
             return next();
@@ -55,8 +59,9 @@ export class NamespaceComponent {
     /** @brief Initialize only sessions belonging to an Intellisense presentation scope. */
     async configure(agent: Agent): Promise<void> {
         if (!this.enabled(agent)) return;
-        await this.registryFor(agent);
+        this.catalogRevision++;
         if (!this.isPtc(agent)) await this.syncNative(agent);
+        else await this.registryFor(agent);
     }
 
     /** @brief Read the native loop position for ordinary tool query audit events. */
@@ -79,6 +84,17 @@ export class NamespaceComponent {
 
     /** @brief Include standing preset tools in the editor catalog even without live conversations. */
     async refresh(): Promise<void> {
+        if (this.refreshing) return this.refreshing;
+        if (this.refreshedRevision === this.catalogRevision) return;
+        const revision = this.catalogRevision;
+        const work = this.refreshCatalog();
+        this.refreshing = work;
+        try { await work; this.refreshedRevision = revision; }
+        finally { this.refreshing = undefined; }
+    }
+
+    /** @brief Rebuild the shared catalog only after tool availability changes. */
+    private async refreshCatalog(): Promise<void> {
         const tools = new Map(this.physical().map(tool => [tool.id, tool]));
         const presets = this.ctx.get('agentPresets');
         if (presets) for (const preset of await presets.list()) {
@@ -110,9 +126,9 @@ export class NamespaceComponent {
     async entries(agent: Agent): Promise<CommandNode[]> { return (await this.tree(agent)).commands().filter(entry => entry.deployment === 'tool'); }
 
     /** @brief List catalog commands with mount paths including disabled paths, excluding plugin builtins. */
-    async commandBriefs(agent?: Agent): Promise<CommandBrief[]> {
+    async commandBriefs(agent?: Agent, current?: SemanticRegistry): Promise<CommandBrief[]> {
         await this.refresh();
-        const registry = agent ? await this.registryFor(agent) : this.registry;
+        const registry = current ?? (agent ? await this.registryFor(agent) : this.registry);
         const paths = new Map<string, string[]>();
         const mounts = registry.snapshot().mappings;
         const mounted = new Set(mounts.map(mapping => mapping.id));
@@ -131,21 +147,20 @@ export class NamespaceComponent {
     }
 
     /** @brief Read catalog names separately from the conversation's selected Profile. */
-    async profileNames(agent?: Agent): Promise<Profiles> {
-        const registry = agent ? await this.registryFor(agent) : this.registry;
+    async profileNames(agent?: Agent, current?: SemanticRegistry): Promise<Profiles> {
+        const registry = current ?? (agent ? await this.registryFor(agent) : this.registry);
         return { profiles: this.registry.snapshot().profiles ?? [], selected: registry.snapshot().profile! };
     }
 
     /** @brief Preload data-only Profile metadata before guest execution. */
     async values(agent?: Agent): Promise<Record<string, z.infer<ReturnType<typeof z.json>>>> {
-        const values = { 'tools.profile.annotation': profileAnnotation, 'tools.profile.commands': (await this.commandBriefs(agent)).map(command => ({ ...command })), 'tools.profile.profiles': { ...await this.profileNames(agent) } };
         const registry = agent ? await this.registryFor(agent) : this.registry;
+        const values = { 'tools.profile.annotation': profileAnnotation, 'tools.profile.commands': await this.commandBriefs(agent, registry), 'tools.profile.profiles': await this.profileNames(agent, registry) };
         return Object.fromEntries(Object.entries(values).filter(([path]) => !registry.disabled(path)));
     }
 
     /** @brief Refresh tool presentation after the conversation configuration changes. */
     async configurationChanged(agent: Agent): Promise<void> {
-        await this.registryFor(agent);
         if (!this.isPtc(agent)) await this.syncNative(agent);
         this.ctx.emit('system-prompt/change');
     }
@@ -157,6 +172,7 @@ export class NamespaceComponent {
         const state = registry.snapshot();
         const root = manifest(registry, this.aliases);
         const hints: NamespaceHint[] = [];
+        const mappings = new Map(registry.effective().map(mapping => [mapping.path, mapping]));
         for (const entry of root.commands()) {
             if (!entry.permissions.renamable) {
                 const level = entry.fixLevel((state.builtinVisible ?? pluginCommands.defaultBuiltinVisible)[entry.path] ?? 0);
@@ -164,7 +180,7 @@ export class NamespaceComponent {
                     ...(level === 2 ? { declaration: entry.preload ? `/** @brief ${entry.doc} */\nconst ${entry.name}: ${entry.signature};` : entry.declaration(false) } : {}) });
                 continue;
             }
-            const mapping = registry.effective().find(mapping => mapping.id === entry.tool && mapping.path === entry.path);
+            const mapping = mappings.get(entry.path);
             const level = entry.fixLevel(mapping?.alwaysVisible);
             const description = mapping?.description ?? entry.doc.trim().split(/\r?\n/, 1)[0]!;
             if (level) hints.push({ path: entry.path, description,
@@ -193,15 +209,14 @@ export class NamespaceComponent {
     }
 
     /** @brief Keep native exposure limited to discovery, pinned commands and explicitly queried functions. */
-    private async nativeEntries(agent: Agent): Promise<CommandNode[]> {
-        const registry = await this.registryFor(agent);
+    private nativeEntries(agent: Agent, registry: SemanticRegistry, entries: CommandNode[]): CommandNode[] {
         const state = registry.snapshot();
         const discovered = this.discovered.get(agent.id);
-        const entries = manifest(registry, this.aliases).commands().filter(entry => entry.deployment === 'tool');
+        const pinned = new Set(registry.effective().filter(mapping => mapping.alwaysVisible).map(mapping => mapping.path));
         const available = new Set(entries.map(entry => entry.path));
         for (const path of discovered ?? []) if (!available.has(path)) discovered!.delete(path);
         return entries.filter(entry => !entry.permissions.disableable || discovered?.has(entry.path)
-            || registry.effective().some(mapping => mapping.id === entry.tool && mapping.path === entry.path && mapping.alwaysVisible)
+            || pinned.has(entry.path)
             || state.builtinVisible?.[entry.path]);
     }
 
@@ -219,17 +234,17 @@ export class NamespaceComponent {
             discovered.add(entry.path);
         }
         while (discovered.size > 256) discovered.delete(discovered.values().next().value!);
-        await this.syncNative(agent);
+        await this.syncNative(agent, registry, root);
         this.ctx.emit('system-prompt/change');
         return nativeDiscovery(queries, root, nativeBindings(entries, this.physical(agent).map(tool => tool.id)), (tool, path) => registry.description(path, tool));
     }
 
     /** @brief Install scoped namespace aliases while keeping dispatch inside native guards and auditing. */
-    async syncNative(agent: Agent): Promise<string[]> {
-        const entries = await this.entries(agent);
-        const visible = new Set((await this.nativeEntries(agent)).map(entry => entry.path));
-        const bindings = nativeBindings(entries, this.physical(agent).map(tool => tool.id)).filter(({ entry }) => visible.has(entry.path));
-        const registry = await this.registryFor(agent);
+    async syncNative(agent: Agent, registry?: SemanticRegistry, root?: NamespaceNode): Promise<string[]> {
+        registry ??= await this.registryFor(agent);
+        const entries = (root ?? manifest(registry, this.aliases)).commands().filter(entry => entry.deployment === 'tool');
+        const visible = new Set(this.nativeEntries(agent, registry, entries));
+        const bindings = nativeBindings(entries, registry.tools().map(tool => tool.id)).filter(({ entry }) => visible.has(entry));
         const descriptionFor = (entry: CommandNode): string => registry.description(entry.path, entry.tool) ?? entry.doc.trim().split(/\r?\n/, 1)[0]!;
         const fingerprint = JSON.stringify(bindings.map(({ entry, name }) => ({ name, path: entry.path, node: entry.serialize(), description: descriptionFor(entry) })));
         const previous = this.nativeTools.get(agent.id);
@@ -280,6 +295,7 @@ export class NamespaceComponent {
 
     /** @brief Release scoped aliases and the live Profile reference. */
     async release(owner: string): Promise<void> {
+        this.catalogRevision++;
         for (const dispose of this.nativeTools.get(owner)?.disposers ?? []) dispose();
         this.nativeTools.delete(owner);
         this.positions.delete(owner);

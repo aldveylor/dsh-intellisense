@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { Store } from '../storage/store.js';
 
 /** @brief Per-tool dispatch counts and per-path IntelliSense query counts. */
@@ -19,14 +20,27 @@ export interface QueryTarget { path: string; namespace: boolean }
 
 /** @brief Persist session and global counters together through serialized updates. */
 export class CommandStatistics {
-    private state: { global: CommandCounts; sessions: Record<string, CommandCounts> } = { global: this.empty(), sessions: {} };
+    private global = this.empty();
+    private sessions = new Map<string, CommandCounts>();
     private pending: Promise<void> = Promise.resolve();
 
     constructor(private store: Store) {}
 
     /** @brief Restore counters before exposing the namespace service. */
     async load(): Promise<void> {
-        this.state = await this.store.load<typeof this.state>('command_statistics') ?? this.state;
+        const sessions = await this.store.load<string[]>('command_statistics_sessions') ?? [];
+        const keys = sessions.map(session => this.key(session));
+        const records = this.store.loadMany ? await this.store.loadMany<CommandCounts>(keys) : await Promise.all(keys.map(key => this.store.load<CommandCounts>(key)));
+        this.sessions.clear();
+        this.global = this.empty();
+        for (const [index, session] of sessions.entries()) {
+            const counts = records[index];
+            if (!counts) continue;
+            this.sessions.set(session, counts);
+            for (const field of ['callsByTool', 'namespaceQueriesByPath', 'commandQueriesByPath'] as const) {
+                for (const [key, count] of Object.entries(counts[field])) this.increment(this.global[field], key, count);
+            }
+        }
     }
 
     /** @brief Count one dispatch attempt, including native failures. */
@@ -45,7 +59,7 @@ export class CommandStatistics {
     /** @brief Read a durable detached global snapshot, or the specified session's snapshot. */
     async snapshot(session?: string): Promise<CommandStatisticsSnapshot> {
         await this.pending;
-        const counts = structuredClone(session === undefined ? this.state.global : Object.hasOwn(this.state.sessions, session) ? this.state.sessions[session]! : this.empty());
+        const counts = structuredClone(session === undefined ? this.global : this.sessions.get(session) ?? this.empty());
         const total = (values: Record<string, number>): number => Object.values(values).reduce((sum, count) => sum + count, 0);
         return { ...counts, calls: total(counts.callsByTool), namespacesQueried: total(counts.namespaceQueriesByPath), commandsQueried: total(counts.commandQueriesByPath) };
     }
@@ -53,22 +67,25 @@ export class CommandStatistics {
     /** @brief Commit both scopes atomically without losing concurrent dispatches or queries. */
     private update(session: string, change: (counts: CommandCounts) => void): Promise<void> {
         const work = this.pending.then(async () => {
-            const next = structuredClone(this.state);
-            if (!Object.hasOwn(next.sessions, session)) Object.defineProperty(next.sessions, session, { value: this.empty(), enumerable: true, writable: true, configurable: true });
-            change(next.global);
-            change(next.sessions[session]!);
-            await this.store.save('command_statistics', next);
-            this.state = next;
+            const next = structuredClone(this.sessions.get(session) ?? this.empty());
+            change(next);
+            if (!this.sessions.has(session)) await this.store.save('command_statistics_sessions', [...this.sessions.keys(), session]);
+            await this.store.save(this.key(session), next);
+            this.sessions.set(session, next);
+            change(this.global);
         });
         this.pending = work.catch(() => {});
         return work;
     }
 
+    /** @brief Persist each session independently; global counts are derived when loading. */
+    private key(session: string): string { return `command_statistics_${createHash('sha256').update(session).digest('hex')}`; }
+
     /** @brief Create independent counters for a new scope. */
     private empty(): CommandCounts { return { callsByTool: {}, namespaceQueriesByPath: {}, commandQueriesByPath: {} }; }
 
     /** @brief Safely count arbitrary physical tool names and root namespace paths. */
-    private increment(counts: Record<string, number>, key: string): void {
-        Object.defineProperty(counts, key, { value: (Object.hasOwn(counts, key) ? counts[key]! : 0) + 1, enumerable: true, writable: true, configurable: true });
+    private increment(counts: Record<string, number>, key: string, amount = 1): void {
+        Object.defineProperty(counts, key, { value: (Object.hasOwn(counts, key) ? counts[key]! : 0) + amount, enumerable: true, writable: true, configurable: true });
     }
 }

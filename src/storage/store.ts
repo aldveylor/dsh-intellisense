@@ -5,6 +5,8 @@ import type { KvUnit } from '@deepseek-ai/dsh-storage';
 /** @brief Durable whole-value storage; callers serialize related transactions. */
 export interface Store {
     load<T>(key: string): Promise<T | undefined>;
+    /** @brief Optionally load a set of records from one backend snapshot. */
+    loadMany?<T>(keys: readonly string[]): Promise<(T | undefined)[]>;
     save<T>(key: string, value: T): Promise<void>;
     remove(key: string): Promise<void>;
 }
@@ -16,6 +18,11 @@ export class DshStore implements Store {
     async load<T>(key: string): Promise<T | undefined> {
         const snapshot = await this.unit.loadAll();
         return structuredClone(snapshot.tables.state?.[key]) as T | undefined;
+    }
+
+    async loadMany<T>(keys: readonly string[]): Promise<(T | undefined)[]> {
+        const snapshot = await this.unit.loadAll();
+        return keys.map(key => structuredClone(snapshot.tables.state?.[key]) as T | undefined);
     }
 
     async save<T>(key: string, value: T): Promise<void> {

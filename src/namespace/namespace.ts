@@ -23,7 +23,7 @@ import { pluginCommands, reservedToolIds } from '../runtime/builtins.js';
 import type { SemanticRegistry } from '../registry/registry.js';
 
 /** @brief YAML aliases mount physical tools at additional namespace paths. */
-export const Aliases = z.array(z.strictObject({ path: z.string().regex(/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+$/), tool: z.string().min(1), argMap: z.record(z.string(), z.string()).optional() })).superRefine((aliases, context) => {
+export const Aliases = z.array(z.strictObject({ path: z.string().regex(/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+$/), tool: z.string().min(1) })).superRefine((aliases, context) => {
     const names = new Set<string>();
     for (const [index, alias] of aliases.entries()) {
         const parts = alias.path.split('.');
@@ -68,7 +68,9 @@ export function queryNodes(root: NamespaceNode, queries: readonly string[]): (Na
 
 /** @brief Build deterministic, scoped aliases from the current Profile and physical tool catalog. */
 export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Aliases>): NamespaceNode {
-    const root = createNamespace({ tools: registry.tools(), disabled: path => registry.disabled(path) });
+    const tools = registry.tools();
+    const byId = new Map(tools.map(tool => [tool.id, tool]));
+    const root = createNamespace({ tools, disabled: path => registry.disabled(path) });
     const descriptions = new Map(registry.snapshot().namespaces?.map(item => [item.path, item.description]));
     const insert = (entry: ManifestEntry): void => {
         if (registry.disabled(entry.path)) return;
@@ -98,7 +100,7 @@ export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Ali
     }
     const mounted = new Set(effective.map(mapping => mapping.id));
     for (const alias of aliases) {
-        const tool = registry.tools().find(tool => tool.id === alias.tool);
+        const tool = byId.get(alias.tool);
         if (tool && mounted.has(tool.id)) insert({ ...alias, schema: tool.parameters, output: tool.output, doc: tool.description });
     }
     return root;

@@ -2,7 +2,7 @@
 
 `statistics.ts` 的 CommandStatistics 通过 `NamespaceComponent.statistics` 提供统计服务，管理 UI 通过状态接口读取全局 callsByTool，供工具卡片、详情浮层与排序使用。`dispatchTool` 每次派发前按物理 tool ID 计一次调用，包含失败派发，native 与 PTC 共用入口；原生物理工具调用、tools_run_code 外层执行、console 等环境接口和预加载数据读取不计入。`snapshot()` 返回全局统计，`snapshot(sessionId)` 返回指定会话统计；快照含 calls、namespacesQueried、commandsQueried 总数以及 callsByTool、namespaceQueriesByPath、commandQueriesByPath 明细。总数由明细求和，读取返回独立副本。
 
-`tools/intellisense.ts` 内部按请求中的实际查询目标计数：去掉 global. 前缀和命名空间尾点，根目录路径为 ""；重复目标分别计数，命名空间查询不展开为所有后代的查询次数。不存在、禁用、无效命令尾点及 environment 命令/纯环境命名空间不计数，非法路径请求整体拒绝。统计按会话和全局一起串行更新，使用现有 Store 的 command_statistics 记录持久化，重启和会话释放均保留计数。
+`tools/intellisense.ts` 内部按请求中的实际查询目标计数：去掉 global. 前缀和命名空间尾点，根目录路径为 ""；重复目标分别计数，命名空间查询不展开为所有后代的查询次数。不存在、禁用、无效命令尾点及 environment 命令/纯环境命名空间不计数，非法路径请求整体拒绝。统计按会话和全局一起串行更新，使用现有 Store 的独立会话记录持久化，重启和会话释放均保留计数。
 
 `plugin.ts` 装配共享 Profile、管理 UI、tools_intellisense、命名空间树和模式提示。主入口 index.ts 提供运行时配置；仅 PTC presentation 创建 codeRuntime 与 NamespaceRuntime；独立入口 ./namespace 不创建 JS 运行时。主插件和命名空间服务仅配置运行预算与别名；执行模式由 presentation 配置决定。
 
@@ -54,3 +54,5 @@ PTC 同一对话复用 VM Context，允许 globalThis 挂载变量跨调用共�
 manifest 保留物理工具原始注释，精确 IntelliSense 函数查询（含 YAML 别名）显示原始完整注释；命名空间成员列表、固定提示（包括等级 2 的声明）与 native 工具描述优先采用当前挂载路径的 Profile command.doc 简化注释，其次采用 toolComments 工具注释，无偏好时回退到原始注释首行。native 精确查询通过 description 返回原始完整注释，brief 保留简化摘要。命令目录仅排除明确保留的插件工具 ID，不按 tools_ 前缀排除外部工具。目录中未挂载的命令可直接按物理名称构建 Profile 叶子，实际执行仍要求当前作用域存在对应物理工具。
 
 挂载路径无主次之分，各路径的固定等级、禁用状态与简化描述独立生效。commands.paths 从会话 Profile 配置汇总挂载路径，包含禁用路径与已挂载工具的 YAML 配置路径；不从过滤禁用项的执行 manifest 推导。
+
+命名参数与声明直接使用物理工具原始字段，不支持参数别名。目录按 tools/change 及会话生命周期失效，重复读取复用目录；单次原生同步共享 registry 和 manifest，有效映射按路径索引。统计以 command_statistics_sessions 保存会话目录，每个会话独立持久化，加载时聚合全局计数；每次派发仅写入当前会话，仍在确认持久化后执行物理工具，不兼容旧统计存档。

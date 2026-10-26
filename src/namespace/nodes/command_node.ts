@@ -9,7 +9,6 @@ import { parameters, resultField, nativeArgumentsFor, resultFor, commandDeclarat
 export class CommandNode implements Node, ManifestEntry {
     readonly type: NodeType = 'leaf';
     readonly tool: string;
-    readonly
     readonly schema: Record<string, unknown>;
     readonly output: unknown;
     readonly doc: string;
