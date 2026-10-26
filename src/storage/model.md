@@ -7,3 +7,5 @@ Store 提供 load/save/remove。DshStore 每次读取当前 KV 快照，不缓�
 Store 可选 loadMany 批量读取；DshStore 从同一次 KV 快照提取多个键，供统计初始化使用，避免逐会话读取整个单元。
 
 全局 registry 记录独立配置版本（当前 1，无字段为 0）；版本变化时由 SemanticRegistry 保留可加载部分并重新保存，存储层不迁移会话记录。
+
+`saveable.ts` 定义通用 Saveable<T> 接口，仅包含 save(): T，用于模型导出独立纯数据。模型加载由各类 constructor(data?) 完成；Store 保留异步键值读写职责，仅保存模型 save() 的结果，不持久化实例原型或方法。Profile 配置、注册表/session snapshot 和编辑树均采用此约定。

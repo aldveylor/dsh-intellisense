@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { SemanticRegistry, type RegistryState } from './registry.js';
+import { SemanticRegistry, RegistryState } from './registry.js';
 import type { Store } from '../storage/store.js';
 
 /** @brief Session-owned registries isolate working snapshots from the durable named catalog. */
@@ -27,8 +27,8 @@ export class ProfileSessions {
                 const saved = await this.store.load<T>(key);
                 if (saved !== undefined) return saved;
                 const source = inherit ? await inherit() : this.catalog;
-                const initial: RegistryState = { version: 1, revision: 0, ...source.configuration(), profile: source.profileSelection().selected };
-                return initial as T;
+                const initial = new RegistryState({ ...source.configuration().save(), profile: source.profileSelection().selected });
+                return initial.save() as T;
             },
             save: async <T>(_key: string, value: T) => { await this.store.save(key, value); },
             remove: async () => { await this.store.remove(key); },

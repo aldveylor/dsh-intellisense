@@ -4,7 +4,7 @@ import { ErrorDialog } from './error_dialog.js';
 import { useLayoutMotion } from '../animation/layout_motion.js';
 import { NamespaceTree, type TreeNode, type CommandTreeNode, type NamespaceTreeNode } from './tree_node.js';
 import { memo, useEffect, useMemo, useRef, useState, type ComponentType, type DragEvent, type ReactNode } from 'react';
-import type { Namespace, Mapping, PhysicalTool, RegistryState, PinLevel, CommandVisibility, RegistryConfiguration } from '../../registry/registry.js';
+import type { Namespace, Mapping, PhysicalTool, RegistryStateData as RegistryState, PinLevel, CommandVisibility, RegistryConfigurationData as RegistryConfiguration } from '../../registry/registry.js';
 import { nextFixLevel, type SerializedNode } from '../../namespace/node.js';
 import { validateNodePath as validatePath } from '../../namespace/node.js';
 import { TreeProvider, unmountedTools, providedNamespace, providedTools } from './tree_provider.js';

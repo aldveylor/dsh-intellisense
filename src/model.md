@@ -67,3 +67,5 @@ namespaceVisible 为随 Profile 保存的命名空间路径 → 固定提示布�
 Profile 保存递归补齐省略的 console/tools 固定节点；同名节点仅检查和补齐下一层，不覆盖提交的 fixedLevel、disabled 等设置。恢复值来自目标目录 Profile，新名称回退到当前会话配置。commentable 权限控制简化注释编辑，受保护节点禁止修改，提交的相关注释键被忽略；Profile 输入中的 command.doc 可省略。
 
 同一物理工具的每个挂载路径独立保存描述、固定等级及禁用状态；Mapping 不再区分 path 与 aliases，每条记录只代表一个挂载路径，不兼容旧存档。命令目录中的挂载路径包含禁用及当前作用域不可用的配置路径；执行、搜索与提示仍排除禁用路径。
+
+Profile、RegistryConfiguration 与 RegistryState 为可导出的运行时类，公共入口导出类及其 Data 类型；均实现 Saveable<T>.save()，通过 constructor(data?) 恢复独立实例。会话和目录内部使用类，存储/HTTP/PTC 传递纯数据；Profile 树的节点结构与操作规则保持不变。

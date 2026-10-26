@@ -38,3 +38,7 @@ Permission.commentable 控制简化注释编辑：普通节点默认为 true，�
 SemanticRegistry.generation 由配置 revision 和物理目录内容版本组成；目录内容相同时不重新克隆。profileSelection 仅读取名称列表和当前选择，不复制完整配置，供每次工具回复的 Profile 元数据刷新使用。执行、搜索与发现的单次操作共享同一 registry 快照。
 
 全局 registry 的 version 为独立于包版本的整数，当前为 1；缺失按 0 处理。仅全局加载在版本变化时逐项校验和保留有效映射、命名空间、偏好及具名配置，丢弃无效项和冲突项，保存清理后的当前版本后才更新内存状态。相同版本继续严格校验，会话工作快照不执行版本清理。版本变化时不转换旧模型字段。
+
+`configuration.ts` 的 RegistryConfiguration 与 RegistryState 为运行时类，分别承载配置与带版本/revision 的注册表及会话快照；RegistryState 继承配置，非活动目录条目恢复为独立 RegistryConfiguration。各类实现通用 Saveable<T> 接口，save() 导出无方法的独立数据，constructor(data?) 深复制恢复实例。configuration()/snapshot() 返回独立实例，存储成功后才发布新状态；公开 snapshot 不包含非活动目录。RegistryConfigurationData、RegistryStateData 为存储与管理 HTTP 边界数据定义。
+
+Profile 为保留 name/root 结构的类，实现 Saveable<ProfileData>，通过 constructor(data?) 恢复或创建默认受保护树。Profile 树节点继续使用原有数据接口；树投影返回 Profile，导入配置返回 RegistryConfiguration，JSON Schema、PTC annotation 与权限校验规则保持原有数据结构和行为。

@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import type { RegistryConfiguration } from './registry.js';
+import { RegistryConfiguration, type RegistryConfigurationData } from './configuration.js';
+import type { Saveable } from '../storage/saveable.js';
 import { CommandNode, NamespaceNode, createNamespace } from '../namespace/namespace.js';
 import { fixLevel, type SerializedNode } from '../namespace/node.js';
 import type { ProfileTreeNode, NamespaceTreeNode } from './profile_node.js';
@@ -14,7 +15,20 @@ export interface CommandBrief { name: CommandName; brief: string; paths: string[
 export interface Profiles { profiles: string[]; selected: string }
 
 /** @brief Named editable namespace tree. */
-export interface Profile { name: string; root: NamespaceTreeNode }
+export interface ProfileData { name: string; root: NamespaceTreeNode }
+
+/** @brief Editable Profile tree retaining its transport shape and independent nested data. */
+export class Profile implements Saveable<ProfileData> {
+    name: string;
+    root: NamespaceTreeNode;
+
+    constructor(data?: ProfileData) {
+        this.name = data?.name ?? 'Default';
+        this.root = structuredClone(data?.root ?? profileNode(createNamespace({ tools: [], includeUnavailable: true }).serialize()) as NamespaceTreeNode);
+    }
+
+    save(): ProfileData { return structuredClone({ name: this.name, root: this.root }); }
+}
 
 /** @brief Project executable nodes into editable Profile data. */
 function profileNode(node: SerializedNode): ProfileTreeNode {
@@ -60,10 +74,10 @@ const nodeSchema: z.ZodType<ProfileTreeNode> = z.lazy(() => z.union([
 ]));
 
 /** @brief Validate editable Profile input; server-owned permissions remain authoritative. */
-export const ProfileSchema: z.ZodType<Profile> = z.strictObject({ name: z.string(), root: namespaceSchema.describe("Anonymous root. Missing protected descendants are restored recursively from the original Profile; submitted node settings are preserved. Server permissions govern edits, and forbidden descriptions are ignored.") });
+export const ProfileSchema: z.ZodType<ProfileData> = z.strictObject({ name: z.string(), root: namespaceSchema.describe("Anonymous root. Missing protected descendants are restored recursively from the original Profile; submitted node settings are preserved. Server permissions govern edits, and forbidden descriptions are ignored.") });
 
 /** @brief Create protected children first, then add configured mappings without replacing existing nodes. */
-export function profileTree(name: string, configuration: RegistryConfiguration): Profile {
+export function profileTree(name: string, configuration: RegistryConfigurationData): Profile {
     const root = createNamespace({ tools: [], includeUnavailable: true });
     const nodeFor = (path: string): NamespaceNode => {
         const parts = path.split('.').filter(Boolean);
@@ -93,13 +107,13 @@ export function profileTree(name: string, configuration: RegistryConfiguration):
         for (const child of node.children ?? []) apply(child, path);
     };
     apply(snapshot, '');
-    return { name, root: snapshot };
+    return new Profile({ name, root: snapshot });
 }
 
 /** @brief Restore missing protected descendants, then apply edits under server-owned permissions without mutating input. */
-export function profileConfiguration(profile: Profile, current: RegistryConfiguration, commands: readonly CommandBrief[]): RegistryConfiguration {
+export function profileConfiguration(profile: ProfileData, current: RegistryConfigurationData, commands: readonly CommandBrief[]): RegistryConfiguration {
     const protectedRoot = createNamespace({ tools: [], includeUnavailable: true });
-    const configuration: RegistryConfiguration = { ...current, mappings: [], namespaces: [], order: [], toolComments: {}, builtinVisible: {}, builtinDisabled: [], namespaceVisible: {} };
+    const configuration = new RegistryConfiguration({ ...current, mappings: [], namespaces: [], order: [], toolComments: {}, builtinVisible: {}, builtinDisabled: [], namespaceVisible: {} });
     const submitted: { node: ProfileTreeNode; path: string }[] = [];
     const root = structuredClone(profile.root);
     const baseline = profileTree(profile.name, current).root;

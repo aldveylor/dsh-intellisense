@@ -3,6 +3,7 @@ import { pluginCommands } from '../runtime/builtins.js';
 import { toolName, validatePath } from './path.js';
 export { validatePath } from './path.js';
 import type { Store } from '../storage/store.js';
+import { RegistryConfiguration, RegistryState, type RegistryConfigurationData, type RegistryStateData } from './configuration.js';
 
 /** @brief Stable physical identity and the enforced native JSON contracts. */
 export interface PhysicalTool {
@@ -34,12 +35,8 @@ export interface Mapping {
 /** @brief Persisted namespace documentation and unconditional prompt visibility. */
 export interface Namespace { disabled?: boolean; path: string; alwaysVisible: boolean; description: string }
 
-/** @brief Versioned complete registry state, committed atomically. */
-export interface RegistryState { version: number; revision: number; mappings: Mapping[]; namespaces?: Namespace[]; order?: string[]; unmountedVisible?: CommandVisibility; builtinDisabled?: string[]; builtinVisible?: CommandVisibility; namespaceVisible?: Record<string, boolean>; toolComments?: Record<string, string>; profile?: string; profiles?: string[] }
-/** @brief A named configuration contains only tool tree settings. */
-export interface RegistryConfiguration { mappings: Mapping[]; namespaces: Namespace[]; order: string[]; unmountedVisible: CommandVisibility; builtinDisabled?: string[]; builtinVisible?: CommandVisibility; namespaceVisible?: Record<string, boolean>; toolComments?: Record<string, string> }
-/** @brief Only inactive configurations are archived, so the active configuration has one source of truth. */
-interface StoredRegistryState extends RegistryState { inactiveProfiles?: Record<string, RegistryConfiguration> }
+export { RegistryConfiguration, RegistryState } from './configuration.js';
+export type { RegistryConfigurationData, RegistryStateData } from './configuration.js';
 
 /** @brief Global configuration schema version, independent of the package version. */
 const configurationVersion = 1;
@@ -50,13 +47,13 @@ export class SemanticRegistry {
     private physicalFingerprint = '';
     private physicalRevision = 0;
     private readonly protectedNodes = createNamespace({ tools: [], includeUnavailable: true });
-    private state: StoredRegistryState = { version: configurationVersion, revision: 0, mappings: [], profile: 'Default', inactiveProfiles: {} };
+    private state = new RegistryState({ inactiveProfiles: {} });
     private writeChain: Promise<unknown> = Promise.resolve();
 
     constructor(private store: Store, private readonly scope: 'global' | 'session' = 'global') {}
 
     async load(): Promise<void> {
-        let saved = await this.store.load<StoredRegistryState>('registry');
+        let saved = await this.store.load<RegistryStateData>('registry');
         if (saved !== undefined) {
             const migrate = this.scope === 'global' && (saved?.version ?? 0) !== configurationVersion;
             if (migrate) saved = this.recoverState(saved);
@@ -80,16 +77,17 @@ export class SemanticRegistry {
                 this.validateNamespaceVisible(configuration.namespaceVisible);
                 this.validateComments(configuration.toolComments ?? {});
             }
-            if (migrate) await this.store.save('registry', saved);
-            this.state = saved;
+            const state = new RegistryState(saved);
+            if (migrate) await this.store.save('registry', state.save());
+            this.state = state;
         }
     }
 
     /** @brief Recover independently loadable settings when the global schema version changes. */
-    private recoverState(value: unknown): StoredRegistryState {
+    private recoverState(value: unknown): RegistryStateData {
         const saved = this.record(value);
         const profile = this.accepts(() => this.validateProfileName(saved.profile as string)) ? saved.profile as string : 'Default';
-        const inactiveProfiles: Record<string, RegistryConfiguration> = {};
+        const inactiveProfiles: Record<string, RegistryConfigurationData> = {};
         for (const [name, configuration] of Object.entries(this.record(saved.inactiveProfiles))) {
             if (name === profile || !this.accepts(() => this.validateProfileName(name))) continue;
             inactiveProfiles[name] = this.recoverConfiguration(configuration);
@@ -99,7 +97,7 @@ export class SemanticRegistry {
     }
 
     /** @brief Discard invalid entries while retaining valid siblings and unrelated preferences. */
-    private recoverConfiguration(value: unknown): RegistryConfiguration {
+    private recoverConfiguration(value: unknown): RegistryConfigurationData {
         const saved = this.record(value);
         const mappings: Mapping[] = [];
         for (const mapping of Array.isArray(saved.mappings) ? saved.mappings : []) {
@@ -159,7 +157,7 @@ export class SemanticRegistry {
     snapshot(): RegistryState {
         const { inactiveProfiles: _inactiveProfiles, ...current } = this.state;
         const { selected: profile, profiles } = this.profileSelection();
-        return { ...structuredClone(current), profile, profiles };
+        return new RegistryState({ ...current, profile, profiles });
     }
 
     /** @brief Extract only the configurable fields when archiving an active profile. */
@@ -168,17 +166,14 @@ export class SemanticRegistry {
         if (name !== (this.state.profile ?? 'Default')) {
             const configuration = Object.hasOwn(this.state.inactiveProfiles ?? {}, name) ? this.state.inactiveProfiles![name] : undefined;
             if (!configuration) throw new Error('Profile does not exist');
-            return structuredClone(configuration);
+            return new RegistryConfiguration(configuration);
         }
-        return structuredClone({ mappings: this.state.mappings, namespaces: this.state.namespaces ?? [], order: this.state.order ?? [], unmountedVisible: this.state.unmountedVisible ?? {}, toolComments: this.state.toolComments ?? {}, builtinDisabled: this.state.builtinDisabled ?? [], builtinVisible: this.state.builtinVisible ?? pluginCommands.defaultBuiltinVisible, namespaceVisible: this.state.namespaceVisible ?? {} });
+        return new RegistryConfiguration(this.state);
     }
 
     /** @brief Replace one reference's working configuration without modifying other holders. */
-    async replaceConfiguration(configuration: RegistryConfiguration, profile: string): Promise<void> {
-        const detached = structuredClone(configuration);
-        detached.builtinVisible ??= { ...pluginCommands.defaultBuiltinVisible };
-        detached.namespaceVisible ??= {};
-        detached.builtinDisabled ??= [];
+    async replaceConfiguration(configuration: RegistryConfigurationData, profile: string): Promise<void> {
+        const detached = new RegistryConfiguration(configuration);
         await this.transaction(async () => {
             this.validateProfileName(profile);
             this.validateMappings(detached.mappings);
@@ -188,18 +183,16 @@ export class SemanticRegistry {
             this.validateDisabled(detached.builtinDisabled);
             this.validateNamespaceVisible(detached.namespaceVisible);
             this.validateComments(detached.toolComments ?? {});
-            const next = { ...this.state, ...detached, toolComments: detached.toolComments ?? {}, profile, revision: this.state.revision + 1 };
-            await this.store.save('registry', next);
-            this.state = next;
+            const next: RegistryStateData = { ...this.state, ...detached, toolComments: detached.toolComments ?? {}, profile, revision: this.state.revision + 1 };
+            const state = new RegistryState(next);
+            await this.store.save('registry', state.save());
+            this.state = state;
         });
     }
 
     /** @brief Publish a new named version; existing session references retain their own snapshots. */
-    async saveProfile(name: string, configuration: RegistryConfiguration): Promise<void> {
-        const detached = structuredClone(configuration);
-        detached.builtinVisible ??= { ...pluginCommands.defaultBuiltinVisible };
-        detached.namespaceVisible ??= {};
-        detached.builtinDisabled ??= [];
+    async saveProfile(name: string, configuration: RegistryConfigurationData): Promise<void> {
+        const detached = new RegistryConfiguration(configuration);
         await this.transaction(async () => {
             this.validateProfileName(name);
             this.validateMappings(detached.mappings);
@@ -209,11 +202,12 @@ export class SemanticRegistry {
             this.validateDisabled(detached.builtinDisabled);
             this.validateNamespaceVisible(detached.namespaceVisible);
             this.validateComments(detached.toolComments ?? {});
-            const next = { ...this.state, revision: this.state.revision + 1 };
+            const next: RegistryStateData = { ...this.state, revision: this.state.revision + 1 };
             if (name === (this.state.profile ?? 'Default')) Object.assign(next, detached, { toolComments: detached.toolComments ?? {} });
             else next.inactiveProfiles = { ...this.state.inactiveProfiles, [name]: detached };
-            await this.store.save('registry', next);
-            this.state = next;
+            const state = new RegistryState(next);
+            await this.store.save('registry', state.save());
+            this.state = state;
         });
     }
 
@@ -233,12 +227,12 @@ export class SemanticRegistry {
             if (revision !== this.state.revision) throw new Error('Registry revision conflict; reload before saving');
             this.validateProfileName(name);
             const active = this.state.profile ?? 'Default';
-            const archive = structuredClone(this.state.inactiveProfiles ?? {});
+            const archive = this.state.save().inactiveProfiles ?? {};
             const exists = (name: string): boolean => name === active || Object.hasOwn(archive, name);
-            let next = { ...this.state, revision: revision + 1, inactiveProfiles: archive };
+            let next: RegistryStateData = { ...this.state, revision: revision + 1, inactiveProfiles: archive };
             if (action === 'create') {
                 if (exists(name)) throw new Error('Profile name already exists');
-                const empty: RegistryConfiguration = { mappings: [], namespaces: [], order: [], unmountedVisible: {}, builtinDisabled: [], namespaceVisible: {}, builtinVisible: { ...pluginCommands.defaultBuiltinVisible }, toolComments: {} };
+                const empty = new RegistryConfiguration();
                 if (activate) {
                     archive[active] = this.configuration();
                     next = { ...next, ...empty, profile: name };
@@ -264,8 +258,9 @@ export class SemanticRegistry {
                     } else delete archive[name];
                 } else throw new Error('Invalid profile action');
             }
-            await this.store.save('registry', next);
-            this.state = next;
+            const state = new RegistryState(next);
+            await this.store.save('registry', state.save());
+            this.state = state;
         });
     }
 
@@ -358,8 +353,8 @@ export class SemanticRegistry {
                 this.validateProfileName(profile);
                 if (profile === (this.state.profile ?? 'Default') || Object.hasOwn(this.state.inactiveProfiles ?? {}, profile)) throw new Error('Profile name already exists');
             }
-            const base: RegistryConfiguration = !activate && profile !== undefined && editingProfile === undefined
-                ? { mappings: [], namespaces: [], order: [], unmountedVisible: {}, builtinDisabled: [], builtinVisible: { ...pluginCommands.defaultBuiltinVisible }, namespaceVisible: {}, toolComments: {} }
+            const base: RegistryConfigurationData = !activate && profile !== undefined && editingProfile === undefined
+                ? new RegistryConfiguration()
                 : this.configuration(editingProfile);
             this.validateMappings(detached);
             this.validateNamespaceVisible(namespaceVisible);
@@ -392,7 +387,7 @@ export class SemanticRegistry {
             const configuration = { builtinDisabled: builtinDisabled ?? base.builtinDisabled ?? [], mappings: detached, namespaces: metadata, order: treeOrder, toolComments: comments, builtinVisible: builtins, namespaceVisible: namespaceVisible ?? base.namespaceVisible ?? {},
                 unmountedVisible: Object.fromEntries(Object.entries(selected).filter(([id]) => !detached.some(mapping => mapping.id === id))),
             };
-            let next = { ...this.state, revision: this.state.revision + 1 };
+            let next: RegistryStateData = { ...this.state, revision: this.state.revision + 1 };
             if (editingProfile !== undefined || !activate) {
                 const target = profile ?? editingProfile ?? this.state.profile ?? 'Default';
                 if (target === (this.state.profile ?? 'Default')) next = { ...next, ...configuration };
@@ -404,8 +399,9 @@ export class SemanticRegistry {
                     next.profile = profile;
                 }
             }
-            await this.store.save('registry', next);
-            this.state = next;
+            const state = new RegistryState(next);
+            await this.store.save('registry', state.save());
+            this.state = state;
         });
     }
 

@@ -19,15 +19,17 @@ export async function apply(ctx: Context, options: Config = {}): Promise<void> {
 }
 
 export { RuntimeHost } from './runtime/host.js';
-export { SemanticRegistry } from './registry/registry.js';
+export { SemanticRegistry, RegistryConfiguration, RegistryState } from './registry/registry.js';
 export { NamespaceComponent } from './namespace/component.js';
 export { NamespaceNode, CommandNode } from './namespace/namespace.js';
 export type { ManifestEntry, NamespaceContext } from './namespace/namespace.js';
 export type { Node, NodeType, Permission, SerializedNode, CommandContract } from './namespace/node.js';
-export type { PhysicalTool, Mapping, Namespace, RegistryConfiguration, RegistryState, PinLevel, CommandVisibility } from './registry/registry.js';
-export type { Profile, Profiles, CommandBrief, CommandName } from './registry/profile_tree.js';
+export type { PhysicalTool, Mapping, Namespace, RegistryConfigurationData, RegistryStateData, PinLevel, CommandVisibility } from './registry/registry.js';
+export { Profile } from './registry/profile_tree.js';
+export type { ProfileData, Profiles, CommandBrief, CommandName } from './registry/profile_tree.js';
 export type { CommandBinding, ExecutionResult } from './runtime/protocol.js';
 export type { Store } from './storage/store.js';
+export type { Saveable } from './storage/saveable.js';
 export type { ToolDefinition } from '@deepseek-ai/dsh-tools';
 
 export { SearchEngineRegistry } from './search/engine_registry.js';
