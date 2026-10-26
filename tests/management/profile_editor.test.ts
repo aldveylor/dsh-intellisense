@@ -43,6 +43,7 @@ async function fixture(prepare: (registry: SemanticRegistry) => Promise<void> = 
     const dom = new JSDOM('<div id="root"></div>', { url: 'https://localhost/', runScripts: 'outside-only', virtualConsole });
     const document = dom.window.document;
     dom.window.structuredClone = structuredClone;
+    Object.defineProperty(dom.window, 'AnimationEvent', { value: dom.window.Event });
     dom.window.HTMLDialogElement.prototype.showModal = function () { this.open = true; };
     const requests: Request[] = [];
     dom.window.fetch = async (url, init) => {
@@ -93,6 +94,9 @@ test('editor selection, local creation and saving remain independent from the de
         await until(() => registry.snapshot().revision === 20);
         await until(() => document.querySelector('.ts-namespace-profile')?.getAttribute('aria-busy') !== 'true');
         assert.deepEqual(registry.snapshot().mappings, [mapping]);
+        const saveAnimation = document.querySelector('[data-action="save"]')!;
+        saveAnimation.dispatchEvent(new dom.window.Event('animationiteration', { bubbles: true }));
+        await until(() => saveAnimation.getAttribute('data-running') === 'false');
         button('.ts-default-profile button').click();
         await until(() => !!document.querySelector('.ts-default-profile .ts-profile-option'));
         assert.equal(document.querySelector('.ts-default-profile .ts-profile-delete'), null);

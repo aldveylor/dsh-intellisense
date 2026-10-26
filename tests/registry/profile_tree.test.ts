@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ProfileSchema, profileConfiguration, profileTree } from '../../src/registry/profile_tree.js';
+import { Profile, ProfileSchema, profileConfiguration, profileTree } from '../../src/registry/profile_tree.js';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
 
@@ -16,9 +16,9 @@ function fixture() {
 
 test('Profile trees round-trip nested namespaces, independent mounts, comments and all command pin levels', () => {
     const { current, profile, commands } = fixture();
-    const before = structuredClone(current);
+    const before = current.save();
     const configuration = profileConfiguration(ProfileSchema.parse(profile), current, commands);
-    assert.deepEqual(current, before);
+    assert.deepEqual(current.save(), before);
     assert.deepEqual(configuration.mappings.map(mapping => mapping.alwaysVisible), [2, 1, 0, 2]);
     assert.deepEqual(configuration.mappings.filter(mapping => mapping.id === 'read').map(mapping => mapping.path), ['files.read', 'read']);
     assert.equal(configuration.namespaces[0]?.description, 'File operations');
@@ -145,4 +145,21 @@ test('Profile command contracts reject removed argument mappings', () => {
     const invalid = { ...command, command: { ...command.command, argMap: { filename: 'path' } } };
     files.children![0] = invalid;
     assert.equal(ProfileSchema.safeParse(profile).success, false);
+});
+
+test('Profile constructors preserve editable tree data and detach saved and restored trees', () => {
+    const { current, profile, commands } = fixture();
+    assert(profile instanceof Profile);
+    const data = profile.save();
+    assert.equal(Object.getPrototypeOf(data), Object.prototype);
+    assert.deepEqual(ProfileSchema.parse(data), data);
+    const restored = new Profile(JSON.parse(JSON.stringify(data)));
+    assert.deepEqual(restored, profile);
+    data.root.children!.length = 0;
+    assert(restored.root.children!.length > 0);
+    const files = restored.root.children!.find(node => node.name === 'files')!;
+    files.description = 'Restored files';
+    assert.equal(profile.root.children!.find(node => node.name === 'files')!.description, 'File operations');
+    assert.equal(profileConfiguration(restored, current, commands).namespaces[0]!.description, 'Restored files');
+    assert(ProfileSchema.safeParse(new Profile().save()).success);
 });

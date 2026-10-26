@@ -6,7 +6,7 @@ import { Context } from '@deepseek-ai/cordis';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { ProfileSessions } from '../../src/registry/profiles.js';
-import { ProfileSchema, profileAnnotation, profileTree } from '../../src/registry/profile_tree.js';
+import { Profile, ProfileSchema, profileAnnotation, profileTree } from '../../src/registry/profile_tree.js';
 import { MemoryStore } from '../../src/storage/store.js';
 import { registerToolCommands } from '../../src/tools/tool_commands.js';
 import { manifest } from '../../src/namespace/namespace.js';
@@ -232,4 +232,45 @@ test('Profile setdefault persists the default for new sessions and preserves exi
     await call('tools_profile_save', { profile: edited });
     await call('tools_profile_switch', { name: 'Default' });
     assert(!manifest(registry, []).commands().some(node => node.path === 'tools.profile.setdefault'));
+});
+
+test('agent Profile load keeps plain JSON data while host profiles are classes', async () => {
+    const { registry, call } = await fixture();
+    const hostProfile = profileTree('Default', registry.configuration());
+    assert(hostProfile instanceof Profile);
+    const profile = await call('tools_profile_load');
+    assert.equal(Object.getPrototypeOf(profile), Object.prototype);
+    assert.deepEqual(Object.keys(profile as object).sort(), ['name', 'root']);
+    assert.equal('save' in (profile as object), false);
+    assert.deepEqual(profile, JSON.parse(JSON.stringify(hostProfile.save())));
+    assert.equal(profileAnnotation.includes('save():'), false);
+    assert.equal(profileAnnotation.includes('constructor('), false);
+});
+
+test('PTC agents can load, edit, save and switch plain Profile trees across host class boundaries', async () => {
+    const { registry, catalog, definitions, call } = await fixture();
+    registry.refresh([...definitions.values()].map(tool => ({ id: tool.name, description: tool.description, parameters: tool.parameters, output: tool.output.schema })));
+    const host = new RuntimeHost({ timeoutMs: 3000 });
+    const before = registry.configuration();
+    const commands = manifest(registry, []).commands().filter(node => node.deployment === 'tool').map(node => node.binding());
+    try {
+        const result = await host.execute('profile_classes', 'roundtrip', `
+            const profile = await tools.profile.load();
+            const plain = Object.getPrototypeOf(profile) === Object.prototype && !('save' in profile);
+            profile.root.children.push({ type: 'namespace', name: 'agent_draft',
+                permissions: profile.root.permissions, children: [], description: 'Agent draft' });
+            await tools.profile.save('AgentCopy', profile);
+            const catalog = await tools.profile.load('AgentCopy');
+            const current = await tools.profile.load();
+            await tools.profile.switch('AgentCopy');
+            const selected = await tools.profile.load();
+            return [plain, catalog.name, current.name, selected.name,
+                selected.root.children.some(node => node.name === 'agent_draft'),
+                current.root.children.some(node => node.name === 'agent_draft')];
+        `, commands, async (tool, args) => call(tool, args), new AbortController().signal);
+        assert.equal(result.error, undefined);
+        assert.deepEqual(result.value, [true, 'AgentCopy', 'Default', 'AgentCopy', true, false]);
+        assert(registry.configuration().namespaces.some(node => node.path === 'agent_draft'));
+        assert.deepEqual(catalog.configuration('Default'), before);
+    } finally { await host.dispose(); }
 });
