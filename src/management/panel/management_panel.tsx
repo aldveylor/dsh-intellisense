@@ -40,11 +40,11 @@ async function request<T>(api: string, body?: unknown, signal?: AbortSignal): Pr
 
 /** @brief Normalize the same Profile configuration for comparison and persistence. */
 function profileDraft(state: Pick<RegistryState, keyof RegistryConfiguration>, provided: readonly SerializedNode[] = []): RegistryConfiguration {
-    const mappings = state.mappings.map(({ id, path, aliases, description, pinned, disabled, alwaysVisible }) => ({
-        id, path: path.trim(), aliases: aliases.map(alias => alias.trim()).filter(Boolean), description, pinned, disabled, alwaysVisible,
+    const mappings = state.mappings.map(({ id, path, description, pinned, disabled, alwaysVisible }) => ({
+        id, path: path.trim(), description, pinned, disabled, alwaysVisible,
     }));
     const namespaces = state.namespaces ?? [];
-    const paths = [...TreeProvider(provided, state.builtinVisible ?? {}).map(node => node.path), ...namespacePaths({ mappings, namespaces }), ...mappings.flatMap(mapping => [mapping.path, ...mapping.aliases])];
+    const paths = [...TreeProvider(provided, state.builtinVisible ?? {}).map(node => node.path), ...namespacePaths({ mappings, namespaces }), ...mappings.map(mapping => mapping.path)];
     return {
         mappings, namespaces, unmountedVisible: state.unmountedVisible ?? {}, builtinVisible: state.builtinVisible ?? {},
         builtinDisabled: state.builtinDisabled ?? [], namespaceVisible: state.namespaceVisible ?? {}, toolComments: state.toolComments ?? {},
@@ -122,7 +122,7 @@ function CommandNode({ node, tree }: { node: CommandTreeNode; tree: TreeProps })
     const tool = tree.tools.find(tool => tool.id === id) ?? {
         id: id ?? contract?.tool ?? path, description: description ?? '', parameters: contract?.schema ?? {}, output: contract?.output,
     };
-    const summary = (id && Object.hasOwn(tree.toolComments, id) ? tree.toolComments[id] : undefined) ?? mapping?.description ?? '';
+    const summary = mapping?.description ?? (id && Object.hasOwn(tree.toolComments, id) ? tree.toolComments[id] : undefined) ?? '';
     const tooltip = useTreeTooltip(<CommandDetails path={path} tool={tool} summary={summary} calls={tree.callsByTool[tool.id] ?? 0} />);
     const readOnly = !node.permissions.renamable;
     const invalid = !!mapping && !tree.tools.some(tool => tool.id === id);
@@ -146,9 +146,9 @@ function CommandNode({ node, tree }: { node: CommandTreeNode; tree: TreeProps })
                 commit={name => tree.rename(path, name)} />}
         {id && <span className="ts-mapping-source"><span aria-hidden="true">→ </span>{id}{invalid && <span role="status"> · {t('unavailable')}</span>}</span>}
         <span className="ts-tool-preview" role={fixed ? undefined : 'button'} tabIndex={fixed ? undefined : tree.busy ? -1 : 0}
-            onDoubleClick={() => { if (!fixed && id) tree.editDescription(id); }} onKeyDown={event => {
-                if (!fixed && id && event.key === 'Enter') { event.preventDefault(); tree.editDescription(id); }
-            }}>{(id && Object.hasOwn(tree.toolComments, id) ? tree.toolComments[id] : undefined) ?? mapping?.description ?? description ?? t('edit_comment')}</span>
+            onDoubleClick={() => { if (!fixed && id) tree.editDescription(path); }} onKeyDown={event => {
+                if (!fixed && id && event.key === 'Enter') { event.preventDefault(); tree.editDescription(path); }
+            }}>{mapping?.description ?? (id && Object.hasOwn(tree.toolComments, id) ? tree.toolComments[id] : undefined) ?? description ?? t('edit_comment')}</span>
         <span className="ts-node-actions">
             {command && disableButton}
             {pinButton}
@@ -209,7 +209,7 @@ interface TreeProps {
     configure: (path: string, patch: Partial<Namespace>) => void;
     drop: (event: DragEvent<HTMLElement>, parent: string) => void;
     pick: (parent: string) => void; create: (path: string) => boolean; rename: (path: string, name: string) => boolean;
-    editDescription: (id: string) => void; remove: (path: string) => void; pinTool: (mapping: Mapping) => void;
+    editDescription: (path: string) => void; remove: (path: string) => void; pinTool: (mapping: Mapping) => void;
     renameNamespace: (path: string, name: string) => boolean; deleteNamespace: (path: string) => void;
     toggle: (path: string) => void; dropNode: (event: DragEvent<HTMLElement>, path: string, namespace: boolean) => void;
     namespaceVisible: Record<string, boolean>; toggleProvidedNamespace: (path: string) => void;
@@ -275,7 +275,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
     const [builtinVisible, setBuiltinVisible] = useState<CommandVisibility>({ ...{} });
     const [unmountedVisible, setUnmountedVisible] = useState<CommandVisibility>({});
     const [toolComments, setToolComments] = useState<Record<string, string>>({});
-    const [descriptionEditor, setDescriptionEditor] = useState<{ id: string; text?: string }>();
+    const [descriptionEditor, setDescriptionEditor] = useState<{ id: string; path: string; text?: string }>();
     const [toolPicker, setToolPicker] = useState<{ parent: string; unmountedOnly?: boolean }>();
     const [status, setStatus] = useState('loading');
     const [busy, setBusy] = useState(false);
@@ -375,7 +375,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
     /** @brief Commit only named namespaces that do not conflict with callable paths. */
     function createNamespace(path: string): boolean {
         if (isFixedNamespace(path, provided)) { setStatus('fixed_namespace'); return false; }
-        const toolPaths = mappings.flatMap(m => [m.path, ...m.aliases]);
+        const toolPaths = mappings.map(m => m.path);
         if (!/^[a-zA-Z_$][\w$]*(\.[a-zA-Z_$][\w$]*)*$/.test(path) || paths.includes(path) ||
             toolPaths.some(p => p === path || path.startsWith(`${p}.`))) {
             setStatus('invalid_namespace'); return false;
@@ -387,7 +387,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
 
     /** @brief Detect collisions across all callable mappings and namespace nodes. */
     function occupied(path: string, source?: string): boolean {
-        return paths.includes(path) || mappings.flatMap(m => [m.path, ...m.aliases]).filter(p => p !== source)
+        return paths.includes(path) || mappings.map(m => m.path).filter(p => p !== source)
             .some(p => p === path || p.startsWith(`${path}.`) || path.startsWith(`${p}.`));
     }
 
@@ -396,13 +396,12 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
         setOrder(current => current.map(p => p === source ? path : p));
         setMappings(current => current.map(m => ({ ...m,
             path: m.path === source ? path : m.path,
-            aliases: m.aliases.map(p => p === source ? path : p),
         })));
     }
 
     /** @brief Rename only the mapped identifier, never the underlying physical tool. */
     function renameMapping(source: string, name: string): boolean {
-        const mapping = mappings.find(m => m.path === source || m.aliases.includes(source));
+        const mapping = mappings.find(m => m.path === source);
         if (busy || !mapping || mapping.pinned) return false;
         const path = [...source.split('.').slice(0, -1), name].join('.');
         try { validatePath(path); } catch (error) { setStatus(String(error)); return false; }
@@ -413,17 +412,16 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
         return true;
     }
 
-    /** @brief Remove a single mapping, promoting another mapped path when one remains. */
+    /** @brief Remove one mounting path while preserving all other mounts. */
     function removeMapping(path: string): void {
-        const mapping = mappings.find(m => m.path === path || m.aliases.includes(path));
+        const mapping = mappings.find(m => m.path === path);
         const node = namespaceTree.root.resolve(path.split('.'));
         if (busy || !mapping || mapping.pinned || !node?.permissions.removable) return;
         const parent = path.split('.').slice(0, -1).join('.');
         if (parent) configureNamespace(parent, {});
         node.parent?.remove(node.name);
-        const remaining = [mapping.path, ...mapping.aliases].filter(p => p !== path);
-        if (!remaining.length && mapping.alwaysVisible) setUnmountedVisible(current => ({ ...current, [mapping.id]: mapping.alwaysVisible! }));
-        setMappings(current => current.flatMap(m => m.id !== mapping.id ? [m] : remaining.length ? [{ ...m, path: remaining[0]!, aliases: remaining.slice(1) }] : []));
+        if (!mappings.some(item => item.id === mapping.id && item.path !== path) && mapping.alwaysVisible) setUnmountedVisible(current => ({ ...current, [mapping.id]: mapping.alwaysVisible! }));
+        setMappings(current => current.filter(item => item.path !== path));
         setStatus('');
     }
 
@@ -478,15 +476,15 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
     const tree: TreeProps = {
         disabled: path => !!namespaceTree.root.resolve(path.split('.'))?.permissions.disableable && (builtinDisabled.some(prefix => inNamespace(path, prefix))
             || namespaces.some(node => node.disabled && inNamespace(path, node.path))
-            || mappings.some(mapping => mapping.disabled && [mapping.path, ...mapping.aliases].includes(path))),
+            || mappings.some(mapping => mapping.disabled && mapping.path === path)),
         toggleDisabled: path => {
             const node = namespaceTree.root.resolve(path.split('.'));
             if (busy || !node?.permissions.disableable) return;
             if (providedNamespace(path, provided)) {
                 setBuiltinDisabled(current => current.includes(path) ? current.filter(item => item !== path) : [...current, path]);
             } else {
-                const mapping = mappings.find(item => [item.path, ...item.aliases].includes(path));
-                if (mapping) setMappings(current => current.map(item => item.id === mapping.id ? { ...item, disabled: !item.disabled } : item));
+                const mapping = mappings.find(item => item.path === path);
+                if (mapping) setMappings(current => current.map(item => item.path === path ? { ...item, disabled: !item.disabled } : item));
                 else configureNamespace(path, { disabled: !namespaces.find(node => node.path === path)?.disabled });
             }
         },
@@ -498,9 +496,12 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
             setBuiltinVisible(current => ({ ...current, [path]: nextFixLevel(node.permissions, current[path] ?? 0) }));
         },
         toolComments, unmountedVisible, pinUnmounted: id => setUnmountedVisible(current => ({ ...current, [id]: nextPinLevel(current[id] ?? 0) })),
-        editDescription: id => { if (!busy) setDescriptionEditor({ id, text: Object.hasOwn(toolComments, id) ? toolComments[id] : mappings.find(m => m.id === id)?.description }); },
+        editDescription: path => {
+            const mapping = mappings.find(item => item.path === path);
+            if (!busy && mapping) setDescriptionEditor({ id: mapping.id, path, text: mapping.description ?? toolComments[mapping.id] });
+        },
         pick: parent => setToolPicker({ parent }), configure: configureNamespace, drop: (event, parent) => nativeDrop(event, { path: parent, position: 'inside' }), create: createNamespace, rename: renameMapping, remove: removeMapping,
-        pinTool: mapping => setMappings(current => current.map(m => m.id === mapping.id ? { ...m, alwaysVisible: nextPinLevel(m.alwaysVisible ?? 0) } : m)),
+        pinTool: mapping => setMappings(current => current.map(m => m.path === mapping.path ? { ...m, alwaysVisible: nextPinLevel(m.alwaysVisible ?? 0) } : m)),
         renameNamespace: (path, name) => editNamespace(path, name), deleteNamespace: path => { editNamespace(path); },
         toggle: path => setExpanded(current => ({ ...current, [path]: !(current[path] ?? false) })), dropNode: (event) => nativeDrop(event, treeDropTarget(event.currentTarget, event.clientY)),
     };
@@ -558,24 +559,15 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
         {descriptionEditor && <div className="ts-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="ts-description-title">
             <form onSubmit={event => {
                 event.preventDefault();
-                setToolComments(current => {
-                    const next = { ...current };
-                    if (descriptionEditor.text === undefined) delete next[descriptionEditor.id];
-                    else next[descriptionEditor.id] = descriptionEditor.text;
-                    return next;
-                });
-                setMappings(current => current.map(mapping => {
-                    if (mapping.id !== descriptionEditor.id) return mapping;
-                    const { description: _description, ...rest } = mapping;
-                    return rest;
-                }));
+                setMappings(current => current.map(mapping => mapping.path === descriptionEditor.path
+                    ? { ...mapping, description: descriptionEditor.text } : mapping));
                 setDescriptionEditor(undefined); setStatus('');
             }}>
-                <h2 id="ts-description-title">{t('prompt_comment')} · {descriptionEditor.id}</h2>
+                <h2 id="ts-description-title">{t('prompt_comment')} · {descriptionEditor.path}</h2>
                 <textarea aria-label={t('prompt_comment')} autoFocus rows={8} value={descriptionEditor.text ?? view?.tools.find(t => t.id === descriptionEditor.id)?.description ?? ''}
                     onChange={event => setDescriptionEditor({ ...descriptionEditor, text: event.target.value })} />
                 <div className="ts-actions"><button type="submit">{t('apply')}</button>
-                    <button type="button" onClick={() => setDescriptionEditor({ id: descriptionEditor.id })}>{t('reset')}</button>
+                    <button type="button" onClick={() => setDescriptionEditor({ id: descriptionEditor.id, path: descriptionEditor.path })}>{t('reset')}</button>
                     <button type="button" onClick={() => setDescriptionEditor(undefined)}>{t('cancel')}</button></div>
             </form>
         </section></div>}

@@ -7,21 +7,21 @@ import type { Mapping, PhysicalTool } from '../../registry/registry.js';
 import { reservedToolIds } from '../../runtime/builtins.js';
 
 /** @brief One tool card with its binding path and shared pointer-following details. */
-function ToolCard({ tool, mapping, builtinPath, calls, busy, select }: {
-    tool: PhysicalTool; mapping?: Mapping; builtinPath?: string; calls: number; busy: boolean; select: (tool: PhysicalTool) => void;
+function ToolCard({ tool, mappings, builtinPath, calls, busy, select }: {
+    tool: PhysicalTool; mappings: Mapping[]; builtinPath?: string; calls: number; busy: boolean; select: (tool: PhysicalTool) => void;
 }) {
     const t = useTranslation();
     const tooltip = useTooltip();
     return <button type="button" data-tool-id={tool.id} aria-describedby={tooltip.id}
-        className={`ts-tool ${builtinPath ? 'ts-builtin-tool' : mapping?.path.trim() ? '' : 'ts-unmounted'}`} disabled={busy || !!builtinPath || mapping?.pinned}
+        className={`ts-tool ${builtinPath ? 'ts-builtin-tool' : mappings.length ? '' : 'ts-unmounted'}`} disabled={busy || !!builtinPath}
         onPointerEnter={event => tooltip.show(<ToolDetails tool={tool} calls={calls} />, event.clientX, event.clientY)}
         onPointerMove={event => tooltip.move(event.clientX, event.clientY, event.ctrlKey)} onPointerLeave={tooltip.leave}
         onFocus={event => {
             const rect = event.currentTarget.getBoundingClientRect();
             tooltip.show(<ToolDetails tool={tool} calls={calls} />, rect.left, rect.bottom);
-        }} onBlur={tooltip.leave} onClick={() => { if (!builtinPath && !busy && !mapping?.pinned) { tooltip.hide(); select(tool); } }}>
+        }} onBlur={tooltip.leave} onClick={() => { if (!builtinPath && !busy) { tooltip.hide(); select(tool); } }}>
         <strong>{tool.id}</strong>
-        <code className="ts-tool-footer">{builtinPath || mapping?.path || t('unmounted')}</code>
+        <code className="ts-tool-footer">{builtinPath || mappings.map(mapping => mapping.path).join(', ') || t('unmounted')}</code>
     </button>;
 }
 
@@ -38,8 +38,8 @@ export function ToolPicker({ parent, tools, mappings, protectedTools = [], calls
     const filter = search.trim().toLowerCase();
     const protectedIds = new Set(protectedTools.map(entry => entry.tool.id));
     const matches = [...tools.filter(tool => !protectedIds.has(tool.id) && !reservedToolIds.includes(tool.id)), ...protectedTools.map(entry => entry.tool)].filter(tool => {
-        const mapping = mappings.find(m => m.id === tool.id);
-        return `${tool.id} ${mapping?.path ?? ''} ${mapping?.aliases.join(' ') ?? ''} ${tool.description} ${mapping?.description ?? ''}`.toLowerCase().includes(filter);
+        const mounts = mappings.filter(mapping => mapping.id === tool.id);
+        return `${tool.id} ${mounts.map(mapping => mapping.path).join(' ')} ${tool.description} ${mounts.map(mapping => mapping.description ?? '').join(' ')}`.toLowerCase().includes(filter);
     });
     if (sort !== 'default') matches.sort((a, b) => {
         const byName = a.id.localeCompare(b.id);
@@ -67,7 +67,7 @@ export function ToolPicker({ parent, tools, mappings, protectedTools = [], calls
                 disabled={busy} readOnly closeOnSelect onChange={setSort} /></div>
         </div>
         <div className="ts-blocks">{matches.map(tool => <ToolCard key={tool.id} tool={tool}
-            mapping={mappings.find(mapping => mapping.id === tool.id)} builtinPath={protectedTools.find(entry => entry.tool.id === tool.id)?.path} calls={callsByTool[tool.id] ?? 0} busy={busy} select={select} />)}</div>
+            mappings={mappings.filter(mapping => mapping.id === tool.id)} builtinPath={protectedTools.find(entry => entry.tool.id === tool.id)?.path} calls={callsByTool[tool.id] ?? 0} busy={busy} select={select} />)}</div>
         {!matches.length && <p>{filter ? t('no_matches') : t('no_tools')}</p>}
         <footer className="ts-tool-picker-footer">
             <small>{t('tool_count', { count: matches.length })}</small>

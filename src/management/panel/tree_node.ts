@@ -32,7 +32,8 @@ export class NamespaceTree {
             return node;
         };
         for (const path of namespacePaths(draft)) ensureNamespace(path);
-        for (const mapping of draft.mappings) for (const path of [mapping.path, ...mapping.aliases]) {
+        for (const mapping of draft.mappings) {
+            const path = mapping.path;
             const parts = path.split('.');
             const parent = ensureNamespace(parts.slice(0, -1).join('.'));
             const tool = tools.find(tool => tool.id === mapping.id);

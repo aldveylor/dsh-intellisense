@@ -5,7 +5,7 @@ import type { Mapping, PhysicalTool } from '../../../registry/registry.js';
 import type { ProvidedCommand } from '../tree_provider.js';
 import { fixLevel, type NodeType, type SerializedNode } from '../../../namespace/node.js';
 
-/** @brief An editable physical command mapping or one of its aliases. */
+/** @brief An independently editable mounting path for a physical command. */
 export class CommandTreeNode extends TreeNode {
     readonly type: NodeType = 'leaf';
 
