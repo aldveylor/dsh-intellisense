@@ -66,17 +66,6 @@ export function deleteNamespace(draft: TreeDraft, source: string): TreeDraft {
     };
 }
 
-/** @brief Reorder sibling commands and namespaces without changing their semantic paths. */
-export function reorderTree(draft: TreeDraft, source: string, target: string, after: boolean): string[] {
-    const parent = (path: string): string => path.split('.').slice(0, -1).join('.');
-    if (isFixedNamespace(source, draft.provided) || isFixedNamespace(parent(target), draft.provided)) throw new Error('fixed_namespace');
-    const paths = [...namespacePaths(draft), ...draft.mappings.map(m => m.path)];
-    if (source === target || parent(source) !== parent(target) || !paths.includes(source) || !paths.includes(target)) return draft.order;
-    const order = orderedPaths(paths, draft.order).filter(path => path !== source);
-    order.splice(order.indexOf(target) + Number(after), 0, source);
-    return order;
-}
-
 /** @brief Source identity for both native and pointer-driven tree dragging. */
 export interface TreeDragSource { namespace: boolean; path?: string; id?: string }
 /** @brief A concrete insertion boundary or namespace interior. */
@@ -91,7 +80,7 @@ export function dropTree(draft: TreeDraft, source: TreeDragSource, target: TreeD
     if (parent && !namespaces.includes(parent)) throw new Error('missing_drop_namespace');
     if (target.position !== 'inside' && ![...namespaces, ...draft.mappings.map(m => m.path)].includes(target.path)) throw new Error('missing_drop_node');
     const mapping = source.path ? draft.mappings.find(m => m.id === source.id && m.path === source.path) : undefined;
-    const previous = !mapping && source.path && providedNamespace(source.path, draft.provided) ? undefined : source.path || (source.namespace ? undefined : mapping?.path);
+    const previous = !mapping && source.path && providedNamespace(source.path, draft.provided) ? undefined : source.path || undefined;
     if (!source.namespace && mapping?.pinned) throw new Error('locked_mapping');
     if (previous === target.path && target.position !== 'inside') return draft;
     if (source.namespace && (!previous || !namespaces.includes(previous))) throw new Error('missing_source_namespace');

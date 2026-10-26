@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { namespacePaths, renameNamespace, deleteNamespace, orderedPaths, reorderTree, type TreeDraft } from '../../src/management/panel/namespace_tree.js';
+import { namespacePaths, renameNamespace, deleteNamespace, orderedPaths, dropTree, type TreeDraft } from '../../src/management/panel/namespace_tree.js';
 
 /** @brief A mixed tree with nested namespaces and a tool also mapped outside its main namespace. */
 function draft(): TreeDraft {
@@ -44,12 +44,11 @@ test('namespace deletion removes the subtree while retaining outside mappings an
 
 test('mixed namespace/command order changes only for siblings and survives a namespace rename', () => {
     const current = draft();
-    const before = reorderTree(current, 'files.disk', 'files.write', false);
-    assert.deepEqual(orderedPaths(['files.write', 'files.disk'], before), ['files.disk', 'files.write']);
-    const after = reorderTree({ ...current, order: before }, 'files.disk', 'files.write', true);
-    assert.deepEqual(orderedPaths(['files.disk', 'files.write'], after), ['files.write', 'files.disk']);
-    assert.deepEqual(reorderTree(current, 'files.disk.read', 'files.write', false), current.order);
-    const renamed = renameNamespace({ ...current, order: before }, 'files.disk', 'local');
+    const before = dropTree(current, { namespace: true, path: 'files.disk' }, { path: 'files.write', position: 'before' });
+    assert.deepEqual(orderedPaths(['files.write', 'files.disk'], before.order), ['files.disk', 'files.write']);
+    const after = dropTree(before, { namespace: true, path: 'files.disk' }, { path: 'files.write', position: 'after' });
+    assert.deepEqual(orderedPaths(['files.disk', 'files.write'], after.order), ['files.write', 'files.disk']);
+    const renamed = renameNamespace(before, 'files.disk', 'local');
     assert.deepEqual(orderedPaths(['files.write', 'files.local'], renamed.order), ['files.local', 'files.write']);
 });
 
