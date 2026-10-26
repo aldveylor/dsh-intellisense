@@ -4,7 +4,7 @@ import { z } from 'zod';
 import * as namespacePlugin from './namespace/plugin.js';
 import { RuntimeConfig } from './runtime/host.js';
 
-export const name = '@aldveylor/dsh-intellisense';
+export const name = 'dsh-intellisense';
 export const inject = ['tools', 'agents', 'systemPrompt', 'storage', storageBackendServiceKey('json'), 'connection'];
 /** @brief Configure aliases and the isolated namespace execution backend. */
 export const Config = RuntimeConfig.extend({ aliasesFile: z.string().optional(), defaultSearchMethod: z.string().regex(/^[a-z][a-z0-9_]*$/).optional() });

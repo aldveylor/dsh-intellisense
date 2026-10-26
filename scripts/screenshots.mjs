@@ -30,7 +30,7 @@ async function documentationRegistry() {
             ['fetch_url', 'Retrieve the content of a web page.', 'url'],
         ].map(([id, description, field]) => ({ id, description, source: 'Workspace',
             parameters: { type: 'object', additionalProperties: false, required: [field], properties: { [field]: { type: 'string' } } }, output: { type: 'string' } })),
-        ...pluginCommands.builtinTools.map(command => ({ id: command.tool, description: command.description, source: '@aldveylor/dsh-intellisense', parameters: { type: 'object', additionalProperties: false }, output: {} })),
+        ...pluginCommands.builtinTools.map(command => ({ id: command.tool, description: command.description, source: 'dsh-intellisense', parameters: { type: 'object', additionalProperties: false }, output: {} })),
     ]);
     await registry.replaceConfiguration({
         mappings: [
