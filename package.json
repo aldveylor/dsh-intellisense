@@ -84,14 +84,14 @@
     "dsh": ">=0.2.1-rc.2"
   },
   "scripts": {
-    "build": "npm run build:server && npm run build:client",
+    "build": "pnpm run build:server && pnpm run build:client",
     "build:server": "tsc -p tsconfig.json && esbuild src/runtime/worker.ts --bundle --platform=node --format=esm --outfile=dist/runtime/worker_bundle.mjs --target=node24 --minify",
     "build:client": "esbuild src/management/client.ts --bundle --platform=browser --format=cjs --loader:.css=text --external:react --external:react/jsx-runtime --external:@deepseek-ai/dsh-client-ui-primitives --target=es2022 --outfile=dist/client.js --banner:js=\"window.__ModuleLoader__.load({id:'@aldveylor/dsh-intellisense',factory(require){const module={exports:{}};\" --footer:js=\"return module.exports;}});\" && esbuild src/management/standalone.tsx --bundle --platform=browser --format=iife --loader:.css=text --outfile=dist/management/standalone.js --target=es2022 --minify",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "npm run build && tsx --test tests/**/*.test.ts",
+    "test": "pnpm run build && tsx --test tests/**/*.test.ts",
     "lint": "eslint --config scripts/eslint_config.mjs src tests",
-    "prepare": "npm run build",
-    "screenshots": "npm run build && node scripts/screenshots.mjs"
+    "prepare": "pnpm run build",
+    "screenshots": "pnpm run build && node scripts/screenshots.mjs"
   },
   "license": "Apache-2.0",
   "dependencies": {
@@ -102,8 +102,17 @@
   },
   "devDependencies": {
     "@deepseek-ai/dsh": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-agent-loop": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-api-session-controller": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-app-boot": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-plugin-manager": "0.2.1-rc.2",
     "@deepseek-ai/dsh-client-ui-primitives": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-session": "0.2.1-rc.2",
     "@deepseek-ai/dsh-client-ui-slots": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-workspace": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-session-projection": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-storage-json": "0.2.1-rc.2",
     "@eslint/js": "9.39.5",
     "@types/jsdom": "^30.0.0",
     "@types/node": "^24.19.2",
@@ -140,5 +149,6 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/aldveylor/dsh-intellisense.git"
-  }
+  },
+  "packageManager": "pnpm@12.14.0"
 }

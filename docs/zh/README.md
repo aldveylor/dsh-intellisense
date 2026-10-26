@@ -14,7 +14,7 @@
 需要 Node.js >=24、DSH >=0.2.1-rc.2。运行时使用 Node.js 原生权限（`--permission`）。Node.js 24 权限模型不限制网络访问。运行时加载时验证隔离条件。以下命令均在项目根目录执行。
 
 ```sh
-npm ci
+pnpm install --frozen-lockfile
 ./run.sh
 ```
 
@@ -86,7 +86,7 @@ PTC 签名为 `function intellisense(...args: string[]): Promise<string>`，查�
 ```sh
 npm install --prefix ~ playwright
 ~/node_modules/.bin/playwright install chromium
-npm run screenshots
+pnpm run screenshots
 ```
 
 脚本先构建项目，再使用内存中的固定示例 Profile 和生产管理页面，为中英文各更新 namespace_table.png、tools.png 和 tooltip.png，并移除旧 unmounted_tools.png。不会读取或修改用户配置，也不会执行示例工具。PNG 通过 Git LFS 管理。
@@ -100,7 +100,7 @@ npm run screenshots
 在项目根目录执行：
 
 ```sh
-npm run build
+pnpm run build
 node node_modules/eslint/bin/eslint.js --config scripts/eslint_config.mjs src
 ```
 

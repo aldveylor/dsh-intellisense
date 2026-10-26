@@ -16,7 +16,7 @@ Requires Node.js >=24 and DSH >=0.2.1-rc.2. The runtime uses Node.js native perm
 Run these commands from the project root:
 
 ```sh
-npm ci
+pnpm install --frozen-lockfile
 ./run.sh
 ```
 
@@ -88,7 +88,7 @@ Install screenshot dependencies in your home directory (the script can reuse Pla
 ```sh
 npm install --prefix ~ playwright
 ~/node_modules/.bin/playwright install chromium
-npm run screenshots
+pnpm run screenshots
 ```
 
 The script builds the project, then uses a fixed in-memory example profile and the production management page to update namespace_table.png, tools.png, and tooltip.png in both languages, removing the old unmounted_tools.png. It does not read or modify user configuration or execute example tools. PNG files are managed with Git LFS.
@@ -102,7 +102,7 @@ The script builds the project, then uses a fixed in-memory example profile and t
 Run from the project root:
 
 ```sh
-npm run build
+pnpm run build
 node node_modules/eslint/bin/eslint.js --config scripts/eslint_config.mjs src
 ```
 

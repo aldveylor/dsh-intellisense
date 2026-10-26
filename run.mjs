@@ -22,9 +22,9 @@ for (let index = 2; index < process.argv.length; index++) {
 
 process.chdir(projectDir);
 if (!existsSync('node_modules/@deepseek-ai/dsh/lib/profile-boot.js') || !existsSync('node_modules/typescript/bin/tsc')) {
-    execFileSync('npm', ['ci', '--prefix', projectDir], { stdio: 'inherit' });
+    execFileSync('pnpm', ['install', '--frozen-lockfile'], { stdio: 'inherit' });
 }
-execFileSync('npm', ['run', 'build'], { stdio: 'inherit' });
+execFileSync('pnpm', ['run', 'build'], { stdio: 'inherit' });
 
 mkdirSync(workspaceDir, { recursive: true });
 process.env.DSH_HOME = process.env.DSH_HOME?.trim()
