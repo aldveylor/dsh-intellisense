@@ -91,12 +91,10 @@ export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Ali
     };
     const effective = registry.effective().filter(mapping => !mapping.disabled && !pluginCommands.find(mapping.id) && !reservedToolIds.includes(mapping.id));
     for (const mapping of effective) {
-        {
-            const path = mapping.path;
-            // Unmounted physical tools are not synthesized below the protected tools namespace.
-            if (path.startsWith('tools.')) continue;
-            insert({ path, tool: mapping.id, schema: mapping.tool.parameters, output: mapping.tool.output, doc: mapping.tool.description });
-        }
+        const path = mapping.path;
+        // Unmounted physical tools are not synthesized below the protected tools namespace.
+        if (path.startsWith('tools.')) continue;
+        insert({ path, tool: mapping.id, schema: mapping.tool.parameters, output: mapping.tool.output, doc: mapping.tool.description });
     }
     const mounted = new Set(effective.map(mapping => mapping.id));
     for (const alias of aliases) {

@@ -38,7 +38,7 @@ async function documentationRegistry() {
             ['read_file', 'std.fs.read', 'Read a text file.'],
             ['write_file', 'std.fs.write', 'Write a text file.'],
             ['list_directory', 'std.fs.list', 'List directory entries.'],
-        ].map(([id, path, description]) => ({ id, path, description, aliases: [], pinned: false, alwaysVisible: id === 'bash' ? 2 : 0 })),
+        ].map(([id, path, description]) => ({ id, path, description, pinned: false, alwaysVisible: id === 'bash' ? 2 : 0 })),
         namespaces: [
             { path: 'std', description: 'Workspace tools', alwaysVisible: false },
             { path: 'std.shell', description: 'Shell execution', alwaysVisible: false },

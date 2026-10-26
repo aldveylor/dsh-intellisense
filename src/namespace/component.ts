@@ -109,7 +109,7 @@ export class NamespaceComponent {
     /** @brief Flatten command bindings only for consumers that dispatch physical tools. */
     async entries(agent: Agent): Promise<CommandNode[]> { return (await this.tree(agent)).commands().filter(entry => entry.deployment === 'tool'); }
 
-    /** @brief List catalog commands with mounting paths including disabled paths, excluding plugin builtins. */
+    /** @brief List catalog commands with mount paths including disabled paths, excluding plugin builtins. */
     async commandBriefs(agent?: Agent): Promise<CommandBrief[]> {
         await this.refresh();
         const registry = agent ? await this.registryFor(agent) : this.registry;

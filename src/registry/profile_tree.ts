@@ -6,7 +6,7 @@ import { fixLevel, type SerializedNode } from '../namespace/node.js';
 /** @brief Physical command identity used by editable Profile trees. */
 export type CommandName = string;
 
-/** @brief Physical command summary, mounting paths (including disabled paths) in the current Profile and global usage. */
+/** @brief Physical command summary, mount paths (including disabled paths) in the current Profile and global usage. */
 export interface CommandBrief { name: CommandName; brief: string; paths: string[]; totalCalls: number }
 
 /** @brief Available catalog Profile names and the current conversation selection. */
@@ -152,7 +152,7 @@ export function profileConfiguration(profile: Profile, current: RegistryConfigur
 }
 
 /** @brief Shared Profile transport definition preloaded for PTC programs. */
-export const profileAnnotation = `/** @brief Physical command identity, summary, mounting paths (including disabled paths) in the current conversation Profile (empty when unmounted), and total calls across all sessions. Plugin builtins are excluded. */
+export const profileAnnotation = `/** @brief Physical command identity, summary, mount paths (including disabled paths) in the current conversation Profile (empty when unmounted), and total calls across all sessions. Plugin builtins are excluded. */
 interface CommandBrief { name: string; brief: string; paths: string[]; totalCalls: number; }
 /** @brief Available catalog Profile names and the current conversation selection. */
 interface Profiles { profiles: string[]; selected: string; }
