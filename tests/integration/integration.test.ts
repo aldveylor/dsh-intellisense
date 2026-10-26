@@ -53,14 +53,14 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
                 output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] }, execute: async () => 'contents' }));
             const model = new ScriptedModel(); ctx.llm.registerAdapter(['fake'], model);
             const mounted = mode === 'native' ? await ctx.plugin(namespacePlugin) : await ctx.plugin(plugin, { timeoutMs: 3000 });
-            assert.equal(routes.size, 3);
+            assert.deepEqual([...routes.keys()].sort(), ['/api/ts-intellisense', '/api/ts-intellisense-client', '/api/ts-intellisense-profile', '/api/ts-intellisense-state']);
             const agent = await ctx.agentLoop.create(SessionId(`integration-${mode}`), { provider: 'fake', model: 'scripted' });
             const namespaces = ctx.commandNamespaces;
             assert.equal(namespaces.enabled(agent), false);
             if (mode !== 'standard') {
                 await agent.ctx.plugin(presentation, { mode });
                 const registry = await namespaces.registryFor(agent);
-                await registry.configure([{ id: 'read_file', path: 'std.fs.read', aliases: [], description: 'Read file contents', pinned: false }], registry.snapshot().revision);
+                await registry.configure([{ id: 'read_file', path: 'std.fs.read', description: 'Read file contents', pinned: false }], registry.snapshot().revision);
                 await namespaces.configure(agent);
             }
             const errors: unknown[] = [];
@@ -81,7 +81,7 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
                 assert.equal(ctx.get('codeRuntime'), undefined);
             } else if (mode === 'ptc') {
                 assert.deepEqual(names, ['tools_run_code']);
-                assert(systemOf(request).includes('Each execution uses a fresh context'));
+                assert(systemOf(request).includes('globalThis'));
                 assert(systemOf(request).includes('function intellisense('));
                 assert(systemOf(request).includes('namespace tools {  // Tool discovery and Profile management'));
                 const execution = await agent.ctx.tools.execute({ agent, callId: ToolCallId('integration-code'), name: 'tools_run_code', arguments: { code: 'return 42;', description: 'Check scoped runtime' }, signal: new AbortController().signal });

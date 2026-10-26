@@ -20,7 +20,7 @@ async function fixture(searchEngines = createSearchEngines()) {
     const registry = new SemanticRegistry(new MemoryStore());
     const physical = { id: 'read', description: 'Read documents', parameters: { type: 'object', properties: { path: { type: 'string' } } }, output: { type: 'string' } };
     registry.refresh([physical]);
-    await registry.configure([{ id: 'read', path: 'files.read', aliases: [], pinned: false }], 0);
+    await registry.configure([{ id: 'read', path: 'files.read', pinned: false }], 0);
     const namespaces = { searchEngines, registryFor: async () => registry, entries: async () => manifest(registry, []).commands() };
     const definition = searchDefinition(namespaces);
     registry.refresh([physical, { id: definition.name, description: definition.description, parameters: definition.parameters, output: definition.output.schema }]);
@@ -75,7 +75,7 @@ test('disabled subtrees and commands stay saved but disappear from search and di
     assert.deepEqual(await definition.execute({ keywords: ['documents'], method: 'accurate' }, execution), []);
     assert(!manifest(registry, []).commands().some(entry => entry.path === 'files.read'));
     const tree = profileTree('Default', registry.configuration());
-    const restored = profileConfiguration(tree, config, [{ name: 'read', brief: 'Read documents' }]);
+    const restored = profileConfiguration(tree, config, [{ name: 'read', brief: 'Read documents', paths: ['files.read'], totalCalls: 0 }]);
     assert.equal(restored.namespaces[0]!.disabled, true);
     await registry.replaceConfiguration({ ...config, mappings: config.mappings.map(mapping => ({ ...mapping, disabled: true })) }, 'Default');
     assert(!manifest(registry, [{ path: 'other.read', tool: 'read' }]).commands().some(entry => entry.tool === 'read'));

@@ -12,12 +12,12 @@ import { intellisense } from '../../src/tools/intellisense.js';
 async function registry(): Promise<SemanticRegistry> {
     const registry = new SemanticRegistry(new MemoryStore());
     registry.refresh([{ id: 'read_file', description: '读取文件（保留注释原文）', parameters: { type: 'object', required: ['path'], properties: { path: { type: 'string', description: '文件路径' } }, additionalProperties: false }, output: { type: 'string' } }]);
-    await registry.configure([{ id: 'read_file', path: 'files.read', aliases: [], pinned: false }], 0);
+    await registry.configure([{ id: 'read_file', path: 'files.read', pinned: false }], 0);
     return registry;
 }
 
-test('disabled tools paths are omitted while YAML aliases validate mapped arguments on the host', async () => {
-    const entries = manifest(await registry(), Aliases.parse([{ path: 'std.fs.read', tool: 'read_file', argMap: { filename: 'path' } }]));
+test('disabled tools paths are omitted while YAML path aliases validate native arguments on the host', async () => {
+    const entries = manifest(await registry(), Aliases.parse([{ path: 'std.fs.read', tool: 'read_file' }]));
     assert(!entries.commands().some(entry => entry.path === 'tools' || entry.path.startsWith('tools.')));
     assert(manifest(await registry(), []).commands().some(entry => entry.path === 'files.read'));
     assert(!entries.commands().some(entry => entry.path.startsWith('unknown.')));
@@ -70,12 +70,12 @@ test('cwd and other single-field results expose scalar contracts and repack posi
     await assert.rejects(positionalArguments(entry, ['a', 'b']), /Too many/);
 });
 
-test('positional contracts handle required-first order, aliases, optional holes, nulls and structured fields', async () => {
-    const entry = { path: 'std.edit', tool: 'edit', doc: 'Edit', argMap: { filename: 'path' }, schema: { type: 'object', additionalProperties: false,
+test('positional contracts handle required-first order, optional holes, nulls and structured fields', async () => {
+    const entry = { path: 'std.edit', tool: 'edit', doc: 'Edit', schema: { type: 'object', additionalProperties: false,
         properties: { optional: { type: 'string' }, path: { type: 'string' }, options: { type: 'object', properties: { nested: { type: 'boolean' } }, additionalProperties: false }, nullable: { type: 'null' } }, required: ['path'] },
         output: { type: 'object', properties: { a: { type: 'number' }, b: { type: 'string' } }, required: ['a', 'b'] } };
     const signature = declaration(entry);
-    assert(signature.includes('filename: string, optional?: string,'));
+    assert(signature.includes('path: string, optional?: string,'));
     assert.deepEqual(await positionalArguments(entry, ['file', undefined, { nested: true }, null]), { path: 'file', options: { nested: true }, nullable: null });
     const result = { a: 1, b: 'b' };
     assert.deepEqual(resultFor(entry, result), result);
@@ -93,7 +93,7 @@ test('zero-argument closed objects and unstructured object inputs keep unambiguo
 
 test('namespace descriptions survive native discovery and PTC member and exact queries', async () => {
     const catalog = await registry();
-    await catalog.configure([{ id: 'read_file', path: 'files.library.read', aliases: [], pinned: false }], catalog.snapshot().revision, [
+    await catalog.configure([{ id: 'read_file', path: 'files.library.read', pinned: false }], catalog.snapshot().revision, [
         { path: 'files', description: 'File operations', alwaysVisible: false },
         { path: 'files.library', description: 'Library files', alwaysVisible: false },
     ]);
@@ -111,4 +111,9 @@ test('namespace descriptions survive native discovery and PTC member and exact q
     for (const query of ['', 'tools.', 'tools.profile.']) {
         assert(intellisense([query], root, true).includes('namespace tools {  // Tool discovery and Profile management'));
     }
+});
+
+
+test('YAML path aliases reject removed argument mappings', () => {
+    assert.equal(Aliases.safeParse([{ path: 'files.read', tool: 'read_file', argMap: { filename: 'path' } }]).success, false);
 });

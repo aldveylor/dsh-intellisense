@@ -10,7 +10,7 @@ import { intellisense } from '../../src/tools/intellisense.js';
 test('custom pinned briefs preserve original IntelliSense documentation at every pin level', async () => {
     const registry = new SemanticRegistry(new MemoryStore());
     registry.refresh([{ id: 'read', description: 'Original command documentation', parameters: { type: 'object', properties: { path: { type: 'string', description: 'Absolute path' } }, required: ['path'] }, output: { type: 'string' } }]);
-    const mapping: Mapping = { id: 'read', path: 'files.read', aliases: [], pinned: false };
+    const mapping: Mapping = { id: 'read', path: 'files.read', pinned: false };
     const component = { registryFor: async () => registry, aliases: [], isPtc: () => true } as unknown as NamespaceComponent;
     for (const level of [0, 1, 2] as const) {
         await registry.configure([{ ...mapping, alwaysVisible: level, description: 'Custom prompt note' }], registry.snapshot().revision);
@@ -20,7 +20,10 @@ test('custom pinned briefs preserve original IntelliSense documentation at every
             assert.match(hint, /Custom prompt note/);
             assert(!hint.includes('Original command documentation'));
         }
-        if (level === 2) assert.match(hint, /@brief Original command documentation/);
+        if (level === 2) {
+            assert.match(hint, /@brief Custom prompt note/);
+            assert.match(hint, /function read\(path: string\)/);
+        }
         const info = intellisense(['files.read'], manifest(registry, []));
         assert.match(info, /Original command documentation/);
         assert(!info.includes('Custom prompt note'));

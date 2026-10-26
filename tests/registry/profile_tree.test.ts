@@ -8,19 +8,19 @@ import { MemoryStore } from '../../src/storage/store.js';
 function fixture() {
     const current = new SemanticRegistry(new MemoryStore()).configuration();
     const configuration = { ...current,
-        mappings: ['read', 'write', 'list'].map((id, index) => ({ id, path: `files.${id}`, aliases: id === 'read' ? ['read'] : [], pinned: false, alwaysVisible: (2 - index) as 0 | 1 | 2 })),
+        mappings: [...['read', 'write', 'list'].map((id, index) => ({ id, path: `files.${id}`, pinned: false, alwaysVisible: (2 - index) as 0 | 1 | 2 })), { id: 'read', path: 'read', pinned: false, alwaysVisible: 2 as const }],
         namespaces: [{ path: 'files', description: 'File operations', alwaysVisible: true }],
         namespaceVisible: { console: true }, builtinVisible: { 'console.log': 2 as const, 'tools.intellisense': 2 as const }, toolComments: { read: 'Read text' } };
-    return { current, profile: profileTree('Work', configuration), commands: ['read', 'write', 'list'].map(name => ({ name, brief: name })) };
+    return { current, profile: profileTree('Work', configuration), commands: ['read', 'write', 'list'].map(name => ({ name, brief: name, paths: [], totalCalls: 0 })) };
 }
 
-test('Profile trees round-trip nested namespaces, aliases, comments and all command pin levels', () => {
+test('Profile trees round-trip nested namespaces, independent mounts, comments and all command pin levels', () => {
     const { current, profile, commands } = fixture();
     const before = structuredClone(current);
     const configuration = profileConfiguration(ProfileSchema.parse(profile), current, commands);
     assert.deepEqual(current, before);
-    assert.deepEqual(configuration.mappings.map(mapping => mapping.alwaysVisible), [2, 1, 0]);
-    assert.deepEqual(configuration.mappings[0]?.aliases, ['read']);
+    assert.deepEqual(configuration.mappings.map(mapping => mapping.alwaysVisible), [2, 1, 0, 2]);
+    assert.deepEqual(configuration.mappings.filter(mapping => mapping.id === 'read').map(mapping => mapping.path), ['files.read', 'read']);
     assert.equal(configuration.namespaces[0]?.description, 'File operations');
     assert.equal(configuration.namespaceVisible?.console, true);
     assert.equal(configuration.builtinVisible?.['console.log'], 2);
@@ -44,7 +44,9 @@ test('Profile schema rejects invalid nodes and configuration restores missing pr
 test('duplicate diagnostics identify the complete path and both submitted sources', () => {
     const { current, profile, commands } = fixture();
     const files = profile.root.children!.find(node => node.name === 'files')!;
-    files.children!.push({ ...structuredClone(files.children![0]!), command: { ...files.children![0]!.command!, tool: 'write' } });
+    const first = files.children![0]!;
+    assert(first.type === 'command');
+    files.children!.push({ ...structuredClone(first), command: { ...first.command, tool: 'write' } });
     assert.throws(() => profileConfiguration(profile, current, commands), /Duplicate namespace member: root.files.read; root.files.children\[0\] \(read\) conflicts with root.files.children\[3\] \(write\)/);
 });
 
@@ -57,11 +59,11 @@ test('protected diagnostics reject rename and move while omissions restore prote
         const moved = structuredClone(profile);
         const original = moved.root.children!.find(node => node.name === name)!;
         moved.root.children = moved.root.children!.filter(node => node.name !== name);
-        moved.root.children.push({ type: 'tree', name: 'nested', permissions: profile.root.permissions, children: [original] });
+        moved.root.children.push({ type: 'namespace', name: 'nested', permissions: profile.root.permissions, children: [original] });
         assert.throws(() => profileConfiguration(moved, current, commands), new RegExp(`Node cannot be moved: ${name} -> nested.${name}.*permissions.movable=false`));
         const removed = structuredClone(profile);
         removed.root.children = removed.root.children!.filter(node => node.name !== name);
-        removed.root.permissions.removable = true;
+        removed.root.permissions = { ...removed.root.permissions, removable: true };
         assert(profileTree('Work', profileConfiguration(removed, current, commands)).root.children!.some(node => node.name === name));
     }
     const renamedLeaf = structuredClone(profile);
@@ -71,7 +73,7 @@ test('protected diagnostics reject rename and move while omissions restore prote
 
 test('root info and log namespaces coexist with the protected console methods', () => {
     const { current, profile, commands } = fixture();
-    for (const name of ['info', 'log']) profile.root.children!.push({ type: 'tree', name, permissions: profile.root.permissions, children: [] });
+    for (const name of ['info', 'log']) profile.root.children!.push({ type: 'namespace', name, permissions: profile.root.permissions, children: [] });
     const configuration = profileConfiguration(profile, current, commands);
     assert(configuration.namespaces.some(node => node.path === 'info'));
     assert(configuration.namespaces.some(node => node.path === 'log'));
@@ -116,6 +118,8 @@ test('save permits omitted briefs and ignores forged edits of protected descript
     const save = tools.children!.find(node => node.name === 'profile')!.children!.find(node => node.name === 'save')!;
     save.command!.doc = 'Forged command brief';
     save.description = 'Forged leaf description';
+    assert.equal(ProfileSchema.safeParse(profile).success, false, 'Command nodes reject namespace-only fields');
+    delete save.description;
     save.permissions = { ...save.permissions, commentable: true };
     const files = profile.root.children!.find(node => node.name === 'files')!;
     for (const leaf of files.children!) delete leaf.command!.doc;
@@ -130,4 +134,14 @@ test('save permits omitted briefs and ignores forged edits of protected descript
     const savedCommand = savedTools.children!.find(node => node.name === 'profile')!.children!.find(node => node.name === 'save')!;
     assert.equal(savedCommand.permissions.commentable, false);
     assert.notEqual(savedCommand.command!.doc, 'Forged command brief');
+});
+
+
+test('Profile command contracts reject removed argument mappings', () => {
+    const { profile } = fixture();
+    const files = profile.root.children!.find(node => node.name === 'files')!;
+    const command = files.children![0]!;
+    assert(command.type === 'command');
+    files.children![0] = { ...command, command: { ...command.command, ...{ argMap: { filename: 'path' } } } };
+    assert.equal(ProfileSchema.safeParse(profile).success, false);
 });

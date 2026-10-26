@@ -25,7 +25,7 @@ test('native names satisfy API limits and avoid path and physical name collision
     assert.deepEqual(nativeBindings(namespace(entries).commands().filter(node => entries.some(entry => entry.path === node.path)), reserved).map(binding => binding.name), names);
 });
 
-test('native aliases publish callable names, map arguments and revoke stale handlers', async () => {
+test('native aliases publish callable names, preserve native arguments and revoke stale handlers', async () => {
     const definitions = new Map<string, ToolDefinition>();
     const ctx = { effect: () => {}, on: () => {}, emit: () => {}, agents: { list: () => [] }, tools: {
         register: (tool: ToolDefinition) => { definitions.set(tool.name, tool); return () => { definitions.delete(tool.name); }; },
@@ -33,8 +33,8 @@ test('native aliases publish callable names, map arguments and revoke stale hand
     const store = new MemoryStore(), registry = new SemanticRegistry(store);
     const physical = [{ id: 'read_file', description: 'Read file\nFull file documentation.', parameters: { type: 'object', properties: { file: { type: 'string' } }, required: ['file'] }, output: { type: 'string' } }];
     registry.refresh(physical);
-    await registry.configure([{ id: 'read_file', path: 'fs.read', aliases: [], pinned: false }], 0);
-    const component = new NamespaceComponent(ctx, registry, new ProfileSessions(registry, store), [{ path: 'fs.open', tool: 'read_file', argMap: { path: 'file' } }]);
+    await registry.configure([{ id: 'read_file', path: 'fs.read', pinned: false }], 0);
+    const component = new NamespaceComponent(ctx, registry, new ProfileSessions(registry, store), [{ path: 'fs.open', tool: 'read_file' }]);
     component.physical = () => physical;
     const agent = { id: 'native-test', ctx } as Agent;
     assert.deepEqual(await component.syncNative(agent), []);
@@ -57,10 +57,10 @@ test('native aliases publish callable names, map arguments and revoke stale hand
     assert.equal(prompt, '');
     const open = definitions.get('ns_fs__open')!;
     assert.equal(open.description, 'fs.open: Read file');
-    assert.deepEqual(open.parameters, { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] });
+    assert.deepEqual(open.parameters, { type: 'object', properties: { file: { type: 'string' } }, required: ['file'] });
     component.dispatch = async (_agent, entry, args) => ({ tool: entry.tool, args });
     const parent = { agent } as ToolRunContext;
-    assert.deepEqual(await open.execute({ path: '/tmp/file' }, parent), { tool: 'read_file', args: { file: '/tmp/file' } });
+    assert.deepEqual(await open.execute({ file: '/tmp/file' }, parent), { tool: 'read_file', args: { file: '/tmp/file' } });
     physical.length = 0;
     assert.deepEqual(await component.syncNative(agent), []);
     assert.equal(definitions.size, 0);

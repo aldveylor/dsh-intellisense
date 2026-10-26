@@ -61,7 +61,7 @@ for (const ptc of [false, true]) test(`physical IntelliSense records query targe
     const statistics = new CommandStatistics(new MemoryStore());
     const root = namespace([{ path: 'std.read', tool: 'read', doc: '', schema: {}, output: {} }]);
     const namespaces = {
-        statistics, registryFor: async () => ({ effective: () => [], disabled: () => false, snapshot: () => ({ revision: 0 }) }),
+        statistics, registryFor: async () => ({ effective: () => [], description: () => undefined, disabled: () => false, snapshot: () => ({ revision: 0 }) }),
         tree: async () => root, isPtc: () => ptc, discover: async () => '{}', position: () => ({ turn: 0, step: 0 }),
     } as unknown as NamespaceComponent;
     let definition!: ToolDefinition;

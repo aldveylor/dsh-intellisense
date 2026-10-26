@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Context } from '@deepseek-ai/cordis';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
-import { nativeArgumentsFor, nativeSchema, type ManifestEntry } from '../../src/namespace/namespace.js';
+import { nativeArgumentsFor, type ManifestEntry } from '../../src/namespace/namespace.js';
 import { builtinDeclaration, executionInstructions } from '../../src/namespace/prompt.js';
 import { pluginCommands } from '../../src/runtime/builtins.js';
 import { declaration } from '../../src/namespace/namespace.js';
@@ -25,7 +25,8 @@ test('registered physical discovery tool exposes and validates the queries objec
     assert.equal(definition.parameters.type, 'object');
     assert.deepEqual(definition.parameters.required, ['queries']);
     assert(definition.description.includes('{"queries":[""]}'));
-    assert(executionInstructions('native').includes('{"queries":[""]}'));
+    assert.match(executionInstructions('native'), /native DSML tools with named arguments/);
+    assert.match(executionInstructions('native'), /ns_tools__intellisense/);
     const execution = {} as ToolRunContext;
     await assert.rejects(definition.execute({ queries: ['std.'] }, execution), /A live conversation is required/);
     await assert.rejects(definition.execute([3], execution), /invalid arguments/i);
@@ -41,8 +42,9 @@ test('native discovery keeps queries while PTC repacks variadic strings', async 
         assert.match(source, /function intellisense\(\.\.\.args: string\[\]\): Promise<string>/);
         assert(source.includes('tools.intellisense("")'));
     }
-    assert(executionInstructions('ptc').includes('tools.intellisense("")'));
-    assert.deepEqual(nativeSchema(entry), entry.schema);
+    assert.match(executionInstructions('ptc'), /tools_run_code/);
+    assert.match(executionInstructions('ptc'), /globalThis/);
+    assert.deepEqual(JSON.parse(nativeDiscovery(['tools.intellisense'], namespace([entry]), [])).members[0].parameters, entry.schema);
     assert.deepEqual(nativeArgumentsFor(entry, { queries }), { queries });
     assert.deepEqual(await positionalArguments(entry, queries), { queries });
     assert.deepEqual(await positionalArguments(entry, []), { queries: [] });

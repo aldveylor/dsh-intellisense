@@ -13,7 +13,7 @@ async function fixture() {
     const parent = await profiles.load('parent', 'Work');
     await parent.replaceConfiguration({
         ...parent.configuration(),
-        mappings: [{ id: 'read', path: 'draft.read', aliases: ['draft.again'], pinned: true, alwaysVisible: 2, disabled: true }],
+        mappings: [{ id: 'read', path: 'draft.read', pinned: true, alwaysVisible: 2, disabled: true }, { id: 'read', path: 'draft.again', pinned: true, alwaysVisible: 2, disabled: true }],
         namespaces: [{ path: 'draft', description: 'Unsaved namespace', alwaysVisible: true }],
         unmountedVisible: { other: 1 }, builtinVisible: { 'tools.search': 2 }, builtinDisabled: ['tools.search'],
         namespaceVisible: { draft: true }, toolComments: { read: 'Unsaved annotation' },

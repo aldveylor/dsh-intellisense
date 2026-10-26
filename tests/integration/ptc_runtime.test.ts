@@ -73,8 +73,8 @@ test('PTC worker dispatches and discovery persist session and global statistics 
             }));
             const registry = await namespaces.registryFor(agent);
             await registry.configure([
-                { id: 'read_tool', path: 'std.read', aliases: [], pinned: false },
-                { id: 'fail_tool', path: 'std.fail', aliases: [], pinned: false },
+                { id: 'read_tool', path: 'std.read', pinned: false },
+                { id: 'fail_tool', path: 'std.fail', pinned: false },
             ], registry.snapshot().revision);
             const result = await run('console.log("excluded"); const commands = tools.profile.commands; await tools.intellisense("global.std.", "std.read", "console.log"); return await Promise.all([std.read(), std.read()]);');
             assert.equal(result.isError, false, JSON.stringify(result));
@@ -150,7 +150,7 @@ test('native commands rereads current global counts after each namespace dispatc
             output: { schema: { type: 'string' }, render: () => [] }, execute: async () => 'ok',
         }));
         const registry = await namespaces.registryFor(agent);
-        await registry.configure([{ id: 'read_tool', path: 'std.read', aliases: [], pinned: false }], registry.snapshot().revision);
+        await registry.configure([{ id: 'read_tool', path: 'std.read', pinned: false }], registry.snapshot().revision);
         await namespaces.discover(agent, ['std.read', 'tools.profile.commands']);
         let sequence = 0;
         const call = (name: string) => ctx.tools.execute({ agent, callId: ToolCallId(`native-statistics-${++sequence}`), name, arguments: {}, signal: new AbortController().signal });
@@ -260,7 +260,7 @@ test('PTC cancellation drains native children and timeout permits the next execu
             },
         }));
         const registry = await namespaces.registryFor(agent);
-        await registry.configure([{ id: 'wait_tool', path: 'std.wait', aliases: [], pinned: false }], registry.snapshot().revision);
+        await registry.configure([{ id: 'wait_tool', path: 'std.wait', pinned: false }], registry.snapshot().revision);
         const controller = new AbortController();
         const work = run('return await std.wait();', undefined, controller.signal);
         await ready;
@@ -286,7 +286,7 @@ test('PTC projects results once, preserves void results and supports parallel na
             execute: async ({ path }) => ({ value: { value: path } }),
         }));
         const registry = await namespaces.registryFor(agent);
-        await registry.configure([{ id: 'read_tool', path: 'std.read', aliases: [], pinned: false }], registry.snapshot().revision);
+        await registry.configure([{ id: 'read_tool', path: 'std.read', pinned: false }], registry.snapshot().revision);
         const result = await run('return await Promise.all([std.read("a"), std.read("b")]);');
         assert.equal(result.isError, false, JSON.stringify(result));
         assert.deepEqual(result.value, { logs: [], result: [{ value: 'a' }, { value: 'b' }] });
@@ -314,7 +314,7 @@ test('PTC early returns and failed parallel calls drain native siblings without 
             },
         }));
         const registry = await namespaces.registryFor(agent);
-        await registry.configure([{ id: 'sibling_tool', path: 'std.sibling', aliases: [], pinned: false }], registry.snapshot().revision);
+        await registry.configure([{ id: 'sibling_tool', path: 'std.sibling', pinned: false }], registry.snapshot().revision);
         const early = await run('void std.sibling(false); return 42;');
         assert.equal(early.isError, false, JSON.stringify(early));
         assert.deepEqual(early.value, { logs: [], result: 42 });
@@ -407,7 +407,7 @@ test('Profile saves preserve the snapshot and inject notices only when explicitl
         `);
         assert.equal(saved.isError, false, JSON.stringify(saved));
         assert.deepEqual(registry.snapshot(), before);
-        assert.deepEqual(injected, []);
+        assert.equal(injected.length, 0);
         const result = await run(`
             const profile = await tools.profile.load();
             await tools.profile.switch('Default');
@@ -428,14 +428,14 @@ test('native configuration refresh and load stay silent while switch injects a P
     const { ctx, agent, namespaces, injected, dispose } = await fixture(new MemoryStore(), 'native');
     try {
         await namespaces.configurationChanged(agent);
-        assert.deepEqual(injected, []);
+        assert.equal(injected.length, 0);
         const call = (name: string, profile: string) => ctx.tools.execute({
             agent, callId: ToolCallId(`native-${name}-${profile}`), name, arguments: { name: profile }, signal: new AbortController().signal,
         });
         assert.equal((await call('tools_profile_load', 'Default')).isError, false);
-        assert.deepEqual(injected, []);
+        assert.equal(injected.length, 0);
         assert.equal((await call('tools_profile_switch', 'Missing')).isError, true);
-        assert.deepEqual(injected, []);
+        assert.equal(injected.length, 0);
         assert.equal((await call('tools_profile_switch', 'Default')).isError, false);
         assert.deepEqual(injected.map(message => message.content), [[{ type: 'text', text: 'Profile updated to Default' }]]);
     } finally { await dispose(); }
@@ -458,7 +458,7 @@ test('repeated Profile saves preserve overload mapping across executions and con
             assert.equal(result.isError, false, JSON.stringify(result));
             assert.deepEqual(result.value, { logs: [], result: { profiles: ['Default', 'Repeated'], selected: 'Default' } });
         }
-        assert.deepEqual(injected, []);
+        assert.equal(injected.length, 0);
     } finally { await dispose(); }
 });
 

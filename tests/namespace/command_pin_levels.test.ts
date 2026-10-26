@@ -23,7 +23,7 @@ test('three command levels hide, summarize, or publish complete documented signa
     const registry = new SemanticRegistry(new MemoryStore());
     registry.refresh([tool]);
     for (const level of [0, 1, 2] as const) {
-        const mapping: Mapping = { id: tool.id, path: 'files.read', aliases: [], pinned: false, alwaysVisible: level };
+        const mapping: Mapping = { id: tool.id, path: 'files.read', pinned: false, alwaysVisible: level };
         await registry.configure([mapping], registry.snapshot().revision, undefined, undefined, undefined, undefined, { read_file: 'Custom brief' }, { 'console.dir': level });
         const text = await prompt(registry);
         assert.equal(text.includes('namespace files'), level > 0);
@@ -51,7 +51,7 @@ test('detailed pins survive mount, unmount, profile save, and storage reload', a
     const registry = new SemanticRegistry(store);
     registry.refresh([tool]);
     await registry.configure([], 0, undefined, undefined, { read_file: 2 }, undefined, undefined, { 'console.log': 2 });
-    await registry.configure([{ id: tool.id, path: 'files.read', aliases: [], pinned: false }], 1);
+    await registry.configure([{ id: tool.id, path: 'files.read', pinned: false }], 1);
     assert.equal(registry.snapshot().mappings[0]?.alwaysVisible, 2);
     assert.deepEqual(registry.snapshot().unmountedVisible, {});
     await registry.configure([], 2);
@@ -62,7 +62,7 @@ test('detailed pins survive mount, unmount, profile save, and storage reload', a
     assert.equal(restored.configuration('Detailed').unmountedVisible.read_file, 2);
     assert.equal(restored.effective()[0]?.alwaysVisible, 2);
     assert.equal(restored.snapshot().builtinVisible?.['console.log'], 2);
-    await assert.rejects(restored.configure([{ id: tool.id, path: 'files.read', aliases: [], pinned: false, alwaysVisible: 3 as PinLevel }], 4), /Invalid mapping/);
+    await assert.rejects(restored.configure([{ id: tool.id, path: 'files.read', pinned: false, alwaysVisible: 3 as PinLevel }], 4), /Invalid mapping/);
 });
 
 test('builtin provider preserves detailed pins and keeps discovery pinned', () => {
@@ -76,7 +76,7 @@ test('PTC initial prompts retain descriptions of parents of pinned commands only
     const registry = new SemanticRegistry(new MemoryStore());
     registry.refresh([tool, { id: 'tools_intellisense', description: 'Discover tools', parameters: {}, output: {} }]);
     for (const level of [0, 1, 2] as const) {
-        await registry.configure([{ id: tool.id, path: 'files.library.read', aliases: [], pinned: false, alwaysVisible: level }], registry.snapshot().revision, [
+        await registry.configure([{ id: tool.id, path: 'files.library.read', pinned: false, alwaysVisible: level }], registry.snapshot().revision, [
             { path: 'files', description: 'File operations', alwaysVisible: false },
             { path: 'files.library', description: 'Library files', alwaysVisible: false },
         ]);

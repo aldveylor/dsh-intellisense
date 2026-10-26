@@ -8,7 +8,7 @@ test('pinned command hints and mixed tree order persist and honor agent visibili
     const store = new MemoryStore(); const registry = new SemanticRegistry(store);
     const tools = ['read', 'write'].map(id => ({ id, description: `${id} files`, parameters: { type: 'object' }, output: { type: 'string' } }));
     registry.refresh(tools);
-    await registry.configure(tools.map(t => ({ id: t.id, path: `files.${t.id}`, aliases: [], pinned: false, alwaysVisible: t.id === 'read' ? 1 : 0 })), 0,
+    await registry.configure(tools.map(t => ({ id: t.id, path: `files.${t.id}`, pinned: false, alwaysVisible: t.id === 'read' ? 1 : 0 })), 0,
         [{ path: 'files', alwaysVisible: false, description: '' }], ['files.write', 'files.read', 'files']);
     assert.deepEqual(manifest(registry, []).commands().filter(entry => registry.effective().find(mapping => mapping.id === entry.tool)?.alwaysVisible).map(entry => entry.path), ['files.read']);
     assert.deepEqual(manifest(registry, []).commands().filter(entry => entry.tool === 'write' && registry.effective().find(mapping => mapping.id === entry.tool)?.alwaysVisible), []);

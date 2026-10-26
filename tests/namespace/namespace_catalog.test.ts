@@ -42,8 +42,8 @@ test('editor discovers standing preset tools without live agents and keeps execu
         const component = new NamespaceComponent(ctx, registry, new ProfileSessions(registry, store), []);
         await component.refresh();
         await registry.configure([
-            { id: 'read_file', path: 'fs.read', aliases: [], pinned: false },
-            { id: 'write_file', path: 'fs.write', aliases: [], pinned: false },
+            { id: 'read_file', path: 'fs.read', pinned: false },
+            { id: 'write_file', path: 'fs.write', pinned: false },
         ], 0);
         assert.deepEqual(registry.tools().map(tool => tool.id).sort(), ['read_file', 'working_directory', 'write_file']);
         assert.deepEqual(released, ['first', 'second']);
@@ -79,7 +79,7 @@ test('preset catalog leases are released when reading a tool fails', async () =>
     } finally { await ctx.fiber.dispose(); }
 });
 
-test('command briefs expose current session paths and aliases while excluding plugin builtins', async () => {
+test('command briefs expose current session mount paths including disabled paths while excluding plugin builtins', async () => {
     const ctx = new Context();
     try {
         ctx.provide('systemPrompt', { tools: () => () => {} });
@@ -90,19 +90,22 @@ test('command briefs expose current session paths and aliases while excluding pl
         const component = new NamespaceComponent(ctx, registry, new ProfileSessions(registry, store), [{ tool: 'read_file', path: 'text.read' }]);
         await component.refresh();
         await registry.configure([
-            { id: 'read_file', path: 'fs.read', aliases: ['fs.cat'], pinned: false },
-            { id: 'write_file', path: 'fs.write', aliases: [], pinned: false },
+            { id: 'read_file', path: 'fs.read', pinned: false },
+            { id: 'read_file', path: 'fs.cat', pinned: false },
+            { id: 'write_file', path: 'fs.write', pinned: false },
         ], 0);
         const agent = { id: 'session', ctx } as Agent;
         const session = await component.registryFor(agent);
         await session.configure([
-            { id: 'read_file', path: 'files.read', aliases: ['files.cat', 'hidden.read'], pinned: false },
-            { id: 'write_file', path: 'files.write', aliases: [], pinned: false, disabled: true },
+            { id: 'read_file', path: 'files.read', pinned: false },
+            { id: 'read_file', path: 'files.cat', pinned: false },
+            { id: 'read_file', path: 'hidden.read', pinned: false },
+            { id: 'write_file', path: 'files.write', pinned: false, disabled: true },
         ], session.snapshot().revision, [{ path: 'hidden', description: '', alwaysVisible: false, disabled: true }]);
         await component.statistics.recordCall(agent.id, 'read_file');
         const expected = [
-            { name: 'read_file', brief: 'read_file', paths: ['files.read', 'files.cat', 'text.read'], totalCalls: 1 },
-            { name: 'write_file', brief: 'write_file', paths: [], totalCalls: 0 },
+            { name: 'read_file', brief: 'read_file', paths: ['files.read', 'files.cat', 'hidden.read', 'text.read'], totalCalls: 1 },
+            { name: 'write_file', brief: 'write_file', paths: ['files.write'], totalCalls: 0 },
             { name: 'unmounted', brief: 'unmounted', paths: [], totalCalls: 0 },
         ];
         assert.deepEqual(await component.commandBriefs(agent), expected);

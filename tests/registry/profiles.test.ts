@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
 
-const mapping = { id: 'read', path: 'files.read', aliases: [], pinned: false };
+const mapping = { id: 'read', path: 'files.read', pinned: false };
 
 test('profiles isolate all configuration fields and persist create, select, rename and delete', async () => {
     const store = new MemoryStore(); const registry = new SemanticRegistry(store);

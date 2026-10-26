@@ -6,7 +6,7 @@ import { Context } from '@deepseek-ai/cordis';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { ProfileSessions } from '../../src/registry/profiles.js';
-import { profileAnnotation, profileTree } from '../../src/registry/profile_tree.js';
+import { ProfileSchema, profileAnnotation, profileTree } from '../../src/registry/profile_tree.js';
 import { MemoryStore } from '../../src/storage/store.js';
 import { registerToolCommands } from '../../src/tools/tool_commands.js';
 import { manifest } from '../../src/namespace/namespace.js';
@@ -28,9 +28,10 @@ async function fixture() {
     registerToolCommands(ctx, catalog, profiles, async () => registry, async agent => { changed.push(agent.id); }, async () => [{ name: physical.id, brief: physical.description, paths: ['files.read', 'files.cat'], totalCalls: 2 }, { name: 'outside_scope', brief: 'Outside this session.', paths: [], totalCalls: 0 }]);
     const agentContext = new Context();
     agentContext.provide('commandNamespaces', { isPtc: () => true } as unknown as Context['commandNamespaces']);
-    const execution = { agent: { id: 'session', inject: () => {}, ctx: agentContext, session: Session.create(SessionId('session')) }, signal: new AbortController().signal } as ToolRunContext;
+    const execution = { agent: { id: 'session', inject: () => {}, ctx: agentContext, session: Session.create(SessionId('session')) }, signal: new AbortController().signal } as unknown as ToolRunContext;
     const call = (name: string, args: unknown = {}) => definitions.get(name)!.execute(args, execution);
-    return { definitions, registry, catalog, call, changed };
+    const load = async (args: unknown = {}) => ProfileSchema.parse(await call('tools_profile_load', args));
+    return { definitions, registry, catalog, call, load, changed };
 }
 
 test('native Profile data tools and optional-name save/load use session defaults', async () => {
@@ -39,7 +40,7 @@ test('native Profile data tools and optional-name save/load use session defaults
     assert.equal(await call('tools_profile_annotation'), profileAnnotation);
     assert.deepEqual(await call('tools_profile_profiles'), { profiles: ['Default'], selected: 'Default' });
     assert.deepEqual(await call('tools_profile_commands'), [{ name: 'read_file', brief: 'Read a file.', paths: ['files.read', 'files.cat'], totalCalls: 2 }, { name: 'outside_scope', brief: 'Outside this session.', paths: [], totalCalls: 0 }]);
-    const profile = JSON.parse(JSON.stringify(profileTree('Ignored', { ...registry.configuration(), namespaces: [{ path: 'files', description: '', alwaysVisible: true }], mappings: [{ id: 'read_file', path: 'files.read', aliases: [], pinned: false, alwaysVisible: 2 }], toolComments: { read_file: 'Read text' } }))); 
+    const profile = JSON.parse(JSON.stringify(profileTree('Ignored', { ...registry.configuration(), namespaces: [{ path: 'files', description: '', alwaysVisible: true }], mappings: [{ id: 'read_file', path: 'files.read', pinned: false, alwaysVisible: 2 }], toolComments: { read_file: 'Read text' } }))); 
     const before = registry.snapshot();
     await call('tools_profile_save', { profile });
     assert.deepEqual(registry.snapshot(), before);
@@ -116,15 +117,15 @@ test('guest Profile selection is readonly and refreshes after calls in the same 
 
 
 test('Profile save validates input and undefined name overwrites the current selection, ignoring profile.name', async () => {
-    const { call, catalog, registry } = await fixture();
-    const profile = await call('tools_profile_load');
+    const { call, load, catalog, registry } = await fixture();
+    const profile = await load();
     for (const args of [{}, { profile: undefined }, { profile: {} }, { name: null, profile }, { name: 42, profile }]) {
         await assert.rejects(call('tools_profile_save', args));
     }
     assert.deepEqual(catalog.snapshot().profiles, ['Default']);
     await call('tools_profile_save', { name: 'Copy', profile });
-    const updated = { ...profile, name: 'Ignored', root: { ...profile.root, children: [...profile.root.children, {
-        type: 'tree', name: 'business', permissions: profile.root.permissions, children: [],
+    const updated = { ...profile, name: 'Ignored', root: { ...profile.root, children: [...profile.root.children!, {
+        type: 'namespace', name: 'business', permissions: profile.root.permissions, children: [],
     }] } };
     const before = registry.snapshot();
     await call('tools_profile_save', { profile: updated });
@@ -140,11 +141,11 @@ test('Profile save validates input and undefined name overwrites the current sel
 
 
 test('Profile deletion rejects the current selection and missing entries, and can remove the catalog default', async () => {
-    const { call, catalog, registry } = await fixture();
+    const { call, load, catalog, registry } = await fixture();
     await assert.rejects(call('tools_profile_delete'), /name/);
     await assert.rejects(call('tools_profile_delete', { name: 'Default' }), /Current Profile cannot be deleted: Default/);
     await assert.rejects(call('tools_profile_delete', { name: 'Missing' }), /Profile does not exist/);
-    const profile = await call('tools_profile_load');
+    const profile = await load();
     await call('tools_profile_save', { name: 'Copy', profile });
     await call('tools_profile_switch', { name: 'Copy' });
     await assert.rejects(call('tools_profile_delete', { name: 'Copy' }), /Current Profile cannot be deleted: Copy/);
@@ -157,8 +158,8 @@ test('Profile deletion rejects the current selection and missing entries, and ca
 
 
 test('Profile switch requires a name and supports disabling through server permissions', async () => {
-    const { call, catalog, registry, definitions } = await fixture();
-    const profile = await call('tools_profile_load');
+    const { call, load, catalog, registry, definitions } = await fixture();
+    const profile = await load();
     await call('tools_profile_save', { name: 'Copy', profile });
     await call('tools_profile_switch', { name: 'Copy' });
     assert.equal(registry.snapshot().profile, 'Copy');
@@ -166,32 +167,32 @@ test('Profile switch requires a name and supports disabling through server permi
     for (const args of [{}, { name: null }, { name: '' }, { name: 42 }, { name: 'Missing' }]) {
         await assert.rejects(call('tools_profile_switch', args));
     }
-    const edited = await call('tools_profile_load');
-    const command = edited.root.children.find(node => node.name === 'tools').children.find(node => node.name === 'profile').children.find(node => node.name === 'switch');
+    const edited = await load();
+    const command = edited.root.children!.find(node => node.name === 'tools')!.children!.find(node => node.name === 'profile')!.children!.find(node => node.name === 'switch')!;
     assert.equal(command.permissions.disableable, true);
     command.disabled = true;
     await call('tools_profile_save', { profile: edited });
-    assert(!registry.configuration().builtinDisabled.includes('tools.profile.switch'));
+    assert(!registry.configuration().builtinDisabled?.includes('tools.profile.switch'));
     await call('tools_profile_switch', { name: 'Copy' });
     registry.refresh([...definitions.values()].map(tool => ({ id: tool.name, description: tool.description, parameters: tool.parameters, output: tool.output.schema })));
     assert(!manifest(registry, []).commands().some(node => node.path === 'tools.profile.switch'));
-    assert((await call('tools_profile_load')).root.children.find(node => node.name === 'tools').children.find(node => node.name === 'profile').children.find(node => node.name === 'switch').disabled);
+    assert((await load()).root.children!.find(node => node.name === 'tools')!.children!.find(node => node.name === 'profile')!.children!.find(node => node.name === 'switch')!.disabled);
 });
 
 
 test('Profile load reads catalog data without replacing the working draft or refreshing tools', async () => {
-    const { call, catalog, registry, changed } = await fixture();
-    const draft = await call('tools_profile_load');
-    const copy = { ...draft, name: 'Copy', root: { ...draft.root, children: [...draft.root.children, {
-        type: 'tree', name: 'catalog_only', permissions: draft.root.permissions, children: [],
+    const { call, load, catalog, registry, changed } = await fixture();
+    const draft = await load();
+    const copy = { ...draft, name: 'Copy', root: { ...draft.root, children: [...draft.root.children!, {
+        type: 'namespace', name: 'catalog_only', permissions: draft.root.permissions, children: [],
     }] } };
     await call('tools_profile_save', { name: 'Copy', profile: copy });
     const before = registry.snapshot();
     const catalogBefore = catalog.snapshot();
-    const loaded = await call('tools_profile_load', { name: 'Copy' });
+    const loaded = await load({ name: 'Copy' });
     assert.equal(loaded.name, 'Copy');
-    assert(loaded.root.children.some(node => node.name === 'catalog_only'));
-    assert(!draft.root.children.some(node => node.name === 'catalog_only'));
+    assert(loaded.root.children!.some(node => node.name === 'catalog_only'));
+    assert(!draft.root.children!.some(node => node.name === 'catalog_only'));
     assert.deepEqual(await call('tools_profile_load'), draft);
     assert.deepEqual(registry.snapshot(), before);
     assert.deepEqual(catalog.snapshot(), catalogBefore);
