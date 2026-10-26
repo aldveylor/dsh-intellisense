@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import { defineTool } from '@deepseek-ai/dsh-tools';
+import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import type { SemanticRegistry } from '../registry/registry.js';
 import type { ProfileSessions } from '../registry/profiles.js';
 import { type CommandBrief, ProfileSchema, profileConfiguration, profileTree, profileAnnotation } from '../registry/profile_tree.js';
@@ -34,7 +35,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         },
     })));
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_switch', description: 'Switch this conversation to a named catalog Profile. The name is required. This command can be disabled in a Profile.',
+        name: 'tools_profile_switch', description: 'Switch this conversation to a named catalog Profile.',
         parameters: { name: { type: 'string', required: true, description: 'Existing catalog Profile to select for this conversation.' } },
         output: { ...output, schema: { type: 'null' } },
         execute: async (args, execution) => {
@@ -42,12 +43,14 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
             const { name } = z.strictObject({ name: z.string().min(1) }).parse(args);
             await profiles.load(execution.agent.id, name);
             await changed(execution.agent);
+            const text = `Profile updated to ${name}`;
+            execution.agent.inject(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'intellisense-profile', form: 'notice', summary: text } }));
             return null;
         },
     })));
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_save', description: 'Save an editable Profile tree to the named catalog entry without changing this conversation. Call tools.profile.switch(name) explicitly to apply the saved Profile. Omitted or undefined name uses the current conversation Profile name, ignoring profile.name. Invalid arguments or failed writes throw.',
-        parameters: { name: { type: 'string', description: 'Target catalog name. Omitted or undefined uses the current conversation Profile name, not profile.name. Pass an explicit name to create another Profile.' }, profile: { type: 'object', additionalProperties: true, required: true, description: 'Complete editable Profile tree. Required in both save(profile) and save(name, profile); invalid arguments and failed writes throw.' } }, output: { ...output, schema: { type: 'null' } },
+        name: 'tools_profile_save', description: 'Save a Profile tree to the catalog. Omitted or undefined name uses the current conversation Profile name, ignoring profile.name. Call tools.profile.switch(name) to apply the saved Profile.',
+        parameters: { name: { type: 'string', description: 'Target catalog name; defaults to the current conversation Profile name.' }, profile: { type: 'object', additionalProperties: true, required: true, description: 'Complete editable Profile tree.' } }, output: { ...output, schema: { type: 'null' } },
         execute: async (args, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
             const { name, profile } = z.strictObject({ name: z.string().optional(), profile: ProfileSchema }).parse(args);
@@ -59,8 +62,8 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         },
     })));
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_delete', description: 'Delete an explicitly named catalog Profile. The name is required; the current conversation Profile cannot be deleted. Existing snapshots in other conversations remain unchanged.',
-        parameters: { name: { type: 'string', required: true, description: 'Explicit catalog Profile to delete. Required; the current conversation Profile cannot be deleted.' } },
+        name: 'tools_profile_delete', description: 'Delete a named catalog Profile. The current conversation Profile cannot be deleted.',
+        parameters: { name: { type: 'string', required: true, description: 'Catalog Profile to delete.' } },
         output: { ...output, schema: { type: 'null' } },
         execute: async (args, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
@@ -88,7 +91,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
             ? JSON.stringify(ProfileSchema.toJSONSchema()) : profileAnnotation,
     })));
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_commands', description: 'Show all commands, including commands absent from the current context, with their original physical names, descriptions and totalCalls across all sessions to guide Profile organization.', parameters: {},
+        name: 'tools_profile_commands', description: 'All catalog commands with original physical names, summaries and total calls across all sessions.', parameters: {},
         output: { ...output, schema: { type: 'array', items: { type: 'object', additionalProperties: true } } },
         execute: async (_args, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');

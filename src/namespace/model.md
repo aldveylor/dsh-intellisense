@@ -49,4 +49,4 @@ PTC 每次执行重建 VM Context，不保证环境连续，不支持 globalThis
 
 `component.ts` 在 Profile 首次初始化时通过 AgentRegistry.isOwnedBy 查询运行时父 Agent；父作用域启用 Intellisense 时，递归取得其工作配置供子会话复制，后续按各自 ID 持有独立快照。无启用本插件的父 Agent 则使用全局默认；已加载或已持久化的子会话配置优先，不因再次查询、父配置切换或恢复而覆盖。
 
-当前对话通过显式 load(name)、switch(name) 或会话 Profile 下拉框更新工作配置后，统一由 configurationChanged 刷新工具提示，并调用 Agent.inject 注入英文 notice：`Profile updated to <profile name>`。保存目录、读取草稿、失败操作及删除其它配置不注入；通知仅进入更新的对话。
+当前对话通过显式 load(name)、switch(name) 或会话 Profile 下拉框更新工作配置后，统一由 configurationChanged 刷新工具提示。仅 tools.profile.switch(name) 成功完成加载和刷新后，通过 Agent.inject 向当前对话注入 intellisense-profile 英文 notice：`Profile updated to <profile name>`；load(name)、UI 下拉选择、通用配置刷新、保存目录、读取草稿、失败操作及删除其它配置均不注入。

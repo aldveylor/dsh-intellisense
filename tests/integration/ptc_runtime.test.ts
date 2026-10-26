@@ -392,7 +392,7 @@ test('PTC Profile switch changes the selection and rejects an omitted name', asy
 });
 
 
-test('Profile saves preserve the snapshot and inject notices only when explicitly loaded or switched', async () => {
+test('Profile saves preserve the snapshot and inject notices only when explicitly switched', async () => {
     const { run, injected, namespaces, agent, dispose } = await fixture();
     try {
         const registry = await namespaces.registryFor(agent);
@@ -416,15 +416,24 @@ test('Profile saves preserve the snapshot and inject notices only when explicitl
             await tools.profile.delete('Default');
         `);
         assert.equal(result.isError, false, JSON.stringify(result));
-        assert.deepEqual(injected.map(message => message.content), ['Default', 'Copy'].map(name => [{ type: 'text', text: `Profile updated to ${name}` }]));
+        assert.deepEqual(injected.map(message => message.content), ['Default'].map(name => [{ type: 'text', text: `Profile updated to ${name}` }]));
         assert(injected.every(message => message.source.kind === 'intellisense-profile'));
     } finally { await dispose(); }
 });
 
-test('native configuration refresh injects the Profile notice into the affected conversation', async () => {
-    const { agent, namespaces, injected, dispose } = await fixture(new MemoryStore(), 'native');
+test('native configuration refresh and load stay silent while switch injects a Profile notice', async () => {
+    const { ctx, agent, namespaces, injected, dispose } = await fixture(new MemoryStore(), 'native');
     try {
         await namespaces.configurationChanged(agent);
+        assert.deepEqual(injected, []);
+        const call = (name: string, profile: string) => ctx.tools.execute({
+            agent, callId: ToolCallId(`native-${name}-${profile}`), name, arguments: { name: profile }, signal: new AbortController().signal,
+        });
+        assert.equal((await call('tools_profile_load', 'Default')).isError, false);
+        assert.deepEqual(injected, []);
+        assert.equal((await call('tools_profile_switch', 'Missing')).isError, true);
+        assert.deepEqual(injected, []);
+        assert.equal((await call('tools_profile_switch', 'Default')).isError, false);
         assert.deepEqual(injected.map(message => message.content), [[{ type: 'text', text: 'Profile updated to Default' }]]);
     } finally { await dispose(); }
 });

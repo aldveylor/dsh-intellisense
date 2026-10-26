@@ -27,7 +27,7 @@ async function fixture() {
     registerToolCommands(ctx, catalog, profiles, async () => registry, async () => {}, async () => [{ name: physical.id, brief: physical.description, totalCalls: 2 }, { name: 'outside_scope', brief: 'Outside this session.', totalCalls: 0 }]);
     const agentContext = new Context();
     agentContext.provide('commandNamespaces', { isPtc: () => true } as unknown as Context['commandNamespaces']);
-    const execution = { agent: { id: 'session', ctx: agentContext, session: Session.create(SessionId('session')) }, signal: new AbortController().signal } as ToolRunContext;
+    const execution = { agent: { id: 'session', inject: () => {}, ctx: agentContext, session: Session.create(SessionId('session')) }, signal: new AbortController().signal } as ToolRunContext;
     const call = (name: string, args: unknown = {}) => definitions.get(name)!.execute(args, execution);
     return { definitions, registry, catalog, call };
 }
