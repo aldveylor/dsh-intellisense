@@ -9,3 +9,5 @@
 参数类型列保持 object、对象数组和基础类型等简洁标签；完整对象结构、数组、联合、枚举及原始字段注释放在第二层 Tooltip 的代码块中。返回类型不显示根级或字段级描述，使用服务端 outputDeclaration，缺省时由本地 schemaType 转换；二者均直接显示类型表达式，不添加 type 别名或 interface 包装。代码块隐藏宿主标题栏及外框，保留原生 TypeScript 高亮。
 
 ToolStatistics 按物理工具 ID 展示全局累计调用次数，复用于树节点详情；工具选择器底部展示目录中的所有命令总调用次数。
+
+ToolStatistics 增加全局总查询次数；工具卡片及树命令详情读取 queriesByTool，同一物理工具的别名共享累计值。命名空间复用该表格，仅显示 namespaceQueriesByPath 对应路径的查询次数。

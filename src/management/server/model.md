@@ -13,3 +13,5 @@ Mapping 请求按单个挂载路径保存，移除 aliases 字段；同一物理
 配置字段校验与 `profile_picker/profile_json.ts` 共用，确保浏览器上传 JSON 和管理接口使用相同的配置结构。
 
 管理写入成功时返回 ok、revision、defaultProfile、profiles，默认 Profile 选择可只更新返回的元数据，无需重新 GET 全部工具和配置。
+
+状态接口从同一个全局统计快照返回 callsByTool、queriesByTool 和 namespaceQueriesByPath，供命令与命名空间详情展示，不返回会话查询统计。

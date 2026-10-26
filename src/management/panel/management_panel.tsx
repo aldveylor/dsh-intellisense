@@ -23,6 +23,8 @@ interface View {
     state: RegistryState;
     tools: PhysicalTool[];
     callsByTool?: Record<string, number>;
+    queriesByTool?: Record<string, number>;
+    namespaceQueriesByPath?: Record<string, number>;
     effective: Array<Mapping & { tool: PhysicalTool }>;
 }
 
@@ -131,7 +133,7 @@ function CommandNode({ node, tree }: { node: CommandTreeNode; tree: TreeProps })
         id: id ?? contract?.tool ?? path, description: description ?? '', parameters: contract?.schema ?? {}, output: contract?.output,
     };
     const summary = mapping?.description ?? (id && Object.hasOwn(tree.toolComments, id) ? tree.toolComments[id] : undefined) ?? '';
-    const tooltip = useTreeTooltip(<CommandDetails path={path} tool={tool} summary={summary} calls={tree.callsByTool[tool.id] ?? 0} />);
+    const tooltip = useTreeTooltip(<CommandDetails path={path} tool={tool} summary={summary} calls={tree.callsByTool[tool.id] ?? 0} queries={tree.queriesByTool[tool.id] ?? 0} />);
     const readOnly = !node.permissions.renamable;
     const invalid = !!mapping && !(id && tree.toolsById.has(id));
     const draggable = !tree.busy && node.draggable;
@@ -212,7 +214,7 @@ function NamespacePlaceholder({ parent = '', busy, create, drop, pick }: {
 /** @brief Shared namespace tree data and actions for recursively rendered mixed node types. */
 interface TreeProps {
     disabled: (path: string) => boolean; toggleDisabled: (path: string) => void;
-    toolsById: ReadonlyMap<string, PhysicalTool>; callsByTool: Record<string, number>; busy: boolean;
+    toolsById: ReadonlyMap<string, PhysicalTool>; callsByTool: Record<string, number>; queriesByTool: Record<string, number>; namespaceQueriesByPath: Record<string, number>; busy: boolean;
     expanded: Record<string, boolean>;
     configure: (path: string, patch: Partial<Namespace>) => void;
     drop: (event: DragEvent<HTMLElement>, parent: string) => void;
@@ -240,7 +242,7 @@ function NamespaceNode({ node, tree }: { node: NamespaceTreeNode; tree: TreeProp
     const t = useTranslation();
     const { path, fixed, metadata: config, count } = node;
     const open = tree.expanded[path] ?? false;
-    const tooltip = useTreeTooltip(<NamespaceDetails path={path} description={node.description} />);
+    const tooltip = useTreeTooltip(<NamespaceDetails path={path} description={node.description} queries={tree.namespaceQueriesByPath[path] ?? 0} />);
     return <li data-tree-path={path} data-disabled={tree.disabled(path) || undefined}>
         <div {...tooltip} className={`ts-node-block${fixed ? ' ts-fixed-node' : ''}`} data-namespace-path={path} data-drop-disabled={!node.permissions.acceptsChildren || undefined} draggable={!tree.busy && node.permissions.movable} onDragStart={event => {
             if (!node.permissions.movable) { event.preventDefault(); return; }
@@ -323,6 +325,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
         setView(current => current ? { ...snapshot,
             tools: retain(current.tools, snapshot.tools), provided: retain(current.provided, snapshot.provided),
             effective: retain(current.effective, snapshot.effective), callsByTool: retain(current.callsByTool, snapshot.callsByTool),
+            queriesByTool: retain(current.queriesByTool, snapshot.queriesByTool), namespaceQueriesByPath: retain(current.namespaceQueriesByPath, snapshot.namespaceQueriesByPath),
         } : snapshot);
         applyDraft(snapshot.state, snapshot.provided);
         setStatus('');
@@ -565,7 +568,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
             }
         },
         namespaceVisible, toggleProvidedNamespace: path => setNamespaceVisible(current => ({ ...current, [path]: !current[path] })),
-        expanded, toolsById, callsByTool: view?.callsByTool ?? {}, busy: !view,
+        expanded, toolsById, callsByTool: view?.callsByTool ?? {}, queriesByTool: view?.queriesByTool ?? {}, namespaceQueriesByPath: view?.namespaceQueriesByPath ?? {}, busy: !view,
         pinBuiltin: path => {
             const node = namespaceTree.root.resolve(path.split('.'));
             if (busyRef.current || !node || node.permissions.availableFixLevels.length <= 1) return;
@@ -580,7 +583,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
         pinTool: mapping => setMappings(current => current.map(m => m.path === mapping.path ? { ...m, alwaysVisible: nextPinLevel(m.alwaysVisible ?? 0) } : m)),
         renameNamespace: (path, name) => editNamespace(path, name), deleteNamespace: path => { editNamespace(path); },
         toggle: path => setExpanded(current => ({ ...current, [path]: !(current[path] ?? false) })), dropNode: (event) => nativeDrop(event, treeDropTarget(event.currentTarget, event.clientY)),
-    }), [namespaceTree, mappings, namespaces, order, paths, provided, expanded, namespaceVisible, builtinDisabled, toolComments, unmountedVisible, toolsById, view?.tools, view?.callsByTool, view?.effective]);
+    }), [namespaceTree, mappings, namespaces, order, paths, provided, expanded, namespaceVisible, builtinDisabled, toolComments, unmountedVisible, toolsById, view?.tools, view?.callsByTool, view?.queriesByTool, view?.namespaceQueriesByPath, view?.effective]);
 
     return <div className="ts-intellisense" ref={drag.container} onPointerDownCapture={drag.pointerDown} onDragStartCapture={drag.preventNativeDrag}>
         <style>{styles}</style>
@@ -635,7 +638,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
                 </div>
             </section></main>
         </div>
-        {toolPicker !== undefined && view && <ToolPicker parent={toolPicker.parent} tools={toolPicker.unmountedOnly ? unmounted : view.tools} mappings={mappings} protectedTools={providedTools(provided, view.tools)} callsByTool={view.callsByTool} busy={busy}
+        {toolPicker !== undefined && view && <ToolPicker parent={toolPicker.parent} tools={toolPicker.unmountedOnly ? unmounted : view.tools} mappings={mappings} protectedTools={providedTools(provided, view.tools)} callsByTool={view.callsByTool} queriesByTool={view.queriesByTool} busy={busy}
             close={() => setToolPicker(undefined)} select={tool => {
                 applyDrop({ namespace: false, id: tool.id }, { path: toolPicker.parent, position: 'inside' });
                 setToolPicker(undefined);

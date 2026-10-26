@@ -19,7 +19,7 @@ async function until(predicate: () => boolean): Promise<void> {
     assert(predicate(), 'Expected tool picker state');
 }
 
-test('picker shows global call counts, sortable cards and pointer-following tool details', async () => {
+test('picker and namespace details show global call and query counts', async () => {
     const registry = new SemanticRegistry(new MemoryStore());
     registry.refresh(['zebra', 'alpha', 'beta'].map(id => ({ id, source: id === 'alpha' ? 'Example plugin' : undefined,
         description: `${id} documentation`, parameters: { type: 'object', properties: { path: { type: 'string', description: 'File path' } } },
@@ -29,6 +29,14 @@ test('picker shows global call counts, sortable cards and pointer-following tool
     await statistics.recordCall('first', 'alpha');
     await statistics.recordCall('second', 'alpha');
     await statistics.recordCall('first', 'beta');
+    await statistics.recordQueries('first', [
+        { path: 'std.alpha', namespace: false, tool: 'alpha' },
+        { path: 'tools', namespace: true },
+    ]);
+    await statistics.recordQueries('second', [
+        { path: 'other.alpha', namespace: false, tool: 'alpha' },
+        { path: 'tools', namespace: true },
+    ]);
     const routes = new Map<string, (request: Request) => Promise<Response>>();
     const ctx = { connection: { fetch: { register: (route: { path: string; fetch: (request: Request) => Promise<Response> }) => routes.set(route.path, route.fetch) } } } as unknown as Context;
     registerManagement(ctx, registry, { refresh: async () => {}, statistics });
@@ -42,6 +50,14 @@ test('picker shows global call counts, sortable cards and pointer-following tool
         window.fetch = async url => routes.get('/api/ts-intellisense-state')!(new Request(new URL(String(url), 'http://localhost')));
         window.eval(await readFile(new URL('../../dist/management/standalone.js', import.meta.url), 'utf8'));
         await until(() => !!document.querySelector('[data-unmounted-count]'));
+        const namespace = document.querySelector<HTMLElement>('[data-namespace-path="tools"]')!;
+        namespace.dispatchEvent(new window.MouseEvent('pointerover', { bubbles: true, clientX: 100, clientY: 100 }));
+        await until(() => !!document.querySelector('[role="tooltip"] .ts-tool-statistics'));
+        const namespaceRows = document.querySelectorAll('[role="tooltip"] .ts-tool-statistics tbody tr');
+        assert.equal(namespaceRows.length, 1);
+        assert.equal(namespaceRows[0]!.textContent, '总查询次数2');
+        namespace.dispatchEvent(new window.MouseEvent('pointerout', { bubbles: true, relatedTarget: document.body }));
+        await until(() => !document.querySelector('[role="tooltip"]'));
         document.querySelector<HTMLButtonElement>('[data-unmounted-count]')!.click();
         await until(() => !!document.querySelector('dialog[open]'));
         const order = (): string[] => Array.from(document.querySelectorAll<HTMLElement>('dialog [data-tool-id]:not(:disabled)'), card => card.dataset.toolId!);
@@ -65,6 +81,8 @@ test('picker shows global call counts, sortable cards and pointer-following tool
         await until(() => !!document.querySelector('[role="tooltip"]'));
         const tooltip = document.querySelector<HTMLElement>('[role="tooltip"]')!;
         for (const line of ['alpha', 'Example plugin', 'alpha documentation', '参数', 'path', 'File path', '返回值', 'content', '总调用次数', '2']) assert(tooltip.textContent!.includes(line), line);
+        const queryRow = Array.from(tooltip.querySelectorAll('.ts-tool-statistics tbody tr')).find(row => row.textContent!.includes('总查询次数'));
+        assert.equal(queryRow?.querySelector('td')?.textContent, '2');
         assert(!tooltip.textContent!.includes('File content'));
         assert(tooltip.querySelector('.ts-tool-return')!.textContent!.includes('string'));
         const previous = tooltip.style.left;

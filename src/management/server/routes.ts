@@ -34,8 +34,9 @@ export function registerManagement(ctx: Context, globalRegistry: SemanticRegistr
             if (request.method === 'GET') {
                 const registry = globalRegistry;
                 const state = registry.snapshot();
+                const statistics = await adapter.statistics?.snapshot();
                 const profile = new URL(request.url).searchParams.get('profile') ?? state.profile!;
-                return Response.json({ defaultProfile: state.profile, state: { ...state, ...registry.configuration(profile), profile }, tools: registry.tools().map(tool => ({ ...tool, outputDeclaration: returnTypeDeclaration(tool.output) })), callsByTool: (await adapter.statistics?.snapshot())?.callsByTool ?? {}, provided: [...createNamespace({ tools: registry.tools(), includeUnavailable: true }).children.values()].map(node => node.serialize()), effective: registry.effective() }, { headers });
+                return Response.json({ defaultProfile: state.profile, state: { ...state, ...registry.configuration(profile), profile }, tools: registry.tools().map(tool => ({ ...tool, outputDeclaration: returnTypeDeclaration(tool.output) })), callsByTool: statistics?.callsByTool ?? {}, queriesByTool: statistics?.queriesByTool ?? {}, namespaceQueriesByPath: statistics?.namespaceQueriesByPath ?? {}, provided: [...createNamespace({ tools: registry.tools(), includeUnavailable: true }).children.values()].map(node => node.serialize()), effective: registry.effective() }, { headers });
             }
             if (!request.headers.get('content-type')?.startsWith('application/json')) return Response.json({ error: 'Expected application/json' }, { status: 415, headers });
             const bodyText = await request.text();

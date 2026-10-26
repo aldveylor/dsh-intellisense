@@ -76,7 +76,7 @@ function SchemaTable({ label, schema }: { label: string; schema: unknown }) {
 }
 
 /** @brief Present tool metadata, parameter fields and a TypeScript return declaration. */
-export function ToolDetails({ tool, calls }: { tool: PhysicalTool; calls: number }) {
+export function ToolDetails({ tool, calls, queries = 0 }: { tool: PhysicalTool; calls: number; queries?: number }) {
     const t = useTranslation();
     const output = outputSchema(tool.output);
     return <article className="ts-tool-details">
@@ -89,17 +89,20 @@ export function ToolDetails({ tool, calls }: { tool: PhysicalTool; calls: number
             <h4>{t('tool_returns')}</h4>
             <TypeScriptBlock code={tool.outputDeclaration ?? schemaType(output, true)} />
         </section>
-        <ToolStatistics calls={calls} />
+        <ToolStatistics calls={calls} queries={queries} />
     </article>;
 }
 
-/** @brief Share physical invocation totals between card and tree tooltips. */
-export function ToolStatistics({ calls }: { calls: number }) {
+/** @brief Share global call and IntelliSense query totals between tool and namespace details. */
+export function ToolStatistics({ calls, queries = 0 }: { calls?: number; queries?: number }) {
     const t = useTranslation();
     return <section className="ts-tool-statistics">
         <h4>{t('tool_statistics')}</h4>
         <table aria-label={t('tool_statistics')}>
-            <tbody><tr><th scope="row">{t('tool_total_calls')}</th><td>{calls}</td></tr></tbody>
+            <tbody>
+                {calls !== undefined && <tr><th scope="row">{t('tool_total_calls')}</th><td>{calls}</td></tr>}
+                <tr><th scope="row">{t('tool_total_queries')}</th><td>{queries}</td></tr>
+            </tbody>
         </table>
     </section>;
 }

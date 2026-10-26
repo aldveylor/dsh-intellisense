@@ -24,33 +24,34 @@ export function useTreeTooltip(content: ReactNode) {
 }
 
 /** @brief Namespace documentation includes both its local name and complete path. */
-export function NamespaceDetails({ path, description }: { path: string; description: string }) {
+export function NamespaceDetails({ path, description, queries = 0 }: { path: string; description: string; queries?: number }) {
     const t = useTranslation();
-    return <article className="ts-tree-details">
+    return <article className="ts-tree-details ts-tool-details">
         <h3><code>{path.split('.').at(-1)}</code></h3>
         <p className="ts-detail-path"><code>{path}</code></p>
         <p>{description || t('tool_no_description')}</p>
+        <ToolStatistics queries={queries} />
     </article>;
 }
 
 /** @brief Original physical identity opens the same details used by tool cards. */
-function OriginalCommand({ tool, calls }: { tool: PhysicalTool; calls: number }) {
-    const anchor = useTreeTooltip(<ToolDetails tool={tool} calls={calls} />);
+function OriginalCommand({ tool, calls, queries }: { tool: PhysicalTool; calls: number; queries: number }) {
+    const anchor = useTreeTooltip(<ToolDetails tool={tool} calls={calls} queries={queries} />);
     return <code className="ts-original-command" tabIndex={0} {...anchor}>{tool.id}</code>;
 }
 
 /** @brief Show the mapped command, summary, full documentation and physical call totals. */
-export function CommandDetails({ path, tool, summary, calls }: { path: string; tool: PhysicalTool; summary: string; calls: number }) {
+export function CommandDetails({ path, tool, summary, calls, queries = 0 }: { path: string; tool: PhysicalTool; summary: string; calls: number; queries?: number }) {
     const t = useTranslation();
     return <article className="ts-tool-details ts-command-details">
         <header className="ts-tool-detail-header"><h3><code>{path.split('.').at(-1)}</code>
             <small className="ts-command-namespace">{path.split('.').slice(0, -1).join('.') || t('root')}</small>
         </h3></header>
         <section><h4>{t('original_command')}</h4>
-            <TooltipProvider><OriginalCommand tool={tool} calls={calls} /></TooltipProvider>
+            <TooltipProvider><OriginalCommand tool={tool} calls={calls} queries={queries} /></TooltipProvider>
         </section>
         <section><h4>{t('command_summary')}</h4><p>{summary.trim() || t('command_no_summary')}</p></section>
         <section><h4>{t('command_documentation')}</h4><p>{tool.description || t('tool_no_description')}</p></section>
-        <ToolStatistics calls={calls} />
+        <ToolStatistics calls={calls} queries={queries} />
     </article>;
 }
