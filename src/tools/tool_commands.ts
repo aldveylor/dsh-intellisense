@@ -1,5 +1,5 @@
 import { registerBuiltin } from './builtin_trace.js';
-import type { z } from 'zod';
+import { z } from 'zod';
 import type { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import { defineTool } from '@deepseek-ai/dsh-tools';
@@ -34,12 +34,12 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         },
     })));
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_save', description: 'Save an editable Profile tree to the named catalog entry and this conversation. Omitted name defaults to the current Profile.',
-        parameters: { name: { type: 'string' }, profile: { type: 'object', additionalProperties: true, required: true } }, output: { ...output, schema: { type: 'null' } },
-        execute: async ({ name, profile: input }, execution) => {
+        name: 'tools_profile_save', description: 'Save an editable Profile tree to the named catalog entry and this conversation. Omitted or undefined name uses the current conversation Profile name, ignoring profile.name. Invalid arguments or failed writes throw.',
+        parameters: { name: { type: 'string', description: 'Target catalog name. Omitted or undefined uses the current conversation Profile name, not profile.name. Pass an explicit name to create another Profile.' }, profile: { type: 'object', additionalProperties: true, required: true, description: 'Complete editable Profile tree. Required in both save(profile) and save(name, profile); invalid arguments and failed writes throw.' } }, output: { ...output, schema: { type: 'null' } },
+        execute: async (args, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
+            const { name, profile } = z.strictObject({ name: z.string().optional(), profile: ProfileSchema }).parse(args);
             const registry = await registryFor(execution.agent);
-            const profile = ProfileSchema.parse(input);
             const target = name ?? registry.snapshot().profile!;
             const configuration = profileConfiguration(profile, registry.configuration(), await commands());
             await catalog.saveProfile(target, configuration);

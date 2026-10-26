@@ -107,3 +107,22 @@ test('guest Profile selection is readonly and refreshes after calls in the same 
         assert.deepEqual(result.value, ['{"profiles":["Default"],"selected":"Default"}', 'Copy', ['Copy', 'Default'], true, true, true]);
     } finally { await host.dispose(); }
 });
+
+
+test('Profile save validates input and undefined name overwrites the current selection, ignoring profile.name', async () => {
+    const { call, catalog, registry } = await fixture();
+    const profile = await call('tools_profile_load');
+    for (const args of [{}, { profile: undefined }, { profile: {} }, { name: null, profile }, { name: 42, profile }]) {
+        await assert.rejects(call('tools_profile_save', args));
+    }
+    assert.deepEqual(catalog.snapshot().profiles, ['Default']);
+    await call('tools_profile_save', { name: 'Copy', profile });
+    const updated = { ...profile, name: 'Ignored', root: { ...profile.root, children: [...profile.root.children, {
+        type: 'tree', name: 'business', permissions: profile.root.permissions, children: [],
+    }] } };
+    await call('tools_profile_save', { profile: updated });
+    assert.equal(registry.snapshot().profile, 'Copy');
+    assert(catalog.configuration('Copy').namespaces.some(node => node.path === 'business'));
+    assert(!catalog.configuration('Default').namespaces.some(node => node.path === 'business'));
+    assert.deepEqual(catalog.snapshot().profiles, ['Copy', 'Default']);
+});

@@ -7,7 +7,7 @@ export const ptcToolName = 'tools_run_code';
 export const reservedToolIds: readonly string[] = Object.freeze(['exec', 'run_code', ptcToolName]);
 
 /** @brief Fixed command metadata shared by runtime declarations, completion and the read-only UI. */
-export interface BuiltinCommand { path: string; signature: string; description: string }
+export interface BuiltinCommand { path: string; signature: string; description: string; parameterDocs?: Readonly<Record<string, string>> }
 
 /** @brief Shared native identities, positional layouts and data-only runtime bindings. */
 export interface BuiltinTool extends BuiltinCommand {
@@ -35,7 +35,7 @@ export class PluginCommands {
     /** @brief Profile commands available through ordinary guarded native dispatch. */
     readonly managementCommands: readonly BuiltinTool[] = [
         { tool: 'tools_profile_load', path: 'tools.profile.load', signature: '(name?: string) => Promise<Profile>', description: 'Load a named Profile, or return the current conversation Profile when name is omitted.' },
-        { tool: 'tools_profile_save', positional: [['profile'], ['name', 'profile']], overloads: ['(profile: Profile) => Promise<void>'], discardResult: true, path: 'tools.profile.save', signature: '(name: string | undefined, profile: Profile) => Promise<void>', description: 'Save a Profile tree under name, defaulting to the current Profile name. Also accepts save(profile).' },
+        { tool: 'tools_profile_save', positional: [['profile'], ['name', 'profile']], overloads: ['(profile: Profile) => Promise<void>'], discardResult: true, path: 'tools.profile.save', signature: '(name: string | undefined, profile: Profile) => Promise<void>', description: 'Save a Profile tree using save(profile) or save(name, profile). Both save(profile) and save(undefined, profile) overwrite the current conversation Profile, ignoring profile.name. Invalid overloads, invalid trees and failed writes throw; resolution means the write completed.', parameterDocs: { name: 'Target catalog name; undefined uses the current conversation Profile name, not profile.name. Supply a string to create a different Profile.', profile: 'Required complete Profile tree in either overload. Missing or invalid input throws.' } },
     ];
 
     /** @brief Preloaded Profile values, with visibility preferences stored alongside builtin commands. */

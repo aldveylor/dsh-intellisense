@@ -23,3 +23,5 @@ PTC 在每次执行前预加载 commands，并由 VM 命令包装同步更新本
 命名空间成员同样保留注释：native 命名空间条目返回 brief；PTC 对直接命中的命名空间、显式查询的命名空间及返回成员的父命名空间链输出描述注释。Profile 自定义描述与内置 tools 等节点描述均从共享运行时树读取。
 
 `tools.profile.profiles` 返回 `Profiles { profiles: string[]; selected: string }`，列表来自全局目录，selected 来自当前会话。native 为无参数命令，每次调用读取最新状态；PTC 为只读字段，每次执行前初始化，并在工具调用成功返回前通过 IPC 刷新，load/save 后同次执行内的读取和持有的对象引用均可见新状态。
+
+Profile save 的 name 省略或为 undefined 时，始终覆盖当前会话选择，忽略树中的 profile.name；创建新目录项必须传入显式字符串名称。支持 save(profile) 和 save(name, profile)，缺少 Profile、非法名称类型或非法树均抛错；写入失败透传异常。参数说明同时进入 native schema 与 PTC 声明。

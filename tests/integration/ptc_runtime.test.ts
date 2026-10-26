@@ -324,3 +324,31 @@ test('PTC early returns and failed parallel calls drain native siblings without 
         assert.equal(completed, 3);
     } finally { await dispose(); }
 });
+
+
+test('PTC Profile save overloads persist the selected name and reject invalid calls', async () => {
+    const { run, dispose } = await fixture();
+    try {
+        const saved = await run(`
+            const profile = await tools.profile.load();
+            await tools.profile.save('Copy', profile);
+            profile.name = 'Ignored';
+            await tools.profile.save(undefined, profile);
+            await tools.profile.save(profile);
+            return tools.profile.profiles;
+        `);
+        assert.equal(saved.isError, false, JSON.stringify(saved));
+        assert.deepEqual(saved.value, { logs: [], result: { profiles: ['Copy', 'Default'], selected: 'Copy' } });
+        for (const args of ['', 'undefined', 'undefined, undefined', '42, profile', 'null, profile', 'profile, profile', 'profile, profile, profile']) {
+            const rejected = await run(`
+                const profile = await tools.profile.load();
+                try { await tools.profile.save(${args}); return false; }
+                catch { return true; }
+            `);
+            assert.equal(rejected.isError, false, JSON.stringify(rejected));
+            assert.deepEqual(rejected.value, { logs: [], result: true }, args);
+        }
+        const loaded = await run("return (await tools.profile.load('Copy')).name;");
+        assert.deepEqual(loaded.value, { logs: [], result: 'Copy' });
+    } finally { await dispose(); }
+});
