@@ -4,8 +4,11 @@ import type { Permission } from '../namespace/node.js';
 export interface ProfileNode {
     type: string;
     name: string;
-    permissions: Permission;
+    /** @brief Optional overrides of ordinary node permissions; server-owned restrictions remain authoritative. */
+    permissions?: Partial<Permission>;
+    /** @brief Pin level, default 0; omitted when default. */
     fixedLevel?: number;
+    /** @brief Disable this node and its subtree, default false; omitted when default. */
     disabled?: boolean;
 }
 

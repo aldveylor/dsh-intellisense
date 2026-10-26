@@ -25,7 +25,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
     });
     const output = { schema: { type: 'object', additionalProperties: true } as const, render: (_args: unknown, value: unknown) => [{ type: 'text' as const, text: typeof value === 'string' ? value : JSON.stringify(value) }] };
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_load', description: 'Read a named catalog Profile as JSON data without changing this conversation. With no name, return the current draft.',
+        name: 'tools_profile_load', description: 'Read a named catalog Profile as JSON data without changing this conversation. With no name, return the current draft. Omitted permissions use ordinary node defaults: commentable/renamable/movable/removable/disableable true; acceptsChildren true for namespaces, false for commands; availableFixLevels [0,1] for namespaces, [0,1,2] for commands. Only nondefault permission fields are returned; fixedLevel defaults to 0 and disabled to false, both omitted at defaults.',
         parameters: { name: { type: 'string' } }, output,
         execute: async ({ name }, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');

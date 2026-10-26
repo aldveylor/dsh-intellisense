@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { RegistryConfiguration, type RegistryConfigurationData } from './configuration.js';
 import type { Saveable } from '../storage/saveable.js';
 import { CommandNode, NamespaceNode, createNamespace } from '../namespace/namespace.js';
-import { fixLevel, type SerializedNode } from '../namespace/node.js';
+import { fixLevel, nodePermissions, type SerializedNode } from '../namespace/node.js';
 import type { ProfileTreeNode, NamespaceTreeNode } from './profile_node.js';
 
 /** @brief Physical command identity used by editable Profile trees. */
@@ -24,10 +24,25 @@ export class Profile implements Saveable<ProfileData> {
 
     constructor(data?: ProfileData) {
         this.name = data?.name ?? 'Default';
-        this.root = structuredClone(data?.root ?? profileNode(createNamespace({ tools: [], includeUnavailable: true }).serialize()) as NamespaceTreeNode);
+        this.root = compactProfileNode(data?.root ?? profileNode(createNamespace({ tools: [], includeUnavailable: true }).serialize())) as NamespaceTreeNode;
     }
 
-    save(): ProfileData { return structuredClone({ name: this.name, root: this.root }); }
+    save(): ProfileData { return { name: this.name, root: compactProfileNode(this.root) as NamespaceTreeNode }; }
+}
+
+/** @brief Copy Profile data while omitting default permissions, pin levels and enabled state. */
+function compactProfileNode(node: ProfileTreeNode): ProfileTreeNode {
+    const { children, ...data } = node;
+    const result = structuredClone(data) as ProfileTreeNode;
+    const defaults = nodePermissions(node.type === 'command' ? 'leaf' : 'tree');
+    const permissions = Object.fromEntries(Object.entries(result.permissions ?? {}).filter(([key, value]) =>
+        value !== undefined && JSON.stringify(value) !== JSON.stringify(defaults[key as keyof typeof defaults])));
+    if (Object.keys(permissions).length) result.permissions = permissions;
+    else delete result.permissions;
+    if (!result.fixedLevel) delete result.fixedLevel;
+    if (!result.disabled) delete result.disabled;
+    if (children && result.type === 'namespace') result.children = children.map(compactProfileNode);
+    return result;
 }
 
 /** @brief Project executable nodes into editable Profile data. */
@@ -42,25 +57,25 @@ function profileNode(node: SerializedNode): ProfileTreeNode {
 
 /** @brief Validate shared permissions without trusting them as the server's authority. */
 const permissionSchema = z.strictObject({
-    commentable: z.boolean().default(true).describe('Whether simplified descriptions may be edited; forbidden descriptions are ignored.'),
-    renamable: z.boolean().describe('Whether this node may be renamed.'),
-    movable: z.boolean().describe('Whether this node may be moved.'),
-    removable: z.boolean().describe('Whether this node may be removed.'),
-    disableable: z.boolean().describe('Whether disabled may be set to true.'),
-    acceptsChildren: z.boolean().describe('Whether new children may be inserted.'),
-    availableFixLevels: z.array(z.union([z.literal(0), z.literal(1), z.literal(2)])).describe('Supported pin levels; an empty list means preserve the existing level.'),
+    commentable: z.boolean().optional().describe('Whether simplified descriptions may be edited; forbidden descriptions are ignored.'),
+    renamable: z.boolean().optional().describe('Whether this node may be renamed.'),
+    movable: z.boolean().optional().describe('Whether this node may be moved.'),
+    removable: z.boolean().optional().describe('Whether this node may be removed.'),
+    disableable: z.boolean().optional().describe('Whether disabled may be set to true.'),
+    acceptsChildren: z.boolean().optional().describe('Whether new children may be inserted.'),
+    availableFixLevels: z.array(z.union([z.literal(0), z.literal(1), z.literal(2)])).optional().describe('Supported pin levels; an empty list means preserve the existing level.'),
 });
 
 /** @brief Shared editable node properties. */
 const nodeProperties = {
-    name: z.string(), permissions: permissionSchema,
-    fixedLevel: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional().describe('Pin level: 0 none, 1 brief, 2 detailed; allowed values come from permissions.availableFixLevels.'),
-    disabled: z.boolean().optional().describe('Disable this node and its subtree when permissions.disableable is true.'),
+    name: z.string(), permissions: permissionSchema.optional().describe('Optional permission overrides. Defaults: commentable, renamable, movable, removable and disableable true; acceptsChildren false for commands, true for namespaces; availableFixLevels [0,1,2] for commands, [0,1] for namespaces. Omitted fields use defaults; server restrictions remain authoritative.'),
+    fixedLevel: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional().describe('Pin level (default 0, omitted): 0 none, 1 brief, 2 detailed; allowed values come from permissions.availableFixLevels.'),
+    disabled: z.boolean().optional().describe('Default false (omitted). Disable this node and its subtree when permissions.disableable is true.'),
 };
 
 /** @brief Recursive namespace transport with directly nested command or namespace members. */
 const namespaceSchema: z.ZodType<NamespaceTreeNode> = z.lazy(() => z.strictObject({
-    ...nodeProperties, type: z.literal('namespace'), fixedLevel: z.union([z.literal(0), z.literal(1)]).optional().describe('Namespace pin level: 0 none, 1 visible; allowed values come from permissions.availableFixLevels.'), children: z.array(nodeSchema).optional(),
+    ...nodeProperties, type: z.literal('namespace'), fixedLevel: z.union([z.literal(0), z.literal(1)]).optional().describe('Namespace pin level (default 0, omitted): 0 none, 1 visible; allowed values come from permissions.availableFixLevels.'), children: z.array(nodeSchema).optional(),
     description: z.string().optional().describe('Editable namespace description.'),
 }));
 
@@ -99,11 +114,12 @@ export function profileTree(name: string, configuration: RegistryConfigurationDa
         const path = prefix ? `${prefix}.${node.name}` : node.name;
         const mapping = configuration.mappings.find(item => item.path === path);
         const namespace = configuration.namespaces.find(item => item.path === path);
-        const level = fixLevel(node.permissions, node.type === 'command' ? configuration.builtinVisible?.[path] ?? mapping?.alwaysVisible ?? 0
+        const permissions = nodePermissions(node.type === 'command' ? 'leaf' : 'tree', node.permissions);
+        const level = fixLevel(permissions, node.type === 'command' ? configuration.builtinVisible?.[path] ?? mapping?.alwaysVisible ?? 0
             : namespace?.alwaysVisible || configuration.namespaceVisible?.[path] ? 1 : 0);
         if (node.type === 'command') node.fixedLevel = level;
         else node.fixedLevel = level === 2 ? 1 : level;
-        node.disabled = node.permissions.disableable && (!!mapping?.disabled || !!namespace?.disabled || (configuration.builtinDisabled ?? []).includes(path));
+        node.disabled = permissions.disableable && (!!mapping?.disabled || !!namespace?.disabled || (configuration.builtinDisabled ?? []).includes(path));
         for (const child of node.children ?? []) apply(child, path);
     };
     apply(snapshot, '');
@@ -145,8 +161,8 @@ export function profileConfiguration(profile: ProfileData, current: RegistryConf
             if (!node.command || expected instanceof NamespaceNode) throw new Error(`Invalid command node: ${path}`);
             if (expected instanceof CommandNode) {
                 if (node.command.tool !== expected.tool) throw new Error(`Protected command cannot be replaced: ${path}`);
-                configuration.builtinVisible![path] = expected.fixLevel(node.fixedLevel ?? original?.fixedLevel);
-                if (node.disabled ?? original?.disabled) configuration.builtinDisabled!.push(path);
+                configuration.builtinVisible![path] = expected.fixLevel(node.fixedLevel);
+                if (node.disabled) configuration.builtinDisabled!.push(path);
                 return;
             }
             if (!commands.some(item => item.name === node.command!.tool)) throw new Error(`Unknown command: ${node.command.tool}`);
@@ -167,8 +183,8 @@ export function profileConfiguration(profile: ProfileData, current: RegistryConf
                 children.push(structuredClone(original?.children?.find(item => item.name === child.name) ?? profileNode(child.serialize())));
             }
             if (path) {
-                configuration.namespaceVisible![path] = !!fixLevel(expected.permissions, node.fixedLevel ?? original?.fixedLevel);
-                if (node.disabled ?? original?.disabled) configuration.builtinDisabled!.push(path);
+                configuration.namespaceVisible![path] = !!fixLevel(expected.permissions, node.fixedLevel);
+                if (node.disabled) configuration.builtinDisabled!.push(path);
             }
         } else if (path) configuration.namespaces.push({ path, description: node.description ?? '', alwaysVisible: !!node.fixedLevel, disabled: node.disabled });
         for (const child of children) {
@@ -189,15 +205,15 @@ export const profileAnnotation = `/** @brief Physical command identity, summary,
 interface CommandBrief { name: string; brief: string; paths: string[]; totalCalls: number; }
 /** @brief Available catalog Profile names and the current conversation selection. */
 interface Profiles { profiles: string[]; selected: string; }
-/** @brief Server-owned permissions. Each field governs its own operation: commentable controls simplified descriptions, removable controls removal, disableable controls disabled, and availableFixLevels controls fixedLevel. Submitted permissions cannot override them. */
-interface Permission { commentable: boolean; renamable: boolean; movable: boolean; removable: boolean; disableable: boolean; acceptsChildren: boolean; availableFixLevels: (0 | 1 | 2)[]; }
+/** @brief Server-owned permissions. Each field governs its own operation: commentable controls simplified descriptions, removable controls removal, disableable controls disabled, and availableFixLevels controls fixedLevel. Defaults: commentable, renamable, movable, removable and disableable true; acceptsChildren false for commands, true for namespaces; availableFixLevels [0,1,2] for commands, [0,1] for namespaces. Omitted permissions or fields use these defaults. Only nondefault overrides are serialized. Submitted permissions cannot override server restrictions. */
+interface Permission { commentable?: boolean; renamable?: boolean; movable?: boolean; removable?: boolean; disableable?: boolean; acceptsChildren?: boolean; availableFixLevels?: (0 | 1 | 2)[]; }
 /** @brief Start from tools.profile.load(). Save recursively restores missing protected nodes from the existing Profile; submitted nodes retain their fixedLevel and other settings. Protected nodes still cannot be moved, renamed, replaced or extended. New commands may use any exact physical name from tools.profile.commands, even when absent from the loaded tree. A missing tree member is not a command template.
- * To mount a new command, append { type: 'command', name: 'cwd', permissions: { commentable: true, renamable: true, movable: true, removable: true, disableable: true, acceptsChildren: false, availableFixLevels: [0, 1, 2] }, command: { tool: '<exact physical name>', doc: '<one sentence>' } } to an ordinary namespace's children.
+ * To mount a new command, append { type: 'command', name: 'cwd', command: { tool: '<exact physical name>', doc: '<one sentence>' } } to an ordinary namespace's children.
  * Edit optional command.doc for a one-sentence summary of the command functionality; it cannot modify the original command documentation or schema. Edit optional description for namespace descriptions. Server permissions.commentable governs edits; forbidden descriptions are ignored. Omitted command.doc uses the original command brief. Saving replaces the named catalog tree without switching the conversation. A rejected save or delete preserves saved Profiles.
  */
-/** @brief Shared editable identity and visibility. disabled applies to the node and its subtree; fixedLevel controls pinning (0: none, 1: brief, 2: detailed). */
+/** @brief Shared editable identity and visibility. permissions is optional and defaults to ordinary node permissions. fixedLevel defaults to 0; disabled defaults to false; default values are omitted from serialization. disabled applies to the node and its subtree; fixedLevel controls pinning (0: none, 1: brief, 2: detailed). */
 interface ProfileNode {
-    type: string; name: string; permissions: Permission;
+    type: string; name: string; permissions?: Permission;
     fixedLevel?: number; disabled?: boolean;
 }
 /** @brief Physical command mounted at a named Profile member. */

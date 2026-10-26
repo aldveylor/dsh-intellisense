@@ -4,7 +4,10 @@ export interface CommandContract { tool: string; schema: Record<string, unknown>
 /** @brief Discriminator for executable namespace nodes. */
 export type NodeType = 'leaf' | 'tree';
 
-/** @brief Editing and pin choices owned by a node, independent of native execution guards. */
+/** @brief Editing and pin choices owned by a node, independent of native execution guards.
+ * Ordinary nodes default to true for renamable/commentable/movable/removable/disableable.
+ * acceptsChildren defaults to true for trees and false for leaves; availableFixLevels defaults to [0, 1] for trees and [0, 1, 2] for leaves.
+ */
 export interface Permission {
     readonly renamable: boolean;
     readonly commentable: boolean;

@@ -35,3 +35,5 @@ Profile save 的 name 省略或为 undefined 时，始终覆盖当前会话选�
 save 使用目标目录配置作为固定节点补齐基线，不存在该名称时使用会话配置。缺少整个子树则补入，存在同名节点则递归检查下一层，不覆盖已提交的固定等级、禁用状态及其它字段；普通命令树仍按输入替换。禁止编辑简化注释的服务端节点忽略描述字段，简化注释键可选。
 
 `tools.profile.setdefault(name: string)` 将已有目录配置设为全局默认 Profile，复用管理界面的默认配置选择事务并持久化；新建根会话使用该默认配置，已有会话工作快照保持不变，不刷新当前会话工具或注入配置切换通知。native 与 PTC 均可调用，支持通过 builtinDisabled 禁用。
+
+Profile 节点 permissions 为可选的普通权限差异项：commentable/renamable/movable/removable/disableable 默认 true，acceptsChildren 在命令为 false、命名空间为 true，availableFixLevels 在命令为 [0,1,2]、命名空间为 [0,1]。省略对象或字段均使用默认权限，受保护节点权限仍由服务端校验。Profile 构造及 save() 递归省略默认权限字段、空 permissions、fixedLevel=0 和 disabled=false；load 与 annotation/JSON Schema 同步说明默认值。提交节点省略 fixedLevel/disabled 时使用 0/false，缺失受保护节点仍从原配置恢复。
