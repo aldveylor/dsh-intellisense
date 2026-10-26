@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
-import { ToolCallId } from '@deepseek-ai/dsh-llm';
+import { ToolCallId, type UserMessage } from '@deepseek-ai/dsh-llm';
 import ToolRuntime, { defineTool } from '@deepseek-ai/dsh-tools';
 import { createScope } from '@deepseek-ai/dsh-scope';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
@@ -42,7 +42,8 @@ async function fixture(store: Store = new MemoryStore(), mode: 'ptc' | 'native' 
     const key = {};
     const standing = createScope(toolContext, key);
     const mounted = await standing.ctx.plugin(presentation, { mode });
-    const agent = { id: 'ptc-runtime', session: Session.create(SessionId('ptc-runtime')) } as Agent;
+    const injected: UserMessage[] = [];
+    const agent = { inject: (message: UserMessage) => { injected.push(message); }, id: 'ptc-runtime', session: Session.create(SessionId('ptc-runtime')) } as Agent;
     const live = createScope(toolContext, agent, { parent: key });
     Object.assign(agent, { ctx: live.ctx });
     agents.push(agent);
@@ -52,7 +53,7 @@ async function fixture(store: Store = new MemoryStore(), mode: 'ptc' | 'native' 
         arguments: { code, description: 'Test namespace execution', ...(timeoutMs === undefined ? {} : { timeoutMs }) }, signal,
     });
     const dispose = async () => { await live.dispose(); await mounted.dispose(); await standing.dispose(); await ctx.fiber.dispose(); };
-    return { ctx, agent, namespaces, run, dispose, standing, mounted, defaultRuntime };
+    return { ctx, agent, namespaces, run, dispose, standing, mounted, defaultRuntime, injected };
 }
 
 test('PTC worker dispatches and discovery persist session and global statistics through the JSON backend', async () => {
@@ -386,5 +387,34 @@ test('PTC Profile switch changes the selection and rejects an omitted name', asy
         `);
         assert.equal(result.isError, false, JSON.stringify(result));
         assert.deepEqual(result.value, { logs: [], result: ['undefined', 'Default', true] });
+    } finally { await dispose(); }
+});
+
+
+test('Profile changes inject English notices only after successful save and switch operations', async () => {
+    const { run, injected, dispose } = await fixture();
+    try {
+        const result = await run(`
+            const profile = await tools.profile.load();
+            await tools.profile.save('Copy', profile);
+            await tools.profile.switch('Default');
+            await tools.profile.save(undefined, profile);
+            await tools.profile.load('Copy');
+            try { await tools.profile.switch('Missing'); } catch {}
+            try { await tools.profile.save(); } catch {}
+            try { await tools.profile.delete('Copy'); } catch {}
+            await tools.profile.delete('Default');
+        `);
+        assert.equal(result.isError, false, JSON.stringify(result));
+        assert.deepEqual(injected.map(message => message.content), ['Copy', 'Default', 'Default', 'Copy'].map(name => [{ type: 'text', text: `Profile updated to ${name}` }]));
+        assert(injected.every(message => message.source.kind === 'intellisense-profile'));
+    } finally { await dispose(); }
+});
+
+test('native configuration refresh injects the Profile notice into the affected conversation', async () => {
+    const { agent, namespaces, injected, dispose } = await fixture(new MemoryStore(), 'native');
+    try {
+        await namespaces.configurationChanged(agent);
+        assert.deepEqual(injected.map(message => message.content), [[{ type: 'text', text: 'Profile updated to Default' }]]);
     } finally { await dispose(); }
 });

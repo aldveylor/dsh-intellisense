@@ -29,3 +29,5 @@ Profile save 的 name 省略或为 undefined 时，始终覆盖当前会话选�
 `tools.profile.delete(name?: string)` 删除全局目录中的指定配置；名称省略或为 undefined 时指当前会话配置，删除当前会话配置一律拒绝。其它会话已有快照保留，成功删除后 PTC 的 profiles 字段随工具回复刷新。
 
 `tools.profile.switch(name: string)` 显式切换当前会话配置，必须指定已有名称；可通过 builtinDisabled 禁用，使用普通内置命令的 disableable 权限。load(name?) 保留已有行为。
+
+当前对话通过 save、显式 load(name)、switch(name) 或会话 Profile 下拉框更新工作配置后，统一由 configurationChanged 刷新工具提示，并调用 Agent.inject 注入英文 notice：`Profile updated to <profile name>`。读取草稿、失败操作及删除其它配置不注入；通知仅进入更新的对话。

@@ -30,3 +30,11 @@ declare module '@deepseek-ai/dsh-session' {
         'plugin:ts_intellisense/builtin': BuiltinEvent;
     }
 }
+
+
+/** @brief Attribute Profile update notices to this plugin in the native conversation context. */
+declare module '@deepseek-ai/dsh-llm' {
+    interface MessageSourceMap {
+        'intellisense-profile': { kind: 'intellisense-profile'; form: 'notice'; summary: string };
+    }
+}

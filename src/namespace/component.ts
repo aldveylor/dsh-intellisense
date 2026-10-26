@@ -1,5 +1,5 @@
 import { outputSchema } from '../output_schema.js';
-import { ToolCallId } from '@deepseek-ai/dsh-llm';
+import { createUserMessage, ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 import * as presentation from '../integration/presentation.js';
 import type { Position } from '../protocol/events.js';
@@ -131,8 +131,14 @@ export class NamespaceComponent {
         return Object.fromEntries(Object.entries(values).filter(([path]) => !registry.disabled(path)));
     }
 
-    /** @brief Notify the native system-prompt assembler after session configuration changes. */
-    async configurationChanged(agent: Agent): Promise<void> { await this.registryFor(agent); if (!this.isPtc(agent)) await this.syncNative(agent); this.ctx.emit('system-prompt/change'); }
+    /** @brief Refresh tool presentation and inject an English notice into the updated conversation. */
+    async configurationChanged(agent: Agent): Promise<void> {
+        const registry = await this.registryFor(agent);
+        if (!this.isPtc(agent)) await this.syncNative(agent);
+        this.ctx.emit('system-prompt/change');
+        const text = `Profile updated to ${registry.snapshot().profile!}`;
+        agent.inject(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'intellisense-profile', form: 'notice', summary: text } }));
+    }
 
     /** @brief Publish only explicitly pinned commands and namespaces with their Profile briefs. */
     async prompt(agent: Agent): Promise<string> {
