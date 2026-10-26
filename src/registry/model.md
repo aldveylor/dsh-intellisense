@@ -34,3 +34,5 @@ Profile 导入的重复成员错误包含完整 root 路径、同一父节点中
 Profile annotation 说明可使用 load 返回的树作为编辑起点，缺少的受保护节点会自动补齐；新增命令节点使用 commands 中的精确物理名称、普通命令权限和自定义 command.doc，无需从已挂载节点复制。详细调用声明由运行时原生契约生成。command.doc 用一句话描述命令功能，不能修改命令原始注释或 schema；命名空间描述编辑 description。
 
 Permission.commentable 控制简化注释编辑：普通节点默认为 true，受保护命名空间及命令为 false。服务端不信任提交的 permissions；禁止修改的 description/command.doc 被忽略。CommandNode 的 command.doc 为可选输入，缺省不创建描述覆盖，实际展示回退原始注释首行。输入树及原配置均不被修改。
+
+SemanticRegistry.generation 由配置 revision 和物理目录内容版本组成；目录内容相同时不重新克隆。profileSelection 仅读取名称列表和当前选择，不复制完整配置，供每次工具回复的 Profile 元数据刷新使用。执行、搜索与发现的单次操作共享同一 registry 快照。

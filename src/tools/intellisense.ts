@@ -77,7 +77,7 @@ export function registerIntellisense(ctx: Context, namespaces: NamespaceComponen
             execution.signal.throwIfAborted();
             const started = performance.now();
             const registry = await namespaces.registryFor(agent);
-            const root = await namespaces.tree(agent);
+            const root = await namespaces.tree(agent, registry);
             await namespaces.statistics.recordQueries(agent.id, intellisenseQueryTargets(queries, root));
             let info: string;
             if (namespaces.isPtc(agent)) {
@@ -96,7 +96,7 @@ export function registerIntellisense(ctx: Context, namespaces: NamespaceComponen
             const position = namespaces.position(agent);
             appendPluginRecord(agent.session, 'plugin:ts_intellisense/intellisense', {
                 ...position, queries, info, elapsedMs: performance.now() - started,
-                profileRevision: (await namespaces.registryFor(agent)).snapshot().revision,
+                profileRevision: registry.snapshot().revision,
                 runtimeEpoch: namespaces.isPtc(agent) ? agent.ctx.get('codeRuntime')?.epoch(agent.id) ?? 0 : 0,
             });
             return info;

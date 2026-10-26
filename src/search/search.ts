@@ -85,7 +85,7 @@ export async function searchEntries(entries: readonly ManifestEntry[], options: 
     if (!keywords.length || !limit) return [];
     const documents = entries.filter(entry => !namespace || entry.path.startsWith(namespace + '.')).map(entry => ({
         id: entry.path, name: fields.includes('name') ? entry.path : '', description: fields.includes('description') ? entry.doc : '',
-        parameters: fields.includes('parameters') ? JSON.stringify(entry.schema) : '', 
+        parameters: fields.includes('parameters') ? JSON.stringify(entry.schema) : '',
     }));
     if (!documents.length) return [];
     const allowed = new Set(documents.map(document => document.id));

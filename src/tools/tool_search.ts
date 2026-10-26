@@ -18,7 +18,7 @@ export function searchDefinition(namespaces: Pick<NamespaceComponent, 'entries' 
             execution.signal.throwIfAborted();
             const registry = await namespaces.registryFor(agent);
             if (registry.disabled(pluginCommands.searchCommand.path)) throw new Error('Execution denied: tools.search');
-            const entries = (await namespaces.entries(agent)).map(entry => ({ path: entry.path, tool: entry.tool, schema: entry.schema, output: entry.output, doc: registry.description(entry.path, entry.tool) ?? entry.doc }));
+            const entries = (await namespaces.entries(agent, registry)).map(entry => ({ path: entry.path, tool: entry.tool, schema: entry.schema, output: entry.output, doc: registry.description(entry.path, entry.tool) ?? entry.doc }));
             return searchEntries(entries, args, namespaces.searchEngines.selector());
         },
     });

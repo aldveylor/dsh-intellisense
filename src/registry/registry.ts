@@ -93,11 +93,16 @@ export class SemanticRegistry {
     /** @brief Identify configuration and physical-contract changes without copying either snapshot. */
     get generation(): string { return `${this.state.revision}:${this.physicalRevision}`; }
 
+    /** @brief Read Profile names and selection without cloning configuration data. */
+    profileSelection(): { profiles: string[]; selected: string } {
+        const selected = this.state.profile ?? 'Default';
+        return { selected, profiles: [selected, ...Object.keys(this.state.inactiveProfiles ?? {})].sort((a, b) => a.localeCompare(b)) };
+    }
+
     snapshot(): RegistryState {
-        const { inactiveProfiles, ...current } = this.state;
-        const state = structuredClone(current);
-        const profile = state.profile ?? 'Default';
-        return { ...state, profile, profiles: [profile, ...Object.keys(inactiveProfiles ?? {})].sort((a, b) => a.localeCompare(b)) };
+        const { inactiveProfiles: _inactiveProfiles, ...current } = this.state;
+        const { selected: profile, profiles } = this.profileSelection();
+        return { ...structuredClone(current), profile, profiles };
     }
 
     /** @brief Extract only the configurable fields when archiving an active profile. */

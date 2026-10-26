@@ -120,10 +120,10 @@ export class NamespaceComponent {
     }
 
     /** @brief Resolve the current enabled namespace independently of prompt visibility. */
-    async tree(agent: Agent): Promise<NamespaceNode> { return manifest(await this.registryFor(agent), this.aliases); }
+    async tree(agent: Agent, current?: SemanticRegistry): Promise<NamespaceNode> { return manifest(current ?? await this.registryFor(agent), this.aliases); }
 
     /** @brief Flatten command bindings only for consumers that dispatch physical tools. */
-    async entries(agent: Agent): Promise<CommandNode[]> { return (await this.tree(agent)).commands().filter(entry => entry.deployment === 'tool'); }
+    async entries(agent: Agent, current?: SemanticRegistry): Promise<CommandNode[]> { return (await this.tree(agent, current)).commands().filter(entry => entry.deployment === 'tool'); }
 
     /** @brief List catalog commands with mount paths including disabled paths, excluding plugin builtins. */
     async commandBriefs(agent?: Agent, current?: SemanticRegistry): Promise<CommandBrief[]> {
@@ -149,12 +149,12 @@ export class NamespaceComponent {
     /** @brief Read catalog names separately from the conversation's selected Profile. */
     async profileNames(agent?: Agent, current?: SemanticRegistry): Promise<Profiles> {
         const registry = current ?? (agent ? await this.registryFor(agent) : this.registry);
-        return { profiles: this.registry.snapshot().profiles ?? [], selected: registry.snapshot().profile! };
+        return { profiles: this.registry.profileSelection().profiles, selected: registry.profileSelection().selected };
     }
 
     /** @brief Preload data-only Profile metadata before guest execution. */
-    async values(agent?: Agent): Promise<Record<string, z.infer<ReturnType<typeof z.json>>>> {
-        const registry = agent ? await this.registryFor(agent) : this.registry;
+    async values(agent?: Agent, current?: SemanticRegistry): Promise<Record<string, z.infer<ReturnType<typeof z.json>>>> {
+        const registry = current ?? (agent ? await this.registryFor(agent) : this.registry);
         const values = { 'tools.profile.annotation': profileAnnotation, 'tools.profile.commands': (await this.commandBriefs(agent, registry)).map(command => ({ ...command })), 'tools.profile.profiles': { ...await this.profileNames(agent, registry) } };
         return Object.fromEntries(Object.entries(values).filter(([path]) => !registry.disabled(path)));
     }

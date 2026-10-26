@@ -69,14 +69,15 @@ export class NamespaceRuntime extends Service {
         const pending = new Set<Promise<unknown>>();
         let sequence = 0;
         try {
-            const entries = (await namespaces.entries(agent)).filter(entry => !entry.preload);
+            const registry = await namespaces.registryFor(agent);
+            const entries = (await namespaces.entries(agent, registry)).filter(entry => !entry.preload);
             const result = await this.runtime.execute(agent.id, `run-code-${++this.sequence}`, code, entries.map(entry => entry.binding()), async (tool, input, signal) => {
                 signal.throwIfAborted();
                 const work = namespaces.dispatchTool(agent, tool, input, { ...parent, signal: controller.signal }, ++sequence);
                 pending.add(work);
                 void work.finally(() => { pending.delete(work); }).catch(() => {});
                 return bindingResult(work, signal);
-            }, controller.signal, await namespaces.values(agent), async () => ({ 'tools.profile.profiles': { ...await namespaces.profileNames(agent) } }));
+            }, controller.signal, await namespaces.values(agent, registry), async () => ({ 'tools.profile.profiles': { ...await namespaces.profileNames(agent) } }));
             if (result.error) throw new Error(result.error + (result.logs.length ? `\nCaptured output:\n${result.logs.join('\n')}` : ''));
             return { logs: result.logs, ...(result.value === undefined ? {} : { result: result.value }) };
         } catch (error) {

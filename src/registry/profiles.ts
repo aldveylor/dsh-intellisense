@@ -27,7 +27,7 @@ export class ProfileSessions {
                 const saved = await this.store.load<T>(key);
                 if (saved !== undefined) return saved;
                 const source = inherit ? await inherit() : this.catalog;
-                const initial: RegistryState = { version: 1, revision: 0, ...source.configuration(), profile: source.snapshot().profile };
+                const initial: RegistryState = { version: 1, revision: 0, ...source.configuration(), profile: source.profileSelection().selected };
                 return initial as T;
             },
             save: async <T>(_key: string, value: T) => { await this.store.save(key, value); },
