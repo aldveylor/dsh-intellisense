@@ -17,7 +17,10 @@ async function until(predicate: () => boolean): Promise<void> {
 test('disable controls retain visible nodes, precede deletion and save command and namespace state', async () => {
     const registry = new SemanticRegistry(new MemoryStore());
     registry.refresh([{ id: 'read', description: 'Read document', parameters: { type: 'object' }, output: { type: 'string' } }]);
-    await registry.configure([{ id: 'read', path: 'files.read', pinned: false }], 0, [{ path: 'files', description: 'Files', alwaysVisible: false }]);
+    await registry.configure([
+        { id: 'read', path: 'files.read', pinned: false },
+        { id: 'read', path: 'files.nested.read', pinned: false },
+    ], 0, [{ path: 'files', description: 'Files', alwaysVisible: false }, { path: 'files.nested', description: '', alwaysVisible: false }]);
     const routes = new Map<string, (request: Request) => Promise<Response>>();
     const ctx = { connection: { fetch: { register: (route: { path: string; fetch: (request: Request) => Promise<Response> }) => routes.set(route.path, route.fetch) } }, emit: () => {} } as unknown as Context;
     registerManagement(ctx, registry, { refresh: async () => {} });
@@ -51,6 +54,30 @@ test('disable controls retain visible nodes, precede deletion and save command a
         await until(() => document.querySelector('.ts-namespace-profile')?.getAttribute('aria-busy') !== 'true');
         document.querySelector('[data-action="save"]')!.dispatchEvent(new dom.window.Event('animationiteration', { bubbles: true }));
         await until(() => document.querySelector<HTMLButtonElement>('[data-namespace-path="tools"] .ts-disclosure')?.disabled === false);
+        click('[data-namespace-path="files.nested"] .ts-disclosure');
+        await until(() => !!document.querySelector('[data-tree-path="files.nested.read"] .ts-disable'));
+        const profileLabel = (): string => document.querySelector('.ts-namespace-profile .ts-profile-label')!.textContent!;
+        assert.equal(profileLabel().includes('*'), false);
+        for (const selector of [
+            '[data-tree-path="files.read"] .ts-disable',
+            '[data-namespace-path="files.nested"] .ts-disable',
+            '[data-tree-path="files.nested.read"] .ts-disable',
+        ]) {
+            const button = document.querySelector<HTMLButtonElement>(selector)!;
+            assert.equal(button.disabled, true);
+            assert.equal(button.getAttribute('aria-pressed'), 'true');
+            button.click();
+            button.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+        }
+        await delay(30);
+        assert.equal(profileLabel().includes('*'), false);
+        click('[data-namespace-path="files"] .ts-disable');
+        await until(() => document.querySelector<HTMLButtonElement>('[data-tree-path="files.nested.read"] .ts-disable')?.disabled === false);
+        assert.equal(document.querySelector('[data-tree-path="files.read"] .ts-disable')?.getAttribute('aria-pressed'), 'true');
+        assert.equal(document.querySelector('[data-namespace-path="files.nested"] .ts-disable')?.getAttribute('aria-pressed'), 'false');
+        assert.equal(document.querySelector('[data-tree-path="files.nested.read"] .ts-disable')?.getAttribute('aria-pressed'), 'false');
+        click('[data-namespace-path="files"] .ts-disable');
+        await until(() => document.querySelector<HTMLButtonElement>('[data-tree-path="files.nested.read"] .ts-disable')?.disabled === true);
         click('[data-namespace-path="tools"] .ts-disclosure');
         await until(() => !!document.querySelector('[data-tree-path="tools.search"] .ts-disable'));
         click('[data-tree-path="tools.search"] .ts-disable');

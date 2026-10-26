@@ -137,7 +137,7 @@ function CommandNode({ node, tree }: { node: CommandTreeNode; tree: TreeProps })
     const readOnly = !node.permissions.renamable;
     const invalid = !!mapping && !(id && tree.toolsById.has(id));
     const draggable = !tree.busy && node.draggable;
-    const disableButton = node.permissions.disableable ? <DisableButton disabled={tree.disabled(path)} busy={tree.busy} toggle={() => tree.toggleDisabled(path)} /> : null;
+    const disableButton = node.permissions.disableable ? <DisableButton disabled={tree.disabled(path)} busy={tree.busy || tree.disabledByAncestor(path)} toggle={() => tree.toggleDisabled(path)} /> : null;
     const pinButton = <PinButton label={t('pin_command', { path })} active={!!node.level} level={node.level} busy={tree.busy || !!command?.disabled}
         locked={node.permissions.availableFixLevels.length <= 1}
         toggle={() => { if (command) tree.pinBuiltin(path); else if (mapping) tree.pinTool(mapping); else if (id) tree.pinUnmounted(id); }} />;
@@ -213,7 +213,7 @@ function NamespacePlaceholder({ parent = '', busy, create, drop, pick }: {
 
 /** @brief Shared namespace tree data and actions for recursively rendered mixed node types. */
 interface TreeProps {
-    disabled: (path: string) => boolean; toggleDisabled: (path: string) => void;
+    disabledByAncestor: (path: string) => boolean; disabled: (path: string) => boolean; toggleDisabled: (path: string) => void;
     toolsById: ReadonlyMap<string, PhysicalTool>; callsByTool: Record<string, number>; queriesByTool: Record<string, number>; namespaceQueriesByPath: Record<string, number>; busy: boolean;
     expanded: Record<string, boolean>;
     configure: (path: string, patch: Partial<Namespace>) => void;
@@ -261,15 +261,15 @@ function NamespaceNode({ node, tree }: { node: NamespaceTreeNode; tree: TreeProp
             <span className="ts-node-actions">
                 <PinButton label={t('pin_namespace', { path })} active={config?.alwaysVisible ?? false} busy={tree.busy}
                     toggle={() => tree.configure(path, { alwaysVisible: !config?.alwaysVisible })} />
-                {node.permissions.disableable && <DisableButton disabled={tree.disabled(path)} busy={tree.busy} toggle={() => tree.toggleDisabled(path)} />}
+                {node.permissions.disableable && <DisableButton disabled={tree.disabled(path)} busy={tree.busy || tree.disabledByAncestor(path)} toggle={() => tree.toggleDisabled(path)} />}
                 {node.permissions.removable && <RemoveButton label={t('delete_namespace', { path })} busy={tree.busy} remove={() => tree.deleteNamespace(path)} />}
             </span></>}
             {node.pinMode === 'locked' && <span className="ts-node-actions">
-                {node.permissions.disableable && <DisableButton disabled={tree.disabled(path)} busy={tree.busy} toggle={() => tree.toggleDisabled(path)} />}
+                {node.permissions.disableable && <DisableButton disabled={tree.disabled(path)} busy={tree.busy || tree.disabledByAncestor(path)} toggle={() => tree.toggleDisabled(path)} />}
                 <PinButton label={t('fixed_namespace')} tooltip={t('fixed_namespace')} active busy={tree.busy} locked toggle={() => {}} />
             </span>}
             {node.pinMode === 'provided' && <span className="ts-node-actions">
-                {node.permissions.disableable && <DisableButton disabled={tree.disabled(path)} busy={tree.busy} toggle={() => tree.toggleDisabled(path)} />}
+                {node.permissions.disableable && <DisableButton disabled={tree.disabled(path)} busy={tree.busy || tree.disabledByAncestor(path)} toggle={() => tree.toggleDisabled(path)} />}
                 <PinButton label={t('pin_namespace', { path })} active={tree.namespaceVisible[path] ?? false} busy={tree.busy} toggle={() => tree.toggleProvidedNamespace(path)} />
             </span>}
         </div>
@@ -552,13 +552,20 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
     const remapMotion = useLayoutMotion(drag.container, '.ts-tree .ts-node-block,.ts-tree .ts-tree-tool,.ts-tree .ts-namespace-placeholder',
         element => element.classList.contains('ts-namespace-placeholder') ? `${element.dataset.namespacePath}.__placeholder__` : element.dataset.namespacePath ?? element.dataset.treePath!);
 
+    /** @brief Lock descendant disable controls while preserving their own configured state. */
+    function disabledByAncestor(path: string): boolean {
+        return builtinDisabled.some(prefix => prefix !== path && inNamespace(path, prefix))
+            || namespaces.some(node => node.disabled && node.path !== path && inNamespace(path, node.path));
+    }
+
     const tree = useMemo<TreeProps>(() => ({
+        disabledByAncestor,
         disabled: path => !!namespaceTree.root.resolve(path.split('.'))?.permissions.disableable && (builtinDisabled.some(prefix => inNamespace(path, prefix))
             || namespaces.some(node => node.disabled && inNamespace(path, node.path))
             || mappings.some(mapping => mapping.disabled && mapping.path === path)),
         toggleDisabled: path => {
             const node = namespaceTree.root.resolve(path.split('.'));
-            if (busyRef.current || !node?.permissions.disableable) return;
+            if (busyRef.current || !node?.permissions.disableable || disabledByAncestor(path)) return;
             if (providedNamespace(path, provided)) {
                 setBuiltinDisabled(current => current.includes(path) ? current.filter(item => item !== path) : [...current, path]);
             } else {
