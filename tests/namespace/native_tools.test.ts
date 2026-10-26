@@ -61,6 +61,7 @@ test('native aliases publish callable names, preserve native arguments and revok
     component.dispatch = async (_agent, entry, args) => ({ tool: entry.tool, args });
     const parent = { agent } as ToolRunContext;
     assert.deepEqual(await open.execute({ file: '/tmp/file' }, parent), { tool: 'read_file', args: { file: '/tmp/file' } });
+    await assert.rejects(open.execute({ path: '/tmp/file' }, parent), /Invalid arguments/);
     physical.length = 0;
     assert.deepEqual(await component.syncNative(agent), []);
     assert.equal(definitions.size, 0);

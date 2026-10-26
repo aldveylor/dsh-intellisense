@@ -4,7 +4,7 @@ import { ProfileSchema, profileConfiguration, profileTree } from '../../src/regi
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
 
-/** @brief Include protected nodes, all pin levels and a shared physical command alias. */
+/** @brief Include protected nodes, all pin levels and a physical command mounted at independent paths. */
 function fixture() {
     const current = new SemanticRegistry(new MemoryStore()).configuration();
     const configuration = { ...current,
@@ -123,7 +123,7 @@ test('save permits omitted briefs and ignores forged edits of protected descript
     save.permissions = { ...save.permissions, commentable: true };
     const files = profile.root.children!.find(node => node.name === 'files')!;
     for (const leaf of files.children!) delete leaf.command!.doc;
-    // The read alias also omits its brief, so it cannot accidentally supply an override.
+    // The additional read mount also omits its brief, so it cannot accidentally supply an override.
     delete profile.root.children!.find(node => node.name === 'read')!.command!.doc;
     const configuration = profileConfiguration(ProfileSchema.parse(profile), current, commands);
     assert.deepEqual(configuration.toolComments, {});
@@ -142,6 +142,7 @@ test('Profile command contracts reject removed argument mappings', () => {
     const files = profile.root.children!.find(node => node.name === 'files')!;
     const command = files.children![0]!;
     assert(command.type === 'command');
-    files.children![0] = { ...command, command: { ...command.command, ...{ argMap: { filename: 'path' } } } };
+    const invalid = { ...command, command: { ...command.command, argMap: { filename: 'path' } } };
+    files.children![0] = invalid;
     assert.equal(ProfileSchema.safeParse(profile).success, false);
 });
