@@ -26,4 +26,5 @@ CommandBrief 与 profileAnnotation 中共享同一数据定义：name 为原始�
 
 子 agent 首次创建 Profile 工作快照时，从运行时父 Agent 的当前工作配置复制名称、映射、命名空间、固定提示与禁用状态等配置，包括尚未发布到具名目录的修改。父子后续修改独立，已有工作快照优先恢复，不被父配置覆盖；普通根会话继续读取全局默认 Profile。父子关系由 AgentRegistry.isOwnedBy 确认，不仅凭持久化 parentSession 推断。
 
-`Profile.restrict` 是面向 Agent 的只读整理提示，按节点的 `permissions` 从 console/tools 等受保护树节点生成，以点分节点路径为键。`fields` 列出必须原样保留的字段（含嵌套值及可选字段的缺省状态）；`preservePath` 禁止移动，`required` 禁止删除；`fixedLevels` 给出允许的固定等级，空数组表示保留现值；可选 `children` 指定不可增删改名的直接子成员名称，其节点字段仍按自身限制编辑。整理时保留 restrict，内置契约与描述不参与改写；固定等级与禁用状态仅在 permissions 允许范围内调整。该字段不持久化、不参与服务端权限校验，输入仅透传接收，服务端继续依据自身节点 permissions 校验。PTC annotation 与 DSML JSON Schema 均描述此字段。
+
+Profile 仅包含 name 与 root；permissions 是唯一节点编辑限制说明，由服务端节点权限生成，输入不能覆盖服务端权限。annotation 与 JSON Schema 明确 console/tools 的完整保护子树不能改名、移动或删除；禁用与固定等级仅按权限调整。

@@ -13,13 +13,17 @@ export interface CommandBrief { name: CommandName; brief: string; totalCalls: nu
 export interface Profiles { profiles: string[]; selected: string }
 
 /** @brief Profiles expose the same serialized tree/leaf node description as management clients. */
-export interface Profile { name: string; root: SerializedNode; restrict?: Record<string, ProfileRestriction> }
-
-/** @brief Agent guidance derived from permissions; fields are immutable, children lists exact membership. */
-export interface ProfileRestriction { fields: string[]; preservePath: boolean; required: boolean; fixedLevels: (0 | 1 | 2)[]; children?: string[] }
+export interface Profile { name: string; root: SerializedNode }
 
 /** @brief Validate shared permissions without trusting them as the server's authority. */
-const permissionSchema = z.strictObject({ renamable: z.boolean(), movable: z.boolean(), removable: z.boolean(), disableable: z.boolean(), acceptsChildren: z.boolean(), availableFixLevels: z.array(z.union([z.literal(0), z.literal(1), z.literal(2)])) });
+const permissionSchema = z.strictObject({
+    renamable: z.boolean().describe('Whether this node may be renamed.'),
+    movable: z.boolean().describe('Whether this node may be moved; false preserves its path.'),
+    removable: z.boolean().describe('Whether this node may be removed; false requires retaining the node.'),
+    disableable: z.boolean().describe('Whether disabled may be set to true.'),
+    acceptsChildren: z.boolean().describe('Whether new children may be inserted. Existing protected children must remain.'),
+    availableFixLevels: z.array(z.union([z.literal(0), z.literal(1), z.literal(2)])).describe('Supported pin levels; an empty list means preserve the existing level.'),
+});
 
 /** @brief Recursive transport schema for both editable and protected Profile nodes. */
 const nodeSchema: z.ZodType<SerializedNode> = z.lazy(() => z.strictObject({
@@ -30,10 +34,8 @@ const nodeSchema: z.ZodType<SerializedNode> = z.lazy(() => z.strictObject({
     fixedLevel: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(), disabled: z.boolean().optional(),
 }));
 
-/** @brief Validate editable Profile input; accept Agent-only restrict metadata without validating or trusting it. */
-export const ProfileSchema: z.ZodType<Profile> = z.strictObject({ name: z.string(), root: nodeSchema,
-    restrict: z.unknown().optional().describe('Read-only Agent guidance generated from node permissions, keyed by dot-separated node path. Preserve this metadata when organizing. fields lists immutable node fields (including nested values and absence); preservePath forbids moving; required forbids removal; fixedLevels lists allowed fixedLevel values (empty means preserve it); children, when present, lists exact direct child names, whose nodes remain editable according to their own rules. Server validation uses permissions, not restrict.') as z.ZodType<Profile['restrict']>,
-});
+/** @brief Validate editable Profile input; server-owned permissions remain authoritative. */
+export const ProfileSchema: z.ZodType<Profile> = z.strictObject({ name: z.string(), root: nodeSchema.describe('Anonymous root. Preserve the complete console and tools subtrees: their protected nodes cannot be renamed, moved or deleted. Edit disabled and fixedLevel only as permitted by server-owned permissions.') });
 
 /** @brief Create protected children first, then add configured mappings without replacing existing nodes. */
 export function profileTree(name: string, configuration: RegistryConfiguration): Profile {
@@ -53,20 +55,8 @@ export function profileTree(name: string, configuration: RegistryConfiguration):
         nodeFor(parts.slice(0, -1).join('.')).add(new CommandNode(parts.at(-1)!, nodeFor(parts.slice(0, -1).join('.')), { tool: mapping.id, schema: {}, output: {}, doc: configuration.toolComments?.[mapping.id] ?? mapping.description ?? '' }));
     }
     const snapshot = root.serialize();
-    const restrict: Record<string, ProfileRestriction> = {};
     const apply = (node: SerializedNode, prefix: string): void => {
         const path = prefix ? `${prefix}.${node.name}` : node.name;
-        const permissions = node.permissions;
-        if (!permissions.renamable || !permissions.movable || !permissions.removable) {
-            const fields = ['type', 'permissions', 'command', 'description', 'signature', 'deployment', 'preload'];
-            if (!permissions.renamable) fields.push('name');
-            if (!permissions.disableable) fields.push('disabled');
-            if (permissions.availableFixLevels.length <= 1) fields.push('fixedLevel');
-            restrict[path] = { fields, preservePath: !permissions.movable, required: !permissions.removable,
-                fixedLevels: [...permissions.availableFixLevels],
-                ...(node.type === 'tree' && !permissions.acceptsChildren ? { children: (node.children ?? []).map(child => child.name) } : {}),
-            };
-        }
         const mapping = configuration.mappings.find(item => [item.path, ...item.aliases].includes(path));
         const namespace = configuration.namespaces.find(item => item.path === path);
         node.fixedLevel = fixLevel(node.permissions, node.type === 'leaf' ? configuration.builtinVisible?.[path] ?? mapping?.alwaysVisible ?? 0
@@ -75,7 +65,7 @@ export function profileTree(name: string, configuration: RegistryConfiguration):
         for (const child of node.children ?? []) apply(child, path);
     };
     apply(snapshot, '');
-    return { name, root: snapshot, restrict };
+    return { name, root: snapshot };
 }
 
 /** @brief Apply Profile edits while the parent enforces server-owned child removal and insertion permissions. */
@@ -127,7 +117,7 @@ export const profileAnnotation = `/** @brief Original physical command identity,
 interface CommandBrief { name: string; brief: string; totalCalls: number; }
 /** @brief Available catalog Profile names and the current conversation selection. */
 interface Profiles { profiles: string[]; selected: string; }
-/** @brief Server-owned edit and pin choices; clients must honor these permissions. */
+/** @brief Server-owned edit and pin choices, the sole source of edit restrictions. renamable=false forbids renaming; movable=false preserves the path; removable=false requires keeping the node; acceptsChildren=false forbids adding members; protected children must remain. disableable controls disabled, and availableFixLevels lists supported pin levels. Submitted permissions do not override server policy. */
 interface Permission { renamable: boolean; movable: boolean; removable: boolean; disableable: boolean; acceptsChildren: boolean; availableFixLevels: (0 | 1 | 2)[]; }
 /** @brief Shared namespace tree or command leaf; protected children must remain present. */
 interface NamespaceNode {
@@ -137,18 +127,6 @@ interface NamespaceNode {
     description?: string; signature?: string; deployment?: 'tool' | 'environment'; preload?: boolean;
     fixedLevel?: 0 | 1 | 2; disabled?: boolean;
 }
-/** @brief Named namespace configuration with an anonymous root. */
-interface Profile { name: string; root: NamespaceNode; restrict?: Record<string, ProfileRestriction>; }
-/** @brief Read-only Agent guidance generated from permissions for protected nodes such as console and tools. Keys are dot-separated paths from root (e.g. tools.profile.save). Preserve restrict when organizing; the server uses permissions, not this metadata, for validation. */
-interface ProfileRestriction {
-    /** @brief Preserve these node fields exactly, including nested values and absent optional fields. */
-    fields: string[];
-    /** @brief When true, keep this node at its current path. */
-    preservePath: boolean;
-    /** @brief When true, keep this node present even when disabled. */
-    required: boolean;
-    /** @brief Allowed fixedLevel values; an empty list means preserve the current value. */
-    fixedLevels: (0 | 1 | 2)[];
-    /** @brief Exact direct child names when present: do not add, remove or rename members; edit each child's fields only according to its permissions and restrictions. */
-    children?: string[];
-}`;
+/** @brief Named namespace configuration with an anonymous root. Preserve the complete console and tools subtrees: their protected nodes cannot be renamed, moved or deleted. Disable nodes or change pin levels only where permissions allow. Runtime console remains available independently of tree visibility. */
+interface Profile { name: string; root: NamespaceNode; }
+`;
