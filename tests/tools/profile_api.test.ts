@@ -130,7 +130,7 @@ test('Profile save validates input and undefined name overwrites the current sel
 
 test('Profile deletion rejects the current selection and missing entries, and can remove the catalog default', async () => {
     const { call, catalog, registry } = await fixture();
-    await assert.rejects(call('tools_profile_delete'), /Current Profile cannot be deleted: Default/);
+    await assert.rejects(call('tools_profile_delete'), /name/);
     await assert.rejects(call('tools_profile_delete', { name: 'Default' }), /Current Profile cannot be deleted: Default/);
     await assert.rejects(call('tools_profile_delete', { name: 'Missing' }), /Profile does not exist/);
     const profile = await call('tools_profile_load');

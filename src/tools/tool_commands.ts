@@ -61,14 +61,14 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         },
     })));
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_delete', description: 'Delete a named catalog Profile. Omitted name refers to the current conversation Profile, which cannot be deleted. Existing snapshots in other conversations remain unchanged.',
-        parameters: { name: { type: 'string', description: 'Profile to delete. Omitted or undefined refers to the current conversation Profile and is rejected.' } },
+        name: 'tools_profile_delete', description: 'Delete an explicitly named catalog Profile. The name is required; the current conversation Profile cannot be deleted. Existing snapshots in other conversations remain unchanged.',
+        parameters: { name: { type: 'string', required: true, description: 'Explicit catalog Profile to delete. Required; the current conversation Profile cannot be deleted.' } },
         output: { ...output, schema: { type: 'null' } },
         execute: async (args, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
-            const { name } = z.strictObject({ name: z.string().optional() }).parse(args);
+            const { name } = z.strictObject({ name: z.string().min(1) }).parse(args);
             const selected = (await registryFor(execution.agent)).snapshot().profile!;
-            const target = name ?? selected;
+            const target = name;
             if (target === selected) throw new Error(`Current Profile cannot be deleted: ${target}`);
             await catalog.manageProfile('delete', target, catalog.snapshot().revision);
             return null;

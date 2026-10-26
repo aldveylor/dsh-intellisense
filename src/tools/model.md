@@ -26,7 +26,7 @@ PTC 在每次执行前预加载 commands，并由 VM 命令包装同步更新本
 
 Profile save 的 name 省略或为 undefined 时，始终覆盖当前会话选择，忽略树中的 profile.name；创建新目录项必须传入显式字符串名称。支持 save(profile) 和 save(name, profile)，缺少 Profile、非法名称类型或非法树均抛错；写入失败透传异常。参数说明同时进入 native schema 与 PTC 声明。
 
-`tools.profile.delete(name?: string)` 删除全局目录中的指定配置；名称省略或为 undefined 时指当前会话配置，删除当前会话配置一律拒绝。其它会话已有快照保留，成功删除后 PTC 的 profiles 字段随工具回复刷新。
+`tools.profile.delete(name: string)` 删除全局目录中的指定配置；必须显式指定目标名称，省略或传入 undefined 时拒绝调用，删除当前会话配置一律拒绝。其它会话已有快照保留，成功删除后 PTC 的 profiles 字段随工具回复刷新。
 
 `tools.profile.switch(name: string)` 显式切换当前会话配置，必须指定已有名称；可通过 builtinDisabled 禁用，使用普通内置命令的 disableable 权限。load(name?) 保留已有行为。
 
