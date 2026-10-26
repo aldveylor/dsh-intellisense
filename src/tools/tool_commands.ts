@@ -25,13 +25,12 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
     });
     const output = { schema: { type: 'object', additionalProperties: true } as const, render: (_args: unknown, value: unknown) => [{ type: 'text' as const, text: typeof value === 'string' ? value : JSON.stringify(value) }] };
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_load', description: 'Load a named Profile into this conversation. With no name, return the current draft.',
+        name: 'tools_profile_load', description: 'Read a named catalog Profile as JSON data without changing this conversation. With no name, return the current draft.',
         parameters: { name: { type: 'string' } }, output,
         execute: async ({ name }, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
-            const registry = name === undefined ? await registryFor(execution.agent) : await profiles.load(execution.agent.id, name);
-            if (name !== undefined) await changed(execution.agent);
-            return JSON.parse(JSON.stringify(profileTree(registry.snapshot().profile!, registry.configuration()))) as Record<string, z.infer<ReturnType<typeof z.json>>>;
+            const registry = name === undefined ? await registryFor(execution.agent) : catalog;
+            return JSON.parse(JSON.stringify(profileTree(name ?? registry.snapshot().profile!, registry.configuration(name)))) as Record<string, z.infer<ReturnType<typeof z.json>>>;
         },
     })));
     ctx.effect(() => register(defineTool({

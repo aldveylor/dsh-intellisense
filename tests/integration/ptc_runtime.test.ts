@@ -349,8 +349,8 @@ test('PTC Profile save overloads preserve the selection and reject invalid calls
             assert.equal(rejected.isError, false, JSON.stringify(rejected));
             assert.deepEqual(rejected.value, { logs: [], result: true }, args);
         }
-        const loaded = await run("return (await tools.profile.load('Copy')).name;");
-        assert.deepEqual(loaded.value, { logs: [], result: 'Copy' });
+        const loaded = await run("return [(await tools.profile.load('Copy')).name, tools.profile.profiles.selected];");
+        assert.deepEqual(loaded.value, { logs: [], result: ['Copy', 'Default'] });
     } finally { await dispose(); }
 });
 
@@ -412,8 +412,8 @@ test('Profile saves preserve the snapshot and inject notices only when explicitl
             await tools.profile.load('Copy');
             try { await tools.profile.switch('Missing'); } catch {}
             try { await tools.profile.save(); } catch {}
-            try { await tools.profile.delete('Copy'); } catch {}
-            await tools.profile.delete('Default');
+            try { await tools.profile.delete('Default'); } catch {}
+            await tools.profile.delete('Copy');
         `);
         assert.equal(result.isError, false, JSON.stringify(result));
         assert.deepEqual(injected.map(message => message.content), ['Default'].map(name => [{ type: 'text', text: `Profile updated to ${name}` }]));

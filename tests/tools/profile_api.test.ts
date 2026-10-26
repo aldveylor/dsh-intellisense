@@ -24,12 +24,13 @@ async function fixture() {
     const profiles = new ProfileSessions(catalog, new MemoryStore());
     const registry = await profiles.forSession('session');
     registry.refresh([physical]);
-    registerToolCommands(ctx, catalog, profiles, async () => registry, async () => {}, async () => [{ name: physical.id, brief: physical.description, totalCalls: 2 }, { name: 'outside_scope', brief: 'Outside this session.', totalCalls: 0 }]);
+    const changed: string[] = [];
+    registerToolCommands(ctx, catalog, profiles, async () => registry, async agent => { changed.push(agent.id); }, async () => [{ name: physical.id, brief: physical.description, totalCalls: 2 }, { name: 'outside_scope', brief: 'Outside this session.', totalCalls: 0 }]);
     const agentContext = new Context();
     agentContext.provide('commandNamespaces', { isPtc: () => true } as unknown as Context['commandNamespaces']);
     const execution = { agent: { id: 'session', inject: () => {}, ctx: agentContext, session: Session.create(SessionId('session')) }, signal: new AbortController().signal } as ToolRunContext;
     const call = (name: string, args: unknown = {}) => definitions.get(name)!.execute(args, execution);
-    return { definitions, registry, catalog, call };
+    return { definitions, registry, catalog, call, changed };
 }
 
 test('native Profile data tools and optional-name save/load use session defaults', async () => {
@@ -50,7 +51,7 @@ test('native Profile data tools and optional-name save/load use session defaults
     assert.deepEqual(JSON.parse(JSON.stringify(await call('tools_profile_load'))), { ...profile, name: 'Copy' });
     assert.deepEqual(await call('tools_profile_profiles'), { profiles: ['Copy', 'Default'], selected: 'Copy' });
     await call('tools_profile_load', { name: 'Default' });
-    assert.equal(registry.snapshot().profile, 'Default');
+    assert.equal(registry.snapshot().profile, 'Copy');
 });
 
 test('manifest exposes only the new tools API and projects VM array arguments', async () => {
@@ -175,4 +176,26 @@ test('Profile switch requires a name and supports disabling through server permi
     registry.refresh([...definitions.values()].map(tool => ({ id: tool.name, description: tool.description, parameters: tool.parameters, output: tool.output.schema })));
     assert(!manifest(registry, []).commands().some(node => node.path === 'tools.profile.switch'));
     assert((await call('tools_profile_load')).root.children.find(node => node.name === 'tools').children.find(node => node.name === 'profile').children.find(node => node.name === 'switch').disabled);
+});
+
+
+test('Profile load reads catalog data without replacing the working draft or refreshing tools', async () => {
+    const { call, catalog, registry, changed } = await fixture();
+    const draft = await call('tools_profile_load');
+    const copy = { ...draft, name: 'Copy', root: { ...draft.root, children: [...draft.root.children, {
+        type: 'tree', name: 'catalog_only', permissions: draft.root.permissions, children: [],
+    }] } };
+    await call('tools_profile_save', { name: 'Copy', profile: copy });
+    const before = registry.snapshot();
+    const catalogBefore = catalog.snapshot();
+    const loaded = await call('tools_profile_load', { name: 'Copy' });
+    assert.equal(loaded.name, 'Copy');
+    assert(loaded.root.children.some(node => node.name === 'catalog_only'));
+    assert(!draft.root.children.some(node => node.name === 'catalog_only'));
+    assert.deepEqual(await call('tools_profile_load'), draft);
+    assert.deepEqual(registry.snapshot(), before);
+    assert.deepEqual(catalog.snapshot(), catalogBefore);
+    await assert.rejects(call('tools_profile_load', { name: 'Missing' }), /Profile does not exist/);
+    assert.deepEqual(registry.snapshot(), before);
+    assert.deepEqual(changed, []);
 });
