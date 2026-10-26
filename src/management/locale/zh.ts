@@ -28,6 +28,9 @@ export const zh = {
     "tool_sort_calls_desc": "调用次数：从多到少",
     "tool_sort_calls_asc": "调用次数：从少到多",
 
+    "tool_sort_queries_desc": "查询次数：从多到少",
+    "tool_sort_queries_asc": "查询次数：从少到多",
+
     "disable_node": "禁用",
     "enable_node": "启用",
     "builtin_schema": "Schema",

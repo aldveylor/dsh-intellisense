@@ -35,6 +35,8 @@ test('picker and namespace details show global call and query counts', async () 
     ]);
     await statistics.recordQueries('second', [
         { path: 'other.alpha', namespace: false, tool: 'alpha' },
+        { path: 'std.beta', namespace: false, tool: 'beta' },
+        { path: 'std.beta', namespace: false, tool: 'beta' },
         { path: 'tools', namespace: true },
     ]);
     const routes = new Map<string, (request: Request) => Promise<Response>>();
@@ -67,13 +69,14 @@ test('picker and namespace details show global call and query counts', async () 
         const sort = document.querySelector<HTMLButtonElement>('.ts-tool-picker-sort .ts-profile-select > button')!;
         for (const [value, expected] of [
             ['calls_desc', ['alpha', 'beta', 'zebra']], ['calls_asc', ['zebra', 'beta', 'alpha']],
+            ['queries_desc', ['alpha', 'beta', 'zebra']], ['queries_asc', ['zebra', 'alpha', 'beta']],
             ['name_asc', ['alpha', 'beta', 'zebra']], ['name_desc', ['zebra', 'beta', 'alpha']],
             ['default', ['zebra', 'alpha', 'beta']],
         ] as const) {
             sort.click();
             await until(() => sort.getAttribute('aria-expanded') === 'true');
             const options = document.querySelectorAll<HTMLButtonElement>('.ts-tool-picker-sort .ts-profile-option');
-            options[['default', 'name_asc', 'name_desc', 'calls_desc', 'calls_asc'].indexOf(value)]!.click();
+            options[['default', 'name_asc', 'name_desc', 'calls_desc', 'calls_asc', 'queries_desc', 'queries_asc'].indexOf(value)]!.click();
             await until(() => order().join() === expected.join());
         }
         const card = document.querySelector<HTMLButtonElement>('[data-tool-id="alpha"]')!;

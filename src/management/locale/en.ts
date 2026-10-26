@@ -28,6 +28,9 @@ export const en = {
     "tool_sort_calls_desc": "Calls: high to low",
     "tool_sort_calls_asc": "Calls: low to high",
 
+    "tool_sort_queries_desc": "Queries: high to low",
+    "tool_sort_queries_asc": "Queries: low to high",
+
     "disable_node": "Disable",
     "enable_node": "Enable",
     "builtin_schema": "Schema",

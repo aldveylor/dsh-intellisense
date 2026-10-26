@@ -45,8 +45,9 @@ export function ToolPicker({ parent, tools, mappings, protectedTools = [], calls
         const byName = a.id.localeCompare(b.id);
         if (sort === 'name_asc') return byName;
         if (sort === 'name_desc') return -byName;
-        const difference = (callsByTool[a.id] ?? 0) - (callsByTool[b.id] ?? 0);
-        return (sort === 'calls_asc' ? difference : -difference) || byName;
+        const counts = sort.startsWith('queries_') ? queriesByTool : callsByTool;
+        const difference = (counts[a.id] ?? 0) - (counts[b.id] ?? 0);
+        return (sort.endsWith('_asc') ? difference : -difference) || byName;
     });
 
     useEffect(() => { dialog.current?.showModal(); }, []);
@@ -63,7 +64,7 @@ export function ToolPicker({ parent, tools, mappings, protectedTools = [], calls
         <div className="ts-tool-picker-search">
             <input type="search" autoFocus aria-label={t('search_tools')} placeholder={t('search_hint')} value={search} onChange={event => setSearch(event.target.value)} />
             <div className="ts-tool-picker-sort"><NativeProfileSelect label={t('tool_sort')} value={sort}
-                options={['default', 'name_asc', 'name_desc', 'calls_desc', 'calls_asc'].map(value => ({ value, label: t(`tool_sort_${value}`) }))}
+                options={['default', 'name_asc', 'name_desc', 'calls_desc', 'calls_asc', 'queries_desc', 'queries_asc'].map(value => ({ value, label: t(`tool_sort_${value}`) }))}
                 disabled={busy} readOnly closeOnSelect onChange={setSort} /></div>
         </div>
         <div className="ts-blocks">{matches.map(tool => <ToolCard key={tool.id} tool={tool}
