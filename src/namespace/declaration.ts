@@ -84,7 +84,6 @@ export function builtinDeclaration(command: BuiltinCommand & Partial<Pick<Builti
         keywords: 'Keywords to search with OR semantics.', method: 'Registered search method; defaults to the configured engine.',
         max_results: 'Maximum results; defaults to 10.', target: 'Search name, description, parameters, or all (default).',
         namespace_path: 'Namespace subtree; an empty string searches the entire tree (default).',
-        args: 'Namespace member paths or exact command paths, passed as separate string arguments. A trailing dot lists immediate members; an exact path returns the complete command contract. An optional global. prefix is ignored. Pass an empty string ("") to query root namespace members: tools.intellisense("").',
     };
     /** @brief Keep builtin documentation inside its comment and prompt fence. */
     const clean = (text: string): string => decodeHTML(text).replaceAll('*/', '* /').replace(/[`\r\n\u2028\u2029]/g, ' ').replace(/<\|/g, '< |');

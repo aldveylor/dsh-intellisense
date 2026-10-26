@@ -18,8 +18,7 @@ export class InnerCommandNode extends CommandNode {
 
     override binding(): CommandBinding {
         const binding = super.binding();
-        if (this.builtin.rest) binding.parameters = { kind: 'rest', field: this.builtin.rest };
-        else if (this.builtin.positional) binding.parameters = { kind: 'overloads', layouts: this.builtin.positional.map(layout => [...layout]) };
+        if (this.builtin.positional) binding.parameters = { kind: 'overloads', layouts: this.builtin.positional.map(layout => [...layout]) };
         if (this.builtin.discardResult) binding.result = { kind: 'discard' };
         return binding;
     }

@@ -105,7 +105,6 @@ function initialize(commands: CommandBinding[], values: Record<string, unknown>)
                             return named(parameters.fields,args);
                         };
                         break;
-                    case 'rest': this.arguments=args=>({[parameters.field]:args}); break;
                     case 'overloads': {
                         const layouts=new Map(parameters.layouts.map(fields=>[fields.length,fields]));
                         this.arguments=args=>{

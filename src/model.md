@@ -12,7 +12,7 @@
 
 Intellisense PTC 模式仅向模型提供插件自有 tools_run_code 工具。`namespace/runtime.ts` 将已有受限 RuntimeHost 和 manifest 命名空间接入作用域执行入口，避免原生共享 run_code 选择部署的全局后端。两个模式在原生工具层均呈现 native，由插件组装器选择模型工具集合。PTC 初始化时将命令编译为 VM 函数绑定，VM 直接转换参数并通过 IPC 发送物理 tool 名称和底层参数；宿主不重复解析命名空间，不自行判定权限。子调用通过 DSH 原生执行流水线派发，保留父子审计、附加上下文和普通工具结果历史。本插件不拦截模型流，不解析代码围栏或提供源码续写。
 
-`tools/intellisense.ts` 注册 tools_intellisense，固定映射 tools.intellisense。查询列表包含尾点成员查询与精确签名查询，PTC 合并返回 TypeScript global 命名空间声明；DSML 返回 JSON 成员与命名参数 schema，并更新系统提示词中的工具集合，不提示 TS/JS。PTC 使用 tools.intellisense("std.", "std.cwd", "std.fs.")；DSML 调用同名工具，保留 { queries: string[] } 命名参数；PTC 接口为 function intellisense(...args: string[]): Promise<string>，接收多个字符串参数，tools.intellisense("") 查询根命名空间，无需数组或 queries 对象包装。查询时忽略开头的 global. 前缀。结果通过普通工具历史返回，并保存 plugin:ts_intellisense/intellisense 审计。
+`tools/intellisense.ts` 注册 tools_intellisense，固定映射 tools.intellisense。查询列表包含尾点成员查询与精确签名查询，PTC 合并返回 TypeScript global 命名空间声明；DSML 返回 JSON 成员与命名参数 schema，并更新系统提示词中的工具集合，不提示 TS/JS。PTC 使用 tools.intellisense(["std.", "std.cwd", "std.fs."])；DSML 调用同名工具，使用 { queries: string[] } 命名参数；PTC 接口为 function intellisense(queries: string[]): Promise<string>，通过通用字段适配器传递单个字符串数组，tools.intellisense([""]) 查询根命名空间。查询时忽略开头的 global. 前缀。结果通过普通工具历史返回，并保存 plugin:ts_intellisense/intellisense 审计。
 
 `runtime/` 管理每会话受限 Node 进程、严格 async 函数体、IPC、取消和超时。同一对话复用 VM Context，允许 globalThis 挂载变量跨调用共享；每次执行刷新命令与预加载值，VM 重启后状态丢失，不保证环境连续；移除 vm 命名空间及 vm.restart。console 输出写入内存流并通过 IPC 返回。DSML 模式不创建会话运行时。
 

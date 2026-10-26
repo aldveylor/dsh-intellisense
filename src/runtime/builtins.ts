@@ -13,7 +13,6 @@ export interface BuiltinCommand { path: string; signature: string; description: 
 export interface BuiltinTool extends BuiltinCommand {
     tool: string;
     positional?: readonly (readonly string[])[];
-    rest?: string;
     overloads?: readonly string[];
     discardResult?: boolean;
     preload?: boolean;
@@ -38,7 +37,7 @@ export class PluginCommands {
     ];
 
     /** @brief Fixed discovery command available in both native and PTC modes. */
-    readonly discoveryCommand: BuiltinTool = { tool: 'tools_intellisense', rest: 'queries', path: 'tools.intellisense', signature: '(...args: string[]) => Promise<string>', description: 'Query namespace members and complete TypeScript tool signatures, e.g. tools.intellisense("", "tools.").' };
+    readonly discoveryCommand: BuiltinTool = { tool: 'tools_intellisense', path: 'tools.intellisense', signature: '(queries: string[]) => Promise<string>', description: 'Query namespace members and complete TypeScript tool signatures.', parameterDocs: { queries: 'Array of namespace member paths or exact command paths. A trailing dot lists immediate members; an exact path returns the complete command contract. An optional global. prefix is ignored. Include an empty string ("") to query root namespace members: tools.intellisense([""]).' } };
 
     /** @brief Optional-ranked command search, unpinned by default and independently disableable. */
     readonly searchCommand: BuiltinTool = {

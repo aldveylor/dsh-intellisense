@@ -10,7 +10,6 @@ export const CommandBinding = z.strictObject({
     tool: z.string().min(1),
     parameters: z.discriminatedUnion('kind', [
         z.strictObject({ kind: z.literal('fields'), fields: z.array(z.string()) }),
-        z.strictObject({ kind: z.literal('rest'), field: z.string() }),
         z.strictObject({ kind: z.literal('overloads'), layouts: z.array(z.array(z.string())) }),
         z.strictObject({ kind: z.literal('object') }),
     ]),
