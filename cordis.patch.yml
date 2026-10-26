@@ -1,10 +1,10 @@
 - insert:
     - id: intellisense
-      name: dsh-intellisense
+      name: @aldveylor/dsh-intellisense
       config:
         timeoutMs: 120000
     - id: intellisense-preset
-      name: dsh-intellisense/preset
+      name: @aldveylor/dsh-intellisense/preset
 - id: agent-preset-registry
   config:
     default: intellisense-ptc

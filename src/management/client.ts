@@ -29,7 +29,7 @@ export function apply(ctx: Context): void {
         inject: () => ({ api: new URL('api/ts-intellisense-profile', document.baseURI).href }),
     }, SessionProfile));
     ctx.slots.inject('plugins.bundle.config', () => ctx.slots.register({
-        name: 'plugins.bundle.config', key: 'dsh-intellisense',
+        name: 'plugins.bundle.config', key: '@aldveylor/dsh-intellisense',
         inject: () => ({ organize: async (prompt: string) => {
             const sessions = ctx.sessions as unknown as ISessions;
             const navigation = ctx.layout.beginNavigation();

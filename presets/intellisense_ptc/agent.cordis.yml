@@ -117,6 +117,6 @@
   name: '@deepseek-ai/dsh-plugin-market/tools'
   disabled: true
 - id: intellisense-presentation
-  name: dsh-intellisense/presentation
+  name: @aldveylor/dsh-intellisense/presentation
   config:
     mode: ptc

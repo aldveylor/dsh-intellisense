@@ -1,4 +1,4 @@
-# dsh-intellisense
+# @aldveylor/dsh-intellisense
 
 [简体中文](../zh/README.md) | [Project home](../../README.md)
 
@@ -51,17 +51,17 @@ The plugin's `NamespaceRuntime` converts positional namespace arguments into act
 
 ## Configuration and initial prompts
 
-Each preset selects `ptc` or `native` through `config.mode` in `dsh-intellisense/presentation`. The main plugin configures runtime budgets and aliases. Both modes select native tool presentation within their scope; the plugin filters the model's tool schemas according to the selected mode. Initial prompts and actual tool schemas share the same configuration source: PTC exposes only `tools_run_code`, while native mode exposes the current namespace proxies.
+Each preset selects `ptc` or `native` through `config.mode` in `@aldveylor/dsh-intellisense/presentation`. The main plugin configures runtime budgets and aliases. Both modes select native tool presentation within their scope; the plugin filters the model's tool schemas according to the selected mode. Initial prompts and actual tool schemas share the same configuration source: PTC exposes only `tools_run_code`, while native mode exposes the current namespace proxies.
 
 Runtime budgets include `timeoutMs`, `syncTimeoutMs`, `maxOutputBytes`, `maxMessageBytes`, `maxPendingCalls`, `heapMb`, `sandboxProbeTimeoutMs`, and `diagnosticChars`. You can also configure `aliasesFile`.
 
 ## Profiles and management UI
 
-Manage named profiles, namespaces, aliases, tool annotations, ordering, and pinned hints on the **dsh-intellisense** plugin's configuration page or through `/api/ts-intellisense`. No additional YAML aliases are loaded by default; use `aliasesFile` to specify a file of shared physical tool aliases and argument-name mappings. DSML uses mapped named arguments; PTC uses the positional arguments shown in query signatures.
+Manage named profiles, namespaces, aliases, tool annotations, ordering, and pinned hints on the **@aldveylor/dsh-intellisense** plugin's configuration page or through `/api/ts-intellisense`. No additional YAML aliases are loaded by default; use `aliasesFile` to specify a file of shared physical tool aliases and argument-name mappings. DSML uses mapped named arguments; PTC uses the positional arguments shown in query signatures.
 
 The built-in `tools.intellisense` command cannot be renamed, moved, deleted, or unpinned. `tools.profile.load`, `tools.profile.save`, `tools.profile.annotation`, and `tools.profile.commands` provide operations on the current profile; legacy management commands have been removed. Before calling unmounted tools, configure their paths in the management page or provide YAML aliases. Unavailable tools are excluded from execution and query lists. Each session holds its own profile reference.
 
-Native DSML proxies revalidate the actual caller's tool visibility at execution time and pass through the actual tool's native permission checks. Proxies are removed when the session is released or the plugin is unloaded. `dsh-intellisense/namespace` can independently mount native namespace mode without creating a JS runtime.
+Native DSML proxies revalidate the actual caller's tool visibility at execution time and pass through the actual tool's native permission checks. Proxies are removed when the session is released or the plugin is unloaded. `@aldveylor/dsh-intellisense/namespace` can independently mount native namespace mode without creating a JS runtime.
 
 ### Namespace management
 
