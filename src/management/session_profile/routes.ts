@@ -12,15 +12,15 @@ export function registerSessionProfiles(ctx: Context, catalog: SemanticRegistry,
         try {
             const session = new URL(request.url).searchParams.get('session');
             const agent = ctx.agents.list().find(agent => agent.id === session);
-            if (!agent) return Response.json({ error: 'Session is not available' }, { status: 404, headers });
+            if (!agent) return Response.json({ error: 'session_unavailable' }, { status: 404, headers });
             if (!namespaces.enabled(agent)) {
-                if (request.method === 'POST') return Response.json({ error: 'Session has no Intellisense presentation' }, { status: 400, headers });
+                if (request.method === 'POST') return Response.json({ error: 'session_presentation_unavailable' }, { status: 400, headers });
                 return Response.json({ enabled: false, profiles: [] } satisfies SessionProfileState, { headers });
             }
             if (request.method === 'POST') {
-                if (!request.headers.get('content-type')?.startsWith('application/json')) return Response.json({ error: 'Expected application/json' }, { status: 415, headers });
+                if (!request.headers.get('content-type')?.startsWith('application/json')) return Response.json({ error: 'expected_json' }, { status: 415, headers });
                 const text = await request.text();
-                if (text.length > 4096) return Response.json({ error: 'Request is too large' }, { status: 413, headers });
+                if (text.length > 4096) return Response.json({ error: 'session_request_too_large' }, { status: 413, headers });
                 const { profile } = selection.parse(JSON.parse(text));
                 await namespaces.profiles.load(agent.id, profile);
                 await namespaces.configurationChanged(agent);

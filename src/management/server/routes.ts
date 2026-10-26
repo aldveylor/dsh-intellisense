@@ -38,14 +38,14 @@ export function registerManagement(ctx: Context, globalRegistry: SemanticRegistr
                 const profile = new URL(request.url).searchParams.get('profile') ?? state.profile!;
                 return Response.json({ defaultProfile: state.profile, state: { ...state, ...registry.configuration(profile), profile }, tools: registry.tools().map(tool => ({ ...tool, outputDeclaration: returnTypeDeclaration(tool.output) })), callsByTool: statistics?.callsByTool ?? {}, queriesByTool: statistics?.queriesByTool ?? {}, namespaceQueriesByPath: statistics?.namespaceQueriesByPath ?? {}, provided: [...createNamespace({ tools: registry.tools(), includeUnavailable: true }).children.values()].map(node => node.serialize()), effective: registry.effective() }, { headers });
             }
-            if (!request.headers.get('content-type')?.startsWith('application/json')) return Response.json({ error: 'Expected application/json' }, { status: 415, headers });
+            if (!request.headers.get('content-type')?.startsWith('application/json')) return Response.json({ error: 'expected_json' }, { status: 415, headers });
             const bodyText = await request.text();
-            if (bodyText.length > 1_048_576) return Response.json({ error: 'Body exceeds 1 MiB' }, { status: 413, headers });
+            if (bodyText.length > 1_048_576) return Response.json({ error: 'management_body_too_large' }, { status: 413, headers });
             let input: unknown;
             try { input = JSON.parse(bodyText); }
-            catch { return Response.json({ error: 'Invalid JSON body' }, { status: 400, headers }); }
+            catch { return Response.json({ error: 'invalid_json_body' }, { status: 400, headers }); }
             const parsed = managementRequest.safeParse(input);
-            if (!parsed.success) return Response.json({ error: 'Invalid management request' }, { status: 400, headers });
+            if (!parsed.success) return Response.json({ error: 'invalid_management_request' }, { status: 400, headers });
             const body = parsed.data;
             const registry = globalRegistry;
             if (body.action === 'profile') await registry.manageProfile(body.operation, body.name, body.revision, body.newName, body.activate);

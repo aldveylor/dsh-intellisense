@@ -4,6 +4,7 @@ import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots
 import type {} from '@deepseek-ai/dsh-client-ui-session/client';
 import type {} from '@deepseek-ai/dsh-agent-preset-registry';
 import type { SessionProfileState } from './state.js';
+import { messageKey } from '../locale/locale.js';
 import styles from './session_profile.css';
 
 /** @brief Native hero menu selecting the namespace snapshot owned by the current session. */
@@ -53,19 +54,21 @@ export function SessionProfile({ sessionId, useProjection, api, t }: PropsRuntim
         finally { if (current === generation.current) { selecting.current = false; setBusy(false); } }
     }
 
+    const errorKey = error && messageKey(error.message);
+
     if (!state?.enabled && !error) return null;
     return <div className="ts-session-profile">
         <style>{styles}</style>
         {state?.enabled && <Menu open={open} onClose={() => setOpen(false)} align="start" portal className="ts-session-profile-menu"
             items={state.profiles.map(profile => ({ id: profile, label: <span className="ts-session-profile-item">{profile}</span> }))} selectedId={state.profile}
             onSelect={profile => { void select(profile); }} anchor={<button type="button" className="ts-session-profile-trigger"
-                aria-label="Profile" title={t('select_session_profile')} aria-haspopup="menu" aria-expanded={open} disabled={busy}
+                aria-label={t('session_profile_label')} title={t('select_session_profile')} aria-haspopup="menu" aria-expanded={open} disabled={busy}
                 onClick={() => setOpen(value => !value)}>
                 <IconDatabaseOutlineRegular className="ts-session-profile-icon" />
                 <span>{state.profile}</span>
                 <IconChevronDownOutlineRegular className="ts-session-profile-chevron" />
             </button>} />}
-        {error && <Toast key={error.generation} text={`${t('operation_failed')}：${error.message}`} icon={<IconWarningOutlineRegular />}
+        {error && <Toast key={error.generation} text={t('operation_failed_detail', { message: errorKey ? t(errorKey) : error.message })} icon={<IconWarningOutlineRegular />}
             holdMs={6000} onDone={() => setError(undefined)} />}
     </div>;
 }

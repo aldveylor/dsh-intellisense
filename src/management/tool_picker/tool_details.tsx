@@ -82,7 +82,7 @@ export function ToolDetails({ tool, calls, queries = 0 }: { tool: PhysicalTool; 
     return <article className="ts-tool-details">
         <header className="ts-tool-detail-header">
             <div><h3><code>{tool.id}</code></h3><p>{tool.description || t('tool_no_description')}</p></div>
-            {tool.source && <span className="ts-tool-detail-source" aria-label={`${t('tool_source')}: ${tool.source}`}>{tool.source}</span>}
+            {tool.source && <span className="ts-tool-detail-source" aria-label={t('tool_source_detail', { source: tool.source })}>{tool.source}</span>}
         </header>
         <TooltipProvider><SchemaTable label={t('tool_parameters')} schema={tool.parameters} /></TooltipProvider>
         <section className="ts-tool-return">

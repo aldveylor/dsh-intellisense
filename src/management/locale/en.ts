@@ -1,5 +1,18 @@
 /** @brief English interface dictionary. */
 export const en = {
+    "page_loading": "Loading tool management…",
+    "session_profile_label": "Profile",
+    "operation_failed_detail": "Operation failed: {message}",
+    "tool_source_detail": "Source: {source}",
+    "profile_download_name": "Profile",
+    "http_request_failed": "HTTP request failed.",
+    "expected_json": "Expected application/json.",
+    "management_body_too_large": "Body exceeds 1 MiB.",
+    "invalid_json_body": "Invalid JSON body.",
+    "invalid_management_request": "Invalid management request.",
+    "session_unavailable": "Session is not available.",
+    "session_presentation_unavailable": "Session has no Intellisense presentation.",
+    "session_request_too_large": "Request is too large.",
     "original_command": "Original command",
     "command_summary": "Summary",
     "command_no_summary": "None",

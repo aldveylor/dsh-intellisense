@@ -4,7 +4,7 @@
 
 命令固定等级统一为 0（不固定）、1（固定但简略）、2（固定且详细）。Mapping.alwaysVisible 保存等级；builtinVisible、unmountedVisible 为路径或物理 ID 到等级的映射，随 Profile 保存，挂载和移除映射时保留等级。命名空间 alwaysVisible 仍为布尔值。
 
-POST 在事务前校验严格请求结构，畸形 JSON 返回稳定的 Invalid JSON body。GET 的可选 profile 查询参数读取该配置，不切换默认配置；defaultProfile 独立返回全局默认名称。configure 必须携带完整配置且不接受 profile，可通过 editingProfile 指定编辑目标；另存为使用显式 save_as 操作及非空 profile，携带 editingProfile 的保存及另存为保持默认 Profile；activate=false 的另存为可直接持久化本地新增的空白配置而不切换默认配置；profile 管理操作独立校验，创建时 activate=false 仅创建非默认配置。
+POST 在事务前校验严格请求结构，畸形 JSON 返回稳定的翻译键 `invalid_json_body`。GET 的可选 profile 查询参数读取该配置，不切换默认配置；defaultProfile 独立返回全局默认名称。configure 必须携带完整配置且不接受 profile，可通过 editingProfile 指定编辑目标；另存为使用显式 save_as 操作及非空 profile，携带 editingProfile 的保存及另存为保持默认 Profile；activate=false 的另存为可直接持久化本地新增的空白配置而不切换默认配置；profile 管理操作独立校验，创建时 activate=false 仅创建非默认配置。
 
 工具目录的每项附带 outputDeclaration；return_type.ts 复用 DSH jsonSchemaToTs 转换移除 description 后的 output schema 并解码 HTML 实体，直接返回类型表达式，不添加 type 或 interface 声明包装，供 Tooltip 代码块展示。
 

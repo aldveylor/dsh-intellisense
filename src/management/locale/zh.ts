@@ -1,5 +1,18 @@
 /** @brief Chinese interface dictionary. */
 export const zh = {
+    "page_loading": "正在加载工具管理…",
+    "session_profile_label": "配置文件",
+    "operation_failed_detail": "操作失败：{message}",
+    "tool_source_detail": "来源：{source}",
+    "profile_download_name": "配置文件",
+    "http_request_failed": "HTTP 请求失败。",
+    "expected_json": "请求内容类型必须为 application/json。",
+    "management_body_too_large": "请求正文超过 1 MiB。",
+    "invalid_json_body": "JSON 请求正文无效。",
+    "invalid_management_request": "管理请求无效。",
+    "session_unavailable": "会话不可用。",
+    "session_presentation_unavailable": "当前会话未启用 Intellisense 呈现。",
+    "session_request_too_large": "请求过大。",
     "original_command": "原始命令名",
     "command_summary": "简化注释",
     "command_no_summary": "无",

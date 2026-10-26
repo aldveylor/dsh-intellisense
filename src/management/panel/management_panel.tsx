@@ -38,7 +38,7 @@ async function request<T>(api: string, body?: unknown, signal?: AbortSignal): Pr
         ...(body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
     });
     const data = await response.json() as T & { error?: string };
-    if (!response.ok) throw new Error(data.error ?? `HTTP ${response.status}`);
+    if (!response.ok) throw new Error(data.error ?? 'http_request_failed');
     return data;
 }
 
@@ -378,7 +378,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
             const url = URL.createObjectURL(new Blob([JSON.stringify(draft, null, 2) + '\n'], { type: 'application/json' }));
             const link = document.createElement('a');
             link.href = url;
-            const filename = Array.from(view.state.profile ?? 'Profile', char => char.charCodeAt(0) < 32 || '<>:"/\\|?*'.includes(char) ? '_' : char).join('');
+            const filename = Array.from(view.state.profile ?? t('profile_download_name'), char => char.charCodeAt(0) < 32 || '<>:"/\\|?*'.includes(char) ? '_' : char).join('');
             link.download = `${filename}.json`;
             document.body.append(link);
             try { link.click(); }
