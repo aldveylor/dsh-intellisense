@@ -23,7 +23,7 @@ test('SVG actions wait for operation settlement and a full master cycle, includi
             createRoot(document.getElementById('root')).render(<ProfilePicker name="Default" profiles={['Default']} dirty={false} busy={false}
                 refreshDisabled={false} select={() => {}} create={() => {}} rename={() => {}} remove={() => {}}
                 refresh={operation} save={operation} download={operation} upload={operation} />);
-        ` }, bundle: true, platform: 'browser', format: 'iife', jsx: 'automatic', write: false,
+        ` }, bundle: true, platform: 'browser', format: 'iife', jsx: 'automatic', loader: { '.css': 'text' }, write: false,
     });
     const dom = new JSDOM('<div id="root"></div>', { url: 'https://localhost/', runScripts: 'outside-only' });
     Object.defineProperty(dom.window, 'AnimationEvent', { value: dom.window.Event });
