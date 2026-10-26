@@ -30,7 +30,7 @@ export class NamespaceComponent {
     private generatedTools = new WeakSet<ToolDefinition>();
     private positions = new Map<string, Position>();
     private discovered = new Map<string, Set<string>>();
-    private nativeTools = new Map<string, { fingerprint: string; disposers: (() => void)[] }>();
+    private nativeTools = new Map<string, { source: string; names: string[]; fingerprint: string; disposers: (() => void)[] }>();
 
     constructor(private ctx: Context, private registry: SemanticRegistry, readonly profiles: ProfileSessions, private aliases: z.infer<typeof Aliases>, readonly searchEngines = createSearchEngines(), readonly statistics = new CommandStatistics(new MemoryStore())) {
         ctx.effect(() => async () => { await Promise.all([...new Set([...this.nativeTools.keys(), ...this.positions.keys(), ...this.discovered.keys()])].map(id => this.release(id))); await this.profiles.dispose(); });
@@ -155,7 +155,7 @@ export class NamespaceComponent {
     /** @brief Preload data-only Profile metadata before guest execution. */
     async values(agent?: Agent): Promise<Record<string, z.infer<ReturnType<typeof z.json>>>> {
         const registry = agent ? await this.registryFor(agent) : this.registry;
-        const values = { 'tools.profile.annotation': profileAnnotation, 'tools.profile.commands': await this.commandBriefs(agent, registry), 'tools.profile.profiles': await this.profileNames(agent, registry) };
+        const values = { 'tools.profile.annotation': profileAnnotation, 'tools.profile.commands': (await this.commandBriefs(agent, registry)).map(command => ({ ...command })), 'tools.profile.profiles': { ...await this.profileNames(agent, registry) } };
         return Object.fromEntries(Object.entries(values).filter(([path]) => !registry.disabled(path)));
     }
 
@@ -242,15 +242,22 @@ export class NamespaceComponent {
     /** @brief Install scoped namespace aliases while keeping dispatch inside native guards and auditing. */
     async syncNative(agent: Agent, registry?: SemanticRegistry, root?: NamespaceNode): Promise<string[]> {
         registry ??= await this.registryFor(agent);
+        const source = JSON.stringify([registry.generation, [...this.discovered.get(agent.id) ?? []]]);
+        const previous = this.nativeTools.get(agent.id);
+        if (previous?.source === source) return [...previous.names];
         const entries = (root ?? manifest(registry, this.aliases)).commands().filter(entry => entry.deployment === 'tool');
         const visible = new Set(this.nativeEntries(agent, registry, entries));
         const bindings = nativeBindings(entries, registry.tools().map(tool => tool.id)).filter(({ entry }) => visible.has(entry));
         const descriptionFor = (entry: CommandNode): string => registry.description(entry.path, entry.tool) ?? entry.doc.trim().split(/\r?\n/, 1)[0]!;
         const fingerprint = JSON.stringify(bindings.map(({ entry, name }) => ({ name, path: entry.path, node: entry.serialize(), description: descriptionFor(entry) })));
-        const previous = this.nativeTools.get(agent.id);
-        if (previous?.fingerprint === fingerprint) return bindings.map(binding => binding.name);
+        const names = bindings.map(binding => binding.name);
+        if (previous?.fingerprint === fingerprint) {
+            previous.source = source;
+            previous.names = names;
+            return [...names];
+        }
         for (const dispose of previous?.disposers ?? []) dispose();
-        const state = { fingerprint, disposers: [] as (() => void)[] };
+        const state = { source, names, fingerprint, disposers: [] as (() => void)[] };
         this.nativeTools.set(agent.id, state);
         for (const { entry, name } of bindings) {
             if (name === entry.tool) continue;
@@ -271,7 +278,7 @@ export class NamespaceComponent {
             this.generatedTools.add(definition);
             state.disposers.push(agent.ctx.tools.register(definition));
         }
-        return bindings.map(binding => binding.name);
+        return [...names];
     }
 
     /** @brief Dispatch a namespace call through native permission checks and paired child audit records. */

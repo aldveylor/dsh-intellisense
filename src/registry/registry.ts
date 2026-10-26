@@ -44,6 +44,8 @@ interface StoredRegistryState extends RegistryState { inactiveProfiles?: Record<
 /** @brief Transactional semantic registry; unconfigured identities use encoded tools paths. */
 export class SemanticRegistry {
     private physical = new Map<string, PhysicalTool>();
+    private physicalFingerprint = '';
+    private physicalRevision = 0;
     private readonly protectedNodes = createNamespace({ tools: [], includeUnavailable: true });
     private state: StoredRegistryState = { version: 1, revision: 0, mappings: [], profile: 'Default', inactiveProfiles: {} };
     private writeChain: Promise<unknown> = Promise.resolve();
@@ -79,10 +81,17 @@ export class SemanticRegistry {
 
     refresh(tools: PhysicalTool[]): void {
         if (new Set(tools.map(t => t.id)).size !== tools.length) throw new Error('Duplicate physical tool identity');
+        const fingerprint = JSON.stringify(tools);
+        if (fingerprint === this.physicalFingerprint) return;
         const next = new Map(tools.map(t => [t.id, structuredClone(t)]));
+        this.physicalFingerprint = fingerprint;
+        this.physicalRevision++;
         // Identifier escaping preserves physical names without merging distinct identities.
         this.physical = next;
     }
+
+    /** @brief Identify configuration and physical-contract changes without copying either snapshot. */
+    get generation(): string { return `${this.state.revision}:${this.physicalRevision}`; }
 
     snapshot(): RegistryState {
         const { inactiveProfiles, ...current } = this.state;
