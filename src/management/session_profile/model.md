@@ -4,7 +4,7 @@
 
 `routes.ts` 注册 `/api/ts-intellisense-profile`，沿用 Connection 的认证和 Host/Origin 策略。GET 使用 session 查询参数，按当前 Agent 的 presentation 作用域判定 enabled，返回会话当前 Profile 与全局具名目录；POST 接收 `{ profile }`，只加载该会话的独立快照并调用 configurationChanged，刷新原生工具与系统提示词。未启用 presentation 的 preset 不显示菜单且禁止写入；native 与 ptc 均支持。不修改全局默认或其它会话。
 
-preset 投影变化及窗口重新获得焦点时重新读取；切换请求完成前禁用选择，成功后才更新显示。异步代次丢弃旧会话、旧 preset 和旧刷新结果。对话界面所有操作错误（包括 Profile 首次加载、刷新及切换中的网络、响应解析和服务端错误）统一通过宿主 Modal 与 Button 展示，使用本地化标题及确认、关闭按钮，支持 Escape、遮罩关闭与焦点恢复，不显示行内红字。
+preset 投影变化及窗口重新获得焦点时重新读取；切换请求完成前禁用选择，成功后才更新显示。异步代次丢弃旧会话、旧 preset 和旧刷新结果。对话界面所有操作错误（包括 Profile 首次加载、刷新及切换中的网络、响应解析和服务端错误）统一通过宿主 Toast 在视口顶部居中展示，复用警告图标及本地化失败标题，保持 6 秒后自动淡出，不显示行内红字或模态弹窗；每次错误使用请求代次作为展示标识，相同错误再次发生时重新计时。
 
 配置界面“默认配置文件:”选择器修改全局目录默认项；新会话由 ProfileSessions 从当前默认项捕获独立快照，不沿用其它会话在首页选择的配置。
 

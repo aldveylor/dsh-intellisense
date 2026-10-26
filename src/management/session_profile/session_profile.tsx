@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Button, IconChevronDownOutlineRegular, IconDatabaseOutlineRegular, Menu, Modal } from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconChevronDownOutlineRegular, IconDatabaseOutlineRegular, IconWarningOutlineRegular, Menu, Toast } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots';
 import type {} from '@deepseek-ai/dsh-client-ui-session/client';
 import type {} from '@deepseek-ai/dsh-agent-preset-registry';
@@ -12,13 +12,13 @@ export function SessionProfile({ sessionId, useProjection, api, t }: PropsRuntim
     const [state, setState] = useState<SessionProfileState>();
     const [open, setOpen] = useState(false);
     const [busy, setBusy] = useState(false);
-    const [error, setError] = useState('');
+    const [error, setError] = useState<{ message: string; generation: number }>();
     const generation = useRef(0);
     const selecting = useRef(false);
 
     useEffect(() => {
         let active = true;
-        setState(undefined); setOpen(false); setError(''); setBusy(false); selecting.current = false;
+        setState(undefined); setOpen(false); setError(undefined); setBusy(false); selecting.current = false;
         /** @brief Refresh after preset changes and when returning from profile management. */
         async function refresh(): Promise<void> {
             if (selecting.current) return;
@@ -28,8 +28,8 @@ export function SessionProfile({ sessionId, useProjection, api, t }: PropsRuntim
                 const response = await fetch(url);
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.error);
-                if (active && current === generation.current) { setState(result); setError(''); }
-            } catch (error) { if (active && current === generation.current) setError(String(error)); }
+                if (active && current === generation.current) { setState(result); setError(undefined); }
+            } catch (error) { if (active && current === generation.current) setError({ message: error instanceof Error ? error.message : String(error), generation: current }); }
         }
         void refresh();
         window.addEventListener('focus', refresh);
@@ -41,7 +41,7 @@ export function SessionProfile({ sessionId, useProjection, api, t }: PropsRuntim
         if (selecting.current) return;
         setOpen(false);
         if (profile === state?.profile) return;
-        selecting.current = true; setBusy(true); setError('');
+        selecting.current = true; setBusy(true); setError(undefined);
         const current = ++generation.current;
         try {
             const url = new URL(api); url.searchParams.set('session', sessionId);
@@ -49,7 +49,7 @@ export function SessionProfile({ sessionId, useProjection, api, t }: PropsRuntim
             const result = await response.json();
             if (!response.ok) throw new Error(result.error);
             if (current === generation.current) setState(result);
-        } catch (error) { if (current === generation.current) setError(String(error)); }
+        } catch (error) { if (current === generation.current) setError({ message: error instanceof Error ? error.message : String(error), generation: current }); }
         finally { if (current === generation.current) { selecting.current = false; setBusy(false); } }
     }
 
@@ -65,7 +65,7 @@ export function SessionProfile({ sessionId, useProjection, api, t }: PropsRuntim
                 <span>{state.profile}</span>
                 <IconChevronDownOutlineRegular className="ts-session-profile-chevron" />
             </button>} />}
-        <Modal open={!!error} onClose={() => setError('')} title={t('operation_failed')} closeLabel={t('close')}
-            description={error} footer={<Button data-modal-autofocus onClick={() => setError('')}>{t('confirm')}</Button>} />
+        {error && <Toast key={error.generation} text={`${t('operation_failed')}：${error.message}`} icon={<IconWarningOutlineRegular />}
+            holdMs={6000} onDone={() => setError(undefined)} />}
     </div>;
 }
