@@ -37,18 +37,10 @@ export class ProfileSessions {
         return registry;
     }
 
-    /** @brief Load a visible catalog entry by detaching only this session's smart reference. */
+    /** @brief Replace this session's working configuration with an independent catalog snapshot. */
     async load(session: string, profile: string): Promise<SemanticRegistry> {
         const registry = await this.forSession(session);
         await registry.replaceConfiguration(this.catalog.configuration(profile), profile);
-        return registry;
-    }
-
-    /** @brief Publish the current working version under an explicit name, allowing replacement. */
-    async commit(session: string, profile: string): Promise<SemanticRegistry> {
-        const registry = await this.forSession(session);
-        await this.catalog.saveProfile(profile, registry.configuration());
-        await registry.replaceConfiguration(registry.configuration(), profile);
         return registry;
     }
 
