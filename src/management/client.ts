@@ -9,7 +9,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-workspace/client';
 import type { ISessions, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client';
 import { NativePanel } from './locale/native_panel.js';
 import { zh } from './locale/zh.js';
-import { enUs } from './locale/en_us.js';
+import { en } from './locale/en.js';
 import type { LocaleKey } from './locale/locale.js';
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -23,7 +23,7 @@ export const inject = ['slots', 'locale', 'sessions', 'uiWorkspace', 'conversati
 
 /** @brief Register global namespace configuration in the native Plugins page. */
 export function apply(ctx: Context): void {
-    ctx.effect(() => ctx.locale.register('ts_intellisense', { zh, en: enUs }));
+    ctx.effect(() => ctx.locale.register('ts_intellisense', { zh, en }));
     ctx.slots.inject('conversation.hero.options', () => ctx.slots.register({
         name: 'conversation.hero.options', id: 'intellisense-profile', order: -100, locale: 'ts_intellisense',
         inject: () => ({ api: new URL('api/ts-intellisense-profile', document.baseURI).href }),

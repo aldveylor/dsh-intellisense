@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react';
 import { zh } from './zh.js';
-import { enUs } from './en_us.js';
+import { en } from './en.js';
 
 /** @brief Dictionary keys owned by this plugin. */
 export type LocaleKey = keyof typeof zh;
@@ -24,7 +24,7 @@ export function messageKey(key: string): LocaleKey | undefined {
 
 /** @brief Standalone translator also recognizes errors from namespace operations. */
 export function translate(language: string): Translate {
-    const dictionary = language.toLowerCase().split('-')[0] === 'zh' ? zh : enUs;
+    const dictionary = language.toLowerCase().split('-')[0] === 'zh' ? zh : en;
     return (key, values) => {
         const known = messageKey(key);
         const text = known ? dictionary[known] : key;

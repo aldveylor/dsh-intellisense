@@ -1,5 +1,5 @@
-/** @brief American English interface dictionary. */
-export const enUs = {
+/** @brief English interface dictionary. */
+export const en = {
     "original_command": "Original command",
     "command_summary": "Summary",
     "command_no_summary": "None",
