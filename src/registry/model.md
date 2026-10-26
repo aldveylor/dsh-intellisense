@@ -28,3 +28,5 @@ CommandBrief 与 profileAnnotation 中共享同一数据定义：name 为原始�
 
 
 Profile 仅包含 name 与 root；permissions 是唯一节点编辑限制说明，由服务端节点权限生成，输入不能覆盖服务端权限。annotation 与 JSON Schema 明确 console/tools 的完整保护子树不能改名、移动或删除；禁用与固定等级仅按权限调整。
+
+Profile 导入的重复成员错误包含完整 root 路径、同一父节点中双方 children 数组索引和物理工具来源。受保护节点按保留的相对子路径及物理命令身份识别改名和移动，分别报告 renamable/movable；删除错误明确 removable=false 与内置子树必需保留原因。console.info 与根级 info/log 名称空间互不冲突，重复只针对同级同名成员。

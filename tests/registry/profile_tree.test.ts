@@ -39,3 +39,41 @@ test('Profile schema rejects invalid nodes and configuration rejects missing or 
     replaced.root.children!.find(node => node.name === 'tools')!.children!.find(node => node.name === 'intellisense')!.command!.tool = 'read';
     assert.throws(() => profileConfiguration(replaced, current, []), /Protected command cannot be replaced/);
 });
+
+
+test('duplicate diagnostics identify the complete path and both submitted sources', () => {
+    const { current, profile, commands } = fixture();
+    const files = profile.root.children!.find(node => node.name === 'files')!;
+    files.children!.push({ ...structuredClone(files.children![0]!), command: { ...files.children![0]!.command!, tool: 'write' } });
+    assert.throws(() => profileConfiguration(profile, current, commands), /Duplicate namespace member: root.files.read; root.files.children\[0\] \(read\) conflicts with root.files.children\[3\] \(write\)/);
+});
+
+test('protected diagnostics distinguish rename, move and removal while rejecting forged permissions', () => {
+    const { current, profile, commands } = fixture();
+    for (const name of ['console', 'tools']) {
+        const renamed = structuredClone(profile);
+        renamed.root.children!.find(node => node.name === name)!.name = 'term';
+        assert.throws(() => profileConfiguration(renamed, current, commands), new RegExp(`Node cannot be renamed: ${name} -> term.*permissions.renamable=false`));
+        const moved = structuredClone(profile);
+        const original = moved.root.children!.find(node => node.name === name)!;
+        moved.root.children = moved.root.children!.filter(node => node.name !== name);
+        moved.root.children.push({ type: 'tree', name: 'nested', permissions: profile.root.permissions, children: [original] });
+        assert.throws(() => profileConfiguration(moved, current, commands), new RegExp(`Node cannot be moved: ${name} -> nested.${name}.*permissions.movable=false`));
+        const removed = structuredClone(profile);
+        removed.root.children = removed.root.children!.filter(node => node.name !== name);
+        removed.root.permissions.removable = true;
+        assert.throws(() => profileConfiguration(removed, current, commands), new RegExp(`Node cannot be removed: ${name}.*permissions.removable=false`));
+    }
+    const renamedLeaf = structuredClone(profile);
+    renamedLeaf.root.children!.find(node => node.name === 'console')!.children!.find(node => node.name === 'info')!.name = 'detail';
+    assert.throws(() => profileConfiguration(renamedLeaf, current, commands), /Node cannot be renamed: console.info -> console.detail/);
+});
+
+test('root info and log namespaces coexist with the protected console methods', () => {
+    const { current, profile, commands } = fixture();
+    for (const name of ['info', 'log']) profile.root.children!.push({ type: 'tree', name, permissions: profile.root.permissions, children: [] });
+    const configuration = profileConfiguration(profile, current, commands);
+    assert(configuration.namespaces.some(node => node.path === 'info'));
+    assert(configuration.namespaces.some(node => node.path === 'log'));
+    assert(profileTree('Work', configuration).root.children!.some(node => node.name === 'console'));
+});

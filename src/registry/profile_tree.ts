@@ -72,6 +72,29 @@ export function profileTree(name: string, configuration: RegistryConfiguration):
 export function profileConfiguration(profile: Profile, current: RegistryConfiguration, commands: readonly CommandBrief[]): RegistryConfiguration {
     const protectedRoot = createNamespace({ tools: [], includeUnavailable: true });
     const configuration: RegistryConfiguration = { ...current, mappings: [], namespaces: [], order: [], toolComments: {}, builtinVisible: {}, builtinDisabled: [], namespaceVisible: {} };
+    const submitted: { node: SerializedNode; path: string }[] = [];
+    /** @brief Index submitted nodes and report both locations for repeated direct member names. */
+    const collect = (node: SerializedNode, path: string): void => {
+        submitted.push({ node, path });
+        const names = new Map<string, number>();
+        for (const [index, child] of (node.children ?? []).entries()) {
+            const prior = names.get(child.name);
+            const parent = path ? `root.${path}` : 'root';
+            if (prior !== undefined) {
+                const first = node.children![prior]!;
+                throw new Error(`Duplicate namespace member: ${parent}.${child.name}; ${parent}.children[${prior}] (${first.command?.tool ?? first.type}) conflicts with ${parent}.children[${index}] (${child.command?.tool ?? child.type})`);
+            }
+            names.set(child.name, index);
+            collect(child, path ? `${path}.${child.name}` : child.name);
+        }
+    };
+    /** @brief Identify a protected node by physical commands retained at relative child paths, ignoring editable metadata. */
+    const sameIdentity = (node: SerializedNode, expected: NamespaceNode | CommandNode): boolean => {
+        if (expected instanceof CommandNode) return node.type === 'leaf' && node.command?.tool === expected.tool;
+        return node.type === 'tree' && [...expected.children.values()].some(child =>
+            (node.children ?? []).some(candidate => candidate.name === child.name && sameIdentity(candidate, child)));
+    };
+    collect(profile.root, '');
     const visit = (node: SerializedNode, path: string, expected?: NamespaceNode | CommandNode): void => {
         if (node.disabled && expected && !expected.permissions.disableable) throw new Error(`Node cannot be disabled: ${path}`);
         if (node.type === 'leaf') {
@@ -91,9 +114,16 @@ export function profileConfiguration(profile: Profile, current: RegistryConfigur
         }
         if (node.command || expected instanceof CommandNode) throw new Error(`Invalid namespace node: ${path}`);
         const children = node.children ?? [];
-        if (new Set(children.map(child => child.name)).size !== children.length) throw new Error(`Duplicate namespace member: ${path}`);
         if (expected instanceof NamespaceNode) {
-            for (const child of expected.children.values()) if (!children.some(item => item.name === child.name) && !child.permissions.removable) throw new Error(`Node cannot be removed: ${child.path}`);
+            for (const child of expected.children.values()) {
+                if (children.some(item => item.name === child.name) || child.permissions.removable) continue;
+                const relocated = submitted.find(item => item.path && sameIdentity(item.node, child));
+                if (relocated) {
+                    if (relocated.node.name !== child.name && !child.permissions.renamable) throw new Error(`Node cannot be renamed: ${child.path} -> ${relocated.path} (root.${child.path} -> root.${relocated.path}; permissions.renamable=false; protected builtin node)`);
+                    if (!child.permissions.movable) throw new Error(`Node cannot be moved: ${child.path} -> ${relocated.path} (root.${child.path} -> root.${relocated.path}; permissions.movable=false; preserve the protected builtin path)`);
+                }
+                throw new Error(`Node cannot be removed: ${child.path} (root.${child.path}; permissions.removable=false; required protected builtin node; preserve the complete console and tools subtrees)`);
+            }
             if (path) {
                 configuration.namespaceVisible![path] = !!fixLevel(expected.permissions, node.fixedLevel);
                 if (node.disabled) configuration.builtinDisabled!.push(path);
