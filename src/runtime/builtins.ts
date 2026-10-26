@@ -48,7 +48,7 @@ export class PluginCommands {
     ];
 
     /** @brief Fixed discovery command available in both native and PTC modes. */
-    readonly discoveryCommand: BuiltinTool = { tool: 'tools_intellisense', rest: 'queries', path: 'tools.intellisense', signature: '(...args: string[]) => Promise<string>', description: 'Query namespace members and complete TypeScript tool signatures.' };
+    readonly discoveryCommand: BuiltinTool = { tool: 'tools_intellisense', rest: 'queries', path: 'tools.intellisense', signature: '(...args: string[]) => Promise<string>', description: 'Query namespace members and complete TypeScript tool signatures, e.g. tools.intellisense("", "tools.").' };
 
     /** @brief Optional-ranked command search, unpinned by default and independently disableable. */
     readonly searchCommand: BuiltinTool = {
