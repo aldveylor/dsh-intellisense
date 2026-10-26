@@ -1,6 +1,6 @@
 import type MiniSearch from 'minisearch';
 import type { ManifestEntry } from '../namespace/namespace.js';
-import { nativeSchema, normalizeIntellisenseQueries } from '../namespace/namespace.js';
+import { normalizeIntellisenseQueries } from '../namespace/namespace.js';
 import { SearchEngineRegistry, type SearchEngine, type SearchField, type SearchSelector } from './engine_registry.js';
 
 /** @brief Load optional BM25 support; missing installations retain substring matching. */
@@ -77,7 +77,7 @@ export async function searchEntries(entries: readonly ManifestEntry[], options: 
     if (!engine) throw new Error(`Unknown search method: ${method}`);
     const documents = entries.filter(entry => !namespace || entry.path.startsWith(namespace + '.')).map(entry => ({
         id: entry.path, name: entry.path, description: entry.doc,
-        parameters: JSON.stringify(nativeSchema(entry)),
+        parameters: JSON.stringify(entry.schema),
     }));
     if (!keywords.length || !limit || !documents.length) return [];
     const allowed = new Set(documents.map(document => document.id));

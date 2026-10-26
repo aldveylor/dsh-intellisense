@@ -20,8 +20,8 @@ export interface Profile { name: string; root: NamespaceTreeNode }
 function profileNode(node: SerializedNode): ProfileTreeNode {
     const common = { name: node.name, permissions: node.permissions, fixedLevel: node.fixedLevel, disabled: node.disabled };
     if (node.type === 'leaf') {
-        const { tool, argMap, doc } = node.command!;
-        return { ...common, type: 'command', command: { tool, argMap, doc } };
+        const { tool, doc } = node.command!;
+        return { ...common, type: 'command', command: { tool, doc } };
     }
     return { ...common, type: 'namespace', fixedLevel: node.fixedLevel === 2 ? 1 : node.fixedLevel, description: node.description, children: (node.children ?? []).map(profileNode) };
 }
@@ -55,7 +55,7 @@ const nodeSchema: z.ZodType<ProfileTreeNode> = z.lazy(() => z.union([
     namespaceSchema,
     z.strictObject({
         ...nodeProperties, type: z.literal('command'),
-        command: z.strictObject({ tool: z.string().describe('Exact physical name from tools.profile.commands, including unmounted commands; do not use a namespace path.'), argMap: z.record(z.string(), z.string()).optional(), doc: z.string().optional().describe('One-sentence summary of the command functionality; cannot modify the original command documentation or schema.') }),
+        command: z.strictObject({ tool: z.string().describe('Exact physical name from tools.profile.commands, including unmounted commands; do not use a namespace path.'), doc: z.string().optional().describe('One-sentence summary of the command functionality; cannot modify the original command documentation or schema.') }),
     }),
 ]));
 
@@ -190,7 +190,7 @@ interface ProfileNode {
 interface CommandNode extends ProfileNode {
     type: 'command'; fixedLevel?: 0 | 1 | 2;
     command: {
-        tool: string; argMap?: Record<string, string>;
+        tool: string;
         /** @brief One-sentence summary of the command functionality; cannot modify the original tool's documentation or schema. */
         doc?: string;
     };

@@ -14,7 +14,7 @@ export interface CommandNode extends ProfileNode {
     type: 'command';
     fixedLevel?: 0 | 1 | 2;
     command: {
-        tool: string; argMap?: Record<string, string>;
+        tool: string;
         /** @brief One-sentence summary of the command functionality; cannot modify the original command documentation or schema. */
         doc?: string;
     };

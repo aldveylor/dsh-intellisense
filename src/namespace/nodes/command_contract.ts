@@ -4,38 +4,22 @@ import { jsonSchemaToTs, validateJsonSchemaValue, type JsonSchemaNode } from '@d
 import type { ManifestEntry } from '../namespace.js';
 
 /** @brief One positional parameter projected from a native object contract. */
-interface Parameter { name: string; native: string; schema: JsonSchemaNode; required: boolean }
+interface Parameter { name: string; schema: JsonSchemaNode; required: boolean }
 
 /** @brief Expand named fields in stable required-first order; keep unconstrained objects as one argument. */
 export function parameters(entry: ManifestEntry): Parameter[] | undefined {
     if (entry.schema.type !== 'object' || entry.schema.oneOf) return;
     const fields = Object.entries(entry.schema.properties as Record<string, JsonSchemaNode> ?? {});
     if (!fields.length && entry.schema.additionalProperties !== false) return;
-    const names = new Map(Object.entries(entry.argMap ?? {}).map(([source, native]) => [native, source]));
-    return fields.map(([native, schema]) => ({ name: names.get(native) ?? native, native, schema, required: (entry.schema.required as string[] | undefined)?.includes(native) ?? false }))
+    return fields.map(([name, schema]) => ({ name, schema, required: (entry.schema.required as string[] | undefined)?.includes(name) ?? false }))
         .sort((a, b) => Number(b.required) - Number(a.required));
 }
 
-/** @brief Validate named DSML arguments after translating configured alias field names. */
+/** @brief Validate named DSML arguments against the physical tool contract. */
 export function nativeArgumentsFor(entry: ManifestEntry, input: unknown): unknown {
-    let args = input;
-    if (entry.argMap && args && typeof args === 'object' && !Array.isArray(args)) {
-        const pairs = Object.entries(args).map(([key, value]) => [entry.argMap![key] ?? key, value]);
-        args = Object.fromEntries(pairs);
-        if (Object.keys(args as object).length !== pairs.length) throw new Error('Argument mapping contains a duplicate target');
-    }
-    const errors = validateJsonSchemaValue(entry.schema as JsonSchemaNode, args);
+    const errors = validateJsonSchemaValue(entry.schema as JsonSchemaNode, input);
     if (errors.length) throw new Error(`Invalid arguments: ${errors.join('; ')}`);
-    return args;
-}
-
-/** @brief Project native object schemas onto configured DSML argument names. */
-export function nativeSchema(entry: ManifestEntry): Record<string, unknown> {
-    const names = new Map(Object.entries(entry.argMap ?? {}).map(([alias, native]) => [native, alias]));
-    const schema = structuredClone(entry.schema);
-    if (schema.properties && typeof schema.properties === 'object') schema.properties = Object.fromEntries(Object.entries(schema.properties).map(([key, value]) => [names.get(key) ?? key, value]));
-    if (Array.isArray(schema.required)) schema.required = schema.required.map(key => names.get(key) ?? key);
-    return schema;
+    return input;
 }
 
 /** @brief Select only unambiguous single-property object results for scalar projection. */

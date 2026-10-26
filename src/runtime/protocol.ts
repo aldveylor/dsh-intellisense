@@ -12,7 +12,7 @@ export const CommandBinding = z.strictObject({
         z.strictObject({ kind: z.literal('fields'), fields: z.array(z.string()) }),
         z.strictObject({ kind: z.literal('rest'), field: z.string() }),
         z.strictObject({ kind: z.literal('overloads'), layouts: z.array(z.array(z.string())) }),
-        z.strictObject({ kind: z.literal('object'), aliases: z.record(z.string(), z.string()) }),
+        z.strictObject({ kind: z.literal('object') }),
     ]),
     result: z.discriminatedUnion('kind', [
         z.strictObject({ kind: z.literal('identity') }),

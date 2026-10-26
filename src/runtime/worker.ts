@@ -118,12 +118,7 @@ function initialize(commands: CommandBinding[], values: Record<string, unknown>)
                     case 'object':
                         this.arguments=args=>{
                             if(args.length>1)throw new Error('Too many arguments');
-                            const input=args[0]===undefined?{}:args[0];
-                            if(!input||typeof input!=='object'||Array.isArray(input))return input;
-                            const pairs=Object.entries(input).map(([key,value])=>[Object.hasOwn(parameters.aliases,key)?parameters.aliases[key]:key,value]);
-                            const output=Object.fromEntries(pairs);
-                            if(Object.keys(output).length!==pairs.length)throw new Error('Argument mapping contains a duplicate target');
-                            return output;
+                            return args[0]===undefined?{}:args[0];
                         };
                 }
                 const result=binding.result;

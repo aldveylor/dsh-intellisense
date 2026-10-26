@@ -4,7 +4,7 @@ import { ToolsNamespaceNode } from './nodes/tools_namespace_node.js';
 import { ConsoleNamespaceNode } from './nodes/console_namespace_node.js';
 import type { NamespaceContext } from './nodes/context.js';
 import { commandDeclaration } from './nodes/command_contract.js';
-export { nativeArgumentsFor, nativeSchema, resultFor } from './nodes/command_contract.js';
+export { nativeArgumentsFor, resultFor } from './nodes/command_contract.js';
 export { NamespaceNode } from './nodes/node.js';
 export { CommandNode } from './nodes/command_node.js';
 export { InnerNamespaceNode } from './nodes/inner_namespace_node.js';
@@ -22,7 +22,7 @@ import { z } from 'zod';
 import { pluginCommands, reservedToolIds } from '../runtime/builtins.js';
 import type { SemanticRegistry } from '../registry/registry.js';
 
-/** @brief YAML aliases reference physical tools and rename argument fields without reimplementing tools. */
+/** @brief YAML aliases mount physical tools at additional namespace paths. */
 export const Aliases = z.array(z.strictObject({ path: z.string().regex(/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+$/), tool: z.string().min(1), argMap: z.record(z.string(), z.string()).optional() })).superRefine((aliases, context) => {
     const names = new Set<string>();
     for (const [index, alias] of aliases.entries()) {

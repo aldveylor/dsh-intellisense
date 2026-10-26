@@ -1,5 +1,5 @@
 /** @brief Public callable contract shared by executable and management nodes. */
-export interface CommandContract { tool: string; argMap?: Record<string, string>; schema: Record<string, unknown>; output?: unknown; doc: string }
+export interface CommandContract { tool: string; schema: Record<string, unknown>; output?: unknown; doc: string }
 
 /** @brief Discriminator for executable namespace nodes. */
 export type NodeType = 'leaf' | 'tree';

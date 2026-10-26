@@ -9,7 +9,7 @@ import type { ScopeKey } from '@deepseek-ai/dsh-scope';
 import '@deepseek-ai/dsh-agent-preset-registry';
 import type { PhysicalTool, SemanticRegistry } from '../registry/registry.js';
 import type { ProfileSessions } from '../registry/profiles.js';
-import { declaration, manifest, nativeSchema, type Aliases, NamespaceNode, type CommandNode } from './namespace.js';
+import { declaration, manifest, type Aliases, NamespaceNode, type CommandNode } from './namespace.js';
 import { namespaceDirectory, type NamespaceHint } from './prompt.js';
 import { pluginCommands, reservedToolIds } from '../runtime/builtins.js';
 import { type CommandBrief, type Profiles, profileAnnotation } from '../registry/profile_tree.js';
@@ -238,9 +238,9 @@ export class NamespaceComponent {
         const state = { fingerprint, disposers: [] as (() => void)[] };
         this.nativeTools.set(agent.id, state);
         for (const { entry, name } of bindings) {
-            if (name === entry.tool && !entry.argMap) continue;
+            if (name === entry.tool) continue;
             const definition: ToolDefinition = {
-                name, description: `${entry.path}: ${descriptionFor(entry)}`, parameters: nativeSchema(entry),
+                name, description: `${entry.path}: ${descriptionFor(entry)}`, parameters: entry.schema,
                 output: { schema: entry.tool === 'tools_intellisense' ? entry.output ?? {} : {}, render: (_args, value) => [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value) }] },
                 execute: async (args, parent) => {
                     const caller = parent.agent;

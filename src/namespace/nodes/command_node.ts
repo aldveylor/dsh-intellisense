@@ -9,14 +9,13 @@ import { parameters, resultField, nativeArgumentsFor, resultFor, commandDeclarat
 export class CommandNode implements Node, ManifestEntry {
     readonly type: NodeType = 'leaf';
     readonly tool: string;
-    readonly argMap?: Record<string, string>;
+    readonly
     readonly schema: Record<string, unknown>;
     readonly output: unknown;
     readonly doc: string;
 
     constructor(readonly name: string, readonly parent: NamespaceNode, entry: Omit<ManifestEntry, 'path'>, readonly permissions: Permission = nodePermissions('leaf')) {
         this.tool = entry.tool;
-        this.argMap = entry.argMap;
         this.schema = entry.schema;
         this.output = entry.output;
         this.doc = entry.doc;
@@ -37,7 +36,7 @@ export class CommandNode implements Node, ManifestEntry {
 
     serialize(): SerializedNode {
         return structuredClone({ type: this.type, name: this.name, permissions: this.permissions, description: this.doc,
-            deployment: this.deployment, preload: this.preload, command: { tool: this.tool, argMap: this.argMap, schema: this.schema, output: this.output, doc: this.doc } });
+            deployment: this.deployment, preload: this.preload, command: { tool: this.tool, schema: this.schema, output: this.output, doc: this.doc } });
     }
 
     /** @brief Keep serialized commands independent of their parent graph. */
@@ -51,11 +50,11 @@ export class CommandNode implements Node, ManifestEntry {
         const fields = parameters(this);
         const result = resultField(this);
         return { path: this.path, tool: this.tool,
-            parameters: fields ? { kind: 'fields', fields: fields.map(field => field.native) } : { kind: 'object', aliases: { ...this.argMap } },
+            parameters: fields ? { kind: 'fields', fields: fields.map(field => field.name) } : { kind: 'object' },
             result: result ? { kind: 'field', field: result[0] } : { kind: 'identity' } };
     }
 
-    /** @brief Translate named alias arguments into the native schema. */
+    /** @brief Validate named arguments against the native schema. */
     nativeArguments(input: unknown): unknown { return nativeArgumentsFor(this, input); }
 
     /** @brief Project a native result into the public namespace return value. */
