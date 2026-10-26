@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Menu } from '@deepseek-ai/dsh-client-ui-primitives';
-import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots';
+import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots';
 import type {} from '@deepseek-ai/dsh-client-ui-session/client';
 import type {} from '@deepseek-ai/dsh-agent-preset-registry';
 import type { SessionProfileState } from './state.js';
 import styles from './session_profile.css';
 
 /** @brief Native hero menu selecting the namespace snapshot owned by the current session. */
-export function SessionProfile({ sessionId, useProjection, api }: PropsRuntime<'conversation.hero.options'> & { api: string }) {
+export function SessionProfile({ sessionId, useProjection, api, t }: PropsRuntime<'conversation.hero.options'> & PropsLocale<'ts_intellisense'> & { api: string }) {
     const preset = useProjection('agentPreset');
     const [state, setState] = useState<SessionProfileState>();
     const [open, setOpen] = useState(false);
@@ -59,10 +59,10 @@ export function SessionProfile({ sessionId, useProjection, api }: PropsRuntime<'
         {state?.enabled && <Menu open={open} onClose={() => setOpen(false)} align="start" portal
             items={state.profiles.map(profile => ({ id: profile, label: profile }))} selectedId={state.profile}
             onSelect={profile => { void select(profile); }} anchor={<button type="button" className="ts-session-profile-trigger"
-                aria-label="Profile" aria-haspopup="menu" aria-expanded={open} disabled={busy}
+                aria-label="Profile" title={t('select_session_profile')} aria-haspopup="menu" aria-expanded={open} disabled={busy}
                 onClick={() => setOpen(value => !value)}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v7c0 4 16 4 16 0V5M4 12v7c0 4 16 4 16 0v-7" /></svg>
-                <span>Profile: {state.profile}</span>
+                <span>{state.profile}</span>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
             </button>} />}
         {error && <span className="ts-session-profile-error" role="alert">{error}</span>}

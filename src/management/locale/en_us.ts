@@ -83,6 +83,8 @@ export const enUs = {
     "apply": "Apply",
     "reset": "Reset",
     "cancel": "Cancel",
+    "default_profile": "Default profile:",
+    "select_session_profile": "Select to set the Intellisense profile",
     "profile": "Profile:",
     "create_profile": "Create profile",
     "rename_profile": "Rename profile",

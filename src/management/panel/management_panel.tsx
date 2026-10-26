@@ -512,9 +512,9 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
             ? <p role="status" aria-live="polite">{t(status)}</p>
             : <ErrorDialog message={t(status)} close={() => setStatus('')} />)}
         <div className="ts-toolbar"><div className="ts-actions">
-            <div className="ts-default-profile"><span>{t('profile')}</span>
+            <div className="ts-default-profile"><span>{t('default_profile')}</span>
                 <Select value={view?.defaultProfile ?? 'Default'} options={(view?.state.profiles ?? ['Default']).map(name => ({ value: name, label: name }))}
-                    disabled={busy || !view} readOnly allowCreate={false} onChange={selectDefault}
+                    disabled={busy || !view} label={t('default_profile')} readOnly allowCreate={false} onChange={selectDefault}
                     onCreate={createProfile} onRename={(name, newName) => manageProfile('rename', name, newName)} onRemove={name => manageProfile('delete', name)} />
             </div>
             <button className="ts-organize" disabled={busy || !organize} onClick={() => void action('organizing', async () => {

@@ -54,3 +54,16 @@ test('profile selector hides for other presets and refuses invalid session or pr
     assert.equal((await profiles.forSession('native')).snapshot().profile, 'Default');
     assert.deepEqual(changed, []);
 });
+
+test('new conversations capture the configured default rather than the previous conversation selection', async () => {
+    const { catalog, profiles, request } = await fixture();
+    await request('native', { profile: 'Files' });
+    assert.equal((await profiles.forSession('new_before_default_change')).snapshot().profile, 'Default');
+    await catalog.manageProfile('select', 'Files', catalog.snapshot().revision);
+    await request('ptc', { profile: 'Default' });
+    const created = await profiles.forSession('new_after_default_change');
+    assert.equal(created.snapshot().profile, 'Files');
+    assert.equal(created.configuration().namespaces[0]?.path, 'files');
+    assert.equal((await profiles.forSession('ptc')).snapshot().profile, 'Default');
+    assert.equal((await profiles.forSession('new_before_default_change')).snapshot().profile, 'Default');
+});

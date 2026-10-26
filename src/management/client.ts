@@ -25,7 +25,7 @@ export const inject = ['slots', 'locale', 'sessions', 'uiWorkspace', 'conversati
 export function apply(ctx: Context): void {
     ctx.effect(() => ctx.locale.register('ts_intellisense', { zh, en: enUs }));
     ctx.slots.inject('conversation.hero.options', () => ctx.slots.register({
-        name: 'conversation.hero.options', id: 'intellisense-profile', order: -100,
+        name: 'conversation.hero.options', id: 'intellisense-profile', order: -100, locale: 'ts_intellisense',
         inject: () => ({ api: new URL('api/ts-intellisense-profile', document.baseURI).href }),
     }, SessionProfile));
     ctx.slots.inject('plugins.bundle.config', () => ctx.slots.register({

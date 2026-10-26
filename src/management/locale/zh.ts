@@ -83,6 +83,8 @@ export const zh = {
     "apply": "应用",
     "reset": "重置",
     "cancel": "取消",
+    "default_profile": "默认配置文件:",
+    "select_session_profile": "选择以设置Intellisense配置文件",
     "profile": "配置文件:",
     "create_profile": "新建 Profile",
     "rename_profile": "重命名 Profile",
