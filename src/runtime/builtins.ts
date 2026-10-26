@@ -44,7 +44,7 @@ export class PluginCommands {
     readonly profileValues: readonly BuiltinTool[] = [
         { tool: 'tools_profile_profiles', preload: true, path: 'tools.profile.profiles', signature: 'Profiles', description: 'Available Profile names and the currently selected conversation Profile. Updated after tool calls.' },
         { tool: 'tools_profile_annotation', preload: true, path: 'tools.profile.annotation', signature: 'string', description: 'English TypeScript declarations for the Profile data model.' },
-        { tool: 'tools_profile_commands', preload: true, path: 'tools.profile.commands', signature: 'CommandBrief[]', description: 'All catalog commands excluding plugin builtins, with physical names, summaries, mount paths in this conversation Profile (including disabled paths; empty when unmounted), and total calls across all sessions.' },
+        { tool: 'tools_profile_commands', preload: true, path: 'tools.profile.commands', signature: 'CommandBrief[]', description: 'All catalog commands excluding plugin builtins, with physical names, summaries, mount paths in this conversation Profile (including disabled paths; empty when unmounted), and total calls across all sessions. tools.intellisense cannot retrieve information by physical command name; query an enabled mount path available in the current conversation instead.' },
     ];
 
     /** @brief Fixed discovery command available in both native and PTC modes. */
