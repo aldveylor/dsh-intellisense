@@ -35,7 +35,7 @@ export class NamespaceRuntime extends Service {
         ctx.on('agent/disposed', async ({ agent }) => { await this.runtime.release(agent.id); });
         ctx.tools.register(defineTool({
             name: ptcToolName,
-            description: 'Execute an async TypeScript/JavaScript function body with namespace commands such as std.cwd() and tools.intellisense("std."). Pass query strings as separate arguments; tools.intellisense("") queries root namespace members. Use await and explicit return. Each execution starts in a fresh isolated context; globalThis is unavailable.',
+            description: 'Execute an async TypeScript/JavaScript function body with namespace commands such as std.cwd() and tools.intellisense("std."). Pass query strings as separate arguments; tools.intellisense("") queries root namespace members. Use await and explicit return. You may attach variables to globalThis to share state between executions within this conversation. The VM may restart and lose all attached state; continuity is not guaranteed. Function-local declarations do not persist between executions.',
             parameters: {
                 code: { type: 'string', required: true, description: 'The async function body to execute.' },
                 description: { type: 'string', required: true, description: 'A concise description of the program.' },

@@ -1,6 +1,6 @@
 # 进程运行时模型
 
-`host.ts` 提供插件自有的 `codeRuntime` 服务实现 `RuntimeHost`。每个 session 独立进程、串行执行；每次 init 创建新的 node:vm Context，不保证环境连续；不提供 vm 命名空间及重启命令。运行时状态只驻留内存，不从会话日志重放副作用或恢复闭包。每次调用由宿主 TypeScript transpileModule 编译为新的严格 async 函数体，支持 await 与显式 return；函数内普通声明不跨调用保留，globalThis 不向执行代码开放，不支持跨调用声明状态。
+`host.ts` 提供插件自有的 `codeRuntime` 服务实现 `RuntimeHost`。每个 session 独立进程、串行执行；同一进程复用 node:vm Context，每次 init 刷新命令与预加载值，不保证环境连续；不提供 vm 命名空间及重启命令。运行时状态只驻留内存，不从会话日志重放副作用或恢复闭包。每次调用由宿主 TypeScript transpileModule 编译为新的严格 async 函数体，支持 await 与显式 return；函数内普通声明不跨调用保留，允许通过 globalThis 挂载变量、对象和闭包以在同一对话的多次调用间共享状态；不同对话相互隔离，VM 重启后状态丢失，不保证连续。
 
 `protocol.ts` 定义共享 zod 消息 schema。执行/RPC ID 带品牌；每条 IPC 消息验证类型、字段及传输大小。宿主只接受当前父执行所属的调用；结果和参数为 JSON 数据，不传递宿主对象。
 
@@ -28,6 +28,6 @@ tools.profile.commands 中各项 totalCalls 使用 VM 内只读 getter，从预�
 
 `reservedToolIds` 统一列出 exec、run_code 与插件自有执行入口，供物理工具目录、manifest 和管理选择器过滤使用。
 
-PTC 初始化先建立运行时环境（包括 console 输出对象），再安装生成的命令与预加载数据。部署只写入环境中不存在的根属性，不覆盖已有 console、标准对象或其它运行时全局。生成树内重复命令或命令/值冲突会明确拒绝，不以后写覆盖先写。environment 节点参与普通 IntelliSense 查询，但不进入物理工具绑定。
+PTC 初始化先建立运行时环境（包括 console 输出对象），再安装生成的命令与预加载数据。每次初始化移除上次生成的命名空间根，再部署当前命令和值；生成的根属性可配置但不可赋值，子树冻结。部署只写入环境中不存在的根属性，不覆盖已有 console、标准对象或其它运行时全局。生成树内重复命令或命令/值冲突会明确拒绝，不以后写覆盖先写。environment 节点参与普通 IntelliSense 查询，但不进入物理工具绑定。
 
 `tools.profile.profiles` 为 VM 内冻结的只读对象，通过 getter 提供目录名称列表与会话当前选择。宿主在成功工具回复中携带最新 profiles 数据；VM 在兑现调用 Promise 前更新闭包快照并冻结名称数组，保持对象引用稳定，不开放写入。

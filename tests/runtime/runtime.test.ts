@@ -19,15 +19,27 @@ test('Node permissions initialize and runtime configuration rejects unknown fiel
     assert.doesNotThrow(() => verifySandbox());
 });
 
-test('strict AsyncFunction supports TS and native console with a fresh context per execution', async () => {
+test('strict async executions share globalThis within a conversation while keeping local declarations scoped', async () => {
     const host = new RuntimeHost({ timeoutMs: 3000 });
     try {
-        const first = await host.execute('session', 'one', 'const local: number=3; var count=4; Object.prototype.savedCount=count; console.log("%s=%d", "count",count); return local;', [], unused, signal());
+        const first = await host.execute('session', 'one', `
+            const local: number=3; var count=4;
+            globalThis.saved={count}; globalThis.increment=()=>++globalThis.saved.count;
+            globalThis.read=std.read;
+            console.log("%s=%d", "count",count); return local;
+        `, [binding('std.read')], unused, signal());
         assert.equal(first.value, 3); assert.deepEqual(first.logs, ['count=4']);
-        const second = await host.execute('session', 'two', 'return [typeof local,typeof count,typeof globalThis,typeof ({}).savedCount];', [], unused, signal());
-        assert.deepEqual(second.value, ['undefined', 'undefined', 'undefined', 'undefined']);
-        const separate = await host.execute('other', 'three', 'return typeof count;', [], unused, signal());
-        assert.equal(separate.value, 'undefined');
+        const second = await host.execute('session', 'two', `
+            return [typeof local,typeof count,typeof globalThis,increment(),await read("saved"),typeof std,
+                tools.profile.annotation];
+        `, [], async () => 'current invocation', signal(), { 'tools.profile.annotation': 'updated' });
+        assert.equal(second.error, undefined);
+        assert.deepEqual(second.value, ['undefined', 'undefined', 'object', 5, 'current invocation', 'undefined', 'updated']);
+        const separate = await host.execute('other', 'three', 'return [typeof saved,typeof increment];', [], unused, signal());
+        assert.deepEqual(separate.value, ['undefined', 'undefined']);
+        await host.release('session');
+        const released = await host.execute('session', 'four', 'return typeof saved;', [], unused, signal());
+        assert.equal(released.value, 'undefined');
     } finally { await host.dispose(); }
 });
 
@@ -97,7 +109,7 @@ test('guest command wrappers update readonly command counts locally without extr
 test('timeout and cancellation terminate a process, abort pending RPC and advance epoch', async () => {
     const host = new RuntimeHost({ timeoutMs: 3000, syncTimeoutMs: 50 });
     try {
-        const timeout = await host.execute('timeout', 'one', 'var stale=1;while(true){}', [], unused, signal());
+        const timeout = await host.execute('timeout', 'one', 'globalThis.stale=1;while(true){}', [], unused, signal());
         assert(timeout.error?.includes('timed out'));
         const next = await host.execute('timeout', 'two', 'return typeof stale;', [], unused, signal());
         assert.equal(next.epoch, 2); assert.equal(next.value, 'undefined');
