@@ -659,7 +659,7 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
             <form onSubmit={event => { event.preventDefault(); setBrief(briefEditor.trim() || undefined); setBriefEditor(undefined); }}>
                 <h2 id="ts-brief-title">{t('edit_profile_brief')}</h2>
                 <textarea aria-label={t('profile_brief')} autoFocus rows={4} value={briefEditor} onChange={event => setBriefEditor(event.target.value)} />
-                <div className="ts-actions"><button type="submit">{t('apply')}</button>
+                <div className="ts-dialog-actions"><button type="submit">{t('apply')}</button>
                     <button type="button" onClick={() => setBriefEditor(undefined)}>{t('cancel')}</button></div>
             </form>
         </section></div>}
@@ -673,7 +673,7 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
                 <h2 id="ts-description-title">{t('prompt_comment')} · {descriptionEditor.path}</h2>
                 <textarea aria-label={t('prompt_comment')} autoFocus rows={8} value={descriptionEditor.text ?? view?.tools.find(t => t.id === descriptionEditor.id)?.description ?? ''}
                     onChange={event => setDescriptionEditor({ ...descriptionEditor, text: event.target.value })} />
-                <div className="ts-actions"><button type="submit">{t('apply')}</button>
+                <div className="ts-dialog-actions"><button type="submit">{t('apply')}</button>
                     <button type="button" onClick={() => setDescriptionEditor({ id: descriptionEditor.id, path: descriptionEditor.path })}>{t('reset')}</button>
                     <button type="button" onClick={() => setDescriptionEditor(undefined)}>{t('cancel')}</button></div>
             </form>
