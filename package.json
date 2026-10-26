@@ -45,7 +45,12 @@
     "./presentation": {
       "types": "./dist/integration/presentation.d.ts",
       "default": "./dist/integration/presentation.js"
-    }
+    },
+    "./locale/en.json": "./src/metadata/plugin/en.json",
+    "./client/locale/en.json": "./src/metadata/plugin/en.json",
+    "./preset/locale/en.json": "./src/metadata/preset/en.json",
+    "./namespace/locale/en.json": "./src/metadata/namespace/en.json",
+    "./presentation/locale/en.json": "./src/metadata/presentation/en.json"
   },
   "files": [
     "dist",
@@ -53,7 +58,8 @@
     "cordis.patch.yml",
     "README.md",
     "LICENSE",
-    "presets"
+    "presets",
+    "src/metadata"
   ],
   "dsh": {
     "bundle": {

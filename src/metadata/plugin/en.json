@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "dsh-intellisense",
+    "description": "Namespace-based DSML and isolated JavaScript/TypeScript execution with on-demand IntelliSense for DeepSeek Harness"
+  }
+}
