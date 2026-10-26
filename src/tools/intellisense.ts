@@ -20,11 +20,10 @@ export function intellisenseQueryTargets(queries: readonly string[], root: Names
 }
 
 /** @brief Render queried members and signatures through the shared namespace declaration model. */
-export function intellisense(queries: readonly string[], root: NamespaceNode, runtime = false, disabled: (path: string) => boolean = () => false, brief: (tool: string, path: string) => string | undefined = () => undefined): string {
+export function intellisense(queries: readonly string[], root: NamespaceNode, runtime = false, brief: (tool: string, path: string) => string | undefined = () => undefined): string {
     const selected = new Map<string, NamespaceDeclaration>();
     const exact = new Set(normalizeIntellisenseQueries(queries));
     for (const node of queryNodes(root, queries)) {
-        if (disabled(node.path)) continue;
         if (node instanceof NamespaceNode) {
             selected.set(node.path, { path: node.path, namespace: true, description: node.description });
             continue;
@@ -40,7 +39,7 @@ export function intellisense(queries: readonly string[], root: NamespaceNode, ru
     for (const query of exact) {
         const path = query.replace(/\.$/, '');
         const node = root.resolve(path.split('.'));
-        if (path && node instanceof NamespaceNode) selected.set(path, { path, namespace: true, description: node.description });
+        if (path && node instanceof NamespaceNode && !node.disabled) selected.set(path, { path, namespace: true, description: node.description });
     }
     for (const path of [...selected.keys()]) {
         let parent = root.resolve(path.split('.'))?.parent;
@@ -77,7 +76,7 @@ export function registerIntellisense(ctx: Context, namespaces: NamespaceComponen
             await namespaces.statistics.recordQueries(agent.id, intellisenseQueryTargets(queries, root));
             let info: string;
             if (namespaces.isPtc(agent)) {
-                info = intellisense(queries, root, true, path => registry.disabled(path), (tool, path) => registry.description(path, tool));
+                info = intellisense(queries, root, true, (tool, path) => registry.description(path, tool));
             } else {
                 info = await namespaces.discover(agent, queries);
             }

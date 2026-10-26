@@ -81,6 +81,6 @@ test('disabled subtrees and commands stay saved but disappear from search and di
     assert(!manifest(registry, [{ path: 'other.read', tool: 'read' }]).commands().some(entry => entry.tool === 'read'));
     await registry.replaceConfiguration({ ...config, builtinDisabled: ['tools.search'] }, 'Default');
     assert(!manifest(registry, []).commands().some(entry => entry.path === 'tools.search'));
-    assert(!intellisense(['tools.'], manifest(registry, []), true, path => registry.disabled(path)).includes('const search'));
+    assert(!intellisense(['tools.'], manifest(registry, []), true).includes('const search'));
     await assert.rejects(definition.execute({ keywords: ['documents'] }, execution), /Execution denied/);
 });

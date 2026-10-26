@@ -6,7 +6,7 @@ import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { nativeArgumentsFor, type ManifestEntry } from '../../src/namespace/namespace.js';
 import { builtinDeclaration, executionInstructions } from '../../src/namespace/prompt.js';
 import { pluginCommands } from '../../src/runtime/builtins.js';
-import { declaration } from '../../src/namespace/namespace.js';
+import { NamespaceNode, declaration } from '../../src/namespace/namespace.js';
 import { intellisense, registerIntellisense } from '../../src/tools/intellisense.js';
 import type { NamespaceComponent } from '../../src/namespace/component.js';
 import { nativeDiscovery, nativeQueryEntries } from '../../src/namespace/native_tools.js';
@@ -72,4 +72,17 @@ test('global prefix preserves PTC declarations including runtime values and buil
         assert.equal(intellisense(['global.' + query], namespace(entries), true), intellisense([query], namespace(entries), true));
     }
     assert.throws(() => intellisense(['global.std..'], namespace(entries), true), /Invalid IntelliSense query/);
+});
+
+test('PTC declarations omit explicitly disabled namespaces and their descendants', () => {
+    const root = new NamespaceNode('');
+    const hidden = root.add(new NamespaceNode('hidden', root, 'Hidden namespace', undefined, true));
+    hidden.add(new NamespaceNode('nested', hidden));
+    root.add(new NamespaceNode('visible', root, 'Visible namespace'));
+    for (const query of ['hidden', 'hidden.', 'hidden.nested', 'hidden.nested.', 'global.hidden.']) {
+        assert.equal(intellisense([query], root, true), intellisense([], root, true));
+    }
+    const listing = intellisense(['', 'hidden.', 'visible.'], root, true);
+    assert(!listing.includes('hidden'));
+    assert(listing.includes('namespace visible'));
 });
