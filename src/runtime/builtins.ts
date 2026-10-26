@@ -40,6 +40,7 @@ export class PluginCommands {
 
     /** @brief Preloaded Profile values, with visibility preferences stored alongside builtin commands. */
     readonly profileValues: readonly BuiltinTool[] = [
+        { tool: 'tools_profile_profiles', preload: true, path: 'tools.profile.profiles', signature: 'Profiles', description: 'Available Profile names and the currently selected conversation Profile. Updated after tool calls.' },
         { tool: 'tools_profile_annotation', preload: true, path: 'tools.profile.annotation', signature: 'string', description: 'English TypeScript declarations for the Profile data model.' },
         { tool: 'tools_profile_commands', preload: true, path: 'tools.profile.commands', signature: 'CommandBrief[]', description: 'Show all commands, including commands absent from the current context, with their original physical names, summaries and totalCalls across all sessions to guide Profile organization. Do not read this field unless you need original tool information.' },
     ];

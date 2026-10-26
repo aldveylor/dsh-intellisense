@@ -9,6 +9,9 @@ export type CommandName = string;
 /** @brief Original command summary and global usage, independent of its mounted path. */
 export interface CommandBrief { name: CommandName; brief: string; totalCalls: number }
 
+/** @brief Available catalog Profile names and the current conversation selection. */
+export interface Profiles { profiles: string[]; selected: string }
+
 /** @brief Profiles expose the same serialized tree/leaf node description as management clients. */
 export interface Profile { name: string; root: SerializedNode }
 
@@ -105,6 +108,8 @@ export function profileConfiguration(profile: Profile, current: RegistryConfigur
 /** @brief Shared Profile transport definition preloaded for PTC programs. */
 export const profileAnnotation = `/** @brief Original physical command identity, summary and total calls across all sessions. Use totalCalls to prioritize frequently used commands when organizing Profiles. */
 interface CommandBrief { name: string; brief: string; totalCalls: number; }
+/** @brief Available catalog Profile names and the current conversation selection. */
+interface Profiles { profiles: string[]; selected: string; }
 /** @brief Server-owned edit and pin choices; clients must honor these permissions. */
 interface Permission { renamable: boolean; movable: boolean; removable: boolean; disableable: boolean; acceptsChildren: boolean; availableFixLevels: (0 | 1 | 2)[]; }
 /** @brief Shared namespace tree or command leaf; protected children must remain present. */

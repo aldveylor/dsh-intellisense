@@ -12,7 +12,7 @@ import type { ProfileSessions } from '../registry/profiles.js';
 import { manifest, nativeSchema, type Aliases, NamespaceNode, type CommandNode } from './namespace.js';
 import { namespaceDirectory, type NamespaceHint } from './prompt.js';
 import { pluginCommands, reservedToolIds } from '../runtime/builtins.js';
-import { type CommandBrief, profileAnnotation } from '../registry/profile_tree.js';
+import { type CommandBrief, type Profiles, profileAnnotation } from '../registry/profile_tree.js';
 import type { z } from 'zod';
 import { createSearchEngines } from '../search/search.js';
 import { registerSearch } from '../tools/tool_search.js';
@@ -92,10 +92,13 @@ export class NamespaceComponent {
         this.registry.refresh([...tools.values()]);
     }
 
-    /** @brief Resolve the session's immutable Profile reference against its current tool scope. */
+    /** @brief Initialize child Profiles from their live parent's working copy, then retain independent snapshots. */
     async registryFor(agent?: Agent): Promise<SemanticRegistry> {
         if (!agent) { await this.refresh(); return this.registry; }
-        const registry = await this.profiles.forSession(agent.id);
+        const registry = await this.profiles.forSession(agent.id, async () => {
+            const parent = this.ctx.agents.list().find(candidate => candidate !== agent && this.ctx.agents.isOwnedBy(agent.id, candidate));
+            return parent && this.enabled(parent) ? this.registryFor(parent) : this.registry;
+        });
         registry.refresh(this.physical(agent));
         return registry;
     }
@@ -115,9 +118,15 @@ export class NamespaceComponent {
         }));
     }
 
+    /** @brief Read catalog names separately from the conversation's selected Profile. */
+    async profileNames(agent?: Agent): Promise<Profiles> {
+        const registry = agent ? await this.registryFor(agent) : this.registry;
+        return { profiles: this.registry.snapshot().profiles ?? [], selected: registry.snapshot().profile! };
+    }
+
     /** @brief Preload data-only Profile metadata before guest execution. */
-    async values(agent?: Agent): Promise<{ [path: string]: string | { name: string; brief: string; totalCalls: number }[] }> {
-        const values = { 'tools.profile.annotation': profileAnnotation, 'tools.profile.commands': await this.commandBriefs() };
+    async values(agent?: Agent): Promise<Record<string, z.infer<ReturnType<typeof z.json>>>> {
+        const values = { 'tools.profile.annotation': profileAnnotation, 'tools.profile.commands': (await this.commandBriefs()).map(command => ({ ...command })), 'tools.profile.profiles': { ...await this.profileNames(agent) } };
         const registry = agent ? await this.registryFor(agent) : this.registry;
         return Object.fromEntries(Object.entries(values).filter(([path]) => !registry.disabled(path)));
     }

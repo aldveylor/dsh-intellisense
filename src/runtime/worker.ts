@@ -69,6 +69,19 @@ function initialize(commands: CommandBinding[], values: Record<string, unknown>)
         if(!Object.hasOwn(root,'console')||Object.getOwnPropertyDescriptor(root,'console').configurable)Object.defineProperty(root,'console',{value:Object.freeze(logger),configurable:false});
         const tree=Object.create(null);
         const data=parse(values);
+        let profiles=data['tools.profile.profiles'];
+        const updateProfiles=values=>{
+            if(!profiles||!values||!Object.hasOwn(values,'tools.profile.profiles'))return;
+            const next=values['tools.profile.profiles'];
+            profiles={profiles:Object.freeze(next.profiles),selected:next.selected};
+        };
+        if(profiles) {
+            updateProfiles(data);
+            data['tools.profile.profiles']=Object.defineProperties({}, {
+                profiles:{get:()=>profiles.profiles,enumerable:true},
+                selected:{get:()=>profiles.selected,enumerable:true}
+            });
+        }
         const counters=new Map();
         for(const entry of Array.isArray(data['tools.profile.commands'])?data['tools.profile.commands']:[]) {
             if(!entry||typeof entry.name!=='string'||typeof entry.totalCalls!=='number')continue;
@@ -125,7 +138,7 @@ function initialize(commands: CommandBinding[], values: Record<string, unknown>)
                         const pending=call(this.tool,stringify(this.arguments(args)));
                         this.count();
                         pending.then(json=>{
-                            try {const [present,value]=parse(json);resolve(this.result(present?value:undefined));}
+                            try {const [present,value,values]=parse(json);updateProfiles(values);resolve(this.result(present?value:undefined));}
                             catch(error){reject(new Error(String(error)));}
                         },error=>reject(new ToolCallError(String(error.message??error),this.path)));
                     } catch(error){reject(new Error(String(error)));}
@@ -178,7 +191,7 @@ process.on('message', async raw => {
     if (message.type === 'reply') {
         const pending = outstanding.get(message.id); outstanding.delete(message.id);
         if (message.error !== undefined) pending?.reject(new Error(message.error));
-        else pending?.resolve(JSON.stringify([message.value !== undefined, message.value ?? null]));
+        else pending?.resolve(JSON.stringify([message.value !== undefined, message.value ?? null, message.values]));
         return;
     }
     try {

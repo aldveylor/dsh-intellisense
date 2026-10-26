@@ -29,7 +29,7 @@ export const HostMessage = z.discriminatedUnion('type', [
     z.strictObject({ type: z.literal('init'), id: RpcId, commands: z.array(CommandBinding), values: z.record(z.string(), z.json()).default({}), maxOutputBytes: z.number().int().positive(), syncTimeoutMs: z.number().int().positive() }),
     z.strictObject({ type: z.literal('execute'), id: RpcId, execution: ExecutionId, javascript: z.string() }),
     z.strictObject({ type: z.literal('describe'), id: RpcId, path: z.string() }),
-    z.strictObject({ type: z.literal('reply'), id: RpcId, value: z.json().optional(), error: z.string().optional() }),
+    z.strictObject({ type: z.literal('reply'), id: RpcId, value: z.json().optional(), values: z.record(z.string(), z.json()).optional(), error: z.string().optional() }),
 ]);
 
 /** @brief Serializable execution outcome shared by worker, host and exec tool. */

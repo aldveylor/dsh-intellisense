@@ -34,14 +34,16 @@ async function fixture() {
 
 test('native Profile data tools and optional-name save/load use session defaults', async () => {
     const { definitions, call, registry } = await fixture();
-    assert.deepEqual([...definitions.keys()].sort(), ['tools_profile_annotation', 'tools_profile_commands', 'tools_profile_load', 'tools_profile_save']);
+    assert.deepEqual([...definitions.keys()].sort(), ['tools_profile_annotation', 'tools_profile_commands', 'tools_profile_load', 'tools_profile_profiles', 'tools_profile_save']);
     assert.equal(await call('tools_profile_annotation'), profileAnnotation);
+    assert.deepEqual(await call('tools_profile_profiles'), { profiles: ['Default'], selected: 'Default' });
     assert.deepEqual(await call('tools_profile_commands'), [{ name: 'read_file', brief: 'Read a file.', totalCalls: 2 }, { name: 'outside_scope', brief: 'Outside this session.', totalCalls: 0 }]);
     const profile = JSON.parse(JSON.stringify(profileTree('Ignored', { ...registry.configuration(), namespaces: [{ path: 'files', description: '', alwaysVisible: true }], mappings: [{ id: 'read_file', path: 'files.read', aliases: [], pinned: false, alwaysVisible: 2 }], toolComments: { read_file: 'Read text' } }))); 
     await call('tools_profile_save', { profile });
     assert.deepEqual(JSON.parse(JSON.stringify(await call('tools_profile_load'))), { ...profile, name: 'Default' });
     await call('tools_profile_save', { name: 'Copy', profile });
     assert.equal(registry.snapshot().profile, 'Copy');
+    assert.deepEqual(await call('tools_profile_profiles'), { profiles: ['Copy', 'Default'], selected: 'Copy' });
     await call('tools_profile_load', { name: 'Default' });
     assert.equal(registry.snapshot().profile, 'Default');
 });
@@ -53,13 +55,14 @@ test('manifest exposes only the new tools API and projects VM array arguments', 
         { id: 'tools_mount', description: 'Old command.', parameters: {}, output: {} },
     ]));
     const entries = manifest(registry, []);
-    assert.deepEqual(entries.commands().filter(entry => entry.deployment === 'tool').map(entry => entry.path).sort(), ['tools.intellisense', 'tools.profile.annotation', 'tools.profile.commands', 'tools.profile.load', 'tools.profile.save']);
+    assert.deepEqual(entries.commands().filter(entry => entry.deployment === 'tool').map(entry => entry.path).sort(), ['tools.intellisense', 'tools.profile.annotation', 'tools.profile.commands', 'tools.profile.load', 'tools.profile.profiles', 'tools.profile.save']);
     const discovery = entries.commands().find(entry => entry.path === 'tools.intellisense')!;
     assert.deepEqual(await positionalArguments(discovery, ['files.']), { queries: ['files.'] });
     await assert.rejects(positionalArguments(discovery, [['files.']]));
     assert.deepEqual(await positionalArguments(entries.commands().find(entry => entry.path === 'tools.profile.save')!, [{ name: 'Default', root: {} }]), { profile: { name: 'Default', root: {} } });
     const vm = intellisense(['tools.profile.', 'tools.profile.save', 'tools.intellisense'], entries, true);
     assert(vm.includes('const annotation: string'));
+    assert(vm.includes('const profiles: Profiles'));
     assert(vm.includes('function save(profile: Profile)'));
     assert(vm.includes('function intellisense(...args: string[])'));
     const native = intellisense(['tools.profile.annotation'], entries, false);
@@ -81,5 +84,26 @@ test('guest constants preload as frozen data before execution', async () => {
         assert.equal(result.error, undefined);
         assert.deepEqual(result.value, ['declarations', 'read_file', true, true]);
         assert.deepEqual(calls, []);
+    } finally { await host.dispose(); }
+});
+
+
+test('guest Profile selection is readonly and refreshes after calls in the same execution', async () => {
+    const host = new RuntimeHost({ timeoutMs: 3000 });
+    try {
+        const result = await host.execute('profiles', 'one', `
+            const state = tools.profile.profiles;
+            const before = JSON.stringify(state);
+            let readonly = false;
+            try { state.selected = 'Invalid'; } catch { readonly = true; }
+            await files.read();
+            return [before, state.selected, state.profiles, readonly,
+                Object.isFrozen(state), Object.isFrozen(state.profiles)];`,
+        [namespace([{ path: 'files.read', tool: 'read_file', doc: '', schema: {}, output: {} }]).commands().find(node => node.path === 'files.read')!.binding()],
+        async () => true, new AbortController().signal,
+        { 'tools.profile.profiles': { profiles: ['Default'], selected: 'Default' } },
+        async () => ({ 'tools.profile.profiles': { profiles: ['Copy', 'Default'], selected: 'Copy' } }));
+        assert.equal(result.error, undefined);
+        assert.deepEqual(result.value, ['{"profiles":["Default"],"selected":"Default"}', 'Copy', ['Copy', 'Default'], true, true, true]);
     } finally { await host.dispose(); }
 });

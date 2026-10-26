@@ -25,7 +25,7 @@ export { NamespaceNode, CommandNode } from './namespace/namespace.js';
 export type { ManifestEntry, NamespaceContext } from './namespace/namespace.js';
 export type { Node, NodeType, Permission, SerializedNode, CommandContract } from './namespace/node.js';
 export type { PhysicalTool, Mapping, Namespace, RegistryConfiguration, RegistryState, PinLevel, CommandVisibility } from './registry/registry.js';
-export type { Profile, CommandBrief, CommandName } from './registry/profile_tree.js';
+export type { Profile, Profiles, CommandBrief, CommandName } from './registry/profile_tree.js';
 export type { CommandBinding, ExecutionResult } from './runtime/protocol.js';
 export type { Store } from './storage/store.js';
 export type { ToolDefinition } from '@deepseek-ai/dsh-tools';

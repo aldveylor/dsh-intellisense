@@ -42,3 +42,7 @@ PTC 每次执行重建 VM Context，不保证环境连续，不支持 globalThis
 
 
 命名空间描述由 manifest 从 Profile namespaces 元数据传入普通 NamespaceNode，内置 tools 等命名空间保留自身描述。native 成员查询的命名空间条目包含 brief，所有条目的 brief 为空或仅含空白时省略该键；PTC 查询与初始提示词为已展示的命名空间及其父链附加 description 注释，包含 tools.intellisense 的 tools 父命名空间；不因此展开未查询或未固定的其它成员。
+
+`NamespaceComponent.profileNames` 合并全局目录名称和当前会话选中配置，供 native 的 tools.profile.profiles 命令与 PTC 的同名只读字段使用；PTC 每次执行前及工具成功回复时刷新。
+
+`component.ts` 在 Profile 首次初始化时通过 AgentRegistry.isOwnedBy 查询运行时父 Agent；父作用域启用 Intellisense 时，递归取得其工作配置供子会话复制，后续按各自 ID 持有独立快照。无启用本插件的父 Agent 则使用全局默认；已加载或已持久化的子会话配置优先，不因再次查询、父配置切换或恢复而覆盖。

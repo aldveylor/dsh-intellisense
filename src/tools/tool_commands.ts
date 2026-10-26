@@ -49,6 +49,15 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         },
     })));
     ctx.effect(() => register(defineTool({
+        name: 'tools_profile_profiles', description: 'Return available Profile names and the currently selected conversation Profile.', parameters: {},
+        output: { ...output, schema: { type: 'object', properties: { profiles: { type: 'array', items: { type: 'string' }, required: true }, selected: { type: 'string', required: true } }, additionalProperties: false } },
+        execute: async (_args, execution) => {
+            if (!execution.agent) throw new Error('A live conversation is required');
+            const registry = await registryFor(execution.agent);
+            return { profiles: catalog.snapshot().profiles ?? [], selected: registry.snapshot().profile! };
+        },
+    })));
+    ctx.effect(() => register(defineTool({
         name: 'tools_profile_annotation', description: 'Return the editable Profile data model documentation.', parameters: {},
         output: { ...output, schema: { type: 'string' } },
         execute: async (_args, execution) => execution.agent && !execution.agent.ctx.get('commandNamespaces')!.isPtc(execution.agent)
