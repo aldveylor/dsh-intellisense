@@ -8,7 +8,7 @@ import { useActionAnimation } from '../animation/action_animation.js';
 
 /** @brief A host may supply its own dropdown without imposing host dependencies on standalone pages. */
 export interface ProfileSelectProps {
-    value: string; options: ReadonlyArray<{ value: string; label: string }>; disabled: boolean; readOnly?: boolean; allowCreate?: boolean; protectedProfile?: string;
+    value: string; options: ReadonlyArray<{ value: string; label: string; brief?: string }>; disabled: boolean; readOnly?: boolean; allowCreate?: boolean; protectedProfile?: string;
     label?: string; closeOnSelect?: boolean;
     onChange: (value: string) => void;
     onCreate?: (name: string) => void; onRename?: (name: string, newName: string) => void; onRemove?: (name: string) => void;
@@ -20,8 +20,8 @@ export function ProfileSelect(props: ProfileSelectProps) {
 }
 
 /** @brief Profile selection with draft saving, named copies and JSON transfer actions. */
-export function ProfilePicker({ name, profiles, dirty, busy, select, create, rename, remove, save, refresh, refreshDisabled, download, upload, protectedProfile, Select = ProfileSelect }: {
-    name: string; profiles: string[]; dirty: boolean; busy: boolean;
+export function ProfilePicker({ name, profiles, briefs = {}, dirty, busy, select, create, rename, remove, save, refresh, refreshDisabled, download, upload, protectedProfile, Select = ProfileSelect }: {
+    name: string; profiles: string[]; briefs?: Record<string, string>; dirty: boolean; busy: boolean;
     download: () => Promise<void>; upload: (file: File) => Promise<void>;
     select: (name: string) => void; create: (name: string) => void; rename: (name: string, newName: string) => void;
     remove: (name: string) => void; save: (name?: string) => Promise<void>; refresh: () => Promise<void>; refreshDisabled: boolean; protectedProfile?: string; Select?: ComponentType<ProfileSelectProps>;
@@ -38,7 +38,7 @@ export function ProfilePicker({ name, profiles, dirty, busy, select, create, ren
     }
 
     return <TooltipProvider><div className="ts-profile-picker">
-        <Select value={name} options={profiles.map(profile => ({ value: profile, label: `${profile}${dirty && profile === name ? ' *' : ''}` }))}
+        <Select value={name} options={profiles.map(profile => ({ value: profile, label: `${profile}${dirty && profile === name ? ' *' : ''}`, brief: briefs[profile] }))}
             disabled={busy} protectedProfile={protectedProfile} onChange={select} onCreate={create} onRename={rename} onRemove={remove} />
         <ProfileActionButton type="button" label={t('refresh')} disabled={refreshDisabled} aria-busy={animation.running.has('refresh')} onClick={() => void animation.run('refresh', refresh)}>
             <svg {...icon('refresh')} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

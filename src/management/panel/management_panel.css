@@ -90,3 +90,5 @@
     .ts-disable-mark,.ts-disable-cross,.ts-disclosure svg,.ts-profile-arrow,.ts-pin svg,.ts-intellisense .ts-pin:not([data-dsh-control]){transition-duration:1ms}
     .ts-tree-children,.ts-tree-children[data-open=false],.ts-profile-dropdown,.ts-profile-dropdown[data-phase=closing]{animation-duration:1ms}
 }
+
+.ts-profile-summary{display:flex;align-items:center;gap:8px;margin-top:12px}.ts-profile-summary .ts-unmounted-count{margin-top:0}.ts-profile-option>.ts-profile-text{white-space:normal}

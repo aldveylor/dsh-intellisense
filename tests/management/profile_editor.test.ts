@@ -210,3 +210,41 @@ test('JSON imports retain expanded rows and remain dirty until the draft is save
         assert.equal(document.querySelector('[data-tree-path="file.read"]'), command);
     } finally { dom.window.close(); }
 });
+
+
+test('profile brief edits appear in menus and persist or clear only after Save', async () => {
+    const { registry, dom, document, button } = await fixture(async registry => {
+        await registry.saveProfile('Default', { ...registry.configuration(), brief: 'Read local files' });
+    });
+    try {
+        button('.ts-default-profile button').click();
+        await until(() => !!document.querySelector('.ts-default-profile .ts-profile-brief'));
+        assert.equal(document.querySelector('.ts-default-profile .ts-profile-brief')?.textContent, 'Read local files');
+        button('.ts-profile-summary button:last-child').click();
+        await until(() => !!document.querySelector('textarea[aria-label="Profile description"]'));
+        const textarea = document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Profile description"]')!;
+        Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, 'value')!.set!.call(textarea, 'Development tools');
+        textarea.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+        textarea.closest('form')!.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+        await until(() => document.querySelector('.ts-namespace-profile .ts-profile-label')?.textContent === 'Default *');
+        assert.equal(registry.configuration().brief, 'Read local files');
+        button('.ts-namespace-profile button[aria-label="Save"]').click();
+        await until(() => registry.configuration().brief === 'Development tools');
+        await until(() => document.querySelector('.ts-namespace-profile')?.getAttribute('aria-busy') !== 'true');
+        document.querySelector('[data-action="save"]')!.dispatchEvent(new dom.window.Event('animationiteration', { bubbles: true }));
+        await until(() => document.querySelector('[data-action="save"]')?.getAttribute('data-running') === 'false');
+        button('.ts-profile-summary button:last-child').click();
+        await until(() => !!document.querySelector('textarea[aria-label="Profile description"]'));
+        const clear = document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Profile description"]')!;
+        Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, 'value')!.set!.call(clear, '');
+        clear.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+        clear.closest('form')!.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+        await until(() => document.querySelector('.ts-namespace-profile .ts-profile-label')?.textContent === 'Default *');
+        button('.ts-namespace-profile button[aria-label="Save"]').click();
+        await until(() => registry.configuration().brief === undefined);
+        await until(() => document.querySelector('.ts-namespace-profile')?.getAttribute('aria-busy') !== 'true');
+        button('.ts-namespace-profile .ts-profile-select>button').click();
+        await until(() => !!document.querySelector('.ts-namespace-profile .ts-profile-option'));
+        assert.equal(document.querySelector('.ts-namespace-profile .ts-profile-brief'), null);
+    } finally { dom.window.close(); }
+});

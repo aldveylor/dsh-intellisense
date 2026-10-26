@@ -6,6 +6,8 @@ import type {} from '@deepseek-ai/dsh-agent-preset-registry';
 import type { SessionProfileState } from './state.js';
 import { messageKey } from '../locale/locale.js';
 import styles from './session_profile.css';
+import labelStyles from '../profile_picker/profile_label.css';
+import { ProfileLabel } from '../profile_picker/profile_label.js';
 
 /** @brief Native hero menu selecting the namespace snapshot owned by the current session. */
 export function SessionProfile({ sessionId, useProjection, api, t }: PropsRuntime<'conversation.hero.options'> & PropsLocale<'ts_intellisense'> & { api: string }) {
@@ -58,9 +60,9 @@ export function SessionProfile({ sessionId, useProjection, api, t }: PropsRuntim
 
     if (!state?.enabled && !error) return null;
     return <div className="ts-session-profile">
-        <style>{styles}</style>
+        <style>{styles + labelStyles}</style>
         {state?.enabled && <Menu open={open} onClose={() => setOpen(false)} align="start" portal className="ts-session-profile-menu"
-            items={state.profiles.map(profile => ({ id: profile, label: <span className="ts-session-profile-item">{profile}</span> }))} selectedId={state.profile}
+            items={state.profiles.map(profile => ({ id: profile, label: <ProfileLabel label={profile} brief={state.profileBriefs?.[profile]} /> }))} selectedId={state.profile}
             onSelect={profile => { void select(profile); }} anchor={<button type="button" className="ts-session-profile-trigger"
                 aria-label={t('session_profile_label')} title={t('select_session_profile')} aria-haspopup="menu" aria-expanded={open} disabled={busy}
                 onClick={() => setOpen(value => !value)}>

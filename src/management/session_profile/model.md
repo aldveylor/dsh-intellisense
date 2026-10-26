@@ -9,3 +9,5 @@ preset 投影变化及窗口重新获得焦点时重新读取；切换请求完�
 配置界面“默认配置文件:”选择器修改全局目录默认项；新会话由 ProfileSessions 从当前默认项捕获独立快照，不沿用其它会话在首页选择的配置。
 
 当前对话通过显式 switch(name) 或会话 Profile 下拉框更新工作配置后，统一由 configurationChanged 刷新工具提示。仅 tools.profile.switch(name) 成功完成加载和刷新后，通过 Agent.inject 向当前对话注入 intellisense-profile 英文 notice：`Profile updated to <profile name>`；load(name)、UI 下拉选择、通用配置刷新、保存目录、读取草稿、失败操作及删除其它配置均不注入。
+
+会话 Profile API 返回 profileBriefs 目录简介映射；原生 Menu 在名称下显示可选灰色简介，与默认配置菜单共用 ProfileLabel 布局。

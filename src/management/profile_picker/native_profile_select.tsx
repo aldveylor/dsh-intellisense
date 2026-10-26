@@ -1,11 +1,13 @@
+import { ProfileLabel } from './profile_label.js';
+import styles from './profile_label.css';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from '../locale/locale.js';
 import type { ProfileSelectProps } from './profile_picker.js';
 import { useLayoutMotion } from '../animation/layout_motion.js';
 
 /** @brief One profile row with inline renaming and an independent borderless delete action. */
-function NativeProfileItem({ value, label, selected, disabled, removable, readOnly, onChange, onRename, onRemove }: {
-    value: string; label: string; selected: boolean; disabled: boolean; removable: boolean; readOnly: boolean;
+function NativeProfileItem({ value, label, brief, selected, disabled, removable, readOnly, onChange, onRename, onRemove }: {
+    value: string; label: string; brief?: string; selected: boolean; disabled: boolean; removable: boolean; readOnly: boolean;
     onChange: () => void; onRename: (name: string) => void; onRemove: () => void;
 }) {
     const t = useTranslation();
@@ -21,7 +23,7 @@ function NativeProfileItem({ value, label, selected, disabled, removable, readOn
     return <div className="ts-profile-item" data-selected={selected} data-profile-value={value}>
         {draft === undefined ? <button type="button" className="ts-profile-option" aria-pressed={selected} aria-disabled={disabled}
             onClick={() => { if (!disabled) onChange(); }} onDoubleClick={() => { if (!readOnly && !disabled) setDraft(value); }}>
-            <span className="ts-profile-check" aria-hidden="true">{selected ? '✓' : ''}</span><span>{label}</span>
+            <span className="ts-profile-check" aria-hidden="true">{selected ? '✓' : ''}</span><ProfileLabel label={label} brief={brief} />
         </button> : <input aria-label={t('rename_profile')} autoFocus maxLength={80} value={draft} disabled={disabled}
             onFocus={event => event.target.select()} onChange={event => setDraft(event.target.value)} onBlur={commit}
             onKeyDown={event => {
@@ -70,6 +72,7 @@ export function NativeProfileSelect({ value, options, disabled, readOnly = false
             items[(index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
         }
     }}>
+        <style>{styles}</style>
         <button type="button" ref={trigger} aria-label={label ?? t('profile')} aria-expanded={open} aria-controls={panelId} disabled={disabled}
             onClick={() => setPhase(current => current === 'open' ? 'closing' : 'open')}>
             <span className="ts-profile-label">{options.find(option => option.value === value)?.label ?? value}</span>

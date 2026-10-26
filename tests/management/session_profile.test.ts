@@ -11,7 +11,7 @@ import { MemoryStore } from '../../src/storage/store.js';
 async function fixture() {
     const catalog = new SemanticRegistry(new MemoryStore());
     await catalog.load();
-    await catalog.saveProfile('Files', { ...catalog.configuration(), namespaces: [{ path: 'files', description: 'File tools', alwaysVisible: true }] });
+    await catalog.saveProfile('Files', { ...catalog.configuration(), brief: 'File operations', namespaces: [{ path: 'files', description: 'File tools', alwaysVisible: true }] });
     const profiles = new ProfileSessions(catalog, new MemoryStore());
     const agents = [{ id: 'native', enabled: true }, { id: 'ptc', enabled: true }, { id: 'standard', enabled: false }];
     const changed: string[] = [];
@@ -32,7 +32,7 @@ test('profile selector loads native and PTC session namespaces independently fro
     await profiles.forSession('ptc');
     const response = await request('native', { profile: 'Files' });
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { enabled: true, profile: 'Files', profiles: ['Default', 'Files'] });
+    assert.deepEqual(await response.json(), { enabled: true, profile: 'Files', profiles: ['Default', 'Files'], profileBriefs: { Files: 'File operations' } });
     assert.equal((await profiles.forSession('native')).configuration().namespaces[0]?.path, 'files');
     assert.equal((await profiles.forSession('ptc')).snapshot().profile, 'Default');
     assert.deepEqual(catalog.snapshot(), original);

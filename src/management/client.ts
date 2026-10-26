@@ -3,7 +3,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client';
 import type {} from '@deepseek-ai/dsh-client-ui-plugin-manager/client';
 import { SessionProfile } from './session_profile/session_profile.js';
-import { NativeProfileSelect } from './profile_picker/native_profile_select.js';
+import { HostProfileSelect } from './profile_picker/host_profile_select.js';
 import type {} from '@deepseek-ai/dsh-client-locale/client';
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client';
 import type { ISessions, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client';
@@ -41,6 +41,6 @@ export function apply(ctx: Context): void {
                 if (ctx.conversation.input.requestDraftInitialization(binding, { prompt }) === 'blocked') throw new Error('draft_initialization_failed');
                 ctx.uiWorkspace.openSession(id);
             });
-        }, locale: ctx.locale, CodeBlock, ProfileSelect: NativeProfileSelect, api: new URL('api/ts-intellisense-state', document.baseURI).href }),
+        }, locale: ctx.locale, CodeBlock, DefaultProfileSelect: HostProfileSelect, api: new URL('api/ts-intellisense-state', document.baseURI).href }),
     }, NativePanel));
 }

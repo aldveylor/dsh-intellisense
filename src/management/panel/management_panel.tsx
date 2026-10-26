@@ -20,6 +20,7 @@ import { isFixedNamespace, namespacePaths, orderedPaths, inNamespace, renameName
 interface View {
     provided: SerializedNode[];
     defaultProfile: string;
+    profileBriefs?: Record<string, string>;
     state: RegistryState;
     tools: PhysicalTool[];
     callsByTool?: Record<string, number>;
@@ -29,7 +30,7 @@ interface View {
 }
 
 /** @brief Shared editor inputs; the mounting surface supplies its authenticated API URL. */
-export interface ManagementPanelProps { api: string; ProfileSelect?: ComponentType<ProfileSelectProps>; organize?: (prompt: string) => Promise<void> }
+export interface ManagementPanelProps { api: string; ProfileSelect?: ComponentType<ProfileSelectProps>; DefaultProfileSelect?: ComponentType<ProfileSelectProps>; organize?: (prompt: string) => Promise<void> }
 
 /** @brief Make an authenticated same-origin request and preserve server error details. */
 async function request<T>(api: string, body?: unknown, signal?: AbortSignal): Promise<T> {
@@ -50,7 +51,7 @@ function profileDraft(state: Pick<RegistryState, keyof RegistryConfiguration>, p
     const namespaces = state.namespaces ?? [];
     const paths = [...TreeProvider(provided, state.builtinVisible ?? {}).map(node => node.path), ...namespacePaths({ mappings, namespaces }), ...mappings.map(mapping => mapping.path)];
     return {
-        mappings, namespaces, unmountedVisible: state.unmountedVisible ?? {}, builtinVisible: state.builtinVisible ?? {},
+        ...(state.brief === undefined ? {} : { brief: state.brief }), mappings, namespaces, unmountedVisible: state.unmountedVisible ?? {}, builtinVisible: state.builtinVisible ?? {},
         builtinDisabled: state.builtinDisabled ?? [], namespaceVisible: state.namespaceVisible ?? {}, toolComments: state.toolComments ?? {},
         order: orderedPaths([...new Set(paths)], (state.order ?? []).map(path => path.trim())),
     };
@@ -293,10 +294,12 @@ const NamespaceTreeView = memo(function NamespaceTreeView({ roots, tree }: { roo
 });
 
 /** @brief React registry editor with versioned drafts and conversation-based organization. */
-export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPanelProps) {
+export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, organize }: ManagementPanelProps) {
     const t = useTranslation();
-    const Select = ProfileSelect ?? PortableProfileSelect;
+    const Select = DefaultProfileSelect ?? PortableProfileSelect;
     const [view, setView] = useState<View>();
+    const [brief, setBrief] = useState<string>();
+    const [briefEditor, setBriefEditor] = useState<string>();
     const [mappings, setMappings] = useState<Mapping[]>([]);
     const [namespaces, setNamespaces] = useState<Namespace[]>([]);
     const [order, setOrder] = useState<string[]>([]);
@@ -333,6 +336,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
 
     /** @brief Apply local edits without replacing the server snapshot used for dirty detection. */
     function applyDraft(state: Pick<RegistryState, keyof RegistryConfiguration>, nodes = view?.provided ?? []): void {
+        setBrief(state.brief);
         setMappings(current => retain(current, state.mappings));
         setNamespaces(current => retain(current, state.namespaces ?? []));
         setUnmountedVisible(current => retain(current, state.unmountedVisible ?? {}));
@@ -365,9 +369,9 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
     const unmounted = useMemo(() => unmountedTools(view?.tools ?? [], mappings, provided), [view?.tools, mappings, provided]);
     const toolsById = useMemo(() => new Map(view?.tools.map(tool => [tool.id, tool])), [view?.tools]);
     const paths = useMemo(() => [...new Set([...provided.map(node => node.path), ...namespacePaths({ mappings, namespaces })])], [provided, mappings, namespaces]);
-    const saved = useMemo(() => view ? profileDraft(view.state, view.provided) : undefined, [view?.state.mappings, view?.state.namespaces, view?.state.order, view?.state.unmountedVisible, view?.state.builtinVisible, view?.state.builtinDisabled, view?.state.namespaceVisible, view?.state.toolComments, view?.provided]);
-    const draft = useMemo(() => profileDraft({ mappings, namespaces, unmountedVisible, builtinVisible, builtinDisabled, namespaceVisible, toolComments, order }, view?.provided),
-        [mappings, namespaces, unmountedVisible, builtinVisible, builtinDisabled, namespaceVisible, toolComments, order, view?.provided]);
+    const saved = useMemo(() => view ? profileDraft(view.state, view.provided) : undefined, [view?.state.brief, view?.state.mappings, view?.state.namespaces, view?.state.order, view?.state.unmountedVisible, view?.state.builtinVisible, view?.state.builtinDisabled, view?.state.namespaceVisible, view?.state.toolComments, view?.provided]);
+    const draft = useMemo(() => profileDraft({ brief, mappings, namespaces, unmountedVisible, builtinVisible, builtinDisabled, namespaceVisible, toolComments, order }, view?.provided),
+        [brief, mappings, namespaces, unmountedVisible, builtinVisible, builtinDisabled, namespaceVisible, toolComments, order, view?.provided]);
     const newProfile = !!view && !view.state.profiles?.includes(view.state.profile!);
     const dirty = useMemo(() => !!saved && (newProfile || JSON.stringify(draft) !== JSON.stringify(saved)), [saved, draft, newProfile]);
 
@@ -403,16 +407,16 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
     function selectDefault(name: string): void {
         if (!view || name === view.defaultProfile) return;
         void action('', async () => {
-            const snapshot = await request<{ defaultProfile: string; revision: number; profiles: string[] }>(api,
+            const snapshot = await request<{ defaultProfile: string; revision: number; profiles: string[]; profileBriefs?: Record<string, string> }>(api,
                 { action: 'profile', operation: 'select', name, revision: view.state.revision });
-            setView(current => current && ({ ...current, defaultProfile: snapshot.defaultProfile, state: { ...current.state, revision: snapshot.revision, profiles: retain(current.state.profiles, snapshot.profiles) } }));
+            setView(current => current && ({ ...current, defaultProfile: snapshot.defaultProfile, profileBriefs: snapshot.profileBriefs, state: { ...current.state, revision: snapshot.revision, profiles: retain(current.state.profiles, snapshot.profiles) } }));
         }, 'default');
     }
 
     /** @brief Create a local empty profile; persistence occurs only when saving. */
     function createProfile(name: string): void {
         if (!view) return;
-        applyView({ ...view, state: { ...view.state, profile: name, mappings: [], namespaces: [], order: [], unmountedVisible: {}, builtinDisabled: [], builtinVisible: {}, namespaceVisible: {}, toolComments: {} } });
+        applyView({ ...view, state: { ...view.state, profile: name, brief: undefined, mappings: [], namespaces: [], order: [], unmountedVisible: {}, builtinDisabled: [], builtinVisible: {}, namespaceVisible: {}, toolComments: {} } });
         setExpanded({}); setToolPicker(undefined); setDescriptionEditor(undefined);
     }
 
@@ -606,7 +610,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
                 : <ErrorDialog message={t(status)} close={() => setStatus('')} />)}
             <div className="ts-toolbar"><div className="ts-actions">
                 <div className="ts-default-profile" aria-busy={pending === 'default' || undefined} ref={element => { if (element) element.inert = pending === 'default'; }}><span>{t('default_profile')}</span>
-                    <Select value={view?.defaultProfile ?? ''} options={(view?.state.profiles ?? []).map(name => ({ value: name, label: name }))}
+                    <Select value={view?.defaultProfile ?? ''} options={(view?.state.profiles ?? []).map(name => ({ value: name, label: name, brief: view?.profileBriefs?.[name] }))}
                         disabled={!view} label={t('default_profile')} readOnly allowCreate={false} onChange={selectDefault}
                         onCreate={createProfile} onRename={(name, newName) => manageProfile('rename', name, newName)} onRemove={name => manageProfile('delete', name)} />
                 </div>
@@ -623,7 +627,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
                 </button>
                 <div className="ts-namespace-profile" aria-busy={pending === 'editor' || undefined} ref={element => { if (element) element.inert = pending === 'editor'; }}>
                     <ProfilePicker name={view?.state.profile ?? ''} profiles={[...(view?.state.profiles ?? []), ...(newProfile ? [view!.state.profile!] : [])]}
-                        download={downloadProfile} upload={uploadProfile}
+                        download={downloadProfile} upload={uploadProfile} briefs={{ ...view?.profileBriefs, ...(view ? { [view.state.profile!]: brief ?? '' } : {}) }}
                         dirty={dirty} busy={!view} Select={ProfileSelect} protectedProfile={view?.state.profiles?.length === 1 ? view.state.profiles[0] : undefined}
                         refresh={() => action('', reload)} refreshDisabled={!view}
                         select={name => manageProfile('select', name)} create={createProfile}
@@ -638,8 +642,9 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
                 </div>
             </div>
                 <small>{t('tree_hint')}</small>
-                {view && <button className="ts-unmounted-count" type="button" data-unmounted-count={unmounted.length} aria-live="polite" disabled={!unmounted.length}
-                    onClick={() => setToolPicker({ parent: '', unmountedOnly: true })}>{t('unmounted_count', { count: unmounted.length })}</button>}
+                {view && <div className="ts-profile-summary"><button className="ts-unmounted-count" type="button" data-unmounted-count={unmounted.length} aria-live="polite" disabled={!unmounted.length}
+                    onClick={() => setToolPicker({ parent: '', unmountedOnly: true })}>{t('unmounted_count', { count: unmounted.length })}</button>
+                    <button type="button" disabled={busy} onClick={() => setBriefEditor(brief ?? '')}>{t('edit_profile_brief')}</button></div>}
                 <div aria-busy={pending === 'editor' || undefined} ref={element => { if (element) element.inert = pending === 'editor'; }}>
                     <NamespaceTreeView roots={namespaceTree.roots} tree={tree} />
                 </div>
@@ -650,6 +655,14 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
                 applyDrop({ namespace: false, id: tool.id }, { path: toolPicker.parent, position: 'inside' });
                 setToolPicker(undefined);
             }} />}
+        {briefEditor !== undefined && <div className="ts-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="ts-brief-title">
+            <form onSubmit={event => { event.preventDefault(); setBrief(briefEditor.trim() || undefined); setBriefEditor(undefined); }}>
+                <h2 id="ts-brief-title">{t('edit_profile_brief')}</h2>
+                <textarea aria-label={t('profile_brief')} autoFocus rows={4} value={briefEditor} onChange={event => setBriefEditor(event.target.value)} />
+                <div className="ts-actions"><button type="submit">{t('apply')}</button>
+                    <button type="button" onClick={() => setBriefEditor(undefined)}>{t('cancel')}</button></div>
+            </form>
+        </section></div>}
         {descriptionEditor && <div className="ts-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="ts-description-title">
             <form onSubmit={event => {
                 event.preventDefault();
