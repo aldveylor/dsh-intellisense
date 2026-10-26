@@ -36,3 +36,5 @@ Profile annotation 说明可使用 load 返回的树作为编辑起点，缺少�
 Permission.commentable 控制简化注释编辑：普通节点默认为 true，受保护命名空间及命令为 false。服务端不信任提交的 permissions；禁止修改的 description/command.doc 被忽略。CommandNode 的 command.doc 为可选输入，缺省不创建描述覆盖，实际展示回退原始注释首行。输入树及原配置均不被修改。
 
 SemanticRegistry.generation 由配置 revision 和物理目录内容版本组成；目录内容相同时不重新克隆。profileSelection 仅读取名称列表和当前选择，不复制完整配置，供每次工具回复的 Profile 元数据刷新使用。执行、搜索与发现的单次操作共享同一 registry 快照。
+
+全局 registry 的 version 为独立于包版本的整数，当前为 1；缺失按 0 处理。仅全局加载在版本变化时逐项校验和保留有效映射、命名空间、偏好及具名配置，丢弃无效项和冲突项，保存清理后的当前版本后才更新内存状态。相同版本继续严格校验，会话工作快照不执行版本清理。版本变化时不转换旧模型字段。

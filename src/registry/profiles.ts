@@ -32,7 +32,7 @@ export class ProfileSessions {
             },
             save: async <T>(_key: string, value: T) => { await this.store.save(key, value); },
             remove: async () => { await this.store.remove(key); },
-        });
+        }, 'session');
         await registry.load();
         return registry;
     }

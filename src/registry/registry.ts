@@ -35,11 +35,14 @@ export interface Mapping {
 export interface Namespace { disabled?: boolean; path: string; alwaysVisible: boolean; description: string }
 
 /** @brief Versioned complete registry state, committed atomically. */
-export interface RegistryState { version: 1; revision: number; mappings: Mapping[]; namespaces?: Namespace[]; order?: string[]; unmountedVisible?: CommandVisibility; builtinDisabled?: string[]; builtinVisible?: CommandVisibility; namespaceVisible?: Record<string, boolean>; toolComments?: Record<string, string>; profile?: string; profiles?: string[] }
+export interface RegistryState { version: number; revision: number; mappings: Mapping[]; namespaces?: Namespace[]; order?: string[]; unmountedVisible?: CommandVisibility; builtinDisabled?: string[]; builtinVisible?: CommandVisibility; namespaceVisible?: Record<string, boolean>; toolComments?: Record<string, string>; profile?: string; profiles?: string[] }
 /** @brief A named configuration contains only tool tree settings. */
 export interface RegistryConfiguration { mappings: Mapping[]; namespaces: Namespace[]; order: string[]; unmountedVisible: CommandVisibility; builtinDisabled?: string[]; builtinVisible?: CommandVisibility; namespaceVisible?: Record<string, boolean>; toolComments?: Record<string, string> }
 /** @brief Only inactive configurations are archived, so the active configuration has one source of truth. */
 interface StoredRegistryState extends RegistryState { inactiveProfiles?: Record<string, RegistryConfiguration> }
+
+/** @brief Global configuration schema version, independent of the package version. */
+const configurationVersion = 1;
 
 /** @brief Transactional semantic registry; unconfigured identities use encoded tools paths. */
 export class SemanticRegistry {
@@ -47,14 +50,16 @@ export class SemanticRegistry {
     private physicalFingerprint = '';
     private physicalRevision = 0;
     private readonly protectedNodes = createNamespace({ tools: [], includeUnavailable: true });
-    private state: StoredRegistryState = { version: 1, revision: 0, mappings: [], profile: 'Default', inactiveProfiles: {} };
+    private state: StoredRegistryState = { version: configurationVersion, revision: 0, mappings: [], profile: 'Default', inactiveProfiles: {} };
     private writeChain: Promise<unknown> = Promise.resolve();
 
-    constructor(private store: Store) {}
+    constructor(private store: Store, private readonly scope: 'global' | 'session' = 'global') {}
 
     async load(): Promise<void> {
-        const saved = await this.store.load<StoredRegistryState>('registry');
-        if (saved) {
+        let saved = await this.store.load<StoredRegistryState>('registry');
+        if (saved !== undefined) {
+            const migrate = this.scope === 'global' && (saved?.version ?? 0) !== configurationVersion;
+            if (migrate) saved = this.recoverState(saved);
             if (saved.version !== 1 || !Number.isSafeInteger(saved.revision) || !Array.isArray(saved.mappings)) throw new Error('Invalid registry snapshot');
             this.validateProfileName(saved.profile ?? 'Default');
             this.validateMappings(saved.mappings);
@@ -75,8 +80,60 @@ export class SemanticRegistry {
                 this.validateNamespaceVisible(configuration.namespaceVisible);
                 this.validateComments(configuration.toolComments ?? {});
             }
+            if (migrate) await this.store.save('registry', saved);
             this.state = saved;
         }
+    }
+
+    /** @brief Recover independently loadable settings when the global schema version changes. */
+    private recoverState(value: unknown): StoredRegistryState {
+        const saved = this.record(value);
+        const profile = this.accepts(() => this.validateProfileName(saved.profile as string)) ? saved.profile as string : 'Default';
+        const inactiveProfiles: Record<string, RegistryConfiguration> = {};
+        for (const [name, configuration] of Object.entries(this.record(saved.inactiveProfiles))) {
+            if (name === profile || !this.accepts(() => this.validateProfileName(name))) continue;
+            inactiveProfiles[name] = this.recoverConfiguration(configuration);
+        }
+        return { ...this.recoverConfiguration(saved), version: configurationVersion,
+            revision: Number.isSafeInteger(saved.revision) ? saved.revision as number : 0, profile, inactiveProfiles };
+    }
+
+    /** @brief Discard invalid entries while retaining valid siblings and unrelated preferences. */
+    private recoverConfiguration(value: unknown): RegistryConfiguration {
+        const saved = this.record(value);
+        const mappings: Mapping[] = [];
+        for (const mapping of Array.isArray(saved.mappings) ? saved.mappings : []) {
+            if (this.accepts(() => this.validateMappings([...mappings, mapping]))) mappings.push(mapping);
+        }
+        const namespaces: Namespace[] = [];
+        for (const namespace of Array.isArray(saved.namespaces) ? saved.namespaces : []) {
+            if (this.accepts(() => this.validateNamespaces([...namespaces, namespace], mappings))) namespaces.push(namespace);
+        }
+        return { mappings, namespaces,
+            order: Array.isArray(saved.order) ? [...new Set(saved.order.filter((path): path is string => typeof path === 'string'))] : [],
+            unmountedVisible: this.recoverEntries<PinLevel>(saved.unmountedVisible, entry => this.validateVisibility(entry)),
+            builtinVisible: saved.builtinVisible === undefined ? { ...pluginCommands.defaultBuiltinVisible }
+                : this.recoverEntries<PinLevel>(saved.builtinVisible, entry => this.validateVisibility(entry)),
+            namespaceVisible: this.recoverEntries<boolean>(saved.namespaceVisible, entry => this.validateNamespaceVisible(entry)),
+            toolComments: this.recoverEntries<string>(saved.toolComments, entry => this.validateComments(entry)),
+            builtinDisabled: Array.isArray(saved.builtinDisabled) ? saved.builtinDisabled.filter((path: unknown): path is string => this.accepts(() => this.validateDisabled([path as string]))) : [],
+        };
+    }
+
+    /** @brief Treat malformed containers as empty without trusting persisted types. */
+    private record(value: unknown): Record<string, unknown> {
+        return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+    }
+
+    /** @brief Reuse runtime validators to retain only supported dictionary entries. */
+    private recoverEntries<T>(value: unknown, validate: (entry: Record<string, T>) => void): Record<string, T> {
+        return Object.fromEntries(Object.entries(this.record(value)).filter(([key, entry]) => this.accepts(() => validate({ [key]: entry as T })))) as Record<string, T>;
+    }
+
+    /** @brief Convert only synchronous validation failures into discarded configuration data. */
+    private accepts(validate: () => void): boolean {
+        try { validate(); return true; }
+        catch { return false; }
     }
 
     refresh(tools: PhysicalTool[]): void {
