@@ -49,17 +49,17 @@ export function normalizeIntellisenseQueries(queries: readonly string[]): string
     });
 }
 
-/** @brief Select exact commands or direct members by following the node chain. */
+/** @brief Select exact commands or direct members once per path across overlapping queries. */
 export function queryNodes(root: NamespaceNode, queries: readonly string[]): (NamespaceNode | CommandNode)[] {
-    const selected = new Set<NamespaceNode | CommandNode>();
-    for (const query of normalizeIntellisenseQueries(queries)) {
+    const selected = new Map<string, NamespaceNode | CommandNode>();
+    for (const query of new Set(normalizeIntellisenseQueries(queries))) {
         const path = query.replace(/\.$/, '');
         const node = root.resolve(path ? path.split('.') : []);
         if (!node || node.disabled) continue;
-        if (node instanceof NamespaceNode) for (const child of node.children.values()) { if (!child.disabled) selected.add(child); }
-        else if (node && !query.endsWith('.')) selected.add(node);
+        if (node instanceof NamespaceNode) for (const child of node.children.values()) { if (!child.disabled) selected.set(child.path, child); }
+        else if (node && !query.endsWith('.')) selected.set(node.path, node);
     }
-    return [...selected];
+    return [...selected.values()];
 }
 
 /** @brief Build deterministic, scoped aliases from the current Profile and physical tool catalog. */
