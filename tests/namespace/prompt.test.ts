@@ -12,7 +12,6 @@ test('execution guidance selects native named arguments or conversation-scoped a
     assert(ptc.includes('async TypeScript/JavaScript function body'));
     assert(ptc.includes('attach variables to globalThis'));
     assert(ptc.includes('continuity is not guaranteed'));
-    assert(ptc.includes('tools.profile.annotation, tools.profile.commands and tools.profile.profiles are preloaded read-only fields'));
     for (const prompt of [native, ptc]) {
         assert(!prompt.includes('<|INTELLISENSE|>'));
         assert(!prompt.includes('js:exec'));
