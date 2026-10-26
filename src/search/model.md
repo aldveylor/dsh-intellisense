@@ -24,3 +24,5 @@ ctx.commandNamespaces.searchEngines.setDefault('custom');
 ```
 
 主插件与独立 namespace 配置均允许 defaultSearchMethod，未指定时优先 bm25。SearchEngineRegistry 及公共类型从根入口和 namespace 入口导出。
+
+空关键词和零上限在生成文档前返回；文档只投影选中的字段，未选择的字段为空字符串。分词器在模块内复用，每个注册器的 BM25 引擎仅缓存最近一次字段及文档内容对应的索引；作用域、路径、字段或文档变化时重建，不缓存查询结果。

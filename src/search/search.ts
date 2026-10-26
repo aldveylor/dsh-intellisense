@@ -18,10 +18,12 @@ export interface SearchOptions {
     namespace_path?: string;
 }
 
+const segmenter = new Intl.Segmenter(undefined, { granularity: 'word' });
+
 /** @brief Split identifiers, natural language and Chinese words into searchable terms. */
 function tokenize(text: string): string[] {
     const words = text.replace(/([a-z\d])([A-Z])/g, '$1 $2').replace(/[_.$]/g, ' ');
-    return [...new Intl.Segmenter(undefined, { granularity: 'word' }).segment(words)].filter(part => part.isWordLike).map(part => part.segment.toLowerCase());
+    return [...segmenter.segment(words)].filter(part => part.isWordLike).map(part => part.segment.toLowerCase());
 }
 
 /** @brief Match any keyword as a case-insensitive substring in the selected fields. */
@@ -34,12 +36,17 @@ export const accurateEngine: SearchEngine = {
 /** @brief Build an independent registry with optional BM25 and always-available substring matching. */
 export function createSearchEngines(defaultMethod?: string, ranked = miniSearch): SearchEngineRegistry {
     const registry = new SearchEngineRegistry(defaultMethod);
+    let cached: { key: string; index: MiniSearch } | undefined;
     if (ranked) registry.register({
         name: 'bm25', description: 'BM25 ranked fuzzy and prefix search.',
         search: ({ documents, keywords, fields }) => {
-            const index = new ranked({ fields: [...fields], tokenize, searchOptions: { combineWith: 'OR', fuzzy: .2, prefix: true, boost: { name: 2 } } });
-            index.addAll([...documents]);
-            return index.search(keywords.join(' ')).sort((a, b) => b.score - a.score || String(a.id).localeCompare(String(b.id)))
+            const key = JSON.stringify([fields, documents]);
+            if (cached?.key !== key) {
+                const index = new ranked({ fields: [...fields], tokenize, searchOptions: { combineWith: 'OR', fuzzy: .2, prefix: true, boost: { name: 2 } } });
+                index.addAll([...documents]);
+                cached = { key, index };
+            }
+            return cached.index.search(keywords.join(' ')).sort((a, b) => b.score - a.score || String(a.id).localeCompare(String(b.id)))
                 .map(result => String(result.id));
         },
     });
@@ -75,11 +82,12 @@ export async function searchEntries(entries: readonly ManifestEntry[], options: 
     const method = options.method ?? selector.defaultMethod;
     const engine = selector.engines.find(engine => engine.name === method);
     if (!engine) throw new Error(`Unknown search method: ${method}`);
+    if (!keywords.length || !limit) return [];
     const documents = entries.filter(entry => !namespace || entry.path.startsWith(namespace + '.')).map(entry => ({
-        id: entry.path, name: entry.path, description: entry.doc,
-        parameters: JSON.stringify(entry.schema),
+        id: entry.path, name: fields.includes('name') ? entry.path : '', description: fields.includes('description') ? entry.doc : '',
+        parameters: fields.includes('parameters') ? JSON.stringify(entry.schema) : '', 
     }));
-    if (!keywords.length || !limit || !documents.length) return [];
+    if (!documents.length) return [];
     const allowed = new Set(documents.map(document => document.id));
     return [...new Set(await engine.search({ documents, keywords, fields, maxResults: limit }))].filter(path => allowed.has(path)).slice(0, limit);
 }
