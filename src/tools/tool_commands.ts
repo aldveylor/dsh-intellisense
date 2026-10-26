@@ -91,7 +91,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
             ? JSON.stringify(ProfileSchema.toJSONSchema()) : profileAnnotation,
     })));
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_commands', description: 'All catalog commands excluding plugin builtins, with physical names, summaries, active namespace paths in this conversation Profile (empty when unmounted), and total calls across all sessions.', parameters: {},
+        name: 'tools_profile_commands', description: 'All catalog commands excluding plugin builtins, with physical names, summaries, mounting paths in this conversation Profile (including disabled paths; empty when unmounted), and total calls across all sessions.', parameters: {},
         output: { ...output, schema: { type: 'array', items: { type: 'object', additionalProperties: true } } },
         execute: async (_args, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');

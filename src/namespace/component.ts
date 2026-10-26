@@ -109,14 +109,20 @@ export class NamespaceComponent {
     /** @brief Flatten command bindings only for consumers that dispatch physical tools. */
     async entries(agent: Agent): Promise<CommandNode[]> { return (await this.tree(agent)).commands().filter(entry => entry.deployment === 'tool'); }
 
-    /** @brief List catalog commands with current active mounts, excluding plugin builtins. */
+    /** @brief List catalog commands with mounting paths including disabled paths, excluding plugin builtins. */
     async commandBriefs(agent?: Agent): Promise<CommandBrief[]> {
         await this.refresh();
         const registry = agent ? await this.registryFor(agent) : this.registry;
         const paths = new Map<string, string[]>();
-        for (const entry of manifest(registry, this.aliases).commands()) {
-            if (!paths.has(entry.tool)) paths.set(entry.tool, []);
-            paths.get(entry.tool)!.push(entry.path);
+        const mounts = registry.snapshot().mappings;
+        const mounted = new Set(mounts.map(mapping => mapping.id));
+        for (const { id, path } of mounts) {
+            if (!paths.has(id)) paths.set(id, []);
+            if (!paths.get(id)!.includes(path)) paths.get(id)!.push(path);
+        }
+        for (const { tool, path } of this.aliases) {
+            if (!mounted.has(tool)) continue;
+            if (!paths.get(tool)!.includes(path)) paths.get(tool)!.push(path);
         }
         const { callsByTool } = await this.statistics.snapshot();
         return this.registry.tools().filter(tool => !reservedToolIds.includes(tool.id) && !pluginCommands.find(tool.id)).map(tool => ({
@@ -158,7 +164,7 @@ export class NamespaceComponent {
                     ...(level === 2 ? { declaration: entry.preload ? `/** @brief ${entry.doc} */\nconst ${entry.name}: ${entry.signature};` : entry.declaration(false) } : {}) });
                 continue;
             }
-            const mapping = registry.effective().find(mapping => mapping.id === entry.tool);
+            const mapping = registry.effective().find(mapping => mapping.id === entry.tool && mapping.path === entry.path);
             const level = entry.fixLevel(mapping?.alwaysVisible);
             const description = mapping?.description ?? entry.doc.trim().split(/\r?\n/, 1)[0]!;
             if (level) hints.push({ path: entry.path, description,
@@ -195,7 +201,7 @@ export class NamespaceComponent {
         const available = new Set(entries.map(entry => entry.path));
         for (const path of discovered ?? []) if (!available.has(path)) discovered!.delete(path);
         return entries.filter(entry => !entry.permissions.disableable || discovered?.has(entry.path)
-            || registry.effective().some(mapping => mapping.id === entry.tool && mapping.alwaysVisible)
+            || registry.effective().some(mapping => mapping.id === entry.tool && mapping.path === entry.path && mapping.alwaysVisible)
             || state.builtinVisible?.[entry.path]);
     }
 
@@ -204,8 +210,7 @@ export class NamespaceComponent {
         const registry = await this.registryFor(agent);
         const root = manifest(registry, this.aliases);
         const entries = root.commands().filter(entry => entry.deployment === 'tool');
-        const briefs = new Map(registry.effective().map(mapping => [mapping.id, mapping.description]));
-        if (this.isPtc(agent)) return nativeDiscovery(queries, root, nativeBindings(entries, this.physical(agent).map(tool => tool.id)), tool => briefs.get(tool));
+        if (this.isPtc(agent)) return nativeDiscovery(queries, root, nativeBindings(entries, this.physical(agent).map(tool => tool.id)), (tool, path) => registry.description(path, tool));
         const selected = nativeQueryEntries(queries, root);
         let discovered = this.discovered.get(agent.id);
         if (!discovered) this.discovered.set(agent.id, discovered = new Set());
@@ -216,7 +221,7 @@ export class NamespaceComponent {
         while (discovered.size > 256) discovered.delete(discovered.values().next().value!);
         await this.syncNative(agent);
         this.ctx.emit('system-prompt/change');
-        return nativeDiscovery(queries, root, nativeBindings(entries, this.physical(agent).map(tool => tool.id)), tool => briefs.get(tool));
+        return nativeDiscovery(queries, root, nativeBindings(entries, this.physical(agent).map(tool => tool.id)), (tool, path) => registry.description(path, tool));
     }
 
     /** @brief Install scoped namespace aliases while keeping dispatch inside native guards and auditing. */
@@ -224,8 +229,8 @@ export class NamespaceComponent {
         const entries = await this.entries(agent);
         const visible = new Set((await this.nativeEntries(agent)).map(entry => entry.path));
         const bindings = nativeBindings(entries, this.physical(agent).map(tool => tool.id)).filter(({ entry }) => visible.has(entry.path));
-        const briefs = new Map((await this.registryFor(agent)).effective().map(mapping => [mapping.id, mapping.description]));
-        const descriptionFor = (entry: CommandNode): string => briefs.get(entry.tool) ?? entry.doc.trim().split(/\r?\n/, 1)[0]!;
+        const registry = await this.registryFor(agent);
+        const descriptionFor = (entry: CommandNode): string => registry.description(entry.path, entry.tool) ?? entry.doc.trim().split(/\r?\n/, 1)[0]!;
         const fingerprint = JSON.stringify(bindings.map(({ entry, name }) => ({ name, path: entry.path, node: entry.serialize(), description: descriptionFor(entry) })));
         const previous = this.nativeTools.get(agent.id);
         if (previous?.fingerprint === fingerprint) return bindings.map(binding => binding.name);

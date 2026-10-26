@@ -29,11 +29,11 @@ export function nativeQueryEntries(queries: readonly string[], root: NamespaceNo
 }
 
 /** @brief Render shallow native discovery and exact named-argument contracts as JSON. */
-export function nativeDiscovery(queries: readonly string[], root: NamespaceNode, bindings: readonly { entry: CommandNode; name: string }[], brief: (tool: string) => string | undefined = () => undefined): string {
+export function nativeDiscovery(queries: readonly string[], root: NamespaceNode, bindings: readonly { entry: CommandNode; name: string }[], brief: (tool: string, path: string) => string | undefined = () => undefined): string {
     const names = new Map(bindings.map(({ entry, name }) => [entry, name]));
     const exact = new Set(normalizeIntellisenseQueries(queries));
     const members = queryNodes(root, queries).sort((a, b) => a.path.localeCompare(b.path)).map(node => {
-        const description = node instanceof NamespaceNode ? node.description : brief(node.tool) ?? node.doc.trim().split(/\r?\n/, 1)[0];
+        const description = node instanceof NamespaceNode ? node.description : brief(node.tool, node.path) ?? node.doc.trim().split(/\r?\n/, 1)[0];
         return { path: node.path, ...(description?.trim() ? { brief: description } : {}),
             ...(node instanceof NamespaceNode ? { namespace: true } : {
                 deployment: node.deployment,

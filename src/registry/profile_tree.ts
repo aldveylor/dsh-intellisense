@@ -6,7 +6,7 @@ import { fixLevel, type SerializedNode } from '../namespace/node.js';
 /** @brief Physical command identity used by editable Profile trees. */
 export type CommandName = string;
 
-/** @brief Physical command summary, active namespace paths in the current Profile and global usage. */
+/** @brief Physical command summary, mounting paths (including disabled paths) in the current Profile and global usage. */
 export interface CommandBrief { name: CommandName; brief: string; paths: string[]; totalCalls: number }
 
 /** @brief Available catalog Profile names and the current conversation selection. */
@@ -58,14 +58,15 @@ export function profileTree(name: string, configuration: RegistryConfiguration):
         return parent.add(new NamespaceNode(parts.at(-1)!, parent, configuration.namespaces.find(item => item.path === path)?.description));
     };
     for (const item of configuration.namespaces) nodeFor(item.path);
-    for (const mapping of configuration.mappings) for (const path of [mapping.path, ...mapping.aliases]) {
+    for (const mapping of configuration.mappings) {
+        const path = mapping.path;
         const parts = path.split('.');
-        nodeFor(parts.slice(0, -1).join('.')).add(new CommandNode(parts.at(-1)!, nodeFor(parts.slice(0, -1).join('.')), { tool: mapping.id, schema: {}, output: {}, doc: configuration.toolComments?.[mapping.id] ?? mapping.description ?? '' }));
+        nodeFor(parts.slice(0, -1).join('.')).add(new CommandNode(parts.at(-1)!, nodeFor(parts.slice(0, -1).join('.')), { tool: mapping.id, schema: {}, output: {}, doc: mapping.description ?? configuration.toolComments?.[mapping.id] ?? '' }));
     }
     const snapshot = root.serialize();
     const apply = (node: SerializedNode, prefix: string): void => {
         const path = prefix ? `${prefix}.${node.name}` : node.name;
-        const mapping = configuration.mappings.find(item => [item.path, ...item.aliases].includes(path));
+        const mapping = configuration.mappings.find(item => item.path === path);
         const namespace = configuration.namespaces.find(item => item.path === path);
         node.fixedLevel = fixLevel(node.permissions, node.type === 'leaf' ? configuration.builtinVisible?.[path] ?? mapping?.alwaysVisible ?? 0
             : namespace?.alwaysVisible || configuration.namespaceVisible?.[path] ? 1 : 0);
@@ -116,10 +117,8 @@ export function profileConfiguration(profile: Profile, current: RegistryConfigur
                 return;
             }
             if (!commands.some(item => item.name === node.command!.tool)) throw new Error(`Unknown command: ${node.command.tool}`);
-            const mounted = configuration.mappings.find(item => item.id === node.command!.tool);
-            if (mounted) mounted.aliases.push(path);
-            else configuration.mappings.push({ id: node.command.tool, path, aliases: [], pinned: false, disabled: node.disabled, alwaysVisible: node.fixedLevel ?? 0 });
-            if (node.command.doc !== undefined) configuration.toolComments![node.command.tool] = node.command.doc;
+            configuration.mappings.push({ id: node.command.tool, path, pinned: false, disabled: node.disabled,
+                alwaysVisible: node.fixedLevel ?? 0, description: node.command.doc });
             return;
         }
         if (node.command || expected instanceof CommandNode) throw new Error(`Invalid namespace node: ${path}`);
@@ -153,7 +152,7 @@ export function profileConfiguration(profile: Profile, current: RegistryConfigur
 }
 
 /** @brief Shared Profile transport definition preloaded for PTC programs. */
-export const profileAnnotation = `/** @brief Physical command identity, summary, active namespace paths in the current conversation Profile (empty when unmounted), and total calls across all sessions. Plugin builtins are excluded. */
+export const profileAnnotation = `/** @brief Physical command identity, summary, mounting paths (including disabled paths) in the current conversation Profile (empty when unmounted), and total calls across all sessions. Plugin builtins are excluded. */
 interface CommandBrief { name: string; brief: string; paths: string[]; totalCalls: number; }
 /** @brief Available catalog Profile names and the current conversation selection. */
 interface Profiles { profiles: string[]; selected: string; }

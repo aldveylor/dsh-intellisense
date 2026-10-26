@@ -52,3 +52,5 @@ PTC 每次执行重建 VM Context，不保证环境连续，不支持 globalThis
 当前对话通过显式 switch(name) 或会话 Profile 下拉框更新工作配置后，统一由 configurationChanged 刷新工具提示。仅 tools.profile.switch(name) 成功完成加载和刷新后，通过 Agent.inject 向当前对话注入 intellisense-profile 英文 notice：`Profile updated to <profile name>`；load(name)、UI 下拉选择、通用配置刷新、保存目录、读取草稿、失败操作及删除其它配置均不注入。
 
 manifest 保留物理工具原始注释，精确 IntelliSense 函数查询（含 YAML 别名）显示原始完整注释；命名空间成员列表、固定提示（包括等级 2 的声明）与 native 工具描述采用 Profile command.doc/toolComments 简化注释，无偏好时回退到原始注释首行。native 精确查询通过 description 返回原始完整注释，brief 保留简化摘要。命令目录仅排除明确保留的插件工具 ID，不按 tools_ 前缀排除外部工具。目录中未挂载的命令可直接按物理名称构建 Profile 叶子，实际执行仍要求当前作用域存在对应物理工具。
+
+挂载路径无主次之分，各路径的固定等级、禁用状态与简化描述独立生效。commands.paths 从会话 Profile 配置汇总挂载路径，包含禁用路径与已挂载工具的 YAML 配置路径；不从过滤禁用项的执行 manifest 推导。

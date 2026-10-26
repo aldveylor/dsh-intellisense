@@ -25,7 +25,6 @@ export type CommandVisibility = Record<string, PinLevel>;
 export interface Mapping {
     id: string;
     path: string;
-    aliases: string[];
     description?: string;
     pinned: boolean;
     alwaysVisible?: PinLevel;
@@ -204,7 +203,7 @@ export class SemanticRegistry {
         if (node && !node.permissions.disableable) return false;
         return [...(this.state.builtinDisabled ?? []), ...(this.state.namespaces ?? []).filter(node => node.disabled).map(node => node.path)]
             .some(prefix => path === prefix || path.startsWith(prefix + '.'))
-            || this.state.mappings.some(mapping => mapping.disabled && [mapping.path, ...mapping.aliases].includes(path));
+            || this.state.mappings.some(mapping => mapping.disabled && mapping.path === path);
     }
 
     /** @brief Validate disabled builtin paths while preserving the tools namespace and discovery entry point. */
@@ -218,30 +217,29 @@ export class SemanticRegistry {
 
     tools(): PhysicalTool[] { return structuredClone([...this.physical.values()]); }
 
+    /** @brief Resolve a mount's description before the shared physical-tool preference. */
+    description(path: string, tool: string): string | undefined {
+        return this.state.mappings.find(mapping => mapping.path === path && mapping.id === tool)?.description ?? this.state.toolComments?.[tool];
+    }
+
     effective(): Array<Mapping & { tool: PhysicalTool }> {
-        return [...this.physical.values()].map(tool => {
-            const mapping = this.state.mappings.find(m => m.id === tool.id);
-            return {
-                id: tool.id,
+        return [...this.physical.values()].flatMap(tool => {
+            const mappings = this.state.mappings.filter(mapping => mapping.id === tool.id);
+            return (mappings.length ? mappings : [{ id: tool.id,
                 path: `tools.${tool.id.startsWith('tools_') ? tool.id.slice(6) : toolName(tool.id)}`,
-                aliases: [], pinned: false,
-                alwaysVisible: mapping?.alwaysVisible ?? ((this.state.unmountedVisible ?? {})[tool.id] ?? 0),
-                ...mapping, description: Object.hasOwn(this.state.toolComments ?? {}, tool.id) ? this.state.toolComments![tool.id] : mapping?.description, tool,
-            };
+                pinned: false, alwaysVisible: this.state.unmountedVisible?.[tool.id] ?? 0,
+            }]).map(mapping => ({ ...mapping, description: mapping.description ?? this.state.toolComments?.[tool.id], tool }));
         });
     }
 
+    /** @brief Validate each mount independently while rejecting overlapping callable paths. */
     private validateMappings(mappings: Mapping[]): void {
-        const ids = new Set<string>();
         const paths: string[] = [];
         for (const m of mappings) {
-            if (!m || typeof m.id !== 'string' || ids.has(m.id) || !Array.isArray(m.aliases) || m.aliases.some(a => typeof a !== 'string') || typeof m.pinned !== 'boolean' || (m.description !== undefined && typeof m.description !== 'string') || (m.disabled !== undefined && typeof m.disabled !== 'boolean') || (m.alwaysVisible !== undefined && ![0, 1, 2].includes(m.alwaysVisible))) throw new Error('Invalid mapping');
-            ids.add(m.id);
-            for (const path of [m.path, ...m.aliases]) {
-                validatePath(path);
-                if (paths.some(p => p === path || p.startsWith(`${path}.`) || path.startsWith(`${p}.`))) throw new Error(`Namespace collision: ${path}`);
-                paths.push(path);
-            }
+            if (!m || typeof m.id !== 'string' || typeof m.pinned !== 'boolean' || (m.description !== undefined && typeof m.description !== 'string') || (m.disabled !== undefined && typeof m.disabled !== 'boolean') || (m.alwaysVisible !== undefined && ![0, 1, 2].includes(m.alwaysVisible))) throw new Error('Invalid mapping');
+            validatePath(m.path);
+            if (paths.some(path => path === m.path || path.startsWith(`${m.path}.`) || m.path.startsWith(`${path}.`))) throw new Error(`Namespace collision: ${m.path}`);
+            paths.push(m.path);
         }
     }
 
@@ -252,7 +250,7 @@ export class SemanticRegistry {
         for (const entry of namespaces) {
             if (!entry || typeof entry.path !== 'string' || typeof entry.alwaysVisible !== 'boolean' || typeof entry.description !== 'string' || (entry.disabled !== undefined && typeof entry.disabled !== 'boolean') || seen.has(entry.path)) throw new Error('Invalid namespace');
             validatePath(`${entry.path}.namespace_check`);
-            if (mappings.flatMap(m => [m.path, ...m.aliases]).some(path => entry.path === path || entry.path.startsWith(`${path}.`))) throw new Error(`Namespace collision: ${entry.path}`);
+            if (mappings.map(m => m.path).some(path => entry.path === path || entry.path.startsWith(`${path}.`))) throw new Error(`Namespace collision: ${entry.path}`);
             seen.add(entry.path);
         }
     }
@@ -304,15 +302,13 @@ export class SemanticRegistry {
             this.validateNamespaces(metadata, detached);
             for (const m of detached) {
                 if (!this.physical.has(m.id) && !base.mappings.some(old => old.id === m.id)) throw new Error(`Unknown physical identity: ${m.id}`);
-                const old = base.mappings.find(o => o.id === m.id);
-                if (old?.pinned && (old.path !== m.path || JSON.stringify(old.aliases) !== JSON.stringify(m.aliases))) throw new Error(`Pinned mapping: ${m.id}`);
             }
             for (const old of base.mappings) {
-                if (old.pinned && !detached.some(m => m.id === old.id)) throw new Error(`Pinned mapping: ${old.id}`);
+                if (old.pinned && !detached.some(m => m.id === old.id && m.path === old.path)) throw new Error(`Pinned mapping: ${old.id}`);
             }
             const requestedOrder = order ?? base.order ?? [];
             if (!Array.isArray(requestedOrder) || requestedOrder.some(path => typeof path !== 'string')) throw new Error('Invalid tree order');
-            const known = new Set([...metadata.map(n => n.path), ...detached.flatMap(m => [m.path, ...m.aliases])]
+            const known = new Set([...metadata.map(n => n.path), ...detached.map(m => m.path)]
                 .flatMap(path => path.split('.').map((_, i, parts) => parts.slice(0, i + 1).join('.'))));
             const treeOrder = [...new Set([...requestedOrder, ...known])].filter(path => known.has(path));
             const configuration = { builtinDisabled: builtinDisabled ?? base.builtinDisabled ?? [], mappings: detached, namespaces: metadata, order: treeOrder, toolComments: comments, builtinVisible: builtins, namespaceVisible: namespaceVisible ?? base.namespaceVisible ?? {},

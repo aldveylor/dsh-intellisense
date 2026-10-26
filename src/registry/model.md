@@ -4,7 +4,7 @@
 
 命令固定等级统一为 0（不固定）、1（固定但简略）、2（固定且详细）。Mapping.alwaysVisible 保存等级；builtinVisible、unmountedVisible 为路径或物理 ID 到等级的映射，随 Profile 保存，挂载和移除映射时保留等级。命名空间 alwaysVisible 仍为布尔值。
 
-`profile_tree.ts` 的 Profile.root 基于 namespace/node.ts 的统一 SerializedNode，输入通过 ProfileNode 允许省略 command.doc：type 为 leaf/tree，children 为直接子节点数组，command 保存物理契约，permissions 保存服务端编辑和固定等级限制。fixedLevel 为 0/1/2，disabled 表示节点自身显式禁用。创建 Profile 时先构建带上下文的普通匿名 NamespaceNode 及 console/tools 受保护子树，再添加配置映射；没有专门的根节点类型。导入先递归补齐缺少的受保护子对象，再由父节点对应的服务端策略拒绝替换、改名、移动及向受限命名空间添加成员；客户端提交的 permissions 不作为权限依据。命令按物理 ID 聚合别名，command.doc 保存描述偏好。
+`profile_tree.ts` 的 Profile.root 基于 namespace/node.ts 的统一 SerializedNode，输入通过 ProfileNode 允许省略 command.doc：type 为 leaf/tree，children 为直接子节点数组，command 保存物理契约，permissions 保存服务端编辑和固定等级限制。fixedLevel 为 0/1/2，disabled 表示节点自身显式禁用。创建 Profile 时先构建带上下文的普通匿名 NamespaceNode 及 console/tools 受保护子树，再添加配置映射；没有专门的根节点类型。导入先递归补齐缺少的受保护子对象，再由父节点对应的服务端策略拒绝替换、改名、移动及向受限命名空间添加成员；客户端提交的 permissions 不作为权限依据。每个挂载路径保存一条 Mapping，同一物理 ID 可重复挂载，各路径独立保存 fixedLevel、disabled 与 command.doc 描述偏好；不存在主路径或别名之分。
 
 namespaceVisible 为随 Profile 保存的命名空间路径 → 固定提示布尔值映射，默认空对象；不使用 console 专有存储字段。管理面板始终展示 console 及其命令，console 命名空间图钉可切换是否固定提示；命令各自保留独立的提示等级。IntelliSense 与原生 console 的可用性不受固定状态影响。PTC 初始 prompt 提示可使用运行时提供的原生 Node.js 变量。
 
@@ -20,7 +20,7 @@ Mapping.disabled 与 Namespace.disabled 分别控制命令及子树的可用性�
 
 `tools` 根命名空间与 `tools.intellisense` 不可禁用，disabled 查询始终返回 false，builtinDisabled 校验拒绝这两个路径；tools 下其它节点按各自路径及可禁用父命名空间继承禁用。
 
-CommandBrief 与 profileAnnotation 中共享同一数据定义：name 为原始物理命令名，brief 为描述，paths 为当前会话有效挂载的完整命名空间路径（含主路径、额外别名和 YAML 别名；未挂载、禁用或当前作用域不可用时为空数组），不包含插件内置命令；totalCalls 为跨会话的累计派发次数，用于 AI 整理时参考调用频率。
+CommandBrief 与 profileAnnotation 中共享同一数据定义：name 为原始物理命令名，brief 为描述，paths 为当前会话 Profile 的挂载路径（包含路径自身或祖先禁用的路径及已挂载工具的 YAML 配置路径；未挂载时为空数组，当前作用域不可用不移除已配置路径），不包含插件内置命令；totalCalls 为跨会话的累计派发次数，用于 AI 整理时参考调用频率。
 
 `profile_tree.ts` 的 Profiles 定义可用配置名称 profiles 与当前会话选择 selected，并通过 Profile annotation 提供相同声明。
 

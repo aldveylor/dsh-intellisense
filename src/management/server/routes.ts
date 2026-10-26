@@ -9,7 +9,7 @@ import '@deepseek-ai/dsh-client-connection';
 import { managementHtml } from './page.js';
 
 /** @brief Validate complete editor writes before any registry transaction or profile selection. */
-const mapping = z.strictObject({ id: z.string().min(1), path: z.string().min(1), aliases: z.array(z.string()), description: z.string().optional(), pinned: z.boolean(), disabled: z.boolean().optional(), alwaysVisible: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional() });
+const mapping = z.strictObject({ id: z.string().min(1), path: z.string().min(1), description: z.string().optional(), pinned: z.boolean(), disabled: z.boolean().optional(), alwaysVisible: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional() });
 const visibility = z.record(z.string(), z.union([z.literal(0), z.literal(1), z.literal(2)]));
 const configuration = {
     activate: z.boolean().optional(),
