@@ -15,7 +15,7 @@ function ToolCard({ tool, mapping, builtinPath, calls, busy, select }: {
     return <button type="button" data-tool-id={tool.id} aria-describedby={tooltip.id}
         className={`ts-tool ${builtinPath ? 'ts-builtin-tool' : mapping?.path.trim() ? '' : 'ts-unmounted'}`} disabled={busy || !!builtinPath || mapping?.pinned}
         onPointerEnter={event => tooltip.show(<ToolDetails tool={tool} calls={calls} />, event.clientX, event.clientY)}
-        onPointerMove={event => tooltip.move(event.clientX, event.clientY, event.altKey)} onPointerLeave={tooltip.leave}
+        onPointerMove={event => tooltip.move(event.clientX, event.clientY, event.ctrlKey)} onPointerLeave={tooltip.leave}
         onFocus={event => {
             const rect = event.currentTarget.getBoundingClientRect();
             tooltip.show(<ToolDetails tool={tool} calls={calls} />, rect.left, rect.bottom);

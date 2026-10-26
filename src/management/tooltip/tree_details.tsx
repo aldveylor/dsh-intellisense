@@ -10,7 +10,7 @@ export function useTreeTooltip(content: ReactNode) {
     return {
         'aria-describedby': tooltip.id,
         onPointerEnter: (event: React.PointerEvent<HTMLElement>) => tooltip.show(content, event.clientX, event.clientY),
-        onPointerMove: (event: React.PointerEvent<HTMLElement>) => tooltip.move(event.clientX, event.clientY, event.altKey),
+        onPointerMove: (event: React.PointerEvent<HTMLElement>) => tooltip.move(event.clientX, event.clientY, event.ctrlKey),
         onPointerLeave: tooltip.leave,
         onFocus: (event: React.FocusEvent<HTMLElement>) => {
             const rect = event.currentTarget.getBoundingClientRect();

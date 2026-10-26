@@ -4,7 +4,7 @@ import { createContext, useContext, useId, useEffect, useLayoutEffect, useRef, u
 interface TooltipControls {
     id: string;
     show: (content: ReactNode, x: number, y: number) => void;
-    move: (x: number, y: number, altKey: boolean) => void;
+    move: (x: number, y: number, ctrlKey: boolean) => void;
     leave: () => void;
     hide: () => void;
 }
@@ -69,7 +69,7 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
     const element = useRef<HTMLDivElement>(null);
     const point = useRef({ x: 0, y: 0 });
     const [content, setContent] = useState<ReactNode>();
-    const alt = useRef(false);
+    const ctrl = useRef(false);
     const hovered = useRef<'anchor' | 'tooltip'>();
     const hideTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -85,26 +85,26 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
         setContent(undefined);
     }
 
-    /** @brief Allow pointer transfer to the tooltip and keep Alt-held details open. */
+    /** @brief Allow pointer transfer to the tooltip and keep Ctrl-held details open. */
     function scheduleHide(): void {
         cancelHide();
-        if (alt.current || hovered.current) return;
+        if (ctrl.current || hovered.current) return;
         hideTimer.current = setTimeout(() => setContent(undefined), 200);
     }
 
     useEffect(() => {
-        /** @brief Track Alt even when the pointer is outside the original card. */
+        /** @brief Track Ctrl even when the pointer is outside the original card. */
         function keydown(event: KeyboardEvent): void {
-            if (event.key === 'Alt') { alt.current = true; cancelHide(); }
+            if (event.key === 'Control') { ctrl.current = true; cancelHide(); }
         }
 
-        /** @brief Resume normal dismissal when Alt is released outside both regions. */
+        /** @brief Resume normal dismissal when Ctrl is released outside both regions. */
         function keyup(event: KeyboardEvent): void {
-            if (event.key === 'Alt') { alt.current = false; scheduleHide(); }
+            if (event.key === 'Control') { ctrl.current = false; scheduleHide(); }
         }
 
         /** @brief Clear held modifiers and dismiss when the browser loses focus. */
-        function blur(): void { alt.current = false; hovered.current = undefined; hide(); }
+        function blur(): void { ctrl.current = false; hovered.current = undefined; hide(); }
 
         window.addEventListener('keydown', keydown);
         window.addEventListener('keyup', keyup);
@@ -130,12 +130,12 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
     return <TooltipContext.Provider value={{ id,
         show: (next, x, y) => {
             cancelHide(); hovered.current = 'anchor';
-            if (alt.current && element.current) return;
+            if (ctrl.current && element.current) return;
             point.current = { x, y }; setContent(next);
         },
-        move: (x, y, altKey) => {
-            alt.current = altKey;
-            if (altKey) return;
+        move: (x, y, ctrlKey) => {
+            ctrl.current = ctrlKey;
+            if (ctrlKey) return;
             point.current = { x, y }; position();
         },
         leave: () => { if (hovered.current === 'anchor') hovered.current = undefined; scheduleHide(); },

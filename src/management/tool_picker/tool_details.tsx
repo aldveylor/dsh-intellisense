@@ -48,7 +48,7 @@ function ParameterType({ schema }: { schema: unknown }) {
     const details = <div className="ts-parameter-type-code"><TypeScriptBlock code={schemaType(schema, true)} /></div>;
     return <code className="ts-parameter-type" tabIndex={0} aria-describedby={tooltip.id}
         onPointerEnter={event => { event.stopPropagation(); tooltip.show(details, event.clientX, event.clientY); }}
-        onPointerMove={event => { event.stopPropagation(); tooltip.move(event.clientX, event.clientY, event.altKey); }}
+        onPointerMove={event => { event.stopPropagation(); tooltip.move(event.clientX, event.clientY, event.ctrlKey); }}
         onPointerLeave={tooltip.leave} onFocus={event => {
             const rect = event.currentTarget.getBoundingClientRect();
             tooltip.show(details, rect.left, rect.bottom);
