@@ -15,12 +15,13 @@ const feedbackAnimations = new WeakMap<HTMLElement, Animation>();
 
 /** @brief Move surrounding rows with transforms when reserving or releasing an insertion slot. */
 function changeFeedback(root: ParentNode, change: () => void): void {
-    const rows = Array.from(root.querySelectorAll<HTMLElement>('.ts-node-block,.ts-tree-tool,.ts-namespace-placeholder,.ts-drop-gap'));
+    const rows = Array.from(root.querySelectorAll<HTMLElement>('.ts-node-block,.ts-tree-tool,.ts-namespace-placeholder'));
     const positions = rows.map(element => element.getBoundingClientRect());
     for (const element of rows) feedbackAnimations.get(element)?.cancel();
     change();
     if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
     rows.forEach((element, index) => {
+        if (!element.isConnected) return;
         const before = positions[index]!;
         const after = element.getBoundingClientRect();
         const x = before.left - after.left; const y = before.top - after.top;
@@ -80,6 +81,8 @@ export function useTreeDrag(drop: (source: TreeDragSource, target: TreeDropTarge
         let x = 0; let y = 0;
         let frame = 0;
         let ghost: HTMLDivElement | undefined;
+        let origin: HTMLElement | undefined;
+        let offsetX = 0; let offsetY = 0;
         let target: HTMLElement | undefined;
 
         /** @brief Refresh the hit target after pointer movement, wheel scrolling or automatic scrolling. */
@@ -96,6 +99,7 @@ export function useTreeDrag(drop: (source: TreeDragSource, target: TreeDropTarge
             target?.removeAttribute('data-drop-edge'); target = undefined;
             if (container.current) clearTreeDropFeedback(container.current);
             ghost?.remove(); ghost = undefined;
+            origin?.classList.remove('ts-drag-origin'); origin = undefined;
             container.current?.classList.remove('ts-dragging');
             container.current?.querySelectorAll('[data-drag-source]').forEach(element => element.removeAttribute('data-drag-source'));
             active = false; pending.current = undefined;
@@ -124,12 +128,29 @@ export function useTreeDrag(drop: (source: TreeDragSource, target: TreeDropTarge
             if (!active && Math.hypot(x - start.x, y - start.y) < 6) return;
             if (!active) {
                 active = true; container.current?.classList.add('ts-dragging');
+                const handle = container.current?.querySelector<HTMLElement>('[data-drag-source]');
+                origin = handle?.closest<HTMLElement>('li') ?? handle ?? undefined;
+                if (!origin) { finish(); return; }
+                const rect = origin.getBoundingClientRect();
+                offsetX = start.x - rect.left; offsetY = start.y - rect.top;
                 ghost = document.createElement('div'); ghost.className = 'ts-drag-preview';
-                ghost.textContent = start.source.path?.split('.').at(-1) || start.source.id || '';
-                container.current?.append(ghost); frame = requestAnimationFrame(tick);
+                ghost.setAttribute('aria-hidden', 'true');
+                ghost.inert = true;
+                ghost.style.width = `${rect.width}px`;
+                const copy = origin.cloneNode(true) as HTMLElement;
+                copy.style.margin = '0';
+                copy.style.color = getComputedStyle(origin).color;
+                copy.style.backgroundColor = getComputedStyle(origin).backgroundColor;
+                copy.removeAttribute('id');
+                copy.removeAttribute('data-drag-source');
+                copy.querySelectorAll('[id],[data-drag-source]').forEach(element => { element.removeAttribute('id'); element.removeAttribute('data-drag-source'); });
+                ghost.append(copy);
+                container.current?.append(ghost);
+                origin.classList.add('ts-drag-origin');
+                frame = requestAnimationFrame(tick);
             }
             event.preventDefault();
-            if (ghost) ghost.style.transform = `translate(${x + 14}px,${y + 14}px)`;
+            if (ghost) ghost.style.transform = `translate(${x - offsetX}px,${y - offsetY}px)`;
             locate();
         }
 

@@ -115,6 +115,12 @@ function acceptTreeDrag(event: DragEvent<HTMLElement>, busy: boolean): void {
     }
 }
 
+/** @brief Retain an insertion slot while a native drag enters another row or the slot itself. */
+function leaveTreeDrag(event: DragEvent<HTMLElement>): void {
+    if (event.relatedTarget instanceof Node && event.currentTarget.closest('.ts-tree')?.contains(event.relatedTarget)) return;
+    clearTreeDropFeedback();
+}
+
 /** @brief Render commands with shared fixed, read-only and movement policies supplied by their data source. */
 function CommandNode({ node, tree }: { node: CommandTreeNode; tree: TreeProps }) {
     const t = useTranslation();
@@ -141,7 +147,7 @@ function CommandNode({ node, tree }: { node: CommandTreeNode; tree: TreeProps })
             event.stopPropagation(); event.dataTransfer.setData('application/x-ts-tool', id!);
             event.dataTransfer.setData('application/x-ts-mapping', path); event.dataTransfer.effectAllowed = 'move';
         }} onDragOver={event => acceptTreeDrag(event, tree.busy || readOnly)}
-        onDragLeave={() => clearTreeDropFeedback()}
+        onDragLeave={leaveTreeDrag}
         onDrop={event => { if (readOnly) { event.preventDefault(); event.stopPropagation(); } else tree.dropNode(event, path, false); }}>
         {readOnly ? <code>{path.split('.').at(-1)}</code> :
             <EditableText className="ts-node-name" value={path.split('.').at(-1)!} label={t('mapping_name', { path })} busy={tree.busy || !!mapping?.pinned}
@@ -240,7 +246,7 @@ function NamespaceNode({ node, tree }: { node: NamespaceTreeNode; tree: TreeProp
             if (!node.permissions.movable) { event.preventDefault(); return; }
             if ((event.target as HTMLElement).tagName === 'INPUT') { event.preventDefault(); return; }
             event.stopPropagation(); event.dataTransfer.setData('application/x-ts-namespace', path); event.dataTransfer.effectAllowed = 'move';
-        }} onDragOver={event => acceptTreeDrag(event, tree.busy || !node.permissions.acceptsChildren)} onDragLeave={() => clearTreeDropFeedback()} onDrop={event => tree.dropNode(event, path, true)}>
+        }} onDragOver={event => acceptTreeDrag(event, tree.busy || !node.permissions.acceptsChildren)} onDragLeave={leaveTreeDrag} onDrop={event => tree.dropNode(event, path, true)}>
             <button className="ts-disclosure" type="button" aria-label={t('toggle_namespace', { path })} aria-expanded={open} disabled={tree.busy}
                 onClick={() => tree.toggle(path)}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>

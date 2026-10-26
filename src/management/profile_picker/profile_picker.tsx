@@ -1,6 +1,10 @@
+import { ProfileActionButton } from './action_button.js';
+import { TooltipProvider } from '../tooltip/tooltip.js';
 import { SaveAsDialog } from './save_as_dialog.js';
 import { useTranslation } from '../locale/locale.js';
-import { useRef, useState, type ComponentType } from 'react';
+import { useRef, useState, type ComponentType, type AnimationEvent } from 'react';
+import { NativeProfileSelect } from './native_profile_select.js';
+import { useActionAnimation } from '../animation/action_animation.js';
 
 /** @brief A host may supply its own dropdown without imposing host dependencies on standalone pages. */
 export interface ProfileSelectProps {
@@ -11,72 +15,64 @@ export interface ProfileSelectProps {
 }
 
 /** @brief Portable selection control for the independent authenticated page. */
-export function ProfileSelect({ value, options, disabled, readOnly = false, allowCreate = true, protectedProfile, label, onChange, onCreate, onRename, onRemove }: ProfileSelectProps) {
-    const t = useTranslation();
-    const [editing, setEditing] = useState<'create' | 'rename'>();
-    const [draft, setDraft] = useState('');
-    return <><select aria-label={label ?? t('profile')} value={value} disabled={disabled} onChange={event => onChange(event.target.value)}>
-        {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-    </select>
-        {!readOnly && allowCreate && <button type="button" disabled={disabled} onClick={() => { setEditing('create'); setDraft(''); }}>{t('create_profile')}</button>}
-        {!readOnly && <button type="button" disabled={disabled} onClick={() => { setEditing('rename'); setDraft(value); }}>{t('rename_profile')}</button>}
-        {!readOnly && <button type="button" disabled={disabled || options.length <= 1 || value === protectedProfile} onClick={() => onRemove?.(value)}>{t('delete_profile')}</button>}
-        {editing && <form className="ts-profile-name" onSubmit={event => {
-            event.preventDefault(); const name = draft.trim(); if (disabled || !name) return;
-            if (editing === 'create') onCreate?.(name); else onRename?.(value, name);
-            setEditing(undefined);
-        }}>
-            <input aria-label={t('profile_name')} autoFocus maxLength={80} value={draft} disabled={disabled} onChange={event => setDraft(event.target.value)}
-                onKeyDown={event => { if (event.nativeEvent.isComposing && event.key === 'Enter') event.preventDefault(); if (event.key === 'Escape') setEditing(undefined); }} />
-            <button type="submit" disabled={disabled || !draft.trim()}>{t('confirm')}</button>
-            <button type="button" onClick={() => setEditing(undefined)}>{t('cancel')}</button>
-        </form>}
-    </>;
+export function ProfileSelect(props: ProfileSelectProps) {
+    return <NativeProfileSelect {...props} />;
 }
 
 /** @brief Profile selection with draft saving, named copies and JSON transfer actions. */
 export function ProfilePicker({ name, profiles, dirty, busy, select, create, rename, remove, save, refresh, refreshDisabled, download, upload, protectedProfile, Select = ProfileSelect }: {
     name: string; profiles: string[]; dirty: boolean; busy: boolean;
-    download: () => void; upload: (file: File) => void;
+    download: () => Promise<void>; upload: (file: File) => Promise<void>;
     select: (name: string) => void; create: (name: string) => void; rename: (name: string, newName: string) => void;
-    remove: (name: string) => void; save: (name?: string) => void; refresh: () => void; refreshDisabled: boolean; protectedProfile?: string; Select?: ComponentType<ProfileSelectProps>;
+    remove: (name: string) => void; save: (name?: string) => Promise<void>; refresh: () => Promise<void>; refreshDisabled: boolean; protectedProfile?: string; Select?: ComponentType<ProfileSelectProps>;
 }) {
     const t = useTranslation();
     const [savingAs, setSavingAs] = useState(false);
     const fileInput = useRef<HTMLInputElement>(null);
-    return <div className="ts-profile-picker">
+    const animation = useActionAnimation();
+
+    /** @brief Bind each icon to its own operation and complete SVG animation cycles. */
+    function icon(name: string) {
+        return { 'data-action': name, 'data-running': animation.running.has(name),
+            onAnimationIteration: (event: AnimationEvent<SVGSVGElement>) => animation.finish(name, event) };
+    }
+
+    return <TooltipProvider><div className="ts-profile-picker">
         <Select value={name} options={profiles.map(profile => ({ value: profile, label: `${profile}${dirty && profile === name ? ' *' : ''}` }))}
             disabled={busy} protectedProfile={protectedProfile} onChange={select} onCreate={create} onRename={rename} onRemove={remove} />
-        <button className="ts-profile-action" type="button" aria-label={t('refresh')} disabled={refreshDisabled} onClick={refresh}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <ProfileActionButton type="button" label={t('refresh')} disabled={refreshDisabled} aria-busy={animation.running.has('refresh')} onClick={() => void animation.run('refresh', refresh)}>
+            <svg {...icon('refresh')} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M20 7v5h-5M4 17v-5h5M6.1 6.1A8 8 0 0 1 20 12M4 12a8 8 0 0 0 13.9 5.9" />
             </svg>
-        </button>
-        <button className="ts-profile-action" type="button" aria-label={t('save')} disabled={busy} onClick={() => save()}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12l4 4v12a2 2 0 0 1-2 2ZM7 3v6h10V3M7 21v-8h10v8" />
+        </ProfileActionButton>
+        <ProfileActionButton type="button" label={t('save')} disabled={busy} aria-busy={animation.running.has('save')} onClick={() => void animation.run('save', () => save())}>
+            <svg {...icon('save')} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path className="ts-archive-box" d="M4 11h16v10H4zM3 8h18v3H3zM10 15h4" />
+                <g className="ts-archive-paper"><path d="M7 8V2h7l3 3v3M10 4h3M10 6h4" /></g>
+                <path className="ts-archive-seal" d="M3 8h18" />
             </svg>
-        </button>
-        <button className="ts-profile-action" type="button" aria-label={t('save_as')} disabled={busy} onClick={() => setSavingAs(true)}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M11 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12l4 4v4M7 3v6h10V3M7 21v-8h5M14 21l1-4 5-5 3 3-5 5-4 1ZM18 14l3 3" />
+        </ProfileActionButton>
+        <ProfileActionButton type="button" label={t('save_as')} disabled={busy} aria-busy={animation.running.has('save_as')} onClick={() => { if (!animation.running.has('save_as')) setSavingAs(true); }}>
+            <svg {...icon('save_as')} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M11 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h10l4 4v4M7 7h6M7 11h4" />
+                <path className="ts-action-pen" d="m14 21 1-4 5-5 3 3-5 5-4 1ZM18 14l3 3" />
             </svg>
-        </button>
-        <button className="ts-profile-action" type="button" aria-label={t('download_profile')} title={t('download_profile')} disabled={busy} onClick={download}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5" />
+        </ProfileActionButton>
+        <ProfileActionButton type="button" label={t('download_profile')} disabled={busy} aria-busy={animation.running.has('download')} onClick={() => void animation.run('download', download)}>
+            <svg {...icon('download')} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path className="ts-transfer-arrow" d="M12 3v12m-5-5 5 5 5-5" /><path d="M4 16v5h16v-5" />
             </svg>
-        </button>
-        <button className="ts-profile-action" type="button" aria-label={t('upload_profile')} title={t('upload_profile')} disabled={busy} onClick={() => fileInput.current?.click()}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M12 15V3m-5 5 5-5 5 5M4 16v5h16v-5" />
+        </ProfileActionButton>
+        <ProfileActionButton type="button" label={t('upload_profile')} disabled={busy} aria-busy={animation.running.has('upload')} onClick={() => { if (!animation.running.has('upload')) fileInput.current?.click(); }}>
+            <svg {...icon('upload')} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path className="ts-transfer-arrow" d="M12 15V3m-5 5 5-5 5 5" /><path d="M4 16v5h16v-5" />
             </svg>
-        </button>
+        </ProfileActionButton>
         <input ref={fileInput} type="file" accept=".json,application/json" hidden disabled={busy} aria-label={t('upload_profile')} onChange={event => {
             const file = event.currentTarget.files?.[0];
             event.currentTarget.value = '';
-            if (file) upload(file);
+            if (file) void animation.run('upload', () => upload(file));
         }} />
-        {savingAs && <SaveAsDialog profiles={profiles} busy={busy} save={save} close={() => setSavingAs(false)} />}
-    </div>;
+        {savingAs && <SaveAsDialog profiles={profiles} busy={busy} save={name => void animation.run('save_as', () => save(name))} close={() => setSavingAs(false)} />}
+    </div></TooltipProvider>;
 }

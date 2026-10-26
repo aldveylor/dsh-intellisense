@@ -34,6 +34,7 @@ test('disable controls retain visible nodes, precede deletion and save command a
     const document = dom.window.document;
     const click = (selector: string): void => document.querySelector<HTMLButtonElement>(selector)!.click();
     try {
+        Object.defineProperty(dom.window, 'AnimationEvent', { value: dom.window.Event });
         dom.window.eval(result.outputFiles[0]!.text);
         await until(() => !!document.querySelector('[data-namespace-path="files"] .ts-disclosure'));
         click('[data-namespace-path="files"] .ts-disclosure');
@@ -47,6 +48,8 @@ test('disable controls retain visible nodes, precede deletion and save command a
         click('.ts-namespace-profile button[aria-label="Save"]');
         await until(() => registry.snapshot().mappings[0]?.disabled === true && registry.snapshot().namespaces?.[0]?.disabled === true);
         assert(document.querySelector('[data-tree-path="files.read"]'));
+        await until(() => document.querySelector('.ts-namespace-profile')?.getAttribute('aria-busy') !== 'true');
+        document.querySelector('[data-action="save"]')!.dispatchEvent(new dom.window.Event('animationiteration', { bubbles: true }));
         await until(() => document.querySelector<HTMLButtonElement>('[data-namespace-path="tools"] .ts-disclosure')?.disabled === false);
         click('[data-namespace-path="tools"] .ts-disclosure');
         await until(() => !!document.querySelector('[data-tree-path="tools.search"] .ts-disable'));

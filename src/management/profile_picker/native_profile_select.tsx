@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from '../locale/locale.js';
 import type { ProfileSelectProps } from './profile_picker.js';
+import { useLayoutMotion } from '../animation/layout_motion.js';
 
 /** @brief One profile row with inline renaming and an independent borderless delete action. */
 function NativeProfileItem({ value, label, selected, disabled, removable, readOnly, onChange, onRename, onRemove }: {
@@ -17,7 +18,7 @@ function NativeProfileItem({ value, label, selected, disabled, removable, readOn
         if (name && name !== value) onRename(name);
     }
 
-    return <div className="ts-profile-item" data-selected={selected}>
+    return <div className="ts-profile-item" data-selected={selected} data-profile-value={value}>
         {draft === undefined ? <button type="button" className="ts-profile-option" aria-pressed={selected} aria-disabled={disabled}
             onClick={() => { if (!disabled) onChange(); }} onDoubleClick={() => { if (!readOnly && !disabled) setDraft(value); }}>
             <span className="ts-profile-check" aria-hidden="true">{selected ? '✓' : ''}</span><span>{label}</span>
@@ -46,6 +47,7 @@ export function NativeProfileSelect({ value, options, disabled, readOnly = false
     const root = useRef<HTMLDivElement>(null);
     const trigger = useRef<HTMLButtonElement>(null);
     const panelId = useId();
+    useLayoutMotion(root, '.ts-profile-item', element => element.dataset.profileValue!);
 
     useEffect(() => {
         if (!open) return;
