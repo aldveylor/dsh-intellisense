@@ -3,7 +3,6 @@ name: Publish version release
 on:
   push:
     branches: [master]
-    paths: [package.json]
 
 permissions:
   contents: write
@@ -13,42 +12,25 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  version:
+  publish:
     runs-on: ubuntu-latest
-    outputs:
-      changed: ${{ steps.version.outputs.changed }}
-      name: ${{ steps.version.outputs.name }}
-      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout source history
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Detect package version change
-        id: version
+      - name: Collect version commits
         env:
           BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
         run: |
-          node --input-type=commonjs <<'NODE'
-          const { readFileSync, appendFileSync } = require('node:fs');
-          const { execFileSync } = require('node:child_process');
-          const current = JSON.parse(readFileSync('package.json', 'utf8'));
-          let previous;
-          if (!/^0+$/.test(process.env.BEFORE)) {
-            previous = JSON.parse(execFileSync('git', ['show', `${process.env.BEFORE}:package.json`], { encoding: 'utf8' }));
+          node --input-type=module <<'NODE' > "$RUNNER_TEMP/release_versions.tsv"
+          import { collectVersions } from './scripts/release/collect_versions.mjs';
+          for (const { commit, name, version } of collectVersions(process.env.BEFORE, process.env.AFTER)) {
+            console.log([commit, name, version].join('\t'));
           }
-          appendFileSync(process.env.GITHUB_OUTPUT, `changed=${previous?.version !== current.version}\nname=${current.name}\nversion=${current.version}\n`);
           NODE
-
-  publish:
-    needs: version
-    if: needs.version.outputs.changed == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Checkout source
-        uses: actions/checkout@v6
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -56,36 +38,37 @@ jobs:
           node-version: '24'
           cache: npm
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-
-      - name: Package release
-        id: package
+      - name: Build and publish each version commit
         env:
-          PROJECT_NAME: ${{ needs.version.outputs.name }}
-          VERSION: ${{ needs.version.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          node --input-type=commonjs <<'NODE'
-          const { appendFileSync, mkdirSync, renameSync } = require('node:fs');
+          while IFS=$'\t' read -r COMMIT PROJECT_NAME VERSION; do
+            if gh release view "v$VERSION" > /dev/null 2>&1; then
+              echo "Skipping existing release v$VERSION"
+              continue
+            fi
+            SOURCE_DIRECTORY=$(mktemp -d "$RUNNER_TEMP/release_source.XXXXXX")
+            git archive "$COMMIT" | tar -x -C "$SOURCE_DIRECTORY"
+            (
+              cd "$SOURCE_DIRECTORY"
+              npm ci
+              npm run build
+              export PROJECT_NAME VERSION
+              ARCHIVE_NAME=$(node --input-type=commonjs <<'NODE'
+          const { mkdirSync, renameSync } = require('node:fs');
           const { execFileSync } = require('node:child_process');
           const directory = 'build/release';
           mkdirSync(directory, { recursive: true });
           const [archive] = JSON.parse(execFileSync('npm', ['pack', '--ignore-scripts', '--json', '--pack-destination', directory], { encoding: 'utf8' }));
           const archiveName = `${process.env.PROJECT_NAME.replace(/^@/, '').replace('/', '-')}-v${process.env.VERSION}.tar.gz`;
           renameSync(`${directory}/${archive.filename}`, `${directory}/${archiveName}`);
-          appendFileSync(process.env.GITHUB_OUTPUT, `archive_name=${archiveName}\n`);
+          console.log(archiveName);
           NODE
-
-      - name: Publish GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          ARCHIVE_NAME: ${{ steps.package.outputs.archive_name }}
-          PROJECT_NAME: ${{ needs.version.outputs.name }}
-          VERSION: ${{ needs.version.outputs.version }}
-        run: |
-          printf '# %s v%s\n' "$PROJECT_NAME" "$VERSION" > build/release/notes.md
-          gh release create "v$VERSION" "build/release/$ARCHIVE_NAME" \
-            --target "$GITHUB_SHA" --title "$PROJECT_NAME v$VERSION" --notes-file build/release/notes.md
+              )
+              printf '# %s v%s\n' "$PROJECT_NAME" "$VERSION" > build/release/notes.md
+              gh release create "v$VERSION" "build/release/$ARCHIVE_NAME" \
+                --target "$COMMIT" --title "$PROJECT_NAME v$VERSION" --notes-file build/release/notes.md
+            )
+            rm -rf "$SOURCE_DIRECTORY"
+          done < "$RUNNER_TEMP/release_versions.tsv"
