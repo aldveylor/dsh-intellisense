@@ -558,50 +558,56 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
 
     return <div className="ts-intellisense" ref={drag.container} onPointerDownCapture={drag.pointerDown} onDragStartCapture={drag.preventNativeDrag}>
         <style>{styles}</style>
-        <header><h1>{t('title')}</h1></header>
-        {status && (['loading', 'updating_profile', 'organizing'].includes(status)
-            ? <p role="status" aria-live="polite">{t(status)}</p>
-            : <ErrorDialog message={t(status)} close={() => setStatus('')} />)}
-        <div className="ts-toolbar"><div className="ts-actions">
-            <div className="ts-default-profile" aria-busy={pending === 'default' || undefined} ref={element => { if (element) element.inert = pending === 'default'; }}><span>{t('default_profile')}</span>
-                <Select value={view?.defaultProfile ?? 'Default'} options={(view?.state.profiles ?? ['Default']).map(name => ({ value: name, label: name }))}
-                    disabled={!view} label={t('default_profile')} readOnly allowCreate={false} onChange={selectDefault}
-                    onCreate={createProfile} onRename={(name, newName) => manageProfile('rename', name, newName)} onRemove={name => manageProfile('delete', name)} />
+        {!view && <div className="ts-load-overlay" aria-busy={status === 'loading'}>
+            {status === 'loading' ? <p role="status" aria-live="polite">{t('loading')}</p>
+                : <button type="button" title={t(status)} onClick={() => void action('loading', () => reload(undefined, null))}>{t('retry')}</button>}
+        </div>}
+        <div className="ts-panel-content" ref={element => { if (element) element.inert = !view; }}>
+            <header><h1>{t('title')}</h1></header>
+            {view && status && (['loading', 'updating_profile', 'organizing'].includes(status)
+                ? <p role="status" aria-live="polite">{t(status)}</p>
+                : <ErrorDialog message={t(status)} close={() => setStatus('')} />)}
+            <div className="ts-toolbar"><div className="ts-actions">
+                <div className="ts-default-profile" aria-busy={pending === 'default' || undefined} ref={element => { if (element) element.inert = pending === 'default'; }}><span>{t('default_profile')}</span>
+                    <Select value={view?.defaultProfile ?? 'Default'} options={(view?.state.profiles ?? ['Default']).map(name => ({ value: name, label: name }))}
+                        disabled={!view} label={t('default_profile')} readOnly allowCreate={false} onChange={selectDefault}
+                        onCreate={createProfile} onRename={(name, newName) => manageProfile('rename', name, newName)} onRemove={name => manageProfile('delete', name)} />
+                </div>
+                <button className="ts-organize" disabled={pending === 'organize' || !organize} onClick={() => void action('organizing', async () => {
+                    await organize!(t('organization_prompt')); setStatus('');
+                }, 'organize')}>{t('generate_proposal')}</button>
+            </div></div>
+            <main><section className="ts-namespaces"><div className="ts-namespace-heading"><h2>{t('namespace_tree')}</h2>
+                <button className="ts-add-tool ts-open-tools" type="button" aria-label={t('add_tools')} title={t('add_tools')} disabled={!view}
+                    onClick={() => setToolPicker({ parent: '' })}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+                        <path d="M14 6a5 5 0 0 0-6-4l3 3-3 3-3-3a5 5 0 0 0 6 6l8 8a2 2 0 0 0 3-3z" />
+                    </svg>
+                </button>
+                <div className="ts-namespace-profile" aria-busy={pending === 'editor' || undefined} ref={element => { if (element) element.inert = pending === 'editor'; }}>
+                    <ProfilePicker name={view?.state.profile ?? 'Default'} profiles={[...(view?.state.profiles ?? ['Default']), ...(newProfile ? [view!.state.profile!] : [])]}
+                        download={downloadProfile} upload={uploadProfile}
+                        dirty={dirty} busy={!view} Select={ProfileSelect} protectedProfile={view?.state.profiles?.length === 1 ? view.state.profiles[0] : undefined}
+                        refresh={() => void action('', reload)} refreshDisabled={!view}
+                        select={name => manageProfile('select', name)} create={createProfile}
+                        rename={(name, newName) => manageProfile('rename', name, newName)} remove={name => manageProfile('delete', name)}
+                        save={profile => void action('', async () => {
+                            const copyName = profile ?? (newProfile ? view!.state.profile : undefined);
+                            await request(api, { action: copyName === undefined ? 'configure' : 'save_as',
+                                ...(copyName === undefined ? {} : { profile: copyName }), activate: false,
+                                ...(newProfile ? {} : { editingProfile: view!.state.profile }), revision: view!.state.revision, ...draft });
+                            await reload(undefined, copyName ?? view!.state.profile);
+                        })} />
+                </div>
             </div>
-            <button className="ts-organize" disabled={pending === 'organize' || !organize} onClick={() => void action('organizing', async () => {
-                await organize!(t('organization_prompt')); setStatus('');
-            }, 'organize')}>{t('generate_proposal')}</button>
-        </div></div>
-        <main><section className="ts-namespaces"><div className="ts-namespace-heading"><h2>{t('namespace_tree')}</h2>
-            <button className="ts-add-tool ts-open-tools" type="button" aria-label={t('add_tools')} title={t('add_tools')} disabled={!view}
-                onClick={() => setToolPicker({ parent: '' })}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-                    <path d="M14 6a5 5 0 0 0-6-4l3 3-3 3-3-3a5 5 0 0 0 6 6l8 8a2 2 0 0 0 3-3z" />
-                </svg>
-            </button>
-            <div className="ts-namespace-profile" aria-busy={pending === 'editor' || undefined} ref={element => { if (element) element.inert = pending === 'editor'; }}>
-                <ProfilePicker name={view?.state.profile ?? 'Default'} profiles={[...(view?.state.profiles ?? ['Default']), ...(newProfile ? [view!.state.profile!] : [])]}
-                    download={downloadProfile} upload={uploadProfile}
-                    dirty={dirty} busy={!view} Select={ProfileSelect} protectedProfile={view?.state.profiles?.length === 1 ? view.state.profiles[0] : undefined}
-                    refresh={() => void action('', reload)} refreshDisabled={!view}
-                    select={name => manageProfile('select', name)} create={createProfile}
-                    rename={(name, newName) => manageProfile('rename', name, newName)} remove={name => manageProfile('delete', name)}
-                    save={profile => void action('', async () => {
-                        const copyName = profile ?? (newProfile ? view!.state.profile : undefined);
-                        await request(api, { action: copyName === undefined ? 'configure' : 'save_as',
-                            ...(copyName === undefined ? {} : { profile: copyName }), activate: false,
-                            ...(newProfile ? {} : { editingProfile: view!.state.profile }), revision: view!.state.revision, ...draft });
-                        await reload(undefined, copyName ?? view!.state.profile);
-                    })} />
-            </div>
+                <small>{t('tree_hint')}</small>
+                {view && <button className="ts-unmounted-count" type="button" data-unmounted-count={unmounted.length} aria-live="polite" disabled={!unmounted.length}
+                    onClick={() => setToolPicker({ parent: '', unmountedOnly: true })}>{t('unmounted_count', { count: unmounted.length })}</button>}
+                <div aria-busy={pending === 'editor' || undefined} ref={element => { if (element) element.inert = pending === 'editor'; }}>
+                    <NamespaceTreeView roots={namespaceTree.roots} tree={tree} />
+                </div>
+            </section></main>
         </div>
-            <small>{t('tree_hint')}</small>
-            {view && <button className="ts-unmounted-count" type="button" data-unmounted-count={unmounted.length} aria-live="polite" disabled={!unmounted.length}
-                onClick={() => setToolPicker({ parent: '', unmountedOnly: true })}>{t('unmounted_count', { count: unmounted.length })}</button>}
-            <div aria-busy={pending === 'editor' || undefined} ref={element => { if (element) element.inert = pending === 'editor'; }}>
-                <NamespaceTreeView roots={namespaceTree.roots} tree={tree} />
-            </div>
-        </section></main>
         {toolPicker !== undefined && view && <ToolPicker parent={toolPicker.parent} tools={toolPicker.unmountedOnly ? unmounted : view.tools} mappings={mappings} protectedTools={providedTools(provided, view.tools)} callsByTool={view.callsByTool} busy={busy}
             close={() => setToolPicker(undefined)} select={tool => {
                 applyDrop({ namespace: false, id: tool.id }, { path: toolPicker.parent, position: 'inside' });

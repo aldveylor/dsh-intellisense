@@ -61,6 +61,7 @@ export const zh = {
     "pin_namespace": "一直显示 {path}",
     "delete_namespace": "删除命名空间 {path}",
     "loading": "正在加载…",
+    "retry": "重试",
     "updating_profile": "正在更新 Profile…",
     "fixed_namespace": "固定命名空间不可修改。",
     "invalid_namespace": "命名空间名称无效或与现有路径冲突。",

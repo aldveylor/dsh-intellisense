@@ -61,6 +61,7 @@ export const enUs = {
     "pin_namespace": "Always show {path}",
     "delete_namespace": "Delete namespace {path}",
     "loading": "Loading…",
+    "retry": "Retry",
     "updating_profile": "Updating profile…",
     "fixed_namespace": "Fixed namespaces cannot be modified.",
     "invalid_namespace": "The namespace name is invalid or conflicts with an existing path.",
