@@ -3,4 +3,5 @@ export interface SessionProfileState {
     enabled: boolean;
     profile?: string;
     profiles: string[];
+    profileBriefs?: Record<string, string>;
 }

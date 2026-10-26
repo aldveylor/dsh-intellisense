@@ -36,7 +36,7 @@ export function registerManagement(ctx: Context, globalRegistry: SemanticRegistr
                 const state = registry.snapshot();
                 const statistics = await adapter.statistics?.snapshot();
                 const profile = new URL(request.url).searchParams.get('profile') ?? state.profile!;
-                return Response.json({ defaultProfile: state.profile, state: { ...state, ...registry.configuration(profile), profile }, tools: registry.tools().map(tool => ({ ...tool, outputDeclaration: returnTypeDeclaration(tool.output) })), callsByTool: statistics?.callsByTool ?? {}, queriesByTool: statistics?.queriesByTool ?? {}, namespaceQueriesByPath: statistics?.namespaceQueriesByPath ?? {}, provided: [...createNamespace({ tools: registry.tools(), includeUnavailable: true }).children.values()].map(node => node.serialize()), effective: registry.effective() }, { headers });
+                return Response.json({ defaultProfile: state.profile, profileBriefs: registry.profileBriefs(), state: { ...state, ...registry.configuration(profile), profile }, tools: registry.tools().map(tool => ({ ...tool, outputDeclaration: returnTypeDeclaration(tool.output) })), callsByTool: statistics?.callsByTool ?? {}, queriesByTool: statistics?.queriesByTool ?? {}, namespaceQueriesByPath: statistics?.namespaceQueriesByPath ?? {}, provided: [...createNamespace({ tools: registry.tools(), includeUnavailable: true }).children.values()].map(node => node.serialize()), effective: registry.effective() }, { headers });
             }
             if (!request.headers.get('content-type')?.startsWith('application/json')) return Response.json({ error: 'expected_json' }, { status: 415, headers });
             const bodyText = await request.text();
@@ -49,10 +49,10 @@ export function registerManagement(ctx: Context, globalRegistry: SemanticRegistr
             const body = parsed.data;
             const registry = globalRegistry;
             if (body.action === 'profile') await registry.manageProfile(body.operation, body.name, body.revision, body.newName, body.activate);
-            else await registry.configure(body.mappings, body.revision, body.namespaces, body.order, body.unmountedVisible, body.action === 'save_as' ? body.profile : undefined, body.toolComments, body.builtinVisible, body.namespaceVisible, body.editingProfile, body.activate, body.builtinDisabled);
+            else await registry.configure(body.mappings, body.revision, body.namespaces, body.order, body.unmountedVisible, body.action === 'save_as' ? body.profile : undefined, body.toolComments, body.builtinVisible, body.namespaceVisible, body.editingProfile, body.activate, body.builtinDisabled, body.brief);
             ctx.emit('system-prompt/change');
             const state = registry.snapshot();
-            return Response.json({ ok: true, revision: state.revision, defaultProfile: state.profile, profiles: state.profiles }, { headers });
+            return Response.json({ ok: true, revision: state.revision, defaultProfile: state.profile, profiles: state.profiles, profileBriefs: registry.profileBriefs() }, { headers });
         } catch (error) { return Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: 400, headers }); }
     } });
 }

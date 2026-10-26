@@ -167,3 +167,24 @@ test('Profile constructors preserve editable tree data and detach saved and rest
     assert.equal(profileConfiguration(restored, current, commands).namespaces[0]!.description, 'Restored files');
     assert(ProfileSchema.safeParse(new Profile().save()).success);
 });
+
+
+test('Profile brief survives schema, tree conversion and detached persistence', async () => {
+    const store = new MemoryStore();
+    const registry = new SemanticRegistry(store);
+    await registry.load();
+    const configuration = { ...registry.configuration(), brief: '日常开发工具' };
+    const profile = profileTree('开发', configuration);
+    assert.equal(ProfileSchema.parse(profile.save()).brief, configuration.brief);
+    assert.equal(new Profile(profile.save()).brief, configuration.brief);
+    const restored = profileConfiguration(profile, registry.configuration(), []);
+    assert.equal(restored.save().brief, configuration.brief);
+    await registry.saveProfile('开发', restored);
+    const reloaded = new SemanticRegistry(store);
+    await reloaded.load();
+    assert.equal(reloaded.configuration('开发').brief, configuration.brief);
+    assert.deepEqual(reloaded.profileBriefs(), { '开发': configuration.brief });
+    await reloaded.saveProfile('开发', { ...restored, brief: undefined });
+    assert.equal(reloaded.configuration('开发').save().brief, undefined);
+    assert.deepEqual(reloaded.profileBriefs(), {});
+});

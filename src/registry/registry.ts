@@ -135,7 +135,7 @@ export class SemanticRegistry {
         for (const namespace of Array.isArray(saved.namespaces) ? saved.namespaces : []) {
             if (this.accepts(() => this.validateNamespaces([...namespaces, namespace], mappings))) namespaces.push(namespace);
         }
-        return { mappings, namespaces,
+        return { ...(typeof saved.brief === 'string' ? { brief: saved.brief } : {}), mappings, namespaces,
             order: Array.isArray(saved.order) ? [...new Set(saved.order.filter((path): path is string => typeof path === 'string'))] : [],
             unmountedVisible: this.recoverEntries<PinLevel>(saved.unmountedVisible, entry => this.validateVisibility(entry)),
             builtinVisible: saved.builtinVisible === undefined ? { ...pluginCommands.defaultBuiltinVisible }
@@ -186,6 +186,13 @@ export class SemanticRegistry {
         const { inactiveProfiles: _inactiveProfiles, ...current } = this.state;
         const { selected: profile, profiles } = this.profileSelection();
         return new RegistryState({ ...current, profile, profiles });
+    }
+
+    /** @brief Read catalog descriptions without copying namespace trees. */
+    profileBriefs(): Record<string, string> {
+        const configurations = { ...this.state.inactiveProfiles, [this.state.profile]: this.state };
+        return Object.fromEntries(Object.entries(configurations).flatMap(([name, configuration]) =>
+            configuration.brief === undefined ? [] : [[name, configuration.brief]]));
     }
 
     /** @brief Extract only the configurable fields when archiving an active profile. */
@@ -373,7 +380,7 @@ export class SemanticRegistry {
     }
 
     /** @brief Save a configuration; an explicit editor target preserves the default profile even for named copies. */
-    async configure(mappings: Mapping[], revision: number, namespaces?: Namespace[], order?: string[], unmountedVisible?: CommandVisibility, profile?: string, toolComments?: Record<string, string>, builtinVisible?: CommandVisibility, namespaceVisible?: Record<string, boolean>, editingProfile?: string, activate = true, builtinDisabled?: string[]): Promise<void> {
+    async configure(mappings: Mapping[], revision: number, namespaces?: Namespace[], order?: string[], unmountedVisible?: CommandVisibility, profile?: string, toolComments?: Record<string, string>, builtinVisible?: CommandVisibility, namespaceVisible?: Record<string, boolean>, editingProfile?: string, activate = true, builtinDisabled?: string[], brief?: string): Promise<void> {
         const detached = structuredClone(mappings);
         await this.transaction(async () => {
             if (revision !== this.state.revision) throw new Error('Registry revision conflict; reload before saving');
@@ -412,7 +419,7 @@ export class SemanticRegistry {
             const known = new Set([...metadata.map(n => n.path), ...detached.map(m => m.path)]
                 .flatMap(path => path.split('.').map((_, i, parts) => parts.slice(0, i + 1).join('.'))));
             const treeOrder = [...new Set([...requestedOrder, ...known])].filter(path => known.has(path));
-            const configuration = { builtinDisabled: builtinDisabled ?? base.builtinDisabled ?? [], mappings: detached, namespaces: metadata, order: treeOrder, toolComments: comments, builtinVisible: builtins, namespaceVisible: namespaceVisible ?? base.namespaceVisible ?? {},
+            const configuration = { brief, builtinDisabled: builtinDisabled ?? base.builtinDisabled ?? [], mappings: detached, namespaces: metadata, order: treeOrder, toolComments: comments, builtinVisible: builtins, namespaceVisible: namespaceVisible ?? base.namespaceVisible ?? {},
                 unmountedVisible: Object.fromEntries(Object.entries(selected).filter(([id]) => !detached.some(mapping => mapping.id === id))),
             };
             let next: RegistryStateData = { ...this.state, revision: this.state.revision + 1 };

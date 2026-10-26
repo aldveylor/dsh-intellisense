@@ -15,19 +15,21 @@ export interface CommandBrief { name: CommandName; brief: string; paths: string[
 export interface Profiles { profiles: string[]; selected: string }
 
 /** @brief Named editable namespace tree. */
-export interface ProfileData { name: string; root: NamespaceTreeNode }
+export interface ProfileData { name: string; brief?: string; root: NamespaceTreeNode }
 
 /** @brief Editable Profile tree retaining its transport shape and independent nested data. */
 export class Profile implements Saveable<ProfileData> {
     name: string;
+    brief?: string;
     root: NamespaceTreeNode;
 
     constructor(data?: ProfileData) {
         this.name = data?.name ?? 'Default';
+        this.brief = data?.brief;
         this.root = compactProfileNode(data?.root ?? profileNode(createNamespace({ tools: [], includeUnavailable: true }).serialize())) as NamespaceTreeNode;
     }
 
-    save(): ProfileData { return { name: this.name, root: compactProfileNode(this.root) as NamespaceTreeNode }; }
+    save(): ProfileData { return { name: this.name, ...(this.brief === undefined ? {} : { brief: this.brief }), root: compactProfileNode(this.root) as NamespaceTreeNode }; }
 }
 
 /** @brief Copy Profile data while omitting default permissions, pin levels and enabled state. */
@@ -89,7 +91,7 @@ const nodeSchema: z.ZodType<ProfileTreeNode> = z.lazy(() => z.union([
 ]));
 
 /** @brief Validate editable Profile input; server-owned permissions remain authoritative. */
-export const ProfileSchema: z.ZodType<ProfileData> = z.strictObject({ name: z.string(), root: namespaceSchema.describe("Anonymous root. Missing protected descendants are restored recursively from the original Profile; submitted node settings are preserved. Server permissions govern edits, and forbidden descriptions are ignored.") });
+export const ProfileSchema: z.ZodType<ProfileData> = z.strictObject({ name: z.string(), brief: z.string().optional().describe('Short description of the Profile purpose.'), root: namespaceSchema.describe("Anonymous root. Missing protected descendants are restored recursively from the original Profile; submitted node settings are preserved. Server permissions govern edits, and forbidden descriptions are ignored.") });
 
 /** @brief Create protected children first, then add configured mappings without replacing existing nodes. */
 export function profileTree(name: string, configuration: RegistryConfigurationData): Profile {
@@ -123,13 +125,13 @@ export function profileTree(name: string, configuration: RegistryConfigurationDa
         for (const child of node.children ?? []) apply(child, path);
     };
     apply(snapshot, '');
-    return new Profile({ name, root: snapshot });
+    return new Profile({ name, brief: configuration.brief, root: snapshot });
 }
 
 /** @brief Restore missing protected descendants, then apply edits under server-owned permissions without mutating input. */
 export function profileConfiguration(profile: ProfileData, current: RegistryConfigurationData, commands: readonly CommandBrief[]): RegistryConfiguration {
     const protectedRoot = createNamespace({ tools: [], includeUnavailable: true });
-    const configuration = new RegistryConfiguration({ ...current, mappings: [], namespaces: [], order: [], toolComments: {}, builtinVisible: {}, builtinDisabled: [], namespaceVisible: {} });
+    const configuration = new RegistryConfiguration({ ...current, brief: profile.brief, mappings: [], namespaces: [], order: [], toolComments: {}, builtinVisible: {}, builtinDisabled: [], namespaceVisible: {} });
     const submitted: { node: ProfileTreeNode; path: string }[] = [];
     const root = structuredClone(profile.root);
     const baseline = profileTree(profile.name, current).root;
@@ -257,5 +259,5 @@ interface NamespaceTreeNode extends ProfileNode {
     description?: string;
 }
 /** @brief Named namespace configuration with an anonymous root. */
-interface Profile { name: string; root: NamespaceTreeNode; }
+interface Profile { name: string; brief?: string; root: NamespaceTreeNode; }
 `;
