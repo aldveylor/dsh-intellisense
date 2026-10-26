@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { IconChevronDownOutlineRegular, IconDatabaseOutlineRegular, Menu } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button, IconChevronDownOutlineRegular, IconDatabaseOutlineRegular, Menu, Modal } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots';
 import type {} from '@deepseek-ai/dsh-client-ui-session/client';
 import type {} from '@deepseek-ai/dsh-agent-preset-registry';
@@ -65,6 +65,7 @@ export function SessionProfile({ sessionId, useProjection, api, t }: PropsRuntim
                 <span>{state.profile}</span>
                 <IconChevronDownOutlineRegular className="ts-session-profile-chevron" />
             </button>} />}
-        {error && <span className="ts-session-profile-error" role="alert">{error}</span>}
+        <Modal open={!!error} onClose={() => setError('')} title={t('operation_failed')} closeLabel={t('close')}
+            description={error} footer={<Button data-modal-autofocus onClick={() => setError('')}>{t('confirm')}</Button>} />
     </div>;
 }

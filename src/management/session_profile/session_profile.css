@@ -68,8 +68,3 @@ div:has(> [data-slot="conversation.hero.options"] .ts-session-profile) {
     font-size: 13px;
     line-height: 20px;
 }
-
-.ts-session-profile-error {
-    color: var(--dsw-alias-state-error-primary);
-    font-size: 12px;
-}
