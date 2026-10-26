@@ -11,12 +11,17 @@ div:has(> [data-slot="conversation.hero.options"] .ts-session-profile) {
     min-width: 0;
 }
 
+.ts-session-profile-menu {
+    min-width: 54px;
+    max-width: 100%;
+}
+
 .ts-session-profile-trigger {
     display: inline-flex;
     align-items: center;
     gap: 4px;
     min-width: 0;
-    max-width: 240px;
+    max-width: min(100%, 240px);
     min-height: 28px;
     padding: 0 8px;
     border: none;
@@ -27,10 +32,11 @@ div:has(> [data-slot="conversation.hero.options"] .ts-session-profile) {
     font-size: 13px;
     font-weight: 500;
     line-height: 20px;
+    white-space: nowrap;
     cursor: pointer;
 }
 
-.ts-session-profile-trigger:hover,
+.ts-session-profile-trigger:not(:disabled):hover,
 .ts-session-profile-trigger[aria-expanded="true"] {
     background: var(--dsw-alias-interactive-bg-hover);
 }
@@ -41,13 +47,26 @@ div:has(> [data-slot="conversation.hero.options"] .ts-session-profile) {
 }
 
 .ts-session-profile-trigger span {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.ts-session-profile-trigger svg {
+.ts-session-profile-icon {
     flex: none;
+    color: var(--dsw-alias-label-primary);
+}
+
+.ts-session-profile-chevron {
+    flex: none;
+    color: var(--dsw-alias-label-caption);
+}
+
+.ts-session-profile-item {
+    color: var(--dsw-alias-label-primary);
+    font-size: 13px;
+    line-height: 20px;
 }
 
 .ts-session-profile-error {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Menu } from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconChevronDownOutlineRegular, IconDatabaseOutlineRegular, Menu } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots';
 import type {} from '@deepseek-ai/dsh-client-ui-session/client';
 import type {} from '@deepseek-ai/dsh-agent-preset-registry';
@@ -56,14 +56,14 @@ export function SessionProfile({ sessionId, useProjection, api, t }: PropsRuntim
     if (!state?.enabled && !error) return null;
     return <div className="ts-session-profile">
         <style>{styles}</style>
-        {state?.enabled && <Menu open={open} onClose={() => setOpen(false)} align="start" portal
-            items={state.profiles.map(profile => ({ id: profile, label: profile }))} selectedId={state.profile}
+        {state?.enabled && <Menu open={open} onClose={() => setOpen(false)} align="start" portal className="ts-session-profile-menu"
+            items={state.profiles.map(profile => ({ id: profile, label: <span className="ts-session-profile-item">{profile}</span> }))} selectedId={state.profile}
             onSelect={profile => { void select(profile); }} anchor={<button type="button" className="ts-session-profile-trigger"
                 aria-label="Profile" title={t('select_session_profile')} aria-haspopup="menu" aria-expanded={open} disabled={busy}
                 onClick={() => setOpen(value => !value)}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v7c0 4 16 4 16 0V5M4 12v7c0 4 16 4 16 0v-7" /></svg>
+                <IconDatabaseOutlineRegular className="ts-session-profile-icon" />
                 <span>{state.profile}</span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+                <IconChevronDownOutlineRegular className="ts-session-profile-chevron" />
             </button>} />}
         {error && <span className="ts-session-profile-error" role="alert">{error}</span>}
     </div>;
