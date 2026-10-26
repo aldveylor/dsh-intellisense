@@ -160,28 +160,28 @@ test('built-in pins cycle through three levels, discovery stays detailed and pre
         window.eval(await readFile(new URL('../../dist/management/standalone.js', import.meta.url), 'utf8'));
         const { document } = window;
         await until(() => !!document.querySelector('[data-unmounted-count]'));
-        for (const path of ['console', 'tools']) document.querySelector<HTMLButtonElement>(`[data-namespace-path="${path}"] .ts-disclosure`)!.click();
+        for (const path of ['tools']) document.querySelector<HTMLButtonElement>(`[data-namespace-path="${path}"] .ts-disclosure`)!.click();
         const pin = (path: string) => document.querySelector<HTMLButtonElement>(`[data-tree-path="${path}"] .ts-pin`)!;
-        await until(() => !!pin('console.log') && !!pin('tools.intellisense'));
-        assert(!pin('console.log').disabled);
+        await until(() => !!pin('tools.search') && !!pin('tools.intellisense'));
+        assert(!pin('tools.search').disabled);
         assert(pin('tools.intellisense').disabled);
         assert.equal(pin('tools.intellisense').dataset.level, '2');
-        assert.equal(pin('console.log').dataset.level, '0');
+        assert.equal(pin('tools.search').dataset.level, '0');
         for (const level of [1, 2, 0, 1, 2]) {
-            pin('console.log').click();
-            await until(() => pin('console.log').dataset.level === String(level));
+            pin('tools.search').click();
+            await until(() => pin('tools.search').dataset.level === String(level));
         }
         assert.equal(document.querySelector('[data-tree-path="tools.mount"]'), null);
         const button = (label: string) => Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(button => button.getAttribute('aria-label') === label)!;
         button('Save').click();
-        await until(() => registry.snapshot().builtinVisible?.['console.log'] === 2 && !button('Save').disabled);
+        await until(() => registry.snapshot().builtinVisible?.['tools.search'] === 2 && !button('Save').disabled);
         assert.equal(pin('tools.intellisense').dataset.level, '2');
         button('Refresh').click();
-        await until(() => !button('Refresh').disabled && pin('console.log').getAttribute('aria-pressed') === 'true');
-        assert.equal(pin('console.log').dataset.level, '2');
+        await until(() => !button('Refresh').disabled && pin('tools.search').getAttribute('aria-pressed') === 'true');
+        assert.equal(pin('tools.search').dataset.level, '2');
         const initial = registry.configuration();
         await registry.manageProfile('create', 'Other', registry.snapshot().revision);
-        assert.equal(registry.configuration().builtinVisible?.['console.log'] ?? 0, 0);
+        assert.equal(registry.configuration().builtinVisible?.['tools.search'] ?? 0, 0);
         assert.equal(TreeProvider(createNamespace({ tools: [], includeUnavailable: true }).serialize().children!).find(node => node.path === 'tools')!.commands.find(command => command.path === 'tools.intellisense')!.alwaysVisible, 2);
         await registry.manageProfile('select', 'Default', registry.snapshot().revision);
         assert.deepEqual(registry.configuration().builtinVisible, initial.builtinVisible);

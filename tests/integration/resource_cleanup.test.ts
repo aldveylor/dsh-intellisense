@@ -91,7 +91,7 @@ test('management rejects malformed writes and requires an explicit complete save
     const post = (body: string) => routes.get('/api/ts-intellisense-state')!(new Request('https://localhost/api/ts-intellisense-state', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body }));
     const malformed = await post('{');
     assert.equal(malformed.status, 400);
-    assert.deepEqual(await malformed.json(), { error: 'Invalid JSON body' });
+    assert.deepEqual(await malformed.json(), { error: 'invalid_json_body' });
     const configuration = { revision: 0, mappings: [], namespaces: [], order: [], unmountedVisible: {}, builtinVisible: {}, namespaceVisible: {}, builtinDisabled: [], toolComments: {} };
     assert.equal((await post(JSON.stringify({ action: 'configure', profile: 'Copy', ...configuration }))).status, 400);
     assert.equal((await post(JSON.stringify({ action: 'save_as', profile: 'Copy', revision: 0 }))).status, 400);

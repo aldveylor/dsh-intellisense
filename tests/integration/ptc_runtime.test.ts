@@ -76,7 +76,7 @@ test('PTC worker dispatches and discovery persist session and global statistics 
                 { id: 'read_tool', path: 'std.read', pinned: false },
                 { id: 'fail_tool', path: 'std.fail', pinned: false },
             ], registry.snapshot().revision);
-            const result = await run('console.log("excluded"); const commands = tools.profile.commands; await tools.intellisense("global.std.", "std.read", "console.log"); return await Promise.all([std.read(), std.read()]);');
+            const result = await run('console.log("excluded"); const commands = tools.profile.commands; await tools.intellisense(["global.std.", "std.read", "console.log"]); return await Promise.all([std.read(), std.read()]);');
             assert.equal(result.isError, false, JSON.stringify(result));
             assert.deepEqual(result.value, { logs: ['excluded'], result: ['ok', 'ok'] });
             const failed = await run('return await std.fail();');
@@ -92,7 +92,7 @@ test('PTC worker dispatches and discovery persist session and global statistics 
             assert.deepEqual(expected.callsByTool, { tools_intellisense: 1, read_tool: 3, fail_tool: 1 });
             assert.deepEqual(expected.namespaceQueriesByPath, { std: 1 });
             assert.deepEqual(expected.commandQueriesByPath, { 'std.read': 1 });
-            assert.deepEqual(await namespaces.statistics.snapshot(agent.id), expected);
+            assert.deepEqual(await namespaces.statistics.snapshot(agent.id), { ...expected, queriesByTool: {} });
             assert.equal(agent.session.snapshotEvents().filter(event => event.type === 'tool/ptc-dispatch-start').length, expected.calls);
             await namespaces.release(agent.id);
         } finally { await dispose(); }
@@ -101,7 +101,7 @@ test('PTC worker dispatches and discovery persist session and global statistics 
         const restored = new CommandStatistics(new DshStore(await backend.kv.open(descriptor)));
         await restored.load();
         assert.deepEqual(await restored.snapshot(), expected);
-        assert.deepEqual(await restored.snapshot(agent.id), expected);
+        assert.deepEqual(await restored.snapshot(agent.id), { ...expected, queriesByTool: {} });
     } finally {
         await backend.close();
         await rm(directory, { recursive: true, force: true });
@@ -191,10 +191,10 @@ test('PTC discovery uses namespace execution instead of the deployment Node runt
         assert.equal(ctx.get('ptcRuntime')!.run, defaultRuntime.run);
         assert(!namespaces.physical(agent).some(tool => tool.id === ptcToolName));
         assert(executionInstructions('ptc').includes(`Call ${ptcToolName} with code`));
-        const result = await run('const r = await tools.intellisense("", "std.", "tools.", "tools.intellisense"); return r;');
+        const result = await run('const r = await tools.intellisense(["", "std.", "tools.", "tools.intellisense"]); return r;');
         assert.equal(result.isError, false, JSON.stringify(result));
         assert.match((result.value as { result: string }).result, /namespace tools/);
-        assert.match((result.value as { result: string }).result, /function intellisense\(\.\.\.args: string\[\]\)/);
+        assert.match((result.value as { result: string }).result, /function intellisense\(queries: string\[\]\)/);
         const events = agent.session.snapshotEvents();
         assert(events.some(event => String(event.type) === 'plugin:ts_intellisense/intellisense'));
         const child = events.find(event => event.type === 'tool/ptc-dispatch-start');
@@ -202,7 +202,7 @@ test('PTC discovery uses namespace execution instead of the deployment Node runt
         assert.equal(child.data.parentCallId, 'parent-1');
         const denied = ctx.tools.guard(exec => exec.name === 'tools_intellisense' ? 'Denied by native guard' : undefined);
         try {
-            const failure = await run('return await tools.intellisense("tools.");');
+            const failure = await run('return await tools.intellisense(["tools."]);');
             assert.equal(failure.isError, true);
             assert.match(JSON.stringify(failure), /Denied by native guard/);
         } finally { denied(); }
@@ -212,31 +212,33 @@ test('PTC discovery uses namespace execution instead of the deployment Node runt
     } finally { await dispose(); }
 });
 
-test('PTC discovery accepts zero, single, variadic and spread queries through the real worker', async () => {
+test('PTC discovery accepts empty, single and multiple query arrays through the real worker', async () => {
     const { agent, namespaces, run, dispose } = await fixture();
     try {
         const prompt = await namespaces.prompt(agent);
-        assert.match(prompt, /function intellisense\(\.\.\.args: string\[\]\): Promise<string>/);
+        assert.match(prompt, /function intellisense\(queries: string\[\]\): Promise<string>/);
         const cases = [
-            { code: 'return await tools.intellisense();', queries: [] },
-            { code: 'return await tools.intellisense("");', queries: [''] },
-            { code: 'return await tools.intellisense("tools.intellisense");', queries: ['tools.intellisense'] },
-            { code: 'return await tools.intellisense("", "tools.intellisense", "tools.profile.");', queries: ['', 'tools.intellisense', 'tools.profile.'] },
-            { code: 'const queries = ["", "tools.intellisense"]; return await tools.intellisense(...queries);', queries: ['', 'tools.intellisense'] },
+            { code: 'return await tools.intellisense([]);', queries: [] },
+            { code: 'return await tools.intellisense([""]);', queries: [''] },
+            { code: 'return await tools.intellisense(["tools.intellisense"]);', queries: ['tools.intellisense'] },
+            { code: 'return await tools.intellisense(["", "tools.intellisense", "tools.profile."]);', queries: ['', 'tools.intellisense', 'tools.profile.'] },
+            { code: 'const queries = ["", "tools.intellisense"]; return await tools.intellisense([...queries]);', queries: ['', 'tools.intellisense'] },
         ];
         for (const { code, queries } of cases) {
             const result = await run(code);
             assert.equal(result.isError, false, JSON.stringify(result));
             assert.equal(typeof (result.value as { result: unknown }).result, 'string');
             if (queries.includes('')) assert.match((result.value as { result: string }).result, /namespace tools/);
-            if (queries.includes('tools.intellisense')) assert.match((result.value as { result: string }).result, /function intellisense\(\.\.\.args: string\[\]\)/);
+            if (queries.includes('tools.intellisense')) assert.match((result.value as { result: string }).result, /function intellisense\(queries: string\[\]\)/);
             const child = [...agent.session.snapshotEvents()].reverse().find(event => event.type === 'tool/ptc-dispatch-start');
             assert(child?.type === 'tool/ptc-dispatch-start');
             assert.deepEqual(child.data.arguments, { queries });
         }
-        const array = await run('return await tools.intellisense(["tools."]);');
-        assert.equal(array.isError, true);
-        assert.match(JSON.stringify(array), /Invalid arguments/i);
+        for (const args of ['', '"tools."', '"tools.", "std."', '[3]']) {
+            const invalid = await run(`return await tools.intellisense(${args});`);
+            assert.equal(invalid.isError, true);
+            assert.match(JSON.stringify(invalid), /Invalid arguments|Too many arguments/i);
+        }
     } finally { await dispose(); }
 });
 
@@ -560,11 +562,11 @@ test('Profile organization mounts catalog commands and applies briefs without mu
         assert.equal(tree.resolve(['files'])?.serialize().description, 'File operations');
         assert.equal(tree.resolve(['files', 'read'])?.serialize().command?.doc, 'Original read');
         assert.equal(tree.resolve(['files', 'tools_external'])?.serialize().command?.doc, 'Original tools_external');
-        const discovery = await run('return await tools.intellisense("files.read");');
+        const discovery = await run('return await tools.intellisense(["files.read"]);');
         assert.equal(discovery.isError, false, JSON.stringify(discovery));
         assert.match(JSON.stringify(discovery.value), /Original read/);
         assert.doesNotMatch(JSON.stringify(discovery.value), /Brief read/);
-        const members = await run('return await tools.intellisense("files.");');
+        const members = await run('return await tools.intellisense(["files."]);');
         assert.equal(members.isError, false, JSON.stringify(members));
         assert.match(JSON.stringify(members.value), /Brief read/);
         assert.doesNotMatch(JSON.stringify(members.value), /Original read/);
@@ -595,6 +597,6 @@ test('Profile save merges omitted protected members from the target without chan
                 tools.profile.profiles.selected];
         `);
         assert.equal(result.isError, false, JSON.stringify(result));
-        assert.deepEqual(result.value, { logs: [], result: [2, 1, true, false, 'Default'] });
+        assert.deepEqual(result.value, { logs: [], result: [2, 1, false, false, 'Default'] });
     } finally { await dispose(); }
 });

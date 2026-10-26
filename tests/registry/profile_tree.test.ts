@@ -10,7 +10,7 @@ function fixture() {
     const configuration = { ...current,
         mappings: [...['read', 'write', 'list'].map((id, index) => ({ id, path: `files.${id}`, pinned: false, alwaysVisible: (2 - index) as 0 | 1 | 2 })), { id: 'read', path: 'read', pinned: false, alwaysVisible: 2 as const }],
         namespaces: [{ path: 'files', description: 'File operations', alwaysVisible: true }],
-        namespaceVisible: { console: true }, builtinVisible: { 'console.log': 2 as const, 'tools.intellisense': 2 as const }, toolComments: { read: 'Read text' } };
+        namespaceVisible: { tools: true }, builtinVisible: { 'tools.profile.load': 2 as const, 'tools.intellisense': 2 as const }, toolComments: { read: 'Read text' } };
     return { current, profile: profileTree('Work', configuration), commands: ['read', 'write', 'list'].map(name => ({ name, brief: name, paths: [], totalCalls: 0 })) };
 }
 
@@ -22,8 +22,10 @@ test('Profile trees round-trip nested namespaces, independent mounts, comments a
     assert.deepEqual(configuration.mappings.map(mapping => mapping.alwaysVisible), [2, 1, 0, 2]);
     assert.deepEqual(configuration.mappings.filter(mapping => mapping.id === 'read').map(mapping => mapping.path), ['files.read', 'read']);
     assert.equal(configuration.namespaces[0]?.description, 'File operations');
-    assert.equal(configuration.namespaceVisible?.console, true);
-    assert.equal(configuration.builtinVisible?.['console.log'], 2);
+    assert.equal(configuration.namespaces[0]?.alwaysVisible, true);
+    assert.equal(configuration.namespaceVisible?.tools, false);
+    assert.equal(profile.root.children!.find(node => node.name === 'tools')!.fixedLevel, undefined);
+    assert.equal(configuration.builtinVisible?.['tools.profile.load'], 2);
     assert.deepEqual(profileTree('Work', configuration), profile);
 });
 
@@ -52,7 +54,7 @@ test('duplicate diagnostics identify the complete path and both submitted source
 
 test('protected diagnostics reject rename and move while omissions restore protected nodes', () => {
     const { current, profile, commands } = fixture();
-    for (const name of ['console', 'tools']) {
+    for (const name of ['tools']) {
         const renamed = structuredClone(profile);
         renamed.root.children!.find(node => node.name === name)!.name = 'term';
         assert.throws(() => profileConfiguration(renamed, current, commands), new RegExp(`Node cannot be renamed: ${name} -> term.*permissions.renamable=false`));
@@ -67,23 +69,25 @@ test('protected diagnostics reject rename and move while omissions restore prote
         assert(profileTree('Work', profileConfiguration(removed, current, commands)).root.children!.some(node => node.name === name));
     }
     const renamedLeaf = structuredClone(profile);
-    renamedLeaf.root.children!.find(node => node.name === 'console')!.children!.find(node => node.name === 'info')!.name = 'detail';
-    assert.throws(() => profileConfiguration(renamedLeaf, current, commands), /Node cannot be renamed: console.info -> console.detail/);
+    renamedLeaf.root.children!.find(node => node.name === 'tools')!.children!.find(node => node.name === 'intellisense')!.name = 'detail';
+    assert.throws(() => profileConfiguration(renamedLeaf, current, commands), /Node cannot be renamed: tools.intellisense -> tools.detail/);
 });
 
-test('root info and log namespaces coexist with the protected console methods', () => {
+test('root info and log namespaces coexist with protected tools without a console namespace', () => {
     const { current, profile, commands } = fixture();
     for (const name of ['info', 'log']) profile.root.children!.push({ type: 'namespace', name, permissions: profile.root.permissions, children: [] });
     const configuration = profileConfiguration(profile, current, commands);
     assert(configuration.namespaces.some(node => node.path === 'info'));
     assert(configuration.namespaces.some(node => node.path === 'log'));
-    assert(profileTree('Work', configuration).root.children!.some(node => node.name === 'console'));
+    const children = profileTree('Work', configuration).root.children!;
+    assert(children.some(node => node.name === 'tools'));
+    assert(!children.some(node => node.name === 'console'));
 });
 
 
 test('save fills protected descendants without replacing submitted pin and disabled settings', () => {
     const { current } = fixture();
-    current.builtinVisible = { 'tools.profile.load': 2, 'tools.profile.save': 1, 'console.info': 2 };
+    current.builtinVisible = { 'tools.profile.load': 2, 'tools.profile.save': 1, 'tools.search': 2 };
     current.builtinDisabled = ['tools.profile.delete'];
     const full = profileTree('Work', current);
     const input = structuredClone(full);
@@ -103,7 +107,7 @@ test('save fills protected descendants without replacing submitted pin and disab
     assert.equal(result.children!.find(node => node.name === 'load')!.fixedLevel, undefined);
     assert.equal(result.children!.find(node => node.name === 'save')!.fixedLevel, 1);
     assert.equal(result.children!.find(node => node.name === 'delete')!.disabled, true);
-    assert.equal(restored.root.children!.find(node => node.name === 'console')!.children!.find(node => node.name === 'info')!.fixedLevel, 2);
+    assert.equal(restored.root.children!.find(node => node.name === 'tools')!.children!.find(node => node.name === 'search')!.fixedLevel, 2);
     tools.children = tools.children!.filter(node => node.name !== 'profile');
     const missingNamespace = profileTree('Work', profileConfiguration(input, current, []));
     assert.equal(missingNamespace.root.children!.find(node => node.name === 'tools')!.children!.find(node => node.name === 'profile')!.children!.find(node => node.name === 'load')!.fixedLevel, 2);

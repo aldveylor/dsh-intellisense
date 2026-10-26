@@ -63,16 +63,16 @@ test('manifest exposes only the new tools API and projects VM array arguments', 
         { id: 'tools_mount', description: 'Old command.', parameters: {}, output: {} },
     ]));
     const entries = manifest(registry, []);
-    assert.deepEqual(entries.commands().filter(entry => entry.deployment === 'tool').map(entry => entry.path).sort(), ['tools.intellisense', 'tools.profile.annotation', 'tools.profile.commands', 'tools.profile.delete', 'tools.profile.load', 'tools.profile.profiles', 'tools.profile.save', 'tools.profile.setdefault', 'tools.profile.switch']);
+    assert.deepEqual(entries.commands().map(entry => entry.path).sort(), ['tools.intellisense', 'tools.profile.annotation', 'tools.profile.commands', 'tools.profile.delete', 'tools.profile.load', 'tools.profile.profiles', 'tools.profile.save', 'tools.profile.setdefault', 'tools.profile.switch']);
     const discovery = entries.commands().find(entry => entry.path === 'tools.intellisense')!;
-    assert.deepEqual(await positionalArguments(discovery, ['files.']), { queries: ['files.'] });
-    await assert.rejects(positionalArguments(discovery, [['files.']]));
+    assert.deepEqual(await positionalArguments(discovery, [['files.']]), { queries: ['files.'] });
+    await assert.rejects(positionalArguments(discovery, ['files.']));
     assert.deepEqual(await positionalArguments(entries.commands().find(entry => entry.path === 'tools.profile.save')!, [{ name: 'Default', root: {} }]), { profile: { name: 'Default', root: {} } });
     const vm = intellisense(['tools.profile.', 'tools.profile.save', 'tools.intellisense'], entries, true);
     assert(vm.includes('readonly annotation: string'));
     assert(vm.includes('readonly profiles: Profiles'));
     assert(vm.includes('save(profile: Profile)'));
-    assert(vm.includes('function intellisense(...args: string[])'));
+    assert(vm.includes('function intellisense(queries: string[])'));
     const native = intellisense(['tools.profile.annotation'], entries, false);
     assert(native.includes('function annotation()'));
     for (const source of [vm, native]) {
@@ -255,7 +255,7 @@ test('PTC agents can load, edit, save and switch plain Profile trees across host
     registry.refresh([...definitions.values()].map(tool => ({ id: tool.name, description: tool.description, parameters: tool.parameters, output: tool.output.schema })));
     const host = new RuntimeHost({ timeoutMs: 3000 });
     const before = registry.configuration();
-    const commands = manifest(registry, []).commands().filter(node => node.deployment === 'tool').map(node => node.binding());
+    const commands = manifest(registry, []).commands().filter(node => !node.preload).map(node => node.binding());
     try {
         const result = await host.execute('profile_classes', 'roundtrip', `
             const profile = await tools.profile.load();

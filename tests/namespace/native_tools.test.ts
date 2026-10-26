@@ -72,7 +72,7 @@ test('native aliases publish callable names, preserve native arguments and revok
 test('native discovery shows original documentation only for exact functions', () => {
     const root = namespace([{ path: 'fs.read', tool: 'read_file', doc: 'Read file\nFull file documentation.', schema: {}, output: {} }]);
     for (const queries of [['fs.'], ['fs.read']]) {
-        const discovery = JSON.parse(nativeDiscovery(queries, root, [], () => 'Profile brief'));
+        const discovery = JSON.parse(nativeDiscovery(queries, root, () => 'Profile brief'));
         assert.equal(discovery.members[0].brief, 'Profile brief');
         if (queries[0] === 'fs.read') assert.equal(discovery.members[0].description, 'Read file\nFull file documentation.');
         else assert(!JSON.stringify(discovery).includes('Full file documentation.'));
@@ -81,15 +81,15 @@ test('native discovery shows original documentation only for exact functions', (
 
 test('native discovery omits empty namespace, command and Profile briefs', () => {
     const root = namespace([{ path: 'fs.read', tool: 'read_file', doc: '', schema: {}, output: {} }]);
-    const roots = JSON.parse(nativeDiscovery([''], root, []));
+    const roots = JSON.parse(nativeDiscovery([''], root));
     assert(!Object.hasOwn(roots.members.find((member: { path: string }) => member.path === 'fs'), 'brief'));
     for (const queries of [['fs.'], ['fs.read']]) {
-        const discovery = JSON.parse(nativeDiscovery(queries, root, []));
+        const discovery = JSON.parse(nativeDiscovery(queries, root));
         assert(!Object.hasOwn(discovery.members[0], 'brief'));
     }
     const documented = namespace([{ path: 'fs.read', tool: 'read_file', doc: 'Full documentation', schema: {}, output: {} }]);
     for (const brief of ['', '  \n ']) {
-        const discovery = JSON.parse(nativeDiscovery(['fs.read'], documented, [], () => brief));
+        const discovery = JSON.parse(nativeDiscovery(['fs.read'], documented, () => brief));
         assert(!Object.hasOwn(discovery.members[0], 'brief'));
     }
 });

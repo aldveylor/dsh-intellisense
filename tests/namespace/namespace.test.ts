@@ -50,13 +50,13 @@ test('detailed completion uses valid TypeScript/Doxygen declarations and preserv
     assert(info.includes('function read(path: string)'));
     assert(info.includes('@brief 读取文件（保留注释原文）'));
     const fixed = intellisense(['console.log'], entries, true);
-    assert(fixed.includes('namespace console'));
-    assert(fixed.includes('function log('));
+    assert(!fixed.includes('namespace console'));
+    assert(!fixed.includes('function log('));
     assert(!intellisense(['tools.mount'], entries, true).includes('function mount'));
     const root = intellisense([''], entries, true);
     assert(root.includes('namespace tools'));
     assert(root.includes('namespace std'));
-    assert(intellisense(['console.log'], entries, false).includes('function log('));
+    assert(!intellisense(['console.log'], entries, false).includes('function log('));
 });
 
 test('cwd and other single-field results expose scalar contracts and repack positional arguments', async () => {
@@ -98,7 +98,7 @@ test('namespace descriptions survive native discovery and PTC member and exact q
         { path: 'files.library', description: 'Library files', alwaysVisible: false },
     ]);
     const root = manifest(catalog, []);
-    const members = JSON.parse(nativeDiscovery(['', 'files.'], root, [])).members;
+    const members = JSON.parse(nativeDiscovery(['', 'files.'], root)).members;
     assert.equal(members.find((member: { path: string }) => member.path === 'files').brief, 'File operations');
     assert.equal(members.find((member: { path: string }) => member.path === 'files.library').brief, 'Library files');
     assert.equal(members.find((member: { path: string }) => member.path === 'tools').brief, 'Tool discovery and Profile management');

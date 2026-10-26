@@ -101,7 +101,7 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
                 assert(!JSON.stringify(roots).includes('Complete file documentation.'));
                 assert.equal(roots.members.find((member: { path: string }) => member.path === 'tools').brief, 'Tool discovery and Profile management');
                 const listing = await discover(['global.std.fs.']);
-                assert.deepEqual(listing.members, [{ path: 'std.fs.read', deployment: 'tool', brief: 'Read file contents' }]);
+                assert.deepEqual(listing.members, [{ path: 'std.fs.read', brief: 'Read file contents' }]);
                 await send();
                 assert.deepEqual(model.requests[1]!.tools?.map(tool => tool.name), ['ns_tools__intellisense']);
                 const info = await discover(['global.std.fs.read']);
