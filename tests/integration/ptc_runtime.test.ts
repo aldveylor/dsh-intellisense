@@ -115,7 +115,10 @@ test('PTC command counts update within a program and refresh from host counts on
             output: { schema: { type: 'string' }, render: () => [] }, execute: async () => 'ok',
         }));
         const registry = await namespaces.registryFor(agent);
-        await registry.configure([{ id: 'read_tool', path: 'std.read', aliases: ['std.again'], pinned: false }], registry.snapshot().revision);
+        await registry.configure([
+            { id: 'read_tool', path: 'std.read', pinned: false },
+            { id: 'read_tool', path: 'std.again', pinned: false },
+        ], registry.snapshot().revision);
         const result = await run(`
             const row=tools.profile.commands.find(row=>row.name==='read_tool');
             const before=row.totalCalls;
@@ -534,9 +537,9 @@ test('Profile organization mounts catalog commands and applies briefs without mu
             const permissions = { renamable: true, movable: true, removable: true, disableable: true, acceptsChildren: true, availableFixLevels: [0, 1] };
             const names = ['read', 'write', 'edit', 'glob', 'grep', 'working_directory', 'tools_external'];
             if (names.some(name => !tools.profile.commands.some(command => command.name === name))) throw new Error('Missing catalog command');
-            profile.root.children.push({ type: 'tree', name: 'files', description: 'File operations', permissions,
-                children: names.map(name => ({ type: 'leaf', name, permissions: { ...permissions, acceptsChildren: false, availableFixLevels: [0, 1, 2] },
-                    command: { tool: name, schema: {}, doc: 'Brief ' + name } })) });
+            profile.root.children.push({ type: 'namespace', name: 'files', description: 'File operations', permissions,
+                children: names.map(name => ({ type: 'command', name, permissions: { ...permissions, acceptsChildren: false, availableFixLevels: [0, 1, 2] },
+                    command: { tool: name, doc: 'Brief ' + name } })) });
             await tools.profile.save('Organized', profile);
             const invalid = JSON.parse(JSON.stringify(profile));
             invalid.root.children.find(child => child.name === 'tools').children.find(child => child.name === 'intellisense').command.tool = 'read';
@@ -579,8 +582,7 @@ test('Profile save merges omitted protected members from the target without chan
             await tools.profile.save('Merged', original);
             const save = group.children.find(node => node.name === 'save');
             save.fixedLevel = 1;
-            delete save.command.doc;
-            save.description = 'Ignored protected comment';
+            save.command.doc = 'Ignored protected comment';
             group.children = [save];
             original.root.children = original.root.children.filter(node => node.name === 'tools');
             await tools.profile.save('Merged', original);

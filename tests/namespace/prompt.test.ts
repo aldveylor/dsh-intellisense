@@ -35,6 +35,6 @@ test('namespace item groups and deduplicates actual enabled commands without inv
 
 test('namespace briefs decode HTML entities before formatting the prompt', () => {
     const prompt = namespaceDirectory([{ path: 'std.cwd', description: 'Read &amp; change &lt;directory&gt;' }]);
-    assert(prompt.includes('// Read & change <directory>'));
+    assert(prompt.includes('/** @brief Read & change <directory> */'));
     assert(!prompt.includes('&amp;'));
 });
