@@ -27,7 +27,7 @@ export function TreeProvider(nodes: readonly SerializedNode[], visible: CommandV
     const visit = (node: SerializedNode, parent: string): ProvidedNamespace => {
         const path = parent ? `${parent}.${node.name}` : node.name;
         return { path, description: node.description ?? '', permissions: node.permissions, node,
-            commands: (node.children ?? []).filter(child => child.type === 'leaf').map(child => ({ path: `${path}.${child.name}`, id: child.deployment === 'tool' ? child.command?.tool : undefined,
+            commands: (node.children ?? []).filter(child => child.type === 'leaf').map(child => ({ path: `${path}.${child.name}`, id: child.command?.tool,
                 description: child.description ?? child.command?.doc ?? '', permissions: child.permissions,
                 alwaysVisible: fixLevel(child.permissions, visible[`${path}.${child.name}`] ?? 0), node: child })),
             children: (node.children ?? []).filter(child => child.type === 'tree').map(child => visit(child, path)) };

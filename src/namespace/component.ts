@@ -123,7 +123,7 @@ export class NamespaceComponent {
     async tree(agent: Agent, current?: SemanticRegistry): Promise<NamespaceNode> { return manifest(current ?? await this.registryFor(agent), this.aliases); }
 
     /** @brief Flatten command bindings only for consumers that dispatch physical tools. */
-    async entries(agent: Agent, current?: SemanticRegistry): Promise<CommandNode[]> { return (await this.tree(agent, current)).commands().filter(entry => entry.deployment === 'tool'); }
+    async entries(agent: Agent, current?: SemanticRegistry): Promise<CommandNode[]> { return (await this.tree(agent, current)).commands(); }
 
     /** @brief List catalog commands with mount paths including disabled paths, excluding plugin builtins. */
     async commandBriefs(agent?: Agent, current?: SemanticRegistry): Promise<CommandBrief[]> {
@@ -224,8 +224,7 @@ export class NamespaceComponent {
     async discover(agent: Agent, queries: readonly string[]): Promise<string> {
         const registry = await this.registryFor(agent);
         const root = manifest(registry, this.aliases);
-        const entries = root.commands().filter(entry => entry.deployment === 'tool');
-        if (this.isPtc(agent)) return nativeDiscovery(queries, root, nativeBindings(entries, this.physical(agent).map(tool => tool.id)), (tool, path) => registry.description(path, tool));
+        if (this.isPtc(agent)) return nativeDiscovery(queries, root, (tool, path) => registry.description(path, tool));
         const selected = nativeQueryEntries(queries, root);
         let discovered = this.discovered.get(agent.id);
         if (!discovered) this.discovered.set(agent.id, discovered = new Set());
@@ -236,7 +235,7 @@ export class NamespaceComponent {
         while (discovered.size > 256) discovered.delete(discovered.values().next().value!);
         await this.syncNative(agent, registry, root);
         this.ctx.emit('system-prompt/change');
-        return nativeDiscovery(queries, root, nativeBindings(entries, this.physical(agent).map(tool => tool.id)), (tool, path) => registry.description(path, tool));
+        return nativeDiscovery(queries, root, (tool, path) => registry.description(path, tool));
     }
 
     /** @brief Install scoped namespace aliases while keeping dispatch inside native guards and auditing. */
@@ -245,7 +244,7 @@ export class NamespaceComponent {
         const source = JSON.stringify([registry.generation, [...this.discovered.get(agent.id) ?? []]]);
         const previous = this.nativeTools.get(agent.id);
         if (previous?.source === source) return [...previous.names];
-        const entries = (root ?? manifest(registry, this.aliases)).commands().filter(entry => entry.deployment === 'tool');
+        const entries = (root ?? manifest(registry, this.aliases)).commands();
         const visible = new Set(this.nativeEntries(agent, registry, entries));
         const bindings = nativeBindings(entries, registry.tools().map(tool => tool.id)).filter(({ entry }) => visible.has(entry));
         const descriptionFor = (entry: CommandNode): string => registry.description(entry.path, entry.tool) ?? entry.doc.trim().split(/\r?\n/, 1)[0]!;

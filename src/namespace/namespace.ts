@@ -1,7 +1,6 @@
 import { NamespaceNode } from './nodes/node.js';
 import { CommandNode } from './nodes/command_node.js';
 import { ToolsNamespaceNode } from './nodes/tools_namespace_node.js';
-import { ConsoleNamespaceNode } from './nodes/console_namespace_node.js';
 import type { NamespaceContext } from './nodes/context.js';
 import { commandDeclaration } from './nodes/command_contract.js';
 export { nativeArgumentsFor, resultFor } from './nodes/command_contract.js';
@@ -9,8 +8,6 @@ export { NamespaceNode } from './nodes/node.js';
 export { CommandNode } from './nodes/command_node.js';
 export { InnerNamespaceNode } from './nodes/inner_namespace_node.js';
 export { InnerCommandNode } from './nodes/inner_command_node.js';
-export { EnvironmentCommandNode } from './nodes/environment_command_node.js';
-export { ConsoleNamespaceNode } from './nodes/console_namespace_node.js';
 export { ToolsNamespaceNode } from './nodes/tools_namespace_node.js';
 export { ProfileNamespaceNode } from './nodes/profile_namespace_node.js';
 export { IntellisenseCommandNode } from './nodes/intellisense_command_node.js';
@@ -39,7 +36,6 @@ export interface ManifestEntry extends CommandContract { path: string }
 /** @brief Create an ordinary root container with server-owned protected children before adding mappings. */
 export function createNamespace(context: NamespaceContext): NamespaceNode {
     const root = new NamespaceNode('', undefined, '', nodePermissions('tree', { renamable: false, commentable: false, movable: false, removable: false, disableable: false, availableFixLevels: [] }));
-    root.add(new ConsoleNamespaceNode(root, context));
     root.add(new ToolsNamespaceNode(root, context));
     return root;
 }

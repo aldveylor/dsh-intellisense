@@ -334,7 +334,7 @@ export class SemanticRegistry {
         return result;
     }
 
-    /** @brief Validate optional console namespace prompt pinning independently of native runtime globals. */
+    /** @brief Validate namespace prompt visibility preferences. */
     private validateNamespaceVisible(value: unknown): void {
         if (value !== undefined && (!value || typeof value !== 'object' || Array.isArray(value) || Object.entries(value).some(([path, pinned]) => !path || typeof pinned !== 'boolean'))) throw new Error('Invalid namespace visibility preferences');
     }

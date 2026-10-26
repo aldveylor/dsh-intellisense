@@ -26,7 +26,6 @@ export interface SerializedNode {
     children?: SerializedNode[];
     command?: CommandContract;
     description?: string;
-    deployment?: 'tool' | 'environment';
     preload?: boolean;
     fixedLevel?: 0 | 1 | 2;
     disabled?: boolean;

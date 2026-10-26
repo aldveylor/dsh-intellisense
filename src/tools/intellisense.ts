@@ -8,18 +8,14 @@ import { declaration, normalizeIntellisenseQueries, queryNodes, NamespaceNode } 
 import type { NamespaceComponent } from '../namespace/component.js';
 import type { QueryTarget } from '../namespace/statistics.js';
 
-/** @brief Resolve each query target, excluding disabled, missing and runtime-only members. */
+/** @brief Resolve each query target, excluding disabled and missing members. */
 export function intellisenseQueryTargets(queries: readonly string[], root: NamespaceNode): QueryTarget[] {
     return normalizeIntellisenseQueries(queries).flatMap<QueryTarget>(query => {
         const path = query.replace(/\.$/, '');
         const node = root.resolve(path ? path.split('.') : []);
         if (!node || node.disabled) return [];
-        if (node instanceof NamespaceNode) {
-            const commands = node.commands().filter(command => !command.disabled);
-            if (commands.length && commands.every(command => command.deployment === 'environment')) return [];
-            return [{ path, namespace: true }];
-        }
-        return !query.endsWith('.') && node.deployment === 'tool' ? [{ path, namespace: false }] : [];
+        if (node instanceof NamespaceNode) return [{ path, namespace: true }];
+        return !query.endsWith('.') ? [{ path, namespace: false }] : [];
     });
 }
 
@@ -83,15 +79,7 @@ export function registerIntellisense(ctx: Context, namespaces: NamespaceComponen
             if (namespaces.isPtc(agent)) {
                 info = intellisense(queries, root, true, path => registry.disabled(path), (tool, path) => registry.description(path, tool));
             } else {
-                const discovery = JSON.parse(await namespaces.discover(agent, queries));
-                discovery.members = (discovery.members ?? []).filter((member: { path: string }) => {
-                    const node = root.resolve(member.path.split('.'));
-                    if (!node || node.disabled) return false;
-                    return node instanceof NamespaceNode
-                        ? node.commands().some(command => !command.disabled && command.deployment === 'tool')
-                        : node.deployment === 'tool';
-                });
-                info = JSON.stringify(discovery, null, 2);
+                info = await namespaces.discover(agent, queries);
             }
             const position = namespaces.position(agent);
             appendPluginRecord(agent.session, 'plugin:ts_intellisense/intellisense', {

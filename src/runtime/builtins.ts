@@ -21,17 +21,6 @@ export interface BuiltinTool extends BuiltinCommand {
 
 /** @brief Own the shared plugin command table and its runtime and presentation projections. */
 export class PluginCommands {
-    /** @brief Native Node Console methods with their public signatures and English documentation. */
-    readonly consoleCommands: readonly BuiltinCommand[] = [
-        ...['log', 'info', 'debug', 'warn', 'error', 'dirxml'].map(name => ({ path: `console.${name}`, signature: '(...data: unknown[]) => void', description: 'Format and write values to the execution output.' })),
-        { path: 'console.dir', signature: '(value: unknown, options?: { depth?: number | null; colors?: boolean; showHidden?: boolean }) => void', description: 'Inspect an object and write it to the execution output.' },
-        ...['time', 'timeEnd', 'count', 'countReset'].map(name => ({ path: `console.${name}`, signature: '(label?: string) => void', description: 'Manage a labeled console timer or counter.' })),
-        ...['timeLog', 'trace', 'group', 'groupCollapsed'].map(name => ({ path: `console.${name}`, signature: '(...data: unknown[]) => void', description: 'Write a timer, trace or group to the execution output.' })),
-        { path: 'console.assert', signature: '(condition?: unknown, ...data: unknown[]) => void', description: 'Write an assertion failure when the condition is falsy.' },
-        { path: 'console.table', signature: '(data: unknown, properties?: readonly string[]) => void', description: 'Display tabular data in the execution output.' },
-        ...['clear', 'groupEnd'].map(name => ({ path: `console.${name}`, signature: '() => void', description: 'Clear the console or close the current console group.' })),
-    ];
-
     /** @brief Profile commands available through ordinary guarded native dispatch. */
     readonly managementCommands: readonly BuiltinTool[] = [
         { tool: 'tools_profile_setdefault', path: 'tools.profile.setdefault', signature: '(name: string) => Promise<void>', discardResult: true, description: 'Set an existing catalog Profile as the global default for new conversations. Existing conversations keep their working configurations.', parameterDocs: { name: 'Existing catalog Profile to use by default for new conversations.' } },
@@ -63,11 +52,11 @@ export class PluginCommands {
         return methods === undefined ? this.searchCommand : methods.length > 1 ? { ...this.searchCommand, signature: this.searchCommand.signature.replace('method?: string', `method?: ${methods.map(method => JSON.stringify(method)).join(' | ')}`) } : { ...this.searchCommand, signature: this.searchCommand.signature.replace("method?: string, ", '') };
     }
 
-    /** @brief Default discovery includes custom commands and excludes standard console methods. */
+    /** @brief Pin only the discovery command by default. */
     readonly defaultBuiltinVisible: CommandVisibility = { [this.discoveryCommand.path]: 2 };
 
     /** @brief Callable runtime commands and permanently visible signature discovery. */
-    readonly builtinCommands = [...this.consoleCommands, this.discoveryCommand, this.searchCommand, ...this.managementCommands];
+    readonly builtinCommands = [this.discoveryCommand, this.searchCommand, ...this.managementCommands];
 
     /** @brief Builtin contracts indexed by physical identity for all namespace projections. */
     readonly builtinTools: readonly BuiltinTool[] = [this.discoveryCommand, this.searchCommand, ...this.managementCommands, ...this.profileValues];

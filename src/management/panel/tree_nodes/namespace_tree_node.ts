@@ -30,7 +30,7 @@ export class NamespaceTreeNode extends TreeNode {
     /** @brief Namespace documentation displayed by the editor. */
     get description(): string { return this.metadata?.description ?? ''; }
 
-    /** @brief Select editable, locked or native console namespace pin behavior. */
+    /** @brief Select namespace pin behavior. */
     get pinMode(): 'profile' | 'locked' | 'provided' { return 'profile'; }
 
     /** @brief Number of commands represented by this namespace. */

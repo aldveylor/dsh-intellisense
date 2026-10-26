@@ -24,9 +24,6 @@ export class CommandNode implements Node, ManifestEntry {
 
     get disabled(): boolean { return this.parent.disabled; }
 
-    /** @brief Environment commands are described but never deployed as tool proxies. */
-    get deployment(): 'tool' | 'environment' { return 'tool'; }
-
     /** @brief Data commands are preloaded rather than installed as PTC functions. */
     get preload(): boolean { return false; }
 
@@ -35,7 +32,7 @@ export class CommandNode implements Node, ManifestEntry {
 
     serialize(): SerializedNode {
         return structuredClone({ type: this.type, name: this.name, permissions: this.permissions, description: this.doc,
-            deployment: this.deployment, preload: this.preload, command: { tool: this.tool, schema: this.schema, output: this.output, doc: this.doc } });
+            preload: this.preload, command: { tool: this.tool, schema: this.schema, output: this.output, doc: this.doc } });
     }
 
     /** @brief Keep serialized commands independent of their parent graph. */
