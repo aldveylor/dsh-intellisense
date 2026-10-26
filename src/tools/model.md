@@ -16,7 +16,7 @@ Profile 数据模型声明通过 tools.profile.annotation 按需读取；tools_i
 
 `tool_search.ts` 将 tools_search 注册到 presentation 作用域并映射 tools.search。搜索参数直接由 SearchEngineRegistry.selector 生成；引擎注册、卸载或默认方法变更后重新注册工具并通知提示重组。searchEngines 由 NamespaceComponent 持有，通过 commandNamespaces 服务供其它插件注册；主插件和 namespace 独立入口均接受 defaultSearchMethod。搜索只返回当前有效树中的完整命令路径，提示使用 tools.intellisense 获取详细信息。声明、PTC 位置参数和 UI 提示共同读取实际物理 schema 中的方法枚举。
 
-tools.profile.commands 返回完整命令目录的 name、brief、totalCalls；totalCalls 复用命名空间全局统计，供 AI 整理 Profile 时判断调用频率。运行时提示不描述统计更新时机。
+tools.profile.commands 返回排除插件内置命令的完整命令目录，字段为 name、brief、paths、totalCalls；paths 来自当前会话的有效命名空间树，包含主路径及所有别名，未挂载时为空数组；totalCalls 复用命名空间全局统计，供 AI 整理 Profile 时判断调用频率。运行时提示不描述统计更新时机。
 
 PTC 在每次执行前预加载 commands，并由 VM 命令包装同步更新本次执行内对应物理工具的 totalCalls，只更新 VM 视图，不额外通知宿主。native 的 tools.profile.commands 是实际工具函数，每次调用均重新读取 CommandStatistics 全局快照，返回该次读取时的最新累计值，不复用上次返回的数组。
 

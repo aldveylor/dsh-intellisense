@@ -41,7 +41,7 @@ export class NamespaceComponent {
     register(ctx: Context): void {
         registerIntellisense(ctx, this);
         registerSearch(ctx, this);
-        registerToolCommands(ctx, this.registry, this.profiles, agent => this.registryFor(agent), agent => this.configurationChanged(agent), () => this.commandBriefs());
+        registerToolCommands(ctx, this.registry, this.profiles, agent => this.registryFor(agent), agent => this.configurationChanged(agent), agent => this.commandBriefs(agent));
     }
 
     /** @brief Enable namespaces only for an explicitly configured Intellisense scope. */
@@ -109,12 +109,18 @@ export class NamespaceComponent {
     /** @brief Flatten command bindings only for consumers that dispatch physical tools. */
     async entries(agent: Agent): Promise<CommandNode[]> { return (await this.tree(agent)).commands().filter(entry => entry.deployment === 'tool'); }
 
-    /** @brief List every known command, including commands outside the caller's current context. */
-    async commandBriefs(): Promise<CommandBrief[]> {
+    /** @brief List catalog commands with current active mounts, excluding plugin builtins. */
+    async commandBriefs(agent?: Agent): Promise<CommandBrief[]> {
         await this.refresh();
+        const registry = agent ? await this.registryFor(agent) : this.registry;
+        const paths = new Map<string, string[]>();
+        for (const entry of manifest(registry, this.aliases).commands()) {
+            if (!paths.has(entry.tool)) paths.set(entry.tool, []);
+            paths.get(entry.tool)!.push(entry.path);
+        }
         const { callsByTool } = await this.statistics.snapshot();
-        return this.registry.tools().filter(tool => !reservedToolIds.includes(tool.id)).map(tool => ({
-            name: tool.id, brief: tool.description, totalCalls: Object.hasOwn(callsByTool, tool.id) ? callsByTool[tool.id]! : 0,
+        return this.registry.tools().filter(tool => !reservedToolIds.includes(tool.id) && !pluginCommands.find(tool.id)).map(tool => ({
+            name: tool.id, brief: tool.description, paths: paths.get(tool.id) ?? [], totalCalls: Object.hasOwn(callsByTool, tool.id) ? callsByTool[tool.id]! : 0,
         }));
     }
 
@@ -126,7 +132,7 @@ export class NamespaceComponent {
 
     /** @brief Preload data-only Profile metadata before guest execution. */
     async values(agent?: Agent): Promise<Record<string, z.infer<ReturnType<typeof z.json>>>> {
-        const values = { 'tools.profile.annotation': profileAnnotation, 'tools.profile.commands': (await this.commandBriefs()).map(command => ({ ...command })), 'tools.profile.profiles': { ...await this.profileNames(agent) } };
+        const values = { 'tools.profile.annotation': profileAnnotation, 'tools.profile.commands': (await this.commandBriefs(agent)).map(command => ({ ...command })), 'tools.profile.profiles': { ...await this.profileNames(agent) } };
         const registry = agent ? await this.registryFor(agent) : this.registry;
         return Object.fromEntries(Object.entries(values).filter(([path]) => !registry.disabled(path)));
     }

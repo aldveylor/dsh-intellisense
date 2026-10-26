@@ -78,3 +78,35 @@ test('preset catalog leases are released when reading a tool fails', async () =>
         assert(released);
     } finally { await ctx.fiber.dispose(); }
 });
+
+test('command briefs expose current session paths and aliases while excluding plugin builtins', async () => {
+    const ctx = new Context();
+    try {
+        ctx.provide('systemPrompt', { tools: () => () => {} });
+        await ctx.plugin(ToolRuntime);
+        ctx.provide('agents', { list: () => [] });
+        for (const name of ['read_file', 'write_file', 'unmounted', 'tools_intellisense', 'tools_profile_commands', 'tools_run_code']) register(ctx, name);
+        const store = new MemoryStore(), registry = new SemanticRegistry(store);
+        const component = new NamespaceComponent(ctx, registry, new ProfileSessions(registry, store), [{ tool: 'read_file', path: 'text.read' }]);
+        await component.refresh();
+        await registry.configure([
+            { id: 'read_file', path: 'fs.read', aliases: ['fs.cat'], pinned: false },
+            { id: 'write_file', path: 'fs.write', aliases: [], pinned: false },
+        ], 0);
+        const agent = { id: 'session', ctx } as Agent;
+        const session = await component.registryFor(agent);
+        await session.configure([
+            { id: 'read_file', path: 'files.read', aliases: ['files.cat', 'hidden.read'], pinned: false },
+            { id: 'write_file', path: 'files.write', aliases: [], pinned: false, disabled: true },
+        ], session.snapshot().revision, [{ path: 'hidden', description: '', alwaysVisible: false, disabled: true }]);
+        await component.statistics.recordCall(agent.id, 'read_file');
+        const expected = [
+            { name: 'read_file', brief: 'read_file', paths: ['files.read', 'files.cat', 'text.read'], totalCalls: 1 },
+            { name: 'write_file', brief: 'write_file', paths: [], totalCalls: 0 },
+            { name: 'unmounted', brief: 'unmounted', paths: [], totalCalls: 0 },
+        ];
+        assert.deepEqual(await component.commandBriefs(agent), expected);
+        assert.deepEqual((await component.values(agent))['tools.profile.commands'], expected);
+        assert.deepEqual((await component.commandBriefs())[0]?.paths, ['fs.read', 'fs.cat', 'text.read']);
+    } finally { await ctx.fiber.dispose(); }
+});

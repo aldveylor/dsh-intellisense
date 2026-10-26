@@ -25,7 +25,7 @@ async function fixture() {
     const registry = await profiles.forSession('session');
     registry.refresh([physical]);
     const changed: string[] = [];
-    registerToolCommands(ctx, catalog, profiles, async () => registry, async agent => { changed.push(agent.id); }, async () => [{ name: physical.id, brief: physical.description, totalCalls: 2 }, { name: 'outside_scope', brief: 'Outside this session.', totalCalls: 0 }]);
+    registerToolCommands(ctx, catalog, profiles, async () => registry, async agent => { changed.push(agent.id); }, async () => [{ name: physical.id, brief: physical.description, paths: ['files.read', 'files.cat'], totalCalls: 2 }, { name: 'outside_scope', brief: 'Outside this session.', paths: [], totalCalls: 0 }]);
     const agentContext = new Context();
     agentContext.provide('commandNamespaces', { isPtc: () => true } as unknown as Context['commandNamespaces']);
     const execution = { agent: { id: 'session', inject: () => {}, ctx: agentContext, session: Session.create(SessionId('session')) }, signal: new AbortController().signal } as ToolRunContext;
@@ -38,7 +38,7 @@ test('native Profile data tools and optional-name save/load use session defaults
     assert.deepEqual([...definitions.keys()].sort(), ['tools_profile_annotation', 'tools_profile_commands', 'tools_profile_delete', 'tools_profile_load', 'tools_profile_profiles', 'tools_profile_save', 'tools_profile_switch']);
     assert.equal(await call('tools_profile_annotation'), profileAnnotation);
     assert.deepEqual(await call('tools_profile_profiles'), { profiles: ['Default'], selected: 'Default' });
-    assert.deepEqual(await call('tools_profile_commands'), [{ name: 'read_file', brief: 'Read a file.', totalCalls: 2 }, { name: 'outside_scope', brief: 'Outside this session.', totalCalls: 0 }]);
+    assert.deepEqual(await call('tools_profile_commands'), [{ name: 'read_file', brief: 'Read a file.', paths: ['files.read', 'files.cat'], totalCalls: 2 }, { name: 'outside_scope', brief: 'Outside this session.', paths: [], totalCalls: 0 }]);
     const profile = JSON.parse(JSON.stringify(profileTree('Ignored', { ...registry.configuration(), namespaces: [{ path: 'files', description: '', alwaysVisible: true }], mappings: [{ id: 'read_file', path: 'files.read', aliases: [], pinned: false, alwaysVisible: 2 }], toolComments: { read_file: 'Read text' } }))); 
     const before = registry.snapshot();
     await call('tools_profile_save', { profile });

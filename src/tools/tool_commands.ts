@@ -9,7 +9,7 @@ import type { ProfileSessions } from '../registry/profiles.js';
 import { type CommandBrief, ProfileSchema, profileConfiguration, profileTree, profileAnnotation } from '../registry/profile_tree.js';
 
 /** @brief Register Profile load/save/delete and data access. */
-export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, profiles: ProfileSessions, registryFor: (agent: Agent) => Promise<SemanticRegistry>, changed: (agent: Agent) => Promise<void>, commands: () => Promise<CommandBrief[]>): void {
+export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, profiles: ProfileSessions, registryFor: (agent: Agent) => Promise<SemanticRegistry>, changed: (agent: Agent) => Promise<void>, commands: (agent: Agent) => Promise<CommandBrief[]>): void {
     const queues = new Map<string, Promise<unknown>>();
     /** @brief Serialize configuration changes belonging to one conversation. */
     const register = (definition: Parameters<typeof ctx.tools.register>[0]) => registerBuiltin(ctx, {
@@ -56,7 +56,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
             const registry = await registryFor(execution.agent);
             const target = name ?? registry.snapshot().profile!;
             const original = catalog.snapshot().profiles?.includes(target) ? catalog.configuration(target) : registry.configuration();
-            const configuration = profileConfiguration(profile, original, await commands());
+            const configuration = profileConfiguration(profile, original, await commands(execution.agent));
             await catalog.saveProfile(target, configuration);
             return null;
         },
@@ -91,11 +91,11 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
             ? JSON.stringify(ProfileSchema.toJSONSchema()) : profileAnnotation,
     })));
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_commands', description: 'All catalog commands with original physical names, summaries and total calls across all sessions.', parameters: {},
+        name: 'tools_profile_commands', description: 'All catalog commands excluding plugin builtins, with physical names, summaries, active namespace paths in this conversation Profile (empty when unmounted), and total calls across all sessions.', parameters: {},
         output: { ...output, schema: { type: 'array', items: { type: 'object', additionalProperties: true } } },
         execute: async (_args, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
-            return (await commands()).map(({ name, brief, totalCalls }) => ({ name, brief, totalCalls }));
+            return (await commands(execution.agent)).map(({ name, brief, paths, totalCalls }) => ({ name, brief, paths, totalCalls }));
         },
     })));
 }

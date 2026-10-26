@@ -20,7 +20,7 @@ Mapping.disabled 与 Namespace.disabled 分别控制命令及子树的可用性�
 
 `tools` 根命名空间与 `tools.intellisense` 不可禁用，disabled 查询始终返回 false，builtinDisabled 校验拒绝这两个路径；tools 下其它节点按各自路径及可禁用父命名空间继承禁用。
 
-CommandBrief 与 profileAnnotation 中共享同一数据定义：name 为原始物理命令名，brief 为描述，totalCalls 为跨会话的累计派发次数，用于 AI 整理时参考调用频率。
+CommandBrief 与 profileAnnotation 中共享同一数据定义：name 为原始物理命令名，brief 为描述，paths 为当前会话有效挂载的完整命名空间路径（含主路径、额外别名和 YAML 别名；未挂载、禁用或当前作用域不可用时为空数组），不包含插件内置命令；totalCalls 为跨会话的累计派发次数，用于 AI 整理时参考调用频率。
 
 `profile_tree.ts` 的 Profiles 定义可用配置名称 profiles 与当前会话选择 selected，并通过 Profile annotation 提供相同声明。
 

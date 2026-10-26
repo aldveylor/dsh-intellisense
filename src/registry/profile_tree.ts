@@ -6,8 +6,8 @@ import { fixLevel, type SerializedNode } from '../namespace/node.js';
 /** @brief Physical command identity used by editable Profile trees. */
 export type CommandName = string;
 
-/** @brief Original command summary and global usage, independent of its mounted path. */
-export interface CommandBrief { name: CommandName; brief: string; totalCalls: number }
+/** @brief Physical command summary, active namespace paths in the current Profile and global usage. */
+export interface CommandBrief { name: CommandName; brief: string; paths: string[]; totalCalls: number }
 
 /** @brief Available catalog Profile names and the current conversation selection. */
 export interface Profiles { profiles: string[]; selected: string }
@@ -153,8 +153,8 @@ export function profileConfiguration(profile: Profile, current: RegistryConfigur
 }
 
 /** @brief Shared Profile transport definition preloaded for PTC programs. */
-export const profileAnnotation = `/** @brief Original physical command identity, summary and total calls across all sessions. */
-interface CommandBrief { name: string; brief: string; totalCalls: number; }
+export const profileAnnotation = `/** @brief Physical command identity, summary, active namespace paths in the current conversation Profile (empty when unmounted), and total calls across all sessions. Plugin builtins are excluded. */
+interface CommandBrief { name: string; brief: string; paths: string[]; totalCalls: number; }
 /** @brief Available catalog Profile names and the current conversation selection. */
 interface Profiles { profiles: string[]; selected: string; }
 /** @brief Server-owned permissions. Each field governs its own operation: commentable controls simplified descriptions, removable controls removal, disableable controls disabled, and availableFixLevels controls fixedLevel. Submitted permissions cannot override them. */
