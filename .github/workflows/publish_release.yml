@@ -63,25 +63,29 @@ jobs:
         run: npm run build
 
       - name: Package release
+        id: package
         env:
           PROJECT_NAME: ${{ needs.version.outputs.name }}
           VERSION: ${{ needs.version.outputs.version }}
         run: |
           node --input-type=commonjs <<'NODE'
-          const { mkdirSync, renameSync } = require('node:fs');
+          const { appendFileSync, mkdirSync, renameSync } = require('node:fs');
           const { execFileSync } = require('node:child_process');
           const directory = 'build/release';
           mkdirSync(directory, { recursive: true });
           const [archive] = JSON.parse(execFileSync('npm', ['pack', '--ignore-scripts', '--json', '--pack-destination', directory], { encoding: 'utf8' }));
-          renameSync(`${directory}/${archive.filename}`, `${directory}/${process.env.PROJECT_NAME}-v${process.env.VERSION}.tar.gz`);
+          const archiveName = `${process.env.PROJECT_NAME.replace(/^@/, '').replace('/', '-')}-v${process.env.VERSION}.tar.gz`;
+          renameSync(`${directory}/${archive.filename}`, `${directory}/${archiveName}`);
+          appendFileSync(process.env.GITHUB_OUTPUT, `archive_name=${archiveName}\n`);
           NODE
 
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          ARCHIVE_NAME: ${{ steps.package.outputs.archive_name }}
           PROJECT_NAME: ${{ needs.version.outputs.name }}
           VERSION: ${{ needs.version.outputs.version }}
         run: |
           printf '# %s v%s\n' "$PROJECT_NAME" "$VERSION" > build/release/notes.md
-          gh release create "v$VERSION" "build/release/$PROJECT_NAME-v$VERSION.tar.gz" \
+          gh release create "v$VERSION" "build/release/$ARCHIVE_NAME" \
             --target "$GITHUB_SHA" --title "$PROJECT_NAME v$VERSION" --notes-file build/release/notes.md
