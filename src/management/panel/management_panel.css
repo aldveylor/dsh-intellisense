@@ -49,3 +49,5 @@
 
 .ts-intellisense .ts-open-tools:not([data-dsh-control]){border:0;margin-left:-16px}.ts-intellisense .ts-tool.ts-builtin-tool{color:var(--dsw-alias-label-tertiary,#a5a5a5)}
 .ts-tree-details{max-width:480px;font:12px/1.6 system-ui,sans-serif;overflow-wrap:anywhere}.ts-tree-details h3{margin:0;font-size:16px}.ts-tree-details p{white-space:pre-wrap;margin:8px 0 0}.ts-detail-path,.ts-command-namespace{color:var(--dsw-alias-label-tertiary,#a5a5a5)}.ts-command-namespace{margin-left:10px;font-size:11px;font-weight:400}.ts-original-command{cursor:help;text-decoration:underline dotted;text-underline-offset:3px}
+
+.ts-tool-schema tr>:nth-child(-n+2):not([colspan]){width:1%;white-space:nowrap;overflow-wrap:normal}
