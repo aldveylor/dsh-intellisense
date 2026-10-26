@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Intellisense",
+    "description": "为 DeepSeek Harness 提供基于命名空间的 DSML 执行、隔离的 JavaScript/TypeScript 执行及按需智能提示。"
+  }
+}
