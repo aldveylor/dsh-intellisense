@@ -8,4 +8,4 @@ preset 投影变化及窗口重新获得焦点时重新读取；切换请求完�
 
 配置界面“默认配置文件:”选择器修改全局目录默认项；新会话由 ProfileSessions 从当前默认项捕获独立快照，不沿用其它会话在首页选择的配置。
 
-当前对话通过 save、显式 load(name)、switch(name) 或会话 Profile 下拉框更新工作配置后，统一由 configurationChanged 刷新工具提示，并调用 Agent.inject 注入英文 notice：`Profile updated to <profile name>`。读取草稿、失败操作及删除其它配置不注入；通知仅进入更新的对话。
+当前对话通过显式 load(name)、switch(name) 或会话 Profile 下拉框更新工作配置后，统一由 configurationChanged 刷新工具提示，并调用 Agent.inject 注入英文 notice：`Profile updated to <profile name>`。保存目录、读取草稿、失败操作及删除其它配置不注入；通知仅进入更新的对话。

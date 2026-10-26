@@ -327,7 +327,7 @@ test('PTC early returns and failed parallel calls drain native siblings without 
 });
 
 
-test('PTC Profile save overloads persist the selected name and reject invalid calls', async () => {
+test('PTC Profile save overloads preserve the selection and reject invalid calls', async () => {
     const { run, dispose } = await fixture();
     try {
         const saved = await run(`
@@ -339,7 +339,7 @@ test('PTC Profile save overloads persist the selected name and reject invalid ca
             return tools.profile.profiles;
         `);
         assert.equal(saved.isError, false, JSON.stringify(saved));
-        assert.deepEqual(saved.value, { logs: [], result: { profiles: ['Copy', 'Default'], selected: 'Copy' } });
+        assert.deepEqual(saved.value, { logs: [], result: { profiles: ['Copy', 'Default'], selected: 'Default' } });
         for (const args of ['', 'undefined', 'undefined, undefined', '42, profile', 'null, profile', 'profile, profile', 'profile, profile, profile']) {
             const rejected = await run(`
                 const profile = await tools.profile.load();
@@ -361,6 +361,7 @@ test('PTC Profile deletion protects the selection and refreshes preloaded names'
         const result = await run(`
             const profile = await tools.profile.load();
             await tools.profile.save('Copy', profile);
+            await tools.profile.switch('Copy');
             let blocked = false;
             try { await tools.profile.delete(); } catch { blocked = true; }
             const state = tools.profile.profiles;
@@ -380,23 +381,32 @@ test('PTC Profile switch changes the selection and rejects an omitted name', asy
             const profile = await tools.profile.load();
             await tools.profile.save('Copy', profile);
             const state = tools.profile.profiles;
-            const returned = await tools.profile.switch('Default');
+            const returned = await tools.profile.switch('Copy');
             let blocked = false;
             try { await tools.profile.switch(); } catch { blocked = true; }
             return [typeof returned, state.selected, blocked];
         `);
         assert.equal(result.isError, false, JSON.stringify(result));
-        assert.deepEqual(result.value, { logs: [], result: ['undefined', 'Default', true] });
+        assert.deepEqual(result.value, { logs: [], result: ['undefined', 'Copy', true] });
     } finally { await dispose(); }
 });
 
 
-test('Profile changes inject English notices only after successful save and switch operations', async () => {
-    const { run, injected, dispose } = await fixture();
+test('Profile saves preserve the snapshot and inject notices only when explicitly loaded or switched', async () => {
+    const { run, injected, namespaces, agent, dispose } = await fixture();
     try {
-        const result = await run(`
+        const registry = await namespaces.registryFor(agent);
+        const before = registry.snapshot();
+        const saved = await run(`
             const profile = await tools.profile.load();
             await tools.profile.save('Copy', profile);
+            await tools.profile.save(undefined, profile);
+        `);
+        assert.equal(saved.isError, false, JSON.stringify(saved));
+        assert.deepEqual(registry.snapshot(), before);
+        assert.deepEqual(injected, []);
+        const result = await run(`
+            const profile = await tools.profile.load();
             await tools.profile.switch('Default');
             await tools.profile.save(undefined, profile);
             await tools.profile.load('Copy');
@@ -406,7 +416,7 @@ test('Profile changes inject English notices only after successful save and swit
             await tools.profile.delete('Default');
         `);
         assert.equal(result.isError, false, JSON.stringify(result));
-        assert.deepEqual(injected.map(message => message.content), ['Copy', 'Default', 'Default', 'Copy'].map(name => [{ type: 'text', text: `Profile updated to ${name}` }]));
+        assert.deepEqual(injected.map(message => message.content), ['Default', 'Copy'].map(name => [{ type: 'text', text: `Profile updated to ${name}` }]));
         assert(injected.every(message => message.source.kind === 'intellisense-profile'));
     } finally { await dispose(); }
 });
