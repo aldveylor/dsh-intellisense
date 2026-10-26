@@ -36,7 +36,7 @@ export class CommandNode implements Node, ManifestEntry {
     get signature(): string | undefined { return undefined; }
 
     serialize(): SerializedNode {
-        return structuredClone({ type: this.type, name: this.name, permissions: this.permissions, description: this.doc, signature: this.signature,
+        return structuredClone({ type: this.type, name: this.name, permissions: this.permissions, description: this.doc,
             deployment: this.deployment, preload: this.preload, command: { tool: this.tool, argMap: this.argMap, schema: this.schema, output: this.output, doc: this.doc } });
     }
 

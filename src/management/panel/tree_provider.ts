@@ -3,7 +3,7 @@ import { fixLevel, type Permission, type SerializedNode } from '../../namespace/
 
 /** @brief Client command metadata comes entirely from the server's node description. */
 export interface ProvidedCommand {
-    path: string; id?: string; signature?: string; description: string;
+    path: string; id?: string; description: string;
     permissions: Permission; alwaysVisible: PinLevel; disabled?: boolean;
     node: SerializedNode;
 }
@@ -28,7 +28,7 @@ export function TreeProvider(nodes: readonly SerializedNode[], visible: CommandV
         const path = parent ? `${parent}.${node.name}` : node.name;
         return { path, description: node.description ?? '', permissions: node.permissions, node,
             commands: (node.children ?? []).filter(child => child.type === 'leaf').map(child => ({ path: `${path}.${child.name}`, id: child.deployment === 'tool' ? child.command?.tool : undefined,
-                signature: child.signature, description: child.description ?? child.command?.doc ?? '', permissions: child.permissions,
+                description: child.description ?? child.command?.doc ?? '', permissions: child.permissions,
                 alwaysVisible: fixLevel(child.permissions, visible[`${path}.${child.name}`] ?? 0), node: child })),
             children: (node.children ?? []).filter(child => child.type === 'tree').map(child => visit(child, path)) };
     };

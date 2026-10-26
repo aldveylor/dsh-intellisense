@@ -37,7 +37,7 @@ const nodeSchema: z.ZodType<ProfileNode> = z.lazy(() => z.strictObject({
     type: z.enum(['tree', 'leaf']), name: z.string(), permissions: permissionSchema,
     children: z.array(nodeSchema).optional(),
     command: z.strictObject({ tool: z.string().describe('Exact physical name from tools.profile.commands, including unmounted commands; do not use a namespace path.'), argMap: z.record(z.string(), z.string()).optional(), schema: z.record(z.string(), z.unknown()), output: z.unknown().optional(), doc: z.string().optional() }).optional(),
-    description: z.string().optional().describe('Editable namespace description. For command descriptions, edit command.doc.'), signature: z.string().optional().describe('Derived display signature; native command parameters cannot be overridden.'), deployment: z.enum(['tool', 'environment']).optional(), preload: z.boolean().optional(),
+    description: z.string().optional().describe('Editable namespace description. For command descriptions, edit command.doc.'), deployment: z.enum(['tool', 'environment']).optional(), preload: z.boolean().optional(),
     fixedLevel: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional().describe('Pin level: 0 none, 1 brief, 2 detailed; allowed values come from permissions.availableFixLevels.'),
     disabled: z.boolean().optional().describe('Disable this node and its subtree when permissions.disableable is true.'),
 }));
@@ -161,14 +161,14 @@ interface Profiles { profiles: string[]; selected: string; }
 interface Permission { commentable: boolean; renamable: boolean; movable: boolean; removable: boolean; disableable: boolean; acceptsChildren: boolean; availableFixLevels: (0 | 1 | 2)[]; }
 /** @brief Start from tools.profile.load(). Save recursively restores missing protected nodes from the existing Profile; submitted nodes retain their fixedLevel and other settings. Protected nodes still cannot be moved, renamed, replaced or extended. New commands may use any exact physical name from tools.profile.commands, even when absent from the loaded tree. A missing tree member is not a command template.
  * To mount a new command, append { type: 'leaf', name: 'cwd', permissions: { commentable: true, renamable: true, movable: true, removable: true, disableable: true, acceptsChildren: false, availableFixLevels: [0, 1, 2] }, command: { tool: '<exact physical name>', schema: {}, doc: '<one sentence>' } } to an ordinary namespace's children.
- * schema, output, signature, deployment and preload describe native contracts; they cannot override execution. Edit optional command.doc for command descriptions and optional description for namespace descriptions. Server permissions.commentable governs edits; forbidden descriptions are ignored. Omitted command.doc uses the original command brief. Saving replaces the named catalog tree without switching the conversation. A rejected save or delete preserves saved Profiles.
+ * schema, output, deployment and preload describe native contracts; they cannot override execution. Edit optional command.doc for command descriptions and optional description for namespace descriptions. Server permissions.commentable governs edits; forbidden descriptions are ignored. Omitted command.doc uses the original command brief. Saving replaces the named catalog tree without switching the conversation. A rejected save or delete preserves saved Profiles.
  */
 /** @brief Namespace tree or command leaf. disabled applies to the node and its subtree; fixedLevel controls pinning (0: none, 1: brief, 2: detailed). */
 interface NamespaceNode {
     type: 'tree' | 'leaf'; name: string; permissions: Permission;
     children?: NamespaceNode[];
     command?: { tool: string; argMap?: Record<string, string>; schema: Record<string, unknown>; output?: unknown; doc?: string };
-    description?: string; signature?: string; deployment?: 'tool' | 'environment'; preload?: boolean;
+    description?: string; deployment?: 'tool' | 'environment'; preload?: boolean;
     fixedLevel?: 0 | 1 | 2; disabled?: boolean;
 }
 /** @brief Named namespace configuration with an anonymous root. */
