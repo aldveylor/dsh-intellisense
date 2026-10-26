@@ -3,6 +3,7 @@ import type { TreeDragSource, TreeDropTarget } from './namespace_tree.js';
 
 /** @brief Resolve a visible row and its center/edge drop zones for both drag implementations. */
 export function treeDropTarget(element: HTMLElement, clientY: number): TreeDropTarget {
+    if (element.classList.contains('ts-drop-gap')) return { path: element.dataset.treePath!, position: element.dataset.dropPosition as 'before' | 'after' };
     const namespace = element.dataset.namespacePath;
     if (element.classList.contains('ts-namespace-placeholder')) return { path: namespace ?? '', position: 'inside' };
     const rect = element.getBoundingClientRect();
@@ -10,31 +11,62 @@ export function treeDropTarget(element: HTMLElement, clientY: number): TreeDropT
     return { path: namespace ?? element.dataset.treePath ?? '', position: namespace !== undefined && ratio >= .25 && ratio <= .75 ? 'inside' : ratio > .5 ? 'after' : 'before' };
 }
 
+const feedbackAnimations = new WeakMap<HTMLElement, Animation>();
+
+/** @brief Move surrounding rows with transforms when reserving or releasing an insertion slot. */
+function changeFeedback(root: ParentNode, change: () => void): void {
+    const rows = Array.from(root.querySelectorAll<HTMLElement>('.ts-node-block,.ts-tree-tool,.ts-namespace-placeholder,.ts-drop-gap'));
+    const positions = rows.map(element => element.getBoundingClientRect());
+    for (const element of rows) feedbackAnimations.get(element)?.cancel();
+    change();
+    if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    rows.forEach((element, index) => {
+        const before = positions[index]!;
+        const after = element.getBoundingClientRect();
+        const x = before.left - after.left; const y = before.top - after.top;
+        if (!element.animate || (Math.abs(x) < .5 && Math.abs(y) < .5)) return;
+        const animation = element.animate([{ transform: `translate(${x}px,${y}px)` }, { transform: 'translate(0,0)' }],
+            { duration: 180, easing: 'cubic-bezier(.2,.8,.2,1)' });
+        feedbackAnimations.set(element, animation);
+    });
+}
+
 /** @brief Clear shared drop feedback for pointer and native drag completion. */
 export function clearTreeDropFeedback(root: ParentNode = document): void {
     root.querySelectorAll('[data-drop-edge]').forEach(node => node.removeAttribute('data-drop-edge'));
-    root.querySelectorAll('.ts-drop-insertion').forEach(node => node.remove());
+    if (root.querySelector('.ts-drop-gap')) changeFeedback(root, () => root.querySelectorAll('.ts-drop-gap').forEach(node => node.remove()));
 }
 
-/** @brief Show a line in the destination sibling gap, or highlight a namespace destination. */
+/** @brief Reserve a blank sibling slot beside the entire subtree, or highlight an inside target. */
 export function showTreeDropFeedback(element: HTMLElement, clientY: number): void {
     const tree = element.closest<HTMLElement>('.ts-tree');
-    if (!tree) return;
-    clearTreeDropFeedback(tree);
+    if (!tree || element.classList.contains('ts-drop-gap')) return;
     const destination = treeDropTarget(element, clientY);
-    element.dataset.dropEdge = destination.position;
-    if (destination.position === 'inside') return;
-    const row = element.closest('li')!;
-    const rect = row.getBoundingClientRect();
-    const before = destination.position === 'before';
-    const sibling = before ? row.previousElementSibling : row.nextElementSibling;
-    const edge = before ? rect.top : rect.bottom;
-    const other = sibling?.getBoundingClientRect();
-    const y = other ? (edge + (before ? other.bottom : other.top)) / 2 : edge + (before ? -5 : 5);
-    const marker = document.createElement('div');
-    marker.className = 'ts-drop-insertion';
-    marker.style.cssText = `left:${rect.left}px;top:${y}px;width:${rect.width}px`;
-    tree.append(marker);
+    const existing = tree.querySelector<HTMLElement>('.ts-drop-gap');
+    if (element.dataset.dropEdge === destination.position &&
+        (destination.position === 'inside' || existing?.dataset.treePath === destination.path && existing.dataset.dropPosition === destination.position)) return;
+    changeFeedback(tree, () => {
+        tree.querySelectorAll('[data-drop-edge]').forEach(node => node.removeAttribute('data-drop-edge'));
+        existing?.remove();
+        element.dataset.dropEdge = destination.position;
+        if (destination.position === 'inside') return;
+        const row = element.closest('li')!;
+        const gap = document.createElement('li');
+        gap.className = 'ts-drop-gap';
+        gap.setAttribute('aria-hidden', 'true');
+        gap.dataset.treePath = destination.path;
+        gap.dataset.dropPosition = destination.position;
+        const source = tree.querySelector<HTMLElement>('[data-drag-source]')?.closest('li');
+        gap.style.height = `${Math.max(36, Math.min(120, source?.getBoundingClientRect().height ?? 44))}px`;
+        gap.addEventListener('dragover', event => { event.preventDefault(); event.stopPropagation(); });
+        gap.addEventListener('drop', event => {
+            event.preventDefault(); event.stopPropagation();
+            const rect = element.getBoundingClientRect();
+            element.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: event.dataTransfer,
+                clientY: destination.position === 'before' ? rect.top : rect.bottom }));
+        });
+        row.insertAdjacentElement(destination.position === 'before' ? 'beforebegin' : 'afterend', gap);
+    });
 }
 
 /** @brief Pointer-based dragging leaves wheel events native and adds edge scrolling without browser HTML drag capture. */
@@ -52,10 +84,10 @@ export function useTreeDrag(drop: (source: TreeDragSource, target: TreeDropTarge
 
         /** @brief Refresh the hit target after pointer movement, wheel scrolling or automatic scrolling. */
         function locate(): void {
-            if (container.current) clearTreeDropFeedback(container.current);
-            const hit = document.elementFromPoint(x, y)?.closest<HTMLElement>('.ts-node-block,.ts-tree-tool,.ts-namespace-placeholder');
+            const hit = document.elementFromPoint(x, y)?.closest<HTMLElement>('.ts-node-block,.ts-tree-tool,.ts-namespace-placeholder,.ts-drop-gap');
             target = hit && hit.dataset.dropDisabled !== 'true' && container.current?.contains(hit) ? hit : undefined;
             if (target) showTreeDropFeedback(target, y);
+            else if (container.current) clearTreeDropFeedback(container.current);
         }
 
         /** @brief Stop scrolling and clear transient drag feedback on every completion path. */
@@ -65,6 +97,7 @@ export function useTreeDrag(drop: (source: TreeDragSource, target: TreeDropTarge
             if (container.current) clearTreeDropFeedback(container.current);
             ghost?.remove(); ghost = undefined;
             container.current?.classList.remove('ts-dragging');
+            container.current?.querySelectorAll('[data-drag-source]').forEach(element => element.removeAttribute('data-drag-source'));
             active = false; pending.current = undefined;
         }
 
@@ -128,6 +161,7 @@ export function useTreeDrag(drop: (source: TreeDragSource, target: TreeDropTarge
         if (event.button !== 0 || (event.target as HTMLElement).closest('input,button,select,textarea')) return;
         const source = (event.target as HTMLElement).closest<HTMLElement>('[draggable=true]');
         if (!source || !container.current?.contains(source)) return;
+        source.dataset.dragSource = 'true';
         pending.current = { source: { namespace: source.dataset.namespacePath !== undefined, path: source.dataset.namespacePath ?? source.dataset.treePath, id: source.dataset.toolId }, x: event.clientX, y: event.clientY, pointer: event.pointerId };
     }
     return { container, pointerDown, preventNativeDrag: (event: { preventDefault(): void; stopPropagation(): void }) => { if (pending.current) { event.preventDefault(); event.stopPropagation(); } } };

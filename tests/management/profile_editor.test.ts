@@ -20,7 +20,7 @@ async function until(predicate: () => boolean): Promise<void> {
 const mapping = { id: 'read', path: 'file.read', pinned: false, alwaysVisible: 1 as const };
 
 /** @brief Mount the editor against real management routes and record browser requests. */
-async function fixture(prepare: (registry: SemanticRegistry) => Promise<void> = async () => {}) {
+async function fixture(prepare: (registry: SemanticRegistry) => Promise<void> = async () => {}, inspectLoading?: (document: Document) => void) {
     const store = new MemoryStore();
     await store.save('registry', { version: 1, revision: 19, profile: 'Default', mappings: [{ ...mapping, enabled: true }] });
     const registry = new SemanticRegistry(store);
@@ -48,6 +48,7 @@ async function fixture(prepare: (registry: SemanticRegistry) => Promise<void> = 
     dom.window.fetch = async (url, init) => {
         const request = new Request(new URL(String(url), dom.window.location.href), { ...init as RequestInit, signal: undefined });
         requests.push(request);
+        if (requests.length === 1) inspectLoading?.(document);
         return routes.get('/api/ts-intellisense-state')!(request);
     };
     const button = (selector: string): HTMLButtonElement => {
@@ -61,6 +62,29 @@ async function fixture(prepare: (registry: SemanticRegistry) => Promise<void> = 
         return { registry, dom, document, button, requests };
     } catch (error) { dom.window.close(); throw error; }
 }
+
+test('editor loads and saves a renamed default without assuming a Default catalog entry', async () => {
+    let inspectedLoading = false;
+    const { registry, dom, document, button, requests } = await fixture(async registry => {
+        await registry.manageProfile('rename', 'Default', registry.snapshot().revision, 'Work');
+    }, document => {
+        assert.equal(document.querySelector('.ts-default-profile .ts-profile-label')?.textContent, '');
+        assert.equal(document.querySelector('.ts-namespace-profile .ts-profile-label')?.textContent, '');
+        inspectedLoading = true;
+    });
+    try {
+        assert(inspectedLoading);
+        assert.equal(document.querySelector('.ts-default-profile .ts-profile-label')?.textContent, 'Work');
+        assert.equal(document.querySelector('.ts-namespace-profile .ts-profile-label')?.textContent, 'Work');
+        assert.equal(new URL(requests[0]!.url).searchParams.has('profile'), false);
+        button('.ts-namespace-profile button[aria-label="Save"]').click();
+        await until(() => requests.length === 3 && document.querySelector('.ts-namespace-profile')?.getAttribute('aria-busy') !== 'true');
+        assert.equal(new URL(requests[2]!.url).searchParams.get('profile'), 'Work');
+        assert.deepEqual(registry.snapshot().profiles, ['Work']);
+        assert.equal(registry.snapshot().profile, 'Work');
+        assert.deepEqual(registry.configuration().mappings, [mapping]);
+    } finally { dom.window.close(); }
+});
 
 test('editor selection, local creation and saving remain independent from the default selector', async () => {
     const { registry, dom, document, button } = await fixture();

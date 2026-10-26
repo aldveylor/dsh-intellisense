@@ -1,8 +1,9 @@
 import { useTranslation } from '../locale/locale.js';
 import styles from './management_panel.css';
 import { ErrorDialog } from './error_dialog.js';
+import { useLayoutMotion } from '../animation/layout_motion.js';
 import { NamespaceTree, type TreeNode, type CommandTreeNode, type NamespaceTreeNode } from './tree_node.js';
-import { memo, useEffect, useMemo, useRef, useState, type ComponentType, type DragEvent } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type ComponentType, type DragEvent, type ReactNode } from 'react';
 import type { Namespace, Mapping, PhysicalTool, RegistryState, PinLevel, CommandVisibility, RegistryConfiguration } from '../../registry/registry.js';
 import { nextFixLevel, type SerializedNode } from '../../namespace/node.js';
 import { validateNodePath as validatePath } from '../../namespace/node.js';
@@ -101,7 +102,7 @@ function DisableButton({ disabled, busy, toggle }: { disabled: boolean; busy: bo
     const t = useTranslation();
     const label = t(disabled ? 'enable_node' : 'disable_node');
     return <button className="ts-disable ts-remove" type="button" aria-label={label} title={label} aria-pressed={disabled} disabled={busy} onClick={toggle}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><circle cx="12" cy="12" r="8" /><path d={disabled ? 'm6 6 12 12' : 'M8 12h8M12 8v8'} /></svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><circle cx="12" cy="12" r="8" /><g className="ts-disable-mark"><path d="M6 12h12" /><path className="ts-disable-cross" d="M12 6v12" /></g></svg>
     </button>;
 }
 
@@ -217,6 +218,17 @@ interface TreeProps {
     pinBuiltin: (path: string) => void; toolComments: Record<string, string>; unmountedVisible: CommandVisibility; pinUnmounted: (id: string) => void;
 }
 
+/** @brief Keep closing children mounted until their disclosure animation has completed. */
+function TreeChildren({ open, children }: { open: boolean; children: ReactNode }) {
+    const [present, setPresent] = useState(open);
+    useEffect(() => { if (open) setPresent(true); }, [open]);
+    if (!open && !present) return null;
+    return <div className="ts-tree-children" data-open={open} aria-hidden={!open}
+        ref={element => { if (element) element.inert = !open; }} onAnimationEnd={event => {
+            if (event.target === event.currentTarget && !open) setPresent(false);
+        }}><ul>{children}</ul></div>;
+}
+
 /** @brief Namespace row whose children toggle only through the leading disclosure button. */
 function NamespaceNode({ node, tree }: { node: NamespaceTreeNode; tree: TreeProps }) {
     const t = useTranslation();
@@ -253,7 +265,7 @@ function NamespaceNode({ node, tree }: { node: NamespaceTreeNode; tree: TreeProp
                 <PinButton label={t('pin_namespace', { path })} active={tree.namespaceVisible[path] ?? false} busy={tree.busy} toggle={() => tree.toggleProvidedNamespace(path)} />
             </span>}
         </div>
-        {open && <ul>{node.children.map(child => <TreeNodeView key={child.path} node={child} tree={tree} />)}{node.permissions.acceptsChildren && <NamespacePlaceholder parent={path} busy={tree.busy} create={tree.create} drop={tree.drop} pick={tree.pick} />}</ul>}
+        <TreeChildren open={open}>{node.children.map(child => <TreeNodeView key={child.path} node={child} tree={tree} />)}{node.permissions.acceptsChildren && <NamespacePlaceholder parent={path} busy={tree.busy} create={tree.create} drop={tree.drop} pick={tree.pick} />}</TreeChildren>
     </li>;
 }
 
@@ -351,9 +363,9 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
     const dirty = useMemo(() => !!saved && (newProfile || JSON.stringify(draft) !== JSON.stringify(saved)), [saved, draft, newProfile]);
 
     /** @brief Download the selected Profile, including its unsaved editor changes. */
-    function downloadProfile(): void {
+    async function downloadProfile(): Promise<void> {
         if (!view) return;
-        void action('', async () => {
+        await action('', async () => {
             const url = URL.createObjectURL(new Blob([JSON.stringify(draft, null, 2) + '\n'], { type: 'application/json' }));
             const link = document.createElement('a');
             link.href = url;
@@ -366,9 +378,9 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
     }
 
     /** @brief Import validated JSON into the selected draft; Save persists it explicitly. */
-    function uploadProfile(file: File): void {
+    async function uploadProfile(file: File): Promise<void> {
         if (!view) return;
-        void action('', async () => {
+        await action('', async () => {
             let configuration: RegistryConfiguration;
             try { configuration = parseProfileJson(await file.text()); }
             catch { throw new Error(t('invalid_profile_json')); }
@@ -509,6 +521,12 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
                 const destination = [parent, source.path.split('.').at(-1)].filter(Boolean).join('.');
                 setExpanded(current => Object.fromEntries(Object.entries(current).map(([path, open]) => [inNamespace(path, source.path!) ? destination + path.slice(source.path!.length) : path, open])));
             }
+            if (source.path) {
+                const parent = target.position === 'inside' ? target.path : target.path.split('.').slice(0, -1).join('.');
+                const destination = source.namespace ? [parent, source.path.split('.').at(-1)].filter(Boolean).join('.')
+                    : next.mappings[mappings.findIndex(mapping => mapping.path === source.path && mapping.id === source.id)]?.path;
+                if (destination) remapMotion(source.path, destination);
+            }
             setMappings(next.mappings); setNamespaces(next.namespaces); setOrder(next.order);
             setStatus('');
         } catch (error) { setStatus(error instanceof Error ? error.message : String(error)); }
@@ -522,6 +540,8 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
         applyDrop({ namespace: !!namespace, path: namespace || event.dataTransfer.getData('application/x-ts-mapping') || undefined, id: event.dataTransfer.getData('application/x-ts-tool') || undefined }, target);
     }
     const drag = useTreeDrag(applyDrop);
+    const remapMotion = useLayoutMotion(drag.container, '.ts-tree .ts-node-block,.ts-tree .ts-tree-tool,.ts-tree .ts-namespace-placeholder',
+        element => element.classList.contains('ts-namespace-placeholder') ? `${element.dataset.namespacePath}.__placeholder__` : element.dataset.namespacePath ?? element.dataset.treePath!);
 
     const tree = useMemo<TreeProps>(() => ({
         disabled: path => !!namespaceTree.root.resolve(path.split('.'))?.permissions.disableable && (builtinDisabled.some(prefix => inNamespace(path, prefix))
@@ -569,7 +589,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
                 : <ErrorDialog message={t(status)} close={() => setStatus('')} />)}
             <div className="ts-toolbar"><div className="ts-actions">
                 <div className="ts-default-profile" aria-busy={pending === 'default' || undefined} ref={element => { if (element) element.inert = pending === 'default'; }}><span>{t('default_profile')}</span>
-                    <Select value={view?.defaultProfile ?? 'Default'} options={(view?.state.profiles ?? ['Default']).map(name => ({ value: name, label: name }))}
+                    <Select value={view?.defaultProfile ?? ''} options={(view?.state.profiles ?? []).map(name => ({ value: name, label: name }))}
                         disabled={!view} label={t('default_profile')} readOnly allowCreate={false} onChange={selectDefault}
                         onCreate={createProfile} onRename={(name, newName) => manageProfile('rename', name, newName)} onRemove={name => manageProfile('delete', name)} />
                 </div>
@@ -585,13 +605,13 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
                     </svg>
                 </button>
                 <div className="ts-namespace-profile" aria-busy={pending === 'editor' || undefined} ref={element => { if (element) element.inert = pending === 'editor'; }}>
-                    <ProfilePicker name={view?.state.profile ?? 'Default'} profiles={[...(view?.state.profiles ?? ['Default']), ...(newProfile ? [view!.state.profile!] : [])]}
+                    <ProfilePicker name={view?.state.profile ?? ''} profiles={[...(view?.state.profiles ?? []), ...(newProfile ? [view!.state.profile!] : [])]}
                         download={downloadProfile} upload={uploadProfile}
                         dirty={dirty} busy={!view} Select={ProfileSelect} protectedProfile={view?.state.profiles?.length === 1 ? view.state.profiles[0] : undefined}
-                        refresh={() => void action('', reload)} refreshDisabled={!view}
+                        refresh={() => action('', reload)} refreshDisabled={!view}
                         select={name => manageProfile('select', name)} create={createProfile}
                         rename={(name, newName) => manageProfile('rename', name, newName)} remove={name => manageProfile('delete', name)}
-                        save={profile => void action('', async () => {
+                        save={profile => action('', async () => {
                             const copyName = profile ?? (newProfile ? view!.state.profile : undefined);
                             await request(api, { action: copyName === undefined ? 'configure' : 'save_as',
                                 ...(copyName === undefined ? {} : { profile: copyName }), activate: false,
