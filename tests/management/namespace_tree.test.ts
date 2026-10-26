@@ -7,8 +7,9 @@ function draft(): TreeDraft {
     return {
         namespaces: [{ path: 'files', alwaysVisible: true, description: 'Files' }, { path: 'files.disk', alwaysVisible: false, description: 'Disk' }],
         mappings: [
-            { id: 'read', path: 'files.disk.read', aliases: ['other.read'], pinned: false, alwaysVisible: 2 },
-            { id: 'write', path: 'files.write', aliases: [], pinned: false },
+            { id: 'read', path: 'files.disk.read', pinned: false, alwaysVisible: 2 },
+            { id: 'write', path: 'files.write', pinned: false },
+            { id: 'read', path: 'other.read', pinned: false, alwaysVisible: 2 },
         ],
         order: ['files', 'files.write', 'files.disk', 'files.disk.read', 'other', 'other.read'],
     };
@@ -22,7 +23,7 @@ test('namespace rename migrates descendants, mappings, pin state and order witho
     assert.equal(next.namespaces[0]!.alwaysVisible, true);
     assert.equal(next.mappings[0]!.id, 'read');
     assert.equal(next.mappings[0]!.path, 'workspace.disk.read');
-    assert.deepEqual(next.mappings[0]!.aliases, ['other.read']);
+    assert.equal(next.mappings[2]!.path, 'other.read');
     assert.equal(next.mappings[0]!.alwaysVisible, 2);
     assert.deepEqual(next.order.slice(0, 4), ['workspace', 'workspace.write', 'workspace.disk', 'workspace.disk.read']);
     assert.equal(original.mappings[0]!.path, 'files.disk.read');

@@ -17,7 +17,7 @@ async function until(predicate: () => boolean): Promise<void> {
 test('disable controls retain visible nodes, precede deletion and save command and namespace state', async () => {
     const registry = new SemanticRegistry(new MemoryStore());
     registry.refresh([{ id: 'read', description: 'Read document', parameters: { type: 'object' }, output: { type: 'string' } }]);
-    await registry.configure([{ id: 'read', path: 'files.read', aliases: [], pinned: false }], 0, [{ path: 'files', description: 'Files', alwaysVisible: false }]);
+    await registry.configure([{ id: 'read', path: 'files.read', pinned: false }], 0, [{ path: 'files', description: 'Files', alwaysVisible: false }]);
     const routes = new Map<string, (request: Request) => Promise<Response>>();
     const ctx = { connection: { fetch: { register: (route: { path: string; fetch: (request: Request) => Promise<Response> }) => routes.set(route.path, route.fetch) } }, emit: () => {} } as unknown as Context;
     registerManagement(ctx, registry, { refresh: async () => {} });

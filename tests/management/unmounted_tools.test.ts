@@ -36,9 +36,10 @@ function tools(): PhysicalTool[] {
 
 test('unmounted count excludes unavailable identities and counts disabled mounted tools as mounted', () => {
     const mappings: Mapping[] = [
-        { id: 'write', path: 'std.write', aliases: ['backup.write'], disabled: true, pinned: false },
-        { id: 'read', path: ' ', aliases: [], pinned: false },
-        { id: 'missing', path: 'std.missing', aliases: [], pinned: false },
+        { id: 'write', path: 'std.write', disabled: true, pinned: false },
+        { id: 'write', path: 'backup.write', disabled: true, pinned: false },
+        { id: 'read', path: ' ', pinned: false },
+        { id: 'missing', path: 'std.missing', pinned: false },
     ];
     assert.deepEqual(unmountedTools(tools(), mappings).map(tool => tool.id), ['read', 'search']);
     assert(!TreeProvider(createNamespace({ tools: [], includeUnavailable: true }).serialize().children!).some(namespace => namespace.path === 'unknown'));
@@ -51,7 +52,7 @@ test('unknown is absent; count follows mounting, unmounting, saving and profile 
     for (const language of ['en-US', 'zh-CN']) {
         const registry = new SemanticRegistry(new MemoryStore());
         registry.refresh(tools());
-        await registry.configure([{ id: 'write', path: 'std.write', aliases: [], pinned: false }], 0);
+        await registry.configure([{ id: 'write', path: 'std.write', pinned: false }], 0);
         await registry.manageProfile('create', 'Empty', registry.snapshot().revision);
         await registry.manageProfile('select', 'Default', registry.snapshot().revision);
         const console = new VirtualConsole();

@@ -17,13 +17,16 @@ async function until(predicate: () => boolean): Promise<void> {
     assert(predicate(), 'Expected profile editor transition');
 }
 
-test('editor selection, local creation and saving remain independent from the default selector', async () => {
+const mapping = { id: 'read', path: 'file.read', pinned: false, alwaysVisible: 1 as const };
+
+/** @brief Mount the editor against real management routes and record browser requests. */
+async function fixture(prepare: (registry: SemanticRegistry) => Promise<void> = async () => {}) {
     const store = new MemoryStore();
-    const mapping = { id: 'read', path: 'file.read', aliases: [], pinned: false, alwaysVisible: 1 };
     await store.save('registry', { version: 1, revision: 19, profile: 'Default', mappings: [{ ...mapping, enabled: true }] });
     const registry = new SemanticRegistry(store);
     await registry.load();
     registry.refresh([{ id: 'read', description: 'Read a file', parameters: {}, output: {} }]);
+    await prepare(registry);
     const routes = new Map<string, (request: Request) => Promise<Response>>();
     const ctx = { connection: { fetch: { register: (route: { path: string; fetch: (request: Request) => Promise<Response> }) => routes.set(route.path, route.fetch) } }, emit: () => {} } as unknown as Context;
     registerManagement(ctx, registry, { refresh: async () => {} });
@@ -41,14 +44,30 @@ test('editor selection, local creation and saving remain independent from the de
     const document = dom.window.document;
     dom.window.structuredClone = structuredClone;
     dom.window.HTMLDialogElement.prototype.showModal = function () { this.open = true; };
-    dom.window.fetch = async (url, init) => routes.get('/api/ts-intellisense-state')!(new Request(new URL(String(url), dom.window.location.href), { ...init as RequestInit, signal: undefined }));
+    const requests: Request[] = [];
+    dom.window.fetch = async (url, init) => {
+        const request = new Request(new URL(String(url), dom.window.location.href), { ...init as RequestInit, signal: undefined });
+        requests.push(request);
+        return routes.get('/api/ts-intellisense-state')!(request);
+    };
+    const button = (selector: string): HTMLButtonElement => {
+        const element = document.querySelector<HTMLButtonElement>(selector);
+        assert(element, `Missing editor button: ${selector}`);
+        return element;
+    };
     try {
         dom.window.eval(result.outputFiles[0]!.text);
-        const button = (selector: string): HTMLButtonElement => document.querySelector<HTMLButtonElement>(selector)!;
         await until(() => !!document.querySelector('.ts-default-profile button:not(:disabled)'));
+        return { registry, dom, document, button, requests };
+    } catch (error) { dom.window.close(); throw error; }
+}
+
+test('editor selection, local creation and saving remain independent from the default selector', async () => {
+    const { registry, dom, document, button } = await fixture();
+    try {
         button('.ts-namespace-profile button[aria-label="Save"]').click();
         await until(() => registry.snapshot().revision === 20);
-        await until(() => !button('.ts-namespace-profile button[aria-label="Save"]').disabled);
+        await until(() => document.querySelector('.ts-namespace-profile')?.getAttribute('aria-busy') !== 'true');
         assert.deepEqual(registry.snapshot().mappings, [mapping]);
         button('.ts-default-profile button').click();
         await until(() => !!document.querySelector('.ts-default-profile .ts-profile-option'));
@@ -83,5 +102,83 @@ test('editor selection, local creation and saving remain independent from the de
         await until(() => document.querySelector('.ts-namespace-profile .ts-profile-label')?.textContent === 'Default');
         assert.equal(registry.snapshot().profile, 'Draft');
         assert.equal(document.querySelector('.ts-default-profile .ts-profile-label')?.textContent, 'Draft');
+    } finally { dom.window.close(); }
+});
+
+
+test('Profile updates preserve expanded rows and default updates leave the tree DOM untouched', async () => {
+    const { registry, dom, document, button, requests } = await fixture(async registry => {
+        await registry.saveProfile('Other', { ...registry.configuration(), mappings: [{ ...mapping, description: 'Other brief' }] });
+    });
+    let release = (): void => {};
+    try {
+        button('[data-tree-path="file"] .ts-disclosure').click();
+        await until(() => !!document.querySelector('[data-tree-path="file.read"]'));
+        const tree = document.querySelector('.ts-tree')!;
+        const namespace = document.querySelector('[data-tree-path="file"]');
+        const command = document.querySelector('[data-tree-path="file.read"]')!;
+        const mutations: MutationRecord[] = [];
+        const observer = new dom.window.MutationObserver(records => mutations.push(...records));
+        observer.observe(tree, { attributes: true, childList: true, characterData: true, subtree: true });
+        try {
+            const fetch = dom.window.fetch;
+            const blocked = new Promise<void>(resolve => { release = resolve; });
+            let started = false;
+            dom.window.fetch = async (...args) => {
+                dom.window.fetch = fetch;
+                started = true;
+                await blocked;
+                return fetch(...args);
+            };
+            button('.ts-default-profile .ts-profile-select>button').click();
+            await until(() => document.querySelectorAll('.ts-default-profile .ts-profile-option').length === 2);
+            const before = requests.length;
+            Array.from(document.querySelectorAll<HTMLButtonElement>('.ts-default-profile .ts-profile-option')).find(option => option.textContent === 'Other')!.click();
+            await until(() => started && document.querySelector('.ts-default-profile')?.getAttribute('aria-busy') === 'true');
+            mutations.push(...observer.takeRecords());
+            assert.equal(mutations.length, 0, 'Pending default updates must not mutate tree rows');
+            assert.equal(document.querySelector('[data-tree-path="file.read"]'), command);
+            assert.equal(command.querySelector('button')!.disabled, false, 'Requests must not dim unchanged tree controls');
+            release();
+            await until(() => document.querySelector('.ts-default-profile .ts-profile-label')?.textContent === 'Other');
+            mutations.push(...observer.takeRecords());
+            assert.equal(mutations.length, 0, 'Completed default updates must not mutate tree rows');
+            assert.equal(requests.length, before + 1, 'Default updates must not reload the full catalog');
+            assert.equal(requests.at(-1)!.method, 'POST');
+            assert.equal(document.querySelector('.ts-namespace-profile .ts-profile-label')?.textContent, 'Default');
+        } finally { observer.disconnect(); }
+        button('.ts-namespace-profile .ts-profile-select>button').click();
+        await until(() => document.querySelectorAll('.ts-namespace-profile .ts-profile-option').length === 2);
+        Array.from(document.querySelectorAll<HTMLButtonElement>('.ts-namespace-profile .ts-profile-option')).find(option => option.textContent === 'Other')!.click();
+        await until(() => document.querySelector('.ts-namespace-profile .ts-profile-label')?.textContent === 'Other');
+        assert.equal(document.querySelector('.ts-tree'), tree);
+        assert.equal(document.querySelector('[data-tree-path="file"]'), namespace);
+        assert.equal(document.querySelector('[data-tree-path="file.read"]'), command);
+        assert.equal(command.querySelector('.ts-tool-preview')?.textContent, 'Other brief');
+        assert.equal(registry.snapshot().profile, 'Other');
+    } finally { release(); dom.window.close(); }
+});
+
+
+test('JSON imports retain expanded rows and remain dirty until the draft is saved', async () => {
+    const { registry, dom, document, button } = await fixture();
+    try {
+        button('[data-tree-path="file"] .ts-disclosure').click();
+        await until(() => !!document.querySelector('[data-tree-path="file.read"]'));
+        const command = document.querySelector('[data-tree-path="file.read"]');
+        const imported = { ...registry.configuration(), mappings: [{ ...mapping, description: 'Imported brief' }] };
+        const file = new dom.window.File([JSON.stringify(imported)], 'profile.json', { type: 'application/json' });
+        Object.defineProperty(file, 'text', { value: async () => JSON.stringify(imported) });
+        const input = document.querySelector<HTMLInputElement>('input[type=file]')!;
+        Object.defineProperty(input, 'files', { value: [file] });
+        input.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+        await until(() => document.querySelector('.ts-namespace-profile .ts-profile-label')?.textContent === 'Default *');
+        assert.equal(document.querySelector('[data-tree-path="file.read"]'), command);
+        assert.equal(command?.querySelector('.ts-tool-preview')?.textContent, 'Imported brief');
+        assert.equal(registry.configuration().mappings[0]?.description, undefined, 'Import must not persist the draft');
+        button('.ts-namespace-profile button[aria-label="Save"]').click();
+        await until(() => document.querySelector('.ts-namespace-profile .ts-profile-label')?.textContent === 'Default');
+        assert.equal(registry.configuration().mappings[0]?.description, 'Imported brief');
+        assert.equal(document.querySelector('[data-tree-path="file.read"]'), command);
     } finally { dom.window.close(); }
 });
