@@ -1,6 +1,6 @@
 import { SaveAsDialog } from './save_as_dialog.js';
 import { useTranslation } from '../locale/locale.js';
-import { useState, type ComponentType } from 'react';
+import { useRef, useState, type ComponentType } from 'react';
 
 /** @brief A host may supply its own dropdown without imposing host dependencies on standalone pages. */
 export interface ProfileSelectProps {
@@ -34,14 +34,16 @@ export function ProfileSelect({ value, options, disabled, readOnly = false, allo
     </>;
 }
 
-/** @brief Profile selection followed by saving the current draft or saving a named copy. */
-export function ProfilePicker({ name, profiles, dirty, busy, select, create, rename, remove, save, refresh, refreshDisabled, protectedProfile, Select = ProfileSelect }: {
+/** @brief Profile selection with draft saving, named copies and JSON transfer actions. */
+export function ProfilePicker({ name, profiles, dirty, busy, select, create, rename, remove, save, refresh, refreshDisabled, download, upload, protectedProfile, Select = ProfileSelect }: {
     name: string; profiles: string[]; dirty: boolean; busy: boolean;
+    download: () => void; upload: (file: File) => void;
     select: (name: string) => void; create: (name: string) => void; rename: (name: string, newName: string) => void;
     remove: (name: string) => void; save: (name?: string) => void; refresh: () => void; refreshDisabled: boolean; protectedProfile?: string; Select?: ComponentType<ProfileSelectProps>;
 }) {
     const t = useTranslation();
     const [savingAs, setSavingAs] = useState(false);
+    const fileInput = useRef<HTMLInputElement>(null);
     return <div className="ts-profile-picker">
         <Select value={name} options={profiles.map(profile => ({ value: profile, label: `${profile}${dirty && profile === name ? ' *' : ''}` }))}
             disabled={busy} protectedProfile={protectedProfile} onChange={select} onCreate={create} onRename={rename} onRemove={remove} />
@@ -60,6 +62,21 @@ export function ProfilePicker({ name, profiles, dirty, busy, select, create, ren
                 <path d="M11 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12l4 4v4M7 3v6h10V3M7 21v-8h5M14 21l1-4 5-5 3 3-5 5-4 1ZM18 14l3 3" />
             </svg>
         </button>
+        <button className="ts-profile-action" type="button" aria-label={t('download_profile')} title={t('download_profile')} disabled={busy} onClick={download}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5" />
+            </svg>
+        </button>
+        <button className="ts-profile-action" type="button" aria-label={t('upload_profile')} title={t('upload_profile')} disabled={busy} onClick={() => fileInput.current?.click()}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 15V3m-5 5 5-5 5 5M4 16v5h16v-5" />
+            </svg>
+        </button>
+        <input ref={fileInput} type="file" accept=".json,application/json" hidden disabled={busy} aria-label={t('upload_profile')} onChange={event => {
+            const file = event.currentTarget.files?.[0];
+            event.currentTarget.value = '';
+            if (file) upload(file);
+        }} />
         {savingAs && <SaveAsDialog profiles={profiles} busy={busy} save={save} close={() => setSavingAs(false)} />}
     </div>;
 }

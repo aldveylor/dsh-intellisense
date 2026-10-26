@@ -1,6 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis';
 import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
+import { profileConfiguration } from '../profile_picker/profile_json.js';
 import { returnTypeDeclaration } from './return_type.js';
 import type { SemanticRegistry } from '../../registry/registry.js';
 import { createNamespace } from '../../namespace/namespace.js';
@@ -9,15 +10,11 @@ import '@deepseek-ai/dsh-client-connection';
 import { managementHtml } from './page.js';
 
 /** @brief Validate complete editor writes before any registry transaction or profile selection. */
-const mapping = z.strictObject({ id: z.string().min(1), path: z.string().min(1), description: z.string().optional(), pinned: z.boolean(), disabled: z.boolean().optional(), alwaysVisible: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional() });
-const visibility = z.record(z.string(), z.union([z.literal(0), z.literal(1), z.literal(2)]));
 const configuration = {
+    ...profileConfiguration,
     activate: z.boolean().optional(),
     editingProfile: z.string().trim().min(1).max(80).optional(),
-    revision: z.number().int().nonnegative(), mappings: z.array(mapping),
-    namespaces: z.array(z.strictObject({ path: z.string(), description: z.string(), alwaysVisible: z.boolean(), disabled: z.boolean().optional() })),
-    builtinDisabled: z.array(z.string()).optional(), order: z.array(z.string()), unmountedVisible: visibility, builtinVisible: visibility,
-    namespaceVisible: z.record(z.string(), z.boolean()), toolComments: z.record(z.string(), z.string()),
+    revision: z.number().int().nonnegative(),
 };
 const managementRequest = z.discriminatedUnion('action', [
     z.strictObject({ action: z.literal('configure'), ...configuration }),

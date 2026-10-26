@@ -8,6 +8,7 @@ import { nextFixLevel, type SerializedNode } from '../../namespace/node.js';
 import { validateNodePath as validatePath } from '../../namespace/node.js';
 import { TreeProvider, unmountedTools, providedNamespace, providedTools } from './tree_provider.js';
 import { ProfilePicker, ProfileSelect as PortableProfileSelect, type ProfileSelectProps } from '../profile_picker/profile_picker.js';
+import { parseProfileJson } from '../profile_picker/profile_json.js';
 import { TooltipProvider } from '../tooltip/tooltip.js';
 import { CommandDetails, NamespaceDetails, useTreeTooltip } from '../tooltip/tree_details.js';
 import { ToolPicker } from '../tool_picker/tool_picker.js';
@@ -324,6 +325,32 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
     const newProfile = !!saved && !saved.profiles?.includes(saved.profile!);
     const dirty = !!saved && (newProfile || JSON.stringify(draft) !== JSON.stringify(profileDraft(saved, view?.provided)));
 
+    /** @brief Download the selected Profile, including its unsaved editor changes. */
+    function downloadProfile(): void {
+        if (!view) return;
+        void action('', async () => {
+            const url = URL.createObjectURL(new Blob([JSON.stringify(draft, null, 2) + '\n'], { type: 'application/json' }));
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `${(view.state.profile ?? 'Profile').replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')}.json`;
+            document.body.append(link);
+            try { link.click(); }
+            finally { link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
+        });
+    }
+
+    /** @brief Import validated JSON into the selected draft; Save persists it explicitly. */
+    function uploadProfile(file: File): void {
+        if (!view) return;
+        void action('', async () => {
+            let configuration: RegistryConfiguration;
+            try { configuration = parseProfileJson(await file.text()); }
+            catch { throw new Error(t('invalid_profile_json')); }
+            applyView({ ...view, state: { ...view.state, ...configuration, builtinDisabled: configuration.builtinDisabled ?? [] } });
+            setExpanded({}); setToolPicker(undefined); setDescriptionEditor(undefined);
+        });
+    }
+
     /** @brief Change the default while preserving the editor's selection and draft. */
     function selectDefault(name: string): void {
         if (!view || name === view.defaultProfile) return;
@@ -531,6 +558,7 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
             </button>
             <div className="ts-namespace-profile">
                 <ProfilePicker name={view?.state.profile ?? 'Default'} profiles={[...(view?.state.profiles ?? ['Default']), ...(newProfile ? [view!.state.profile!] : [])]}
+                    download={downloadProfile} upload={uploadProfile}
                     dirty={dirty} busy={busy || !view} Select={ProfileSelect} protectedProfile={view?.state.profiles?.length === 1 ? view.state.profiles[0] : undefined}
                     refresh={() => void action('', reload)} refreshDisabled={busy}
                     select={name => manageProfile('select', name)} create={createProfile}

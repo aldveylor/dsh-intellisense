@@ -9,3 +9,5 @@ POST 在事务前校验严格请求结构，畸形 JSON 返回稳定的 Invalid 
 工具目录的每项附带 outputDeclaration；return_type.ts 复用 DSH jsonSchemaToTs 转换移除 description 后的 output schema 并解码 HTML 实体，直接返回类型表达式，不添加 type 或 interface 声明包装，供 Tooltip 代码块展示。
 
 Mapping 请求按单个挂载路径保存，移除 aliases 字段；同一物理工具 ID 可对应多条路径，各条配置独立生效。
+
+配置字段校验与 `profile_picker/profile_json.ts` 共用，确保浏览器上传 JSON 和管理接口使用相同的配置结构。
