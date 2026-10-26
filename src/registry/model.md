@@ -43,4 +43,4 @@ SemanticRegistry.generation 由配置 revision 和物理目录内容版本组成
 
 Profile 为保留 name/root 结构的类，实现 Saveable<ProfileData>，通过 constructor(data?) 恢复或创建默认受保护树。Profile 树节点继续使用原有数据接口；树投影返回 Profile，导入配置返回 RegistryConfiguration，JSON Schema、PTC annotation 与权限校验规则保持原有数据结构和行为。
 
-Profile 节点 permissions 为可选的普通权限差异项：commentable/renamable/movable/removable/disableable 默认 true，acceptsChildren 在命令为 false、命名空间为 true，availableFixLevels 在命令为 [0,1,2]、命名空间为 [0,1]。省略对象或字段均使用默认权限，受保护节点权限仍由服务端校验。Profile 构造及 save() 递归省略默认权限字段、空 permissions、fixedLevel=0 和 disabled=false；load 与 annotation/JSON Schema 同步说明默认值。提交节点省略 fixedLevel/disabled 时使用 0/false，缺失受保护节点仍从原配置恢复。
+Profile 节点 permissions 为可选的普通权限差异项：commentable/renamable/movable/removable/disableable 默认 true，acceptsChildren 在命令为 false、命名空间为 true，availableFixLevels 在命令为 [0,1,2]、命名空间为 [0,1]。省略对象或字段均使用默认权限，受保护节点权限仍由服务端校验。Profile 构造及 save() 递归省略默认权限字段、空 permissions、fixedLevel=0 和 disabled=false；load 与 annotation/JSON Schema 同步说明默认值；annotation 使用字段级 `/** @default ... */` 注释。提交节点省略 fixedLevel/disabled 时使用 0/false，缺失受保护节点仍从原配置恢复。

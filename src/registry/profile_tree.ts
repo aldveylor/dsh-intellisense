@@ -205,29 +205,54 @@ export const profileAnnotation = `/** @brief Physical command identity, summary,
 interface CommandBrief { name: string; brief: string; paths: string[]; totalCalls: number; }
 /** @brief Available catalog Profile names and the current conversation selection. */
 interface Profiles { profiles: string[]; selected: string; }
-/** @brief Server-owned permissions. Each field governs its own operation: commentable controls simplified descriptions, removable controls removal, disableable controls disabled, and availableFixLevels controls fixedLevel. Defaults: commentable, renamable, movable, removable and disableable true; acceptsChildren false for commands, true for namespaces; availableFixLevels [0,1,2] for commands, [0,1] for namespaces. Omitted permissions or fields use these defaults. Only nondefault overrides are serialized. Submitted permissions cannot override server restrictions. */
-interface Permission { commentable?: boolean; renamable?: boolean; movable?: boolean; removable?: boolean; disableable?: boolean; acceptsChildren?: boolean; availableFixLevels?: (0 | 1 | 2)[]; }
+/** @brief Server-owned permissions. Each field governs its own operation: commentable controls simplified descriptions, removable controls removal, disableable controls disabled, and availableFixLevels controls fixedLevel. Omitted permissions or fields use their documented defaults. Only nondefault overrides are serialized. Submitted permissions cannot override server restrictions. */
+interface Permission {
+    /** @default true */
+    commentable?: boolean;
+    /** @default true */
+    renamable?: boolean;
+    /** @default true */
+    movable?: boolean;
+    /** @default true */
+    removable?: boolean;
+    /** @default true */
+    disableable?: boolean;
+    /** @default false for commands; true for namespaces */
+    acceptsChildren?: boolean;
+    /** @default [0, 1, 2] for commands; [0, 1] for namespaces */
+    availableFixLevels?: (0 | 1 | 2)[];
+}
 /** @brief Start from tools.profile.load(). Save recursively restores missing protected nodes from the existing Profile; submitted nodes retain their fixedLevel and other settings. Protected nodes still cannot be moved, renamed, replaced or extended. New commands may use any exact physical name from tools.profile.commands, even when absent from the loaded tree. A missing tree member is not a command template.
  * To mount a new command, append { type: 'command', name: 'cwd', command: { tool: '<exact physical name>', doc: '<one sentence>' } } to an ordinary namespace's children.
- * Edit optional command.doc for a one-sentence summary of the command functionality; it cannot modify the original command documentation or schema. Edit optional description for namespace descriptions. Server permissions.commentable governs edits; forbidden descriptions are ignored. Omitted command.doc uses the original command brief. Saving replaces the named catalog tree without switching the conversation. A rejected save or delete preserves saved Profiles.
+ * Edit optional command.doc for a one-sentence summary of the command functionality; it cannot modify the original command documentation or schema. Edit optional description for namespace descriptions. Server permissions.commentable governs edits; forbidden descriptions are ignored. Saving replaces the named catalog tree without switching the conversation. A rejected save or delete preserves saved Profiles.
  */
-/** @brief Shared editable identity and visibility. permissions is optional and defaults to ordinary node permissions. fixedLevel defaults to 0; disabled defaults to false; default values are omitted from serialization. disabled applies to the node and its subtree; fixedLevel controls pinning (0: none, 1: brief, 2: detailed). */
+/** @brief Shared editable identity and visibility. Default values are omitted from serialization. disabled applies to the node and its subtree; fixedLevel controls pinning (0: none, 1: brief, 2: detailed). */
 interface ProfileNode {
-    type: string; name: string; permissions?: Permission;
-    fixedLevel?: number; disabled?: boolean;
+    type: string; name: string;
+    /** @default {} (ordinary node permissions) */
+    permissions?: Permission;
+    /** @default 0 */
+    fixedLevel?: number;
+    /** @default false */
+    disabled?: boolean;
 }
 /** @brief Physical command mounted at a named Profile member. */
 interface CommandNode extends ProfileNode {
-    type: 'command'; fixedLevel?: 0 | 1 | 2;
+    type: 'command';
+    /** @default 0 */
+    fixedLevel?: 0 | 1 | 2;
     command: {
         tool: string;
         /** @brief One-sentence summary of the command functionality; cannot modify the original tool's documentation or schema. */
+        /** @default Original command brief */
         doc?: string;
     };
 }
 /** @brief Namespace containing directly nested Profile members. */
 interface NamespaceTreeNode extends ProfileNode {
-    type: 'namespace'; fixedLevel?: 0 | 1;
+    type: 'namespace';
+    /** @default 0 */
+    fixedLevel?: 0 | 1;
     children?: (CommandNode | NamespaceTreeNode)[];
     description?: string;
 }
