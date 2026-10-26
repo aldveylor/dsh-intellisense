@@ -24,7 +24,7 @@ console 等环境接口是 EnvironmentCommandNode 普通 leaf，带环境声明�
 
 管理 API 将同一初始化树的 SerializedNode 传给客户端，客户端不导入内置命令表、不按 console/tools 等名称生成权限或节点。Profile.root 同样使用 SerializedNode 描述，保存时先按目标原配置递归补齐遗漏的受保护子对象，保留已提交节点的设置，再由服务端权威节点拒绝替换、改名、移动或外部插入；不能通过伪造 permissions 改写这些规则。实际工具执行权限仍由 DSH 原生 guard 处理。
 
-`prompt.ts` 根据 native/ptc 配置生成初始说明，PTC 渲染 Profile 选中的部分命名空间树。未知命令先直接查询 tools.intellisense；PTC 通过 tools_run_code 调用命名空间，native 直接使用 DSML 命名空间工具。native 初始提示与工具描述明确 {"queries":[""]} 接受空字符串以查询根命名空间；初始提示强调当前工具基于命名空间，ns_ 标记挂载命令，双下划线 __ 是调用名称中的命名空间分隔符，对应查询路径中的点号；不再附加根命名空间摘要和工具映射 JSON，描述只保留在工具 schema 中，不生成 TS/JS 声明或执行说明。
+`prompt.ts` 根据 native/ptc 配置生成初始说明，PTC 渲染 Profile 选中的部分命名空间树。未知命令先直接查询 tools.intellisense；PTC 通过 tools_run_code 调用命名空间，native 直接使用 DSML 命名空间工具。tools.intellisense 的参数规则（独立字符串参数、末尾点号、精确路径、global. 前缀与空字符串查询根命名空间）仅在 @param 中说明，函数摘要、执行入口描述与初始提示不重复强调，初始提示不附加查询结果为参考数据的宣示；初始提示强调当前工具基于命名空间，ns_ 标记挂载命令，双下划线 __ 是调用名称中的命名空间分隔符，对应查询路径中的点号；不再附加根命名空间摘要和工具映射 JSON，描述只保留在工具 schema 中，不生成 TS/JS 声明或执行说明。
 
 固定提示按命令等级生成：0 不输出，1 输出 Function 占位和 Profile 简略注释，2 输出完整签名与 @brief、@param 文档，不生成返回值文字注解；输出 schema 及返回类型中的 description 均移除，保留返回类型与字段名。详细工具文档沿用 IntelliSense 声明投影，参数别名与返回值解包规则相同；无参数命令不生成虚构 @param。tools.intellisense 强制固定等级 2，移除 setFixed 操作。
 
