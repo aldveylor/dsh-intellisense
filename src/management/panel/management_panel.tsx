@@ -586,7 +586,8 @@ export function ManagementPanel({ api, ProfileSelect, organize }: ManagementPane
         <style>{styles}</style>
         {!view && <div className="ts-load-overlay" aria-busy={status === 'loading'}>
             {status === 'loading' ? <p role="status" aria-live="polite">{t('loading')}</p>
-                : <button type="button" title={t(status)} onClick={() => void action('loading', () => reload(undefined, null))}>{t('retry')}</button>}
+                : <><p className="ts-error-message" role="alert">{t(status)}</p>
+                    <button type="button" onClick={() => void action('loading', () => reload(undefined, null))}>{t('retry')}</button></>}
         </div>}
         <div className="ts-panel-content" ref={element => { if (element) element.inert = !view; }}>
             <header><h1>{t('title')}</h1></header>
