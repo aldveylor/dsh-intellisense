@@ -1,4 +1,4 @@
-import { createNamespace } from '../namespace/namespace.js';
+import { CommandNode, NamespaceNode, createNamespace } from '../namespace/namespace.js';
 import { pluginCommands } from '../runtime/builtins.js';
 import { toolName, validatePath } from './path.js';
 export { validatePath } from './path.js';
@@ -57,6 +57,11 @@ export class SemanticRegistry {
         if (saved !== undefined) {
             const migrate = this.scope === 'global' && (saved?.version ?? 0) !== configurationVersion;
             if (migrate) saved = this.recoverState(saved);
+            saved = structuredClone(saved);
+            let cleaned = this.pruneProtectedPreferences(saved);
+            for (const configuration of Object.values(saved.inactiveProfiles ?? {})) {
+                cleaned = this.pruneProtectedPreferences(configuration) || cleaned;
+            }
             if (saved.version !== 1 || !Number.isSafeInteger(saved.revision) || !Array.isArray(saved.mappings)) throw new Error('Invalid registry snapshot');
             this.validateProfileName(saved.profile ?? 'Default');
             this.validateMappings(saved.mappings);
@@ -78,9 +83,32 @@ export class SemanticRegistry {
                 this.validateComments(configuration.toolComments ?? {});
             }
             const state = new RegistryState(saved);
-            if (migrate) await this.store.save('registry', state.save());
+            if (migrate || cleaned) await this.store.save('registry', state.save());
             this.state = state;
         }
+    }
+
+    /** @brief Drop obsolete protected-node preferences on load while retaining configured namespace paths. */
+    private pruneProtectedPreferences(configuration: Partial<RegistryConfigurationData>): boolean {
+        const before = JSON.stringify(configuration);
+        const paths = [
+            ...(Array.isArray(configuration.mappings) ? configuration.mappings.map(item => item?.path) : []),
+            ...(Array.isArray(configuration.namespaces) ? configuration.namespaces.map(item => item?.path) : []),
+        ].filter((path): path is string => typeof path === 'string');
+        const namespaceExists = (path: string): boolean => this.protectedNodes.resolve(path.split('.')) instanceof NamespaceNode
+            || paths.some(configured => configured === path || configured.startsWith(path + '.'));
+        if (Array.isArray(configuration.builtinDisabled)) configuration.builtinDisabled = configuration.builtinDisabled.filter(path =>
+            typeof path !== 'string' || !!this.protectedNodes.resolve(path.split('.'))?.permissions.disableable);
+        if (configuration.builtinVisible && typeof configuration.builtinVisible === 'object' && !Array.isArray(configuration.builtinVisible)) {
+            configuration.builtinVisible = Object.fromEntries(Object.entries(configuration.builtinVisible).filter(([path]) =>
+                this.protectedNodes.resolve(path.split('.')) instanceof CommandNode));
+        }
+        if (configuration.namespaceVisible && typeof configuration.namespaceVisible === 'object' && !Array.isArray(configuration.namespaceVisible)) {
+            configuration.namespaceVisible = Object.fromEntries(Object.entries(configuration.namespaceVisible).filter(([path]) => namespaceExists(path)));
+        }
+        if (Array.isArray(configuration.order)) configuration.order = configuration.order.filter(path => typeof path !== 'string'
+            || !!this.protectedNodes.resolve(path.split('.')) || namespaceExists(path));
+        return before !== JSON.stringify(configuration);
     }
 
     /** @brief Recover independently loadable settings when the global schema version changes. */
