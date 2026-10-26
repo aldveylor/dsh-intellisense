@@ -54,9 +54,6 @@ export class PluginCommands {
     /** @brief Pin only the discovery command by default. */
     readonly defaultBuiltinVisible: CommandVisibility = { [this.discoveryCommand.path]: 2 };
 
-    /** @brief Callable runtime commands and permanently visible signature discovery. */
-    readonly builtinCommands = [this.discoveryCommand, this.searchCommand, ...this.managementCommands];
-
     /** @brief Builtin contracts indexed by physical identity for all namespace projections. */
     readonly builtinTools: readonly BuiltinTool[] = [this.discoveryCommand, this.searchCommand, ...this.managementCommands, ...this.profileValues];
 
