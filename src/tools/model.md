@@ -8,7 +8,7 @@
 
 `tool_commands.ts` 仅注册 Profile load/save/delete/annotation/commands/profiles。save 支持显式名称或当前会话名称，验证递归树与物理命令身份，仅发布目录，保留当前会话配置和选择，显式 switch(name) 后应用保存的配置；load 无名称只返回当前会话草稿，有名称只从全局目录读取指定配置并返回可序列化的 Profile 数据，不替换会话快照、不刷新工具提示。`../namespace/runtime.ts` 将 annotation 和原始命令列表作为数据传给 VM init，不安装同名函数。
 
-Profile 数据模型声明通过 tools.profile.annotation 按需读取；tools_intellisense 查询结果不自动附加这些声明。
+Profile load/save/annotation 统一使用继承 ProfileNode 的 CommandNode（type: command）与 NamespaceTreeNode（type: namespace）；基类 fixedLevel 为可选 number，具体节点限制支持的等级。Profile 数据模型声明通过 tools.profile.annotation 按需读取；tools_intellisense 查询结果不自动附加这些声明。
 
 `builtin_trace.ts` 在 presentation 作用域包装内置工具注册，保存实际参数/输出 schema、调用参数、返回值、错误与耗时到独立插件审计。结果保持原始模型内容，字符串结果不再额外 JSON 编码。审计和 Profile annotation 通过调用者上下文的 get() 获取命名空间服务，不要求调用者插件显式注入 commandNamespaces。
 
@@ -24,7 +24,7 @@ PTC 在每次执行前预加载 commands，并由 VM 命令包装同步更新本
 
 `tools.profile.profiles` 返回 `Profiles { profiles: string[]; selected: string }`，列表来自全局目录，selected 来自当前会话。native 为无参数命令，每次调用读取最新状态；PTC 为只读字段，每次执行前初始化，并在工具调用成功返回前通过 IPC 刷新，load/save 后同次执行内的读取和持有的对象引用均可见新状态。
 
-Profile save 的 name 省略或为 undefined 时，始终覆盖当前会话选择对应的目录项，忽略树中的 profile.name；save 不替换当前会话快照、不切换选择，也不刷新工具提示或注入配置更新通知；创建新目录项必须传入显式字符串名称。支持 save(profile) 和 save(name, profile)，缺少 Profile、非法名称类型或非法树均抛错；写入失败透传异常。native schema 与 PTC 声明保留保存目标默认规则、递归补齐受保护节点的树参数和显式切换说明，省略通用错误行为与重复的必填说明。
+Profile save 的 name 省略或为 undefined 时，始终覆盖当前会话选择对应的目录项，忽略树中的 profile.name；save 不替换当前会话快照、不切换选择，也不刷新工具提示或注入配置更新通知；创建新目录项必须传入显式字符串名称。支持 save(profile) 和 save(name, profile)，缺少 Profile、非法名称类型或非法树均抛错；写入失败透传异常。native schema 与 PTC 声明在 save 简介中强调递归补齐缺失的受保护固有命令及命名空间、保留提交设置，并保留保存目标默认规则、递归补齐受保护节点的树参数和显式切换说明，省略通用错误行为与重复的必填说明。
 
 `tools.profile.delete(name: string)` 删除全局目录中的指定配置；必须显式指定目标名称，省略或传入 undefined 时拒绝调用，删除当前会话配置一律拒绝。其它会话已有快照保留，成功删除后 PTC 的 profiles 字段随工具回复刷新。
 

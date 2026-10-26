@@ -48,7 +48,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         },
     })));
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_save', description: 'Save a Profile tree to the catalog. Omitted or undefined name uses the current conversation Profile name, ignoring profile.name. Call tools.profile.switch(name) to apply the saved Profile.',
+        name: 'tools_profile_save', description: 'Save a Profile tree to the catalog, recursively restoring missing protected builtin commands and namespaces while preserving supplied settings. Omitted or undefined name uses the current conversation Profile name, ignoring profile.name. Call tools.profile.switch(name) to apply the saved Profile.',
         parameters: { name: { type: 'string', description: 'Target catalog name; defaults to the current conversation Profile name.' }, profile: { type: 'object', additionalProperties: true, required: true, description: 'Editable Profile tree. Missing protected nodes are restored recursively; supplied settings are preserved.' } }, output: { ...output, schema: { type: 'null' } },
         execute: async (args, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
