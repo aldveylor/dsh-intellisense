@@ -13,10 +13,17 @@ export interface CommandBrief { name: CommandName; brief: string; totalCalls: nu
 export interface Profiles { profiles: string[]; selected: string }
 
 /** @brief Profiles expose the same serialized tree/leaf node description as management clients. */
-export interface Profile { name: string; root: SerializedNode }
+export interface Profile { name: string; root: ProfileNode }
+
+/** @brief Editable transport permits omitting a command brief without weakening native contracts. */
+export interface ProfileNode extends Omit<SerializedNode, 'children' | 'command'> {
+    children?: ProfileNode[];
+    command?: Omit<NonNullable<SerializedNode['command']>, 'doc'> & { doc?: string };
+}
 
 /** @brief Validate shared permissions without trusting them as the server's authority. */
 const permissionSchema = z.strictObject({
+    commentable: z.boolean().default(true).describe('Whether simplified descriptions may be edited; forbidden descriptions are ignored.'),
     renamable: z.boolean().describe('Whether this node may be renamed.'),
     movable: z.boolean().describe('Whether this node may be moved.'),
     removable: z.boolean().describe('Whether this node may be removed.'),
@@ -26,17 +33,17 @@ const permissionSchema = z.strictObject({
 });
 
 /** @brief Recursive transport schema for both editable and protected Profile nodes. */
-const nodeSchema: z.ZodType<SerializedNode> = z.lazy(() => z.strictObject({
+const nodeSchema: z.ZodType<ProfileNode> = z.lazy(() => z.strictObject({
     type: z.enum(['tree', 'leaf']), name: z.string(), permissions: permissionSchema,
     children: z.array(nodeSchema).optional(),
-    command: z.strictObject({ tool: z.string().describe('Exact physical name from tools.profile.commands, including unmounted commands; do not use a namespace path.'), argMap: z.record(z.string(), z.string()).optional(), schema: z.record(z.string(), z.unknown()), output: z.unknown().optional(), doc: z.string() }).optional(),
+    command: z.strictObject({ tool: z.string().describe('Exact physical name from tools.profile.commands, including unmounted commands; do not use a namespace path.'), argMap: z.record(z.string(), z.string()).optional(), schema: z.record(z.string(), z.unknown()), output: z.unknown().optional(), doc: z.string().optional() }).optional(),
     description: z.string().optional().describe('Editable namespace description. For command descriptions, edit command.doc.'), signature: z.string().optional().describe('Derived display signature; native command parameters cannot be overridden.'), deployment: z.enum(['tool', 'environment']).optional(), preload: z.boolean().optional(),
     fixedLevel: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional().describe('Pin level: 0 none, 1 brief, 2 detailed; allowed values come from permissions.availableFixLevels.'),
     disabled: z.boolean().optional().describe('Disable this node and its subtree when permissions.disableable is true.'),
 }));
 
 /** @brief Validate editable Profile input; server-owned permissions remain authoritative. */
-export const ProfileSchema: z.ZodType<Profile> = z.strictObject({ name: z.string(), root: nodeSchema.describe("Anonymous root. Each node's permissions govern its edits independently.") });
+export const ProfileSchema: z.ZodType<Profile> = z.strictObject({ name: z.string(), root: nodeSchema.describe("Anonymous root. Missing protected descendants are restored recursively from the original Profile; submitted node settings are preserved. Server permissions govern edits, and forbidden descriptions are ignored.") });
 
 /** @brief Create protected children first, then add configured mappings without replacing existing nodes. */
 export function profileTree(name: string, configuration: RegistryConfiguration): Profile {
@@ -69,13 +76,15 @@ export function profileTree(name: string, configuration: RegistryConfiguration):
     return { name, root: snapshot };
 }
 
-/** @brief Apply Profile edits while the parent enforces server-owned child removal and insertion permissions. */
+/** @brief Restore missing protected descendants, then apply edits under server-owned permissions without mutating input. */
 export function profileConfiguration(profile: Profile, current: RegistryConfiguration, commands: readonly CommandBrief[]): RegistryConfiguration {
     const protectedRoot = createNamespace({ tools: [], includeUnavailable: true });
     const configuration: RegistryConfiguration = { ...current, mappings: [], namespaces: [], order: [], toolComments: {}, builtinVisible: {}, builtinDisabled: [], namespaceVisible: {} };
-    const submitted: { node: SerializedNode; path: string }[] = [];
+    const submitted: { node: ProfileNode; path: string }[] = [];
+    const root = structuredClone(profile.root);
+    const baseline = profileTree(profile.name, current).root;
     /** @brief Index submitted nodes and report both locations for repeated direct member names. */
-    const collect = (node: SerializedNode, path: string): void => {
+    const collect = (node: ProfileNode, path: string): void => {
         submitted.push({ node, path });
         const names = new Map<string, number>();
         for (const [index, child] of (node.children ?? []).entries()) {
@@ -90,31 +99,31 @@ export function profileConfiguration(profile: Profile, current: RegistryConfigur
         }
     };
     /** @brief Identify a protected node by physical commands retained at relative child paths, ignoring editable metadata. */
-    const sameIdentity = (node: SerializedNode, expected: NamespaceNode | CommandNode): boolean => {
+    const sameIdentity = (node: ProfileNode, expected: NamespaceNode | CommandNode): boolean => {
         if (expected instanceof CommandNode) return node.type === 'leaf' && node.command?.tool === expected.tool;
         return node.type === 'tree' && [...expected.children.values()].some(child =>
             (node.children ?? []).some(candidate => candidate.name === child.name && sameIdentity(candidate, child)));
     };
-    collect(profile.root, '');
-    const visit = (node: SerializedNode, path: string, expected?: NamespaceNode | CommandNode): void => {
+    collect(root, '');
+    const visit = (node: ProfileNode, path: string, expected?: NamespaceNode | CommandNode, original?: ProfileNode): void => {
         if (node.disabled && expected && !expected.permissions.disableable) throw new Error(`Node cannot be disabled: ${path}`);
         if (node.type === 'leaf') {
             if (!node.command || node.children?.length || expected instanceof NamespaceNode) throw new Error(`Invalid command node: ${path}`);
             if (expected instanceof CommandNode) {
                 if (node.command.tool !== expected.tool) throw new Error(`Protected command cannot be replaced: ${path}`);
-                configuration.builtinVisible![path] = expected.fixLevel(node.fixedLevel);
-                if (node.disabled) configuration.builtinDisabled!.push(path);
+                configuration.builtinVisible![path] = expected.fixLevel(node.fixedLevel ?? original?.fixedLevel);
+                if (node.disabled ?? original?.disabled) configuration.builtinDisabled!.push(path);
                 return;
             }
             if (!commands.some(item => item.name === node.command!.tool)) throw new Error(`Unknown command: ${node.command.tool}`);
             const mounted = configuration.mappings.find(item => item.id === node.command!.tool);
             if (mounted) mounted.aliases.push(path);
             else configuration.mappings.push({ id: node.command.tool, path, aliases: [], pinned: false, disabled: node.disabled, alwaysVisible: node.fixedLevel ?? 0 });
-            configuration.toolComments![node.command.tool] = node.command.doc;
+            if (node.command.doc !== undefined) configuration.toolComments![node.command.tool] = node.command.doc;
             return;
         }
         if (node.command || expected instanceof CommandNode) throw new Error(`Invalid namespace node: ${path}`);
-        const children = node.children ?? [];
+        const children = node.children ??= [];
         if (expected instanceof NamespaceNode) {
             for (const child of expected.children.values()) {
                 if (children.some(item => item.name === child.name) || child.permissions.removable) continue;
@@ -123,11 +132,11 @@ export function profileConfiguration(profile: Profile, current: RegistryConfigur
                     if (relocated.node.name !== child.name && !child.permissions.renamable) throw new Error(`Node cannot be renamed: ${child.path} -> ${relocated.path} (root.${child.path} -> root.${relocated.path}; permissions.renamable=false; protected builtin node)`);
                     if (!child.permissions.movable) throw new Error(`Node cannot be moved: ${child.path} -> ${relocated.path} (root.${child.path} -> root.${relocated.path}; permissions.movable=false; preserve the protected builtin path)`);
                 }
-                throw new Error(`Node cannot be removed: ${child.path} (root.${child.path}; permissions.removable=false; required protected builtin node; preserve the complete console and tools subtrees)`);
+                children.push(structuredClone(original?.children?.find(item => item.name === child.name) ?? child.serialize()));
             }
             if (path) {
-                configuration.namespaceVisible![path] = !!fixLevel(expected.permissions, node.fixedLevel);
-                if (node.disabled) configuration.builtinDisabled!.push(path);
+                configuration.namespaceVisible![path] = !!fixLevel(expected.permissions, node.fixedLevel ?? original?.fixedLevel);
+                if (node.disabled ?? original?.disabled) configuration.builtinDisabled!.push(path);
             }
         } else if (path) configuration.namespaces.push({ path, description: node.description ?? '', alwaysVisible: !!node.fixedLevel, disabled: node.disabled });
         for (const child of children) {
@@ -135,11 +144,11 @@ export function profileConfiguration(profile: Profile, current: RegistryConfigur
             const existing = expected instanceof NamespaceNode ? expected.children.get(child.name) : undefined;
             if (!existing && expected && !expected.permissions.acceptsChildren) throw new Error(`Namespace does not accept children: ${path}`);
             configuration.order.push(childPath);
-            visit(child, childPath, existing);
+            visit(child, childPath, existing, original?.children?.find(item => item.name === child.name));
         }
     };
     if (profile.root.name !== '' || profile.root.type !== 'tree') throw new Error('Expected an anonymous namespace root');
-    visit(profile.root, '', protectedRoot);
+    visit(root, '', protectedRoot, baseline);
     return configuration;
 }
 
@@ -148,17 +157,17 @@ export const profileAnnotation = `/** @brief Original physical command identity,
 interface CommandBrief { name: string; brief: string; totalCalls: number; }
 /** @brief Available catalog Profile names and the current conversation selection. */
 interface Profiles { profiles: string[]; selected: string; }
-/** @brief Server-owned permissions. Each field governs its own operation: removable controls removal, disableable controls disabled, and availableFixLevels controls fixedLevel. Submitted permissions cannot override them. */
-interface Permission { renamable: boolean; movable: boolean; removable: boolean; disableable: boolean; acceptsChildren: boolean; availableFixLevels: (0 | 1 | 2)[]; }
-/** @brief Start from tools.profile.load() and preserve protected nodes and their permissions. New commands may use any exact physical name from tools.profile.commands, even when absent from the loaded tree. A missing tree member is not a command template.
- * To mount a new command, append { type: 'leaf', name: 'cwd', permissions: { renamable: true, movable: true, removable: true, disableable: true, acceptsChildren: false, availableFixLevels: [0, 1, 2] }, command: { tool: '<exact physical name>', schema: {}, doc: '<one sentence>' } } to an ordinary namespace's children.
- * schema, output, signature, deployment and preload describe native contracts; they cannot override execution. Edit command.doc for command descriptions and description for namespace descriptions. Saving replaces the named catalog tree without switching the conversation. A rejected save or delete preserves saved Profiles.
+/** @brief Server-owned permissions. Each field governs its own operation: commentable controls simplified descriptions, removable controls removal, disableable controls disabled, and availableFixLevels controls fixedLevel. Submitted permissions cannot override them. */
+interface Permission { commentable: boolean; renamable: boolean; movable: boolean; removable: boolean; disableable: boolean; acceptsChildren: boolean; availableFixLevels: (0 | 1 | 2)[]; }
+/** @brief Start from tools.profile.load(). Save recursively restores missing protected nodes from the existing Profile; submitted nodes retain their fixedLevel and other settings. Protected nodes still cannot be moved, renamed, replaced or extended. New commands may use any exact physical name from tools.profile.commands, even when absent from the loaded tree. A missing tree member is not a command template.
+ * To mount a new command, append { type: 'leaf', name: 'cwd', permissions: { commentable: true, renamable: true, movable: true, removable: true, disableable: true, acceptsChildren: false, availableFixLevels: [0, 1, 2] }, command: { tool: '<exact physical name>', schema: {}, doc: '<one sentence>' } } to an ordinary namespace's children.
+ * schema, output, signature, deployment and preload describe native contracts; they cannot override execution. Edit optional command.doc for command descriptions and optional description for namespace descriptions. Server permissions.commentable governs edits; forbidden descriptions are ignored. Omitted command.doc uses the original command brief. Saving replaces the named catalog tree without switching the conversation. A rejected save or delete preserves saved Profiles.
  */
 /** @brief Namespace tree or command leaf. disabled applies to the node and its subtree; fixedLevel controls pinning (0: none, 1: brief, 2: detailed). */
 interface NamespaceNode {
     type: 'tree' | 'leaf'; name: string; permissions: Permission;
     children?: NamespaceNode[];
-    command?: { tool: string; argMap?: Record<string, string>; schema: Record<string, unknown>; output?: unknown; doc: string };
+    command?: { tool: string; argMap?: Record<string, string>; schema: Record<string, unknown>; output?: unknown; doc?: string };
     description?: string; signature?: string; deployment?: 'tool' | 'environment'; preload?: boolean;
     fixedLevel?: 0 | 1 | 2; disabled?: boolean;
 }

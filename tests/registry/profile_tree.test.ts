@@ -27,14 +27,14 @@ test('Profile trees round-trip nested namespaces, aliases, comments and all comm
     assert.deepEqual(profileTree('Work', configuration), profile);
 });
 
-test('Profile schema rejects invalid nodes and configuration rejects missing or replaced protected children', () => {
-    const { current, profile } = fixture();
+test('Profile schema rejects invalid nodes and configuration restores missing protected children', () => {
+    const { current, profile, commands } = fixture();
     for (const input of [{ name: 'Work', root: {} }, { ...profile, extra: true },
         { ...profile, root: { ...profile.root, fixedLevel: 3 } }]) assert.equal(ProfileSchema.safeParse(input).success, false);
     assert.throws(() => profileConfiguration(profile, current, []), /Unknown command: read/);
     const missing = structuredClone(profile);
     missing.root.children = missing.root.children!.filter(node => node.name !== 'tools');
-    assert.throws(() => profileConfiguration(missing, current, []), /Node cannot be removed: tools/);
+    assert(profileTree('Work', profileConfiguration(missing, current, commands)).root.children!.some(node => node.name === 'tools'));
     const replaced = structuredClone(profile);
     replaced.root.children!.find(node => node.name === 'tools')!.children!.find(node => node.name === 'intellisense')!.command!.tool = 'read';
     assert.throws(() => profileConfiguration(replaced, current, []), /Protected command cannot be replaced/);
@@ -48,7 +48,7 @@ test('duplicate diagnostics identify the complete path and both submitted source
     assert.throws(() => profileConfiguration(profile, current, commands), /Duplicate namespace member: root.files.read; root.files.children\[0\] \(read\) conflicts with root.files.children\[3\] \(write\)/);
 });
 
-test('protected diagnostics distinguish rename, move and removal while rejecting forged permissions', () => {
+test('protected diagnostics reject rename and move while omissions restore protected nodes', () => {
     const { current, profile, commands } = fixture();
     for (const name of ['console', 'tools']) {
         const renamed = structuredClone(profile);
@@ -62,7 +62,7 @@ test('protected diagnostics distinguish rename, move and removal while rejecting
         const removed = structuredClone(profile);
         removed.root.children = removed.root.children!.filter(node => node.name !== name);
         removed.root.permissions.removable = true;
-        assert.throws(() => profileConfiguration(removed, current, commands), new RegExp(`Node cannot be removed: ${name}.*permissions.removable=false`));
+        assert(profileTree('Work', profileConfiguration(removed, current, commands)).root.children!.some(node => node.name === name));
     }
     const renamedLeaf = structuredClone(profile);
     renamedLeaf.root.children!.find(node => node.name === 'console')!.children!.find(node => node.name === 'info')!.name = 'detail';
@@ -76,4 +76,58 @@ test('root info and log namespaces coexist with the protected console methods', 
     assert(configuration.namespaces.some(node => node.path === 'info'));
     assert(configuration.namespaces.some(node => node.path === 'log'));
     assert(profileTree('Work', configuration).root.children!.some(node => node.name === 'console'));
+});
+
+
+test('save fills protected descendants without replacing submitted pin and disabled settings', () => {
+    const { current } = fixture();
+    current.builtinVisible = { 'tools.profile.load': 2, 'tools.profile.save': 1, 'console.info': 2 };
+    current.builtinDisabled = ['tools.profile.delete'];
+    const full = profileTree('Work', current);
+    const input = structuredClone(full);
+    input.root.children = input.root.children!.filter(node => node.name === 'tools');
+    const tools = input.root.children![0]!;
+    const profile = tools.children!.find(node => node.name === 'profile')!;
+    profile.fixedLevel = 0;
+    profile.disabled = true;
+    profile.children = profile.children!.filter(node => node.name === 'load');
+    profile.children[0]!.fixedLevel = 0;
+    const before = structuredClone(input);
+    const restored = profileTree('Work', profileConfiguration(ProfileSchema.parse(input), current, []));
+    assert.deepEqual(input, before);
+    const result = restored.root.children!.find(node => node.name === 'tools')!.children!.find(node => node.name === 'profile')!;
+    assert.equal(result.fixedLevel, 0);
+    assert.equal(result.disabled, true);
+    assert.equal(result.children!.find(node => node.name === 'load')!.fixedLevel, 0);
+    assert.equal(result.children!.find(node => node.name === 'save')!.fixedLevel, 1);
+    assert.equal(result.children!.find(node => node.name === 'delete')!.disabled, true);
+    assert.equal(restored.root.children!.find(node => node.name === 'console')!.children!.find(node => node.name === 'info')!.fixedLevel, 2);
+    tools.children = tools.children!.filter(node => node.name !== 'profile');
+    const missingNamespace = profileTree('Work', profileConfiguration(input, current, []));
+    assert.equal(missingNamespace.root.children!.find(node => node.name === 'tools')!.children!.find(node => node.name === 'profile')!.children!.find(node => node.name === 'load')!.fixedLevel, 2);
+});
+
+
+test('save permits omitted briefs and ignores forged edits of protected descriptions', () => {
+    const { current, profile, commands } = fixture();
+    const tools = profile.root.children!.find(node => node.name === 'tools')!;
+    tools.description = 'Forged namespace brief';
+    tools.permissions = { ...tools.permissions, commentable: true };
+    const save = tools.children!.find(node => node.name === 'profile')!.children!.find(node => node.name === 'save')!;
+    save.command!.doc = 'Forged command brief';
+    save.description = 'Forged leaf description';
+    save.permissions = { ...save.permissions, commentable: true };
+    const files = profile.root.children!.find(node => node.name === 'files')!;
+    for (const leaf of files.children!) delete leaf.command!.doc;
+    // The read alias also omits its brief, so it cannot accidentally supply an override.
+    delete profile.root.children!.find(node => node.name === 'read')!.command!.doc;
+    const configuration = profileConfiguration(ProfileSchema.parse(profile), current, commands);
+    assert.deepEqual(configuration.toolComments, {});
+    const saved = profileTree('Work', configuration);
+    const savedTools = saved.root.children!.find(node => node.name === 'tools')!;
+    assert.equal(savedTools.permissions.commentable, false);
+    assert.notEqual(savedTools.description, 'Forged namespace brief');
+    const savedCommand = savedTools.children!.find(node => node.name === 'profile')!.children!.find(node => node.name === 'save')!;
+    assert.equal(savedCommand.permissions.commentable, false);
+    assert.notEqual(savedCommand.command!.doc, 'Forged command brief');
 });

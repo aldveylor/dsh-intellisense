@@ -24,10 +24,12 @@ PTC 在每次执行前预加载 commands，并由 VM 命令包装同步更新本
 
 `tools.profile.profiles` 返回 `Profiles { profiles: string[]; selected: string }`，列表来自全局目录，selected 来自当前会话。native 为无参数命令，每次调用读取最新状态；PTC 为只读字段，每次执行前初始化，并在工具调用成功返回前通过 IPC 刷新，load/save 后同次执行内的读取和持有的对象引用均可见新状态。
 
-Profile save 的 name 省略或为 undefined 时，始终覆盖当前会话选择对应的目录项，忽略树中的 profile.name；save 不替换当前会话快照、不切换选择，也不刷新工具提示或注入配置更新通知；创建新目录项必须传入显式字符串名称。支持 save(profile) 和 save(name, profile)，缺少 Profile、非法名称类型或非法树均抛错；写入失败透传异常。native schema 与 PTC 声明保留保存目标默认规则、完整树参数和显式切换说明，省略通用错误行为与重复的必填说明。
+Profile save 的 name 省略或为 undefined 时，始终覆盖当前会话选择对应的目录项，忽略树中的 profile.name；save 不替换当前会话快照、不切换选择，也不刷新工具提示或注入配置更新通知；创建新目录项必须传入显式字符串名称。支持 save(profile) 和 save(name, profile)，缺少 Profile、非法名称类型或非法树均抛错；写入失败透传异常。native schema 与 PTC 声明保留保存目标默认规则、递归补齐受保护节点的树参数和显式切换说明，省略通用错误行为与重复的必填说明。
 
 `tools.profile.delete(name: string)` 删除全局目录中的指定配置；必须显式指定目标名称，省略或传入 undefined 时拒绝调用，删除当前会话配置一律拒绝。其它会话已有快照保留，成功删除后 PTC 的 profiles 字段随工具回复刷新。
 
 `tools.profile.switch(name: string)` 显式切换当前会话配置，必须指定已有名称；可通过 builtinDisabled 禁用，使用普通内置命令的 disableable 权限。load(name?) 只读取配置数据，不切换当前会话；省略名称读取会话草稿，指定名称读取目录中的配置。
 
 当前对话通过显式 switch(name) 或会话 Profile 下拉框更新工作配置后，统一由 configurationChanged 刷新工具提示。仅 tools.profile.switch(name) 成功完成加载和刷新后，通过 Agent.inject 向当前对话注入 intellisense-profile 英文 notice：`Profile updated to <profile name>`；load(name)、UI 下拉选择、通用配置刷新、保存目录、读取草稿、失败操作及删除其它配置均不注入。
+
+save 使用目标目录配置作为固定节点补齐基线，不存在该名称时使用会话配置。缺少整个子树则补入，存在同名节点则递归检查下一层，不覆盖已提交的固定等级、禁用状态及其它字段；普通命令树仍按输入替换。禁止编辑简化注释的服务端节点忽略描述字段，简化注释键可选。

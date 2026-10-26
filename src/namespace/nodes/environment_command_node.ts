@@ -7,7 +7,7 @@ import type { BuiltinCommand } from '../../runtime/builtins.js';
 /** @brief A native environment function is a normal leaf with a declaration and no tool deployment. */
 export class EnvironmentCommandNode extends CommandNode {
     constructor(name: string, parent: NamespaceNode, readonly contract: BuiltinCommand) {
-        super(name, parent, { tool: contract.path, schema: {}, output: {}, doc: contract.description }, nodePermissions('leaf', { renamable: false, movable: false, removable: false }));
+        super(name, parent, { tool: contract.path, schema: {}, output: {}, doc: contract.description }, nodePermissions('leaf', { renamable: false, commentable: false, movable: false, removable: false }));
     }
 
     override get deployment(): 'environment' { return 'environment'; }

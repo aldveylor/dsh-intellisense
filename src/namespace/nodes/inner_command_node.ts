@@ -9,7 +9,7 @@ import { namespaceDeclaration, builtinDeclaration } from '../declaration.js';
 /** @brief Restricted server commands own adapters and policies without exposing their class to clients. */
 export class InnerCommandNode extends CommandNode {
     constructor(name: string, parent: NamespaceNode, entry: Omit<ManifestEntry, 'path'>, readonly builtin: BuiltinTool, permissions: Partial<Permission> = {}) {
-        super(name, parent, entry, nodePermissions('leaf', { renamable: false, movable: false, removable: false, ...permissions }));
+        super(name, parent, entry, nodePermissions('leaf', { renamable: false, commentable: false, movable: false, removable: false, ...permissions }));
     }
 
     override get preload(): boolean { return this.builtin.preload ?? false; }

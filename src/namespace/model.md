@@ -16,13 +16,13 @@
 
 Profile 可同时保存来自多个预设的映射；当前模型作用域未挂载的物理工具不参与 effective/manifest，不影响其余映射，也不删除原始配置。后续挂载对应工具后原映射自动参与解析。
 
-`node.ts` 定义共享 Node、Permission 与 SerializedNode。NodeType 只区分 leaf（命令）和 tree（命名空间），服务端子类身份不进入协议。Permission 包含 renamable、movable、removable、disableable、acceptsChildren、availableFixLevels；固定等级为 0/1/2。serialize/toJSON 仅输出子树、命令契约、描述和权限，不包含父引用。
+`node.ts` 定义共享 Node、Permission 与 SerializedNode。NodeType 只区分 leaf（命令）和 tree（命名空间），服务端子类身份不进入协议。Permission 包含 commentable、renamable、movable、removable、disableable、acceptsChildren、availableFixLevels；固定等级为 0/1/2。serialize/toJSON 仅输出子树、命令契约、描述和权限，不包含父引用。
 
 `nodes/` 按类拆分实现，详见其 model.md。`namespace.ts` 作为上层入口，通过 createNamespace(context) 组织初始 console/tools 子树，再由 manifest 注册当前映射及别名。根是普通匿名 NamespaceNode，不存在 RootNamespaceNode。NamespaceNode.add 不覆盖已有成员；remove 由父节点检查子节点 permissions.removable。InnerNamespaceNode 自行限制外部插入；ToolsNamespaceNode、ProfileNamespaceNode、ConsoleNamespaceNode 在构造期间管理各自子对象，ToolsNamespaceNode 禁止禁用。
 
 console 等环境接口是 EnvironmentCommandNode 普通 leaf，带环境声明并标记 deployment=environment；tools.* 使用服务端 InnerCommandNode 和专用命令节点，绑定 rest、重载、丢弃结果及预加载。tools.intellisense 的节点权限仅允许固定等级 2 且不可禁用。所有成员都在初始化时创建，intellisense 查询只调用 queryNodes → resolve，查询期间不生成节点、不覆盖映射。PTC 绑定仅选择 deployment=tool 且非 preload 的命令，console 等环境节点不编译为物理工具代理。
 
-管理 API 将同一初始化树的 SerializedNode 传给客户端，客户端不导入内置命令表、不按 console/tools 等名称生成权限或节点。Profile.root 同样使用 SerializedNode 描述，导入时由服务端权威节点检查受保护子对象不可删除、替换或外部插入；不能通过伪造 permissions 改写这些规则。实际工具执行权限仍由 DSH 原生 guard 处理。
+管理 API 将同一初始化树的 SerializedNode 传给客户端，客户端不导入内置命令表、不按 console/tools 等名称生成权限或节点。Profile.root 同样使用 SerializedNode 描述，保存时先按目标原配置递归补齐遗漏的受保护子对象，保留已提交节点的设置，再由服务端权威节点拒绝替换、改名、移动或外部插入；不能通过伪造 permissions 改写这些规则。实际工具执行权限仍由 DSH 原生 guard 处理。
 
 `prompt.ts` 根据 native/ptc 配置生成初始说明，PTC 渲染 Profile 选中的部分命名空间树。未知命令先直接查询 tools.intellisense；PTC 通过 tools_run_code 调用命名空间，native 直接使用 DSML 命名空间工具。native 初始提示与工具描述明确 {"queries":[""]} 接受空字符串以查询根命名空间；初始提示强调当前工具基于命名空间，ns_ 标记挂载命令，双下划线 __ 是调用名称中的命名空间分隔符，对应查询路径中的点号；不再附加根命名空间摘要和工具映射 JSON，描述只保留在工具 schema 中，不生成 TS/JS 声明或执行说明。
 

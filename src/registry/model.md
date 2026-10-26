@@ -4,7 +4,7 @@
 
 命令固定等级统一为 0（不固定）、1（固定但简略）、2（固定且详细）。Mapping.alwaysVisible 保存等级；builtinVisible、unmountedVisible 为路径或物理 ID 到等级的映射，随 Profile 保存，挂载和移除映射时保留等级。命名空间 alwaysVisible 仍为布尔值。
 
-`profile_tree.ts` 的 Profile.root 使用 namespace/node.ts 的统一 SerializedNode：type 为 leaf/tree，children 为直接子节点数组，command 保存物理契约，permissions 保存服务端编辑和固定等级限制。fixedLevel 为 0/1/2，disabled 表示节点自身显式禁用。创建 Profile 时先构建带上下文的普通匿名 NamespaceNode 及 console/tools 受保护子树，再添加配置映射；没有专门的根节点类型。导入由父节点对应的服务端策略验证子对象不可移除或替换，拒绝向受限命名空间添加成员；客户端提交的 permissions 不作为权限依据。命令按物理 ID 聚合别名，command.doc 保存描述偏好。
+`profile_tree.ts` 的 Profile.root 基于 namespace/node.ts 的统一 SerializedNode，输入通过 ProfileNode 允许省略 command.doc：type 为 leaf/tree，children 为直接子节点数组，command 保存物理契约，permissions 保存服务端编辑和固定等级限制。fixedLevel 为 0/1/2，disabled 表示节点自身显式禁用。创建 Profile 时先构建带上下文的普通匿名 NamespaceNode 及 console/tools 受保护子树，再添加配置映射；没有专门的根节点类型。导入先递归补齐缺少的受保护子对象，再由父节点对应的服务端策略拒绝替换、改名、移动及向受限命名空间添加成员；客户端提交的 permissions 不作为权限依据。命令按物理 ID 聚合别名，command.doc 保存描述偏好。
 
 namespaceVisible 为随 Profile 保存的命名空间路径 → 固定提示布尔值映射，默认空对象；不使用 console 专有存储字段。管理面板始终展示 console 及其命令，console 命名空间图钉可切换是否固定提示；命令各自保留独立的提示等级。IntelliSense 与原生 console 的可用性不受固定状态影响。PTC 初始 prompt 提示可使用运行时提供的原生 Node.js 变量。
 
@@ -29,6 +29,8 @@ CommandBrief 与 profileAnnotation 中共享同一数据定义：name 为原始�
 
 Profile 仅包含 name 与 root；permissions 是唯一节点编辑限制说明，由服务端节点权限生成，输入不能覆盖服务端权限。annotation 与 JSON Schema 按字段独立说明节点权限：removable 控制移除，disableable 控制禁用，availableFixLevels 控制固定等级；不额外引入 console/tools 特殊限制。
 
-Profile 导入的重复成员错误包含完整 root 路径、同一父节点中双方 children 数组索引和物理工具来源。受保护节点按保留的相对子路径及物理命令身份识别改名和移动，分别报告 renamable/movable；删除错误明确 removable=false 与内置子树必需保留原因。console.info 与根级 info/log 名称空间互不冲突，重复只针对同级同名成员。
+Profile 导入的重复成员错误包含完整 root 路径、同一父节点中双方 children 数组索引和物理工具来源。受保护节点按保留的相对子路径及物理命令身份识别改名和移动，分别报告 renamable/movable；省略受保护成员时递归恢复，恢复值取自保存目标原有目录配置；新名称取自当前会话配置，已提交成员的 fixedLevel/disabled 等设置优先。console.info 与根级 info/log 名称空间互不冲突，重复只针对同级同名成员。
 
-Profile annotation 说明以 load 返回的完整树为编辑起点，保留受保护节点；新增叶子使用 commands 中的精确物理名称、普通叶子权限、空 schema 和自定义 command.doc，无需从已挂载叶子复制。signature 等展示契约不覆盖物理工具参数。命令描述编辑 command.doc，命名空间描述编辑 description。
+Profile annotation 说明可使用 load 返回的树作为编辑起点，缺少的受保护节点会自动补齐；新增叶子使用 commands 中的精确物理名称、普通叶子权限、空 schema 和自定义 command.doc，无需从已挂载叶子复制。signature 等展示契约不覆盖物理工具参数。命令描述编辑 command.doc，命名空间描述编辑 description。
+
+Permission.commentable 控制简化注释编辑：普通节点默认为 true，受保护命名空间及命令为 false。服务端不信任提交的 permissions；禁止修改的 description/command.doc 被忽略。ProfileNode 的 command.doc 为可选输入，缺省不创建描述覆盖，实际展示回退原始注释首行。输入树及原配置均不被修改。

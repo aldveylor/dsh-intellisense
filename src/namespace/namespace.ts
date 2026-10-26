@@ -38,7 +38,7 @@ export interface ManifestEntry extends CommandContract { path: string }
 
 /** @brief Create an ordinary root container with server-owned protected children before adding mappings. */
 export function createNamespace(context: NamespaceContext): NamespaceNode {
-    const root = new NamespaceNode('', undefined, '', nodePermissions('tree', { renamable: false, movable: false, removable: false, disableable: false, availableFixLevels: [] }));
+    const root = new NamespaceNode('', undefined, '', nodePermissions('tree', { renamable: false, commentable: false, movable: false, removable: false, disableable: false, availableFixLevels: [] }));
     root.add(new ConsoleNamespaceNode(root, context));
     root.add(new ToolsNamespaceNode(root, context));
     return root;

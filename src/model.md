@@ -63,3 +63,5 @@ namespaceVisible 为随 Profile 保存的命名空间路径 → 固定提示布�
 `tools.profile.delete(name: string)` 删除全局目录中的指定配置；必须显式指定目标名称，省略或传入 undefined 时拒绝调用，删除当前会话配置一律拒绝。其它会话已有快照保留，成功删除后 PTC 的 profiles 字段随工具回复刷新。
 
 `tools.profile.switch(name: string)` 显式切换当前会话配置，必须指定已有名称；可通过 builtinDisabled 禁用，使用普通内置命令的 disableable 权限。load(name?) 只读取配置数据，不切换当前会话；省略名称读取会话草稿，指定名称读取目录中的配置。
+
+Profile 保存递归补齐省略的 console/tools 固定节点；同名节点仅检查和补齐下一层，不覆盖提交的 fixedLevel、disabled 等设置。恢复值来自目标目录 Profile，新名称回退到当前会话配置。commentable 权限控制简化注释编辑，受保护节点禁止修改，提交的相关注释键被忽略；Profile 输入中的 command.doc 可省略。

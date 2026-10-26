@@ -539,7 +539,7 @@ test('Profile organization mounts catalog commands and applies briefs without mu
                     command: { tool: name, schema: {}, doc: 'Brief ' + name } })) });
             await tools.profile.save('Organized', profile);
             const invalid = JSON.parse(JSON.stringify(profile));
-            invalid.root.children = invalid.root.children.filter(child => child.name !== 'console');
+            invalid.root.children.find(child => child.name === 'tools').children.find(child => child.name === 'intellisense').command.tool = 'read';
             let rejected = 0;
             try { await tools.profile.save('Organized', invalid); } catch { rejected++; }
             try { await tools.profile.delete('Missing'); } catch { rejected++; }
@@ -565,5 +565,34 @@ test('Profile organization mounts catalog commands and applies briefs without mu
         assert.equal(members.isError, false, JSON.stringify(members));
         assert.match(JSON.stringify(members.value), /Brief read/);
         assert.doesNotMatch(JSON.stringify(members.value), /Original read/);
+    } finally { await dispose(); }
+});
+
+
+test('Profile save merges omitted protected members from the target without changing session settings', async () => {
+    const { run, dispose } = await fixture();
+    try {
+        const result = await run(`
+            const original = await tools.profile.load();
+            const group = original.root.children.find(node => node.name === 'tools').children.find(node => node.name === 'profile');
+            group.children.find(node => node.name === 'load').fixedLevel = 2;
+            await tools.profile.save('Merged', original);
+            const save = group.children.find(node => node.name === 'save');
+            save.fixedLevel = 1;
+            delete save.command.doc;
+            save.description = 'Ignored protected comment';
+            group.children = [save];
+            original.root.children = original.root.children.filter(node => node.name === 'tools');
+            await tools.profile.save('Merged', original);
+            const merged = await tools.profile.load('Merged');
+            const members = merged.root.children.find(node => node.name === 'tools').children.find(node => node.name === 'profile').children;
+            return [members.find(node => node.name === 'load').fixedLevel,
+                members.find(node => node.name === 'save').fixedLevel,
+                merged.root.children.some(node => node.name === 'console'),
+                members.find(node => node.name === 'save').command.doc.includes('Ignored protected comment'),
+                tools.profile.profiles.selected];
+        `);
+        assert.equal(result.isError, false, JSON.stringify(result));
+        assert.deepEqual(result.value, { logs: [], result: [2, 1, true, false, 'Default'] });
     } finally { await dispose(); }
 });

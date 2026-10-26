@@ -7,6 +7,7 @@ export type NodeType = 'leaf' | 'tree';
 /** @brief Editing and pin choices owned by a node, independent of native execution guards. */
 export interface Permission {
     readonly renamable: boolean;
+    readonly commentable: boolean;
     readonly movable: boolean;
     readonly removable: boolean;
     readonly disableable: boolean;
@@ -42,7 +43,7 @@ export interface Node {
 
 /** @brief Share structural editing and pin permissions across host and browser nodes. */
 export function nodePermissions(type: NodeType, overrides: Partial<Permission> = {}): Permission {
-    return { renamable: true, movable: true, removable: true, disableable: true, acceptsChildren: type === 'tree',
+    return { renamable: true, commentable: true, movable: true, removable: true, disableable: true, acceptsChildren: type === 'tree',
         availableFixLevels: type === 'leaf' ? [0, 1, 2] : [0, 1], ...overrides };
 }
 
