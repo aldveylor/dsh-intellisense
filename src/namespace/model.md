@@ -50,3 +50,5 @@ PTC 每次执行重建 VM Context，不保证环境连续，不支持 globalThis
 `component.ts` 在 Profile 首次初始化时通过 AgentRegistry.isOwnedBy 查询运行时父 Agent；父作用域启用 Intellisense 时，递归取得其工作配置供子会话复制，后续按各自 ID 持有独立快照。无启用本插件的父 Agent 则使用全局默认；已加载或已持久化的子会话配置优先，不因再次查询、父配置切换或恢复而覆盖。
 
 当前对话通过显式 switch(name) 或会话 Profile 下拉框更新工作配置后，统一由 configurationChanged 刷新工具提示。仅 tools.profile.switch(name) 成功完成加载和刷新后，通过 Agent.inject 向当前对话注入 intellisense-profile 英文 notice：`Profile updated to <profile name>`；load(name)、UI 下拉选择、通用配置刷新、保存目录、读取草稿、失败操作及删除其它配置均不注入。
+
+Profile 中的 command.doc 通过 toolComments 应用于实际 manifest、IntelliSense 声明与命令描述，未设置时回退到原始物理工具描述；YAML 别名共享相同的描述偏好。命令目录仅排除明确保留的插件工具 ID，不按 tools_ 前缀排除外部工具。目录中未挂载的命令可直接按物理名称构建 Profile 叶子，实际执行仍要求当前作用域存在对应物理工具。

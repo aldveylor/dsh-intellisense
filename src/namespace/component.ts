@@ -113,7 +113,7 @@ export class NamespaceComponent {
     async commandBriefs(): Promise<CommandBrief[]> {
         await this.refresh();
         const { callsByTool } = await this.statistics.snapshot();
-        return this.registry.tools().filter(tool => !tool.id.startsWith('tools_')).map(tool => ({
+        return this.registry.tools().filter(tool => !reservedToolIds.includes(tool.id)).map(tool => ({
             name: tool.id, brief: tool.description, totalCalls: Object.hasOwn(callsByTool, tool.id) ? callsByTool[tool.id]! : 0,
         }));
     }

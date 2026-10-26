@@ -29,8 +29,8 @@ const permissionSchema = z.strictObject({
 const nodeSchema: z.ZodType<SerializedNode> = z.lazy(() => z.strictObject({
     type: z.enum(['tree', 'leaf']), name: z.string(), permissions: permissionSchema,
     children: z.array(nodeSchema).optional(),
-    command: z.strictObject({ tool: z.string(), argMap: z.record(z.string(), z.string()).optional(), schema: z.record(z.string(), z.unknown()), output: z.unknown().optional(), doc: z.string() }).optional(),
-    description: z.string().optional(), signature: z.string().optional(), deployment: z.enum(['tool', 'environment']).optional(), preload: z.boolean().optional(),
+    command: z.strictObject({ tool: z.string().describe('Exact physical name from tools.profile.commands, including unmounted commands; do not use a namespace path.'), argMap: z.record(z.string(), z.string()).optional(), schema: z.record(z.string(), z.unknown()), output: z.unknown().optional(), doc: z.string() }).optional(),
+    description: z.string().optional().describe('Editable namespace description. For command descriptions, edit command.doc.'), signature: z.string().optional().describe('Derived display signature; native command parameters cannot be overridden.'), deployment: z.enum(['tool', 'environment']).optional(), preload: z.boolean().optional(),
     fixedLevel: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional().describe('Pin level: 0 none, 1 brief, 2 detailed; allowed values come from permissions.availableFixLevels.'),
     disabled: z.boolean().optional().describe('Disable this node and its subtree when permissions.disableable is true.'),
 }));
@@ -150,6 +150,10 @@ interface CommandBrief { name: string; brief: string; totalCalls: number; }
 interface Profiles { profiles: string[]; selected: string; }
 /** @brief Server-owned permissions. Each field governs its own operation: removable controls removal, disableable controls disabled, and availableFixLevels controls fixedLevel. Submitted permissions cannot override them. */
 interface Permission { renamable: boolean; movable: boolean; removable: boolean; disableable: boolean; acceptsChildren: boolean; availableFixLevels: (0 | 1 | 2)[]; }
+/** @brief Start from tools.profile.load() and preserve protected nodes and their permissions. New commands may use any exact physical name from tools.profile.commands, even when absent from the loaded tree. A missing tree member is not a command template.
+ * To mount a new command, append { type: 'leaf', name: 'cwd', permissions: { renamable: true, movable: true, removable: true, disableable: true, acceptsChildren: false, availableFixLevels: [0, 1, 2] }, command: { tool: '<exact physical name>', schema: {}, doc: '<one sentence>' } } to an ordinary namespace's children.
+ * schema, output, signature, deployment and preload describe native contracts; they cannot override execution. Edit command.doc for command descriptions and description for namespace descriptions. Saving replaces the named catalog tree without switching the conversation. A rejected save or delete preserves saved Profiles.
+ */
 /** @brief Namespace tree or command leaf. disabled applies to the node and its subtree; fixedLevel controls pinning (0: none, 1: brief, 2: detailed). */
 interface NamespaceNode {
     type: 'tree' | 'leaf'; name: string; permissions: Permission;

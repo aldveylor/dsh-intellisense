@@ -519,3 +519,46 @@ test('Profile cleanup steps serialize void values and preserve per-step errors',
         assert.deepEqual(rows[6], { current: 'Default' });
     } finally { await dispose(); }
 });
+
+
+test('Profile organization mounts catalog commands and applies briefs without mutating rejected saves', async () => {
+    const { agent, namespaces, run, dispose } = await fixture();
+    try {
+        for (const name of ['read', 'write', 'edit', 'glob', 'grep', 'working_directory', 'tools_external']) {
+            agent.ctx.tools.register(defineTool({ name, description: `Original ${name}`, parameters: {},
+                output: { schema: { type: 'string' }, render: () => [] }, execute: async () => name,
+            }));
+        }
+        const result = await run(`
+            const profile = await tools.profile.load();
+            const permissions = { renamable: true, movable: true, removable: true, disableable: true, acceptsChildren: true, availableFixLevels: [0, 1] };
+            const names = ['read', 'write', 'edit', 'glob', 'grep', 'working_directory', 'tools_external'];
+            if (names.some(name => !tools.profile.commands.some(command => command.name === name))) throw new Error('Missing catalog command');
+            profile.root.children.push({ type: 'tree', name: 'files', description: 'File operations', permissions,
+                children: names.map(name => ({ type: 'leaf', name, permissions: { ...permissions, acceptsChildren: false, availableFixLevels: [0, 1, 2] },
+                    command: { tool: name, schema: {}, doc: 'Brief ' + name } })) });
+            await tools.profile.save('Organized', profile);
+            const invalid = JSON.parse(JSON.stringify(profile));
+            invalid.root.children = invalid.root.children.filter(child => child.name !== 'console');
+            let rejected = 0;
+            try { await tools.profile.save('Organized', invalid); } catch { rejected++; }
+            try { await tools.profile.delete('Missing'); } catch { rejected++; }
+            return [rejected, tools.profile.profiles.selected, (await tools.profile.load('Organized')).root.children.find(child => child.name === 'files').description];
+        `);
+        assert.equal(result.isError, false, JSON.stringify(result));
+        assert.deepEqual(result.value, { logs: [], result: [2, 'Default', 'File operations'] });
+        assert.equal((await namespaces.tree(agent)).resolve(['files']), undefined);
+        const switched = await run("await tools.profile.switch('Organized');");
+        assert.equal(switched.isError, false, JSON.stringify(switched));
+        const invoked = await run('return await files.working_directory();');
+        assert.equal(invoked.isError, false, JSON.stringify(invoked));
+        assert.deepEqual(invoked.value, { logs: [], result: 'working_directory' });
+        const tree = await namespaces.tree(agent);
+        assert.equal(tree.resolve(['files'])?.serialize().description, 'File operations');
+        assert.equal(tree.resolve(['files', 'read'])?.serialize().command?.doc, 'Brief read');
+        assert.equal(tree.resolve(['files', 'tools_external'])?.serialize().command?.doc, 'Brief tools_external');
+        const discovery = await run('return await tools.intellisense("files.read");');
+        assert.equal(discovery.isError, false, JSON.stringify(discovery));
+        assert.match(JSON.stringify(discovery.value), /Brief read/);
+    } finally { await dispose(); }
+});
