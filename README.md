@@ -12,6 +12,8 @@ dsh-intellisense 为 DeepSeek Harness 提供命名空间工具管理、可复用
 
 插件将工具目录映射为命名空间，按需提供成员列表与调用签名，减少初始提示中的工具信息。Intellisense PTC 在受限 Node.js 运行时中执行 TypeScript/JavaScript，并通过命名空间调用工具；Intellisense 则通过原生 DSML 直接调用工具。两种模式共享 Profile 配置，工具调用均经过原生权限检查与执行流程。
 
+Profile 可通过 `tools.profile.load()` 读取、通过 `tools.profile.save()` 保存；`tools.profile.annotation` 提供 TypeScript 数据模型，使用字段级 `/** @default ... */` 注释说明默认值。节点省略 `permissions` 或其字段时使用普通节点权限，服务端仍校验受保护节点的限制；`fixedLevel` 默认为 `0`，`disabled` 默认为 `false`。保存时省略默认权限、空权限对象和默认固定级别及禁用状态。
+
 ### 命名空间管理
 
 命名空间树展示工具分组、调用名称与工具说明。悬停命名空间可查看名称、完整路径和注释；悬停命令可查看简化注释、完整文档及调用统计，其原始命令名可打开第二层工具详情。可展开分组、双击名称或注释进行编辑，拖动同级条目调整顺序，并设置固定提示级别；顶部可切换、保存或另存为 Profile，方便复用不同的工具配置。
@@ -26,7 +28,7 @@ dsh-intellisense 为 DeepSeek Harness 提供命名空间工具管理、可复用
 
 ### 工具详情
 
-悬停工具卡片可查看参数、返回类型与调用统计；参数类型可展开二层提示，直接展示类型表达式。按住 Alt 可固定当前提示，方便移入查看或滚动。
+悬停工具卡片可查看参数、返回类型与调用统计；参数类型可展开二层提示，直接展示类型表达式。按住 Ctrl 可固定当前提示，方便移入查看或滚动。
 
 ![Bash 工具详情与类型展示](docs/zh/tooltip.png)
 
@@ -37,6 +39,8 @@ dsh-intellisense 为 DeepSeek Harness 提供命名空间工具管理、可复用
 dsh-intellisense adds namespace-based tool management, reusable profiles, and on-demand tool discovery to DeepSeek Harness. Its management interface supports tool grouping, mount paths, ordering, and pinned prompt detail levels. Profiles can be saved and reused across sessions.
 
 The plugin maps the tool catalog into namespaces and provides members and call signatures on demand, reducing tool information in the initial prompt. Intellisense PTC runs TypeScript/JavaScript in a restricted Node.js runtime and calls tools through namespaces; Intellisense calls tools directly through native DSML. Both modes share profile configuration and route tool calls through native permission checks and execution.
+
+Read profiles with `tools.profile.load()` and save them with `tools.profile.save()`. `tools.profile.annotation` provides the TypeScript data model, with field-level `/** @default ... */` comments documenting defaults. Omitted `permissions` or permission fields use ordinary node permissions; the server still enforces protected node restrictions. `fixedLevel` defaults to `0` and `disabled` to `false`. Saved profiles omit default permissions, empty permission objects, and default pin levels and disabled flags.
 
 ### Namespace management
 
@@ -52,7 +56,7 @@ Click the tool icon beside “Namespace tree” to open the tool picker. The unm
 
 ### Tool details
 
-Hover a tool card for parameters, return types, and call totals. Parameter types open nested tooltips with the type expression itself. Hold Alt to keep a tooltip in place while moving into it to read or scroll.
+Hover a tool card for parameters, return types, and call totals. Parameter types open nested tooltips with the type expression itself. Hold Ctrl to keep a tooltip in place while moving into it to read or scroll.
 
 ![Bash tool details and type display](docs/en/tooltip.png)
 
