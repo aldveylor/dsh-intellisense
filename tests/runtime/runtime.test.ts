@@ -188,3 +188,23 @@ test('execution deadline still cancels RPC while draining after an early return'
         assert.equal(next.epoch, 2);
     } finally { await host.dispose(); }
 });
+
+
+test('program return values use JSON serialization for nested void values and sparse arrays', async () => {
+    const host = new RuntimeHost({ timeoutMs: 3000 });
+    try {
+        const result = await host.execute('json-result', 'nested', `
+            return { rows: [{ ok: true, value: undefined }, { value: null }],
+                values: [undefined, , null], missing: undefined };
+        `, [], unused, signal());
+        assert.equal(result.error, undefined);
+        assert.deepEqual(result.value, { rows: [{ ok: true }, { value: null }], values: [null, null, null] });
+        const empty = await host.execute('json-result', 'empty', 'return undefined;', [], unused, signal());
+        assert.equal(empty.error, undefined);
+        assert.equal(empty.value, undefined);
+        for (const [index, code] of ['return 1n;', 'const cycle = {}; cycle.self = cycle; return cycle;'].entries()) {
+            const invalid = await host.execute('json-result', `invalid-${index}`, code, [], unused, signal());
+            assert.match(invalid.error!, /Cannot serialize program return value as JSON/);
+        }
+    } finally { await host.dispose(); }
+});

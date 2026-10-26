@@ -428,3 +428,85 @@ test('native configuration refresh injects the Profile notice into the affected 
         assert.deepEqual(injected.map(message => message.content), [[{ type: 'text', text: 'Profile updated to Default' }]]);
     } finally { await dispose(); }
 });
+
+
+test('repeated Profile saves preserve overload mapping across executions and concurrent calls', async () => {
+    const { run, injected, dispose } = await fixture();
+    try {
+        for (let index = 0; index < 8; index++) {
+            const result = await run(`
+                const profile = await tools.profile.load();
+                await tools.profile.save('Repeated', profile);
+                await tools.profile.save('Repeated', profile);
+                await tools.profile.save(profile);
+                await tools.profile.save(undefined, profile);
+                await Promise.all([tools.profile.save('Repeated', profile), tools.profile.save('Repeated', profile)]);
+                return tools.profile.profiles;
+            `);
+            assert.equal(result.isError, false, JSON.stringify(result));
+            assert.deepEqual(result.value, { logs: [], result: { profiles: ['Default', 'Repeated'], selected: 'Default' } });
+        }
+        assert.deepEqual(injected, []);
+    } finally { await dispose(); }
+});
+
+
+test('returning void Profile save results serializes undefined array entries as null', async () => {
+    const { run, dispose } = await fixture();
+    try {
+        const result = await run(`
+            const profile = await tools.profile.load();
+            return [await tools.profile.save('Repeated', profile), await tools.profile.save('Repeated', profile)];
+        `);
+        assert.equal(result.isError, false, JSON.stringify(result));
+        assert.deepEqual(result.value, { logs: [], result: [null, null] });
+        const saved = await run("return (await tools.profile.load('Repeated')).name;");
+        assert.equal(saved.isError, false, JSON.stringify(saved));
+        assert.deepEqual(saved.value, { logs: [], result: 'Repeated' });
+    } finally { await dispose(); }
+});
+
+
+test('Profile cleanup steps serialize void values and preserve per-step errors', async () => {
+    const { run, dispose } = await fixture();
+    try {
+        const setup = await run(`
+            const profile = await tools.profile.load();
+            for (const name of ['TMP_ProfileTest2', 'TMP_FromDefault', 'TMP_ProfileTest', 'TMP_Leftover']) {
+                await tools.profile.save(name, profile);
+            }
+            await tools.profile.switch('TMP_FromDefault');
+        `);
+        assert.equal(setup.isError, false, JSON.stringify(setup));
+        const result = await run(`
+            const out = [];
+            async function step(name, fn) {
+                try { out.push({ test: name, ok: true, value: await fn() }); }
+                catch (e) { out.push({ test: name, ok: false, err: String((e && e.message) || e) }); }
+            }
+            await step('delete TMP_ProfileTest2 (not current) via catalog', function () { return tools.profile.delete('TMP_ProfileTest2'); });
+            await step('delete TMP_FromDefault', function () { return tools.profile.delete('TMP_FromDefault'); });
+            await step('delete TMP_ProfileTest', function () { return tools.profile.delete('TMP_ProfileTest'); });
+            await step('switch back to Default', function () { return tools.profile.switch('Default'); });
+            await step('cleanup: delete leftover TMP profiles if any', async function () {
+                const names = tools.profile.profiles.profiles.filter(n => n.indexOf('TMP_') === 0);
+                for (const n of names) await tools.profile.delete(n);
+                return names;
+            });
+            await step('final profiles', function () { return tools.profile.profiles; });
+            out.push({ current: (await tools.profile.load()).name });
+            return out;
+        `);
+        assert.equal(result.isError, false, JSON.stringify(result));
+        const rows = (result.value as { result: { test?: string; ok?: boolean; value?: unknown; err?: string; current?: string }[] }).result;
+        assert.equal(rows.length, 7);
+        assert.deepEqual(rows[0], { test: 'delete TMP_ProfileTest2 (not current) via catalog', ok: true });
+        assert.equal(rows[1]!.ok, false);
+        assert.match(rows[1]!.err!, /Current Profile cannot be deleted: TMP_FromDefault/);
+        assert.deepEqual(rows[2], { test: 'delete TMP_ProfileTest', ok: true });
+        assert.deepEqual(rows[3], { test: 'switch back to Default', ok: true });
+        assert.deepEqual(rows[4]!.value, ['TMP_FromDefault', 'TMP_Leftover']);
+        assert.deepEqual(rows[5]!.value, { profiles: ['Default'], selected: 'Default' });
+        assert.deepEqual(rows[6], { current: 'Default' });
+    } finally { await dispose(); }
+});

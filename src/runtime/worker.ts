@@ -209,7 +209,10 @@ process.on('message', async raw => {
             try {
                 const value: unknown = await new vm.Script(message.javascript, { filename: 'exec.ts' }).runInContext(context, { timeout: syncTimeoutMs });
                 if (outputOverflow) throw new Error('Execution output exceeds configured limit');
-                const cloned = value === undefined ? undefined : RunResult.shape.value.parse(value);
+                let json: string | undefined;
+                try { json = JSON.stringify(value); }
+                catch (error) { throw new Error(`Cannot serialize program return value as JSON: ${error instanceof Error ? error.message : String(error)}`); }
+                const cloned = json === undefined ? undefined : RunResult.shape.value.parse(JSON.parse(json));
                 result = { logs, ...(cloned === undefined ? {} : { value: cloned }) };
                 if (Buffer.byteLength(JSON.stringify(result)) > maxOutputBytes) throw new Error('Execution output exceeds configured limit');
             } catch (error) { result = { logs, error: error && typeof error === 'object' && 'message' in error ? String(error.message) : String(error) }; }
