@@ -28,7 +28,7 @@ jobs:
           node --input-type=module <<'NODE' > "$RUNNER_TEMP/release_versions.tsv"
           import { collectVersions } from './scripts/release/collect_versions.mjs';
           for (const { commit, name, version } of collectVersions(process.env.BEFORE, process.env.AFTER)) {
-            console.log([commit, name, version].join('\t'));
+            console.log([commit, name.split('/').at(-1), version].join('\t'));
           }
           NODE
 
@@ -48,6 +48,34 @@ jobs:
               echo "Skipping existing release v$VERSION"
               continue
             fi
+            git fetch --tags origin
+            PREVIOUS_RELEASE=''
+            SHORTEST_DISTANCE=''
+            gh api "repos/$GH_REPO/releases" --paginate \
+              --jq '.[] | select(.draft == false) | .tag_name' > "$RUNNER_TEMP/release_tags.txt"
+            while IFS= read -r TAG; do
+              if ! git rev-parse --verify "refs/tags/$TAG^{commit}" > /dev/null 2>&1; then
+                continue
+              fi
+              if ! git merge-base --is-ancestor "refs/tags/$TAG" "$COMMIT"; then
+                continue
+              fi
+              DISTANCE=$(git rev-list --count "refs/tags/$TAG..$COMMIT")
+              if [ "$DISTANCE" -gt 0 ] && { [ -z "$SHORTEST_DISTANCE" ] || [ "$DISTANCE" -lt "$SHORTEST_DISTANCE" ]; }; then
+                PREVIOUS_RELEASE="refs/tags/$TAG"
+                SHORTEST_DISTANCE="$DISTANCE"
+              fi
+            done < "$RUNNER_TEMP/release_tags.txt"
+            COMMIT_RANGE="$COMMIT"
+            if [ -n "$PREVIOUS_RELEASE" ]; then
+              COMMIT_RANGE="$PREVIOUS_RELEASE..$COMMIT"
+            fi
+            {
+              git log --format='- %s (%h)' -n 30 "$COMMIT_RANGE"
+              if [ "$(git rev-list --count "$COMMIT_RANGE")" -gt 30 ]; then
+                printf '\n...\n'
+              fi
+            } > "$RUNNER_TEMP/release_notes.md"
             SOURCE_DIRECTORY=$(mktemp -d "$RUNNER_TEMP/release_source.XXXXXX")
             git archive "$COMMIT" | tar -x -C "$SOURCE_DIRECTORY"
             (
@@ -61,14 +89,13 @@ jobs:
           const directory = 'build/release';
           mkdirSync(directory, { recursive: true });
           const [archive] = JSON.parse(execFileSync('npm', ['pack', '--ignore-scripts', '--json', '--pack-destination', directory], { encoding: 'utf8' }));
-          const archiveName = `${process.env.PROJECT_NAME.replace(/^@/, '').replace('/', '-')}-v${process.env.VERSION}.tar.gz`;
+          const archiveName = `${process.env.PROJECT_NAME}-v${process.env.VERSION}.tar.gz`;
           renameSync(`${directory}/${archive.filename}`, `${directory}/${archiveName}`);
           console.log(archiveName);
           NODE
               )
-              printf '# %s v%s\n' "$PROJECT_NAME" "$VERSION" > build/release/notes.md
               gh release create "v$VERSION" "build/release/$ARCHIVE_NAME" \
-                --target "$COMMIT" --title "$PROJECT_NAME v$VERSION" --notes-file build/release/notes.md
+                --target "$COMMIT" --title "$PROJECT_NAME v$VERSION" --notes-file "$RUNNER_TEMP/release_notes.md"
             )
             rm -rf "$SOURCE_DIRECTORY"
           done < "$RUNNER_TEMP/release_versions.tsv"
