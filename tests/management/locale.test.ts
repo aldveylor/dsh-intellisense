@@ -94,7 +94,8 @@ test('host language switches update an open editor while preserving its unsaved 
         await until(() => document.querySelector('h1')?.textContent === 'Tool Namespace Table');
         assert.equal(document.querySelector('.ts-profile-create input')?.getAttribute('aria-label'), 'Create profile');
         assert.equal(document.querySelector<HTMLInputElement>('.ts-namespace-profile .ts-profile-create input')?.value, 'Unsaved profile');
-        assert(document.body.textContent?.includes('Native console output'));
+        assert(document.querySelector('[data-namespace-path="tools"]')?.textContent?.includes('Tool discovery and Profile management'));
+        assert.equal(document.querySelector('[data-namespace-path="console"]'), null);
         assert(document.body.textContent?.includes('1 unmounted tools'));
         (dom.window as unknown as { switchLanguage(): void }).switchLanguage();
         await until(() => document.querySelector('h1')?.textContent === '工具命名空间表');
