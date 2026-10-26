@@ -58,3 +58,5 @@ manifest 保留物理工具原始注释，精确 IntelliSense 函数查询（含
 命名参数与声明直接使用物理工具原始字段，不支持参数别名。目录按 tools/change 及会话生命周期失效，重复读取复用目录；单次原生同步共享 registry 和 manifest，有效映射按路径索引。统计以 command_statistics_sessions 保存会话目录，每个会话独立持久化，加载时聚合全局计数；每次派发仅写入当前会话，仍在确认持久化后执行物理工具，不兼容旧统计存档。
 
 原生同步以 registry.generation 和已发现路径集标识输入；配置、物理契约及发现集合未变时直接复用已注册工具名称，跳过 manifest 和注册指纹构建。物理目录内容未变时不重新克隆工具 schema。
+
+全局 queriesByTool 按查询时解析出的物理工具 ID 累计精确命令查询次数，不按当前 Profile 反推历史归属；同一工具的不同别名共享计数，仅在全局快照提供，会话快照该字段为空。计数独立持久化到 command_statistics_tool_queries，重启后恢复。命名空间继续使用全局 namespaceQueriesByPath，成员查询不增加子命令查询数。

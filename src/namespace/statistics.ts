@@ -13,14 +13,16 @@ export interface CommandStatisticsSnapshot extends CommandCounts {
     calls: number;
     namespacesQueried: number;
     commandsQueried: number;
+    queriesByTool: Record<string, number>;
 }
 
 /** @brief A normalized, resolved IntelliSense query target. */
-export interface QueryTarget { path: string; namespace: boolean }
+export interface QueryTarget { path: string; namespace: boolean; tool?: string }
 
 /** @brief Persist session and global counters together through serialized updates. */
 export class CommandStatistics {
     private global = this.empty();
+    private queriesByTool: Record<string, number> = {};
     private sessions = new Map<string, CommandCounts>();
     private pending: Promise<void> = Promise.resolve();
 
@@ -28,6 +30,7 @@ export class CommandStatistics {
 
     /** @brief Restore counters before exposing the namespace service. */
     async load(): Promise<void> {
+        this.queriesByTool = await this.store.load<Record<string, number>>('command_statistics_tool_queries') ?? {};
         const sessions = await this.store.load<string[]>('command_statistics_sessions') ?? [];
         const keys = sessions.map(session => this.key(session));
         const records = this.store.loadMany ? await this.store.loadMany<CommandCounts>(keys) : await Promise.all(keys.map(key => this.store.load<CommandCounts>(key)));
@@ -53,7 +56,7 @@ export class CommandStatistics {
         if (!targets.length) return Promise.resolve();
         return this.update(session, counts => {
             for (const target of targets) this.increment(target.namespace ? counts.namespaceQueriesByPath : counts.commandQueriesByPath, target.path);
-        });
+        }, targets);
     }
 
     /** @brief Read a durable detached global snapshot, or the specified session's snapshot. */
@@ -61,18 +64,22 @@ export class CommandStatistics {
         await this.pending;
         const counts = structuredClone(session === undefined ? this.global : this.sessions.get(session) ?? this.empty());
         const total = (values: Record<string, number>): number => Object.values(values).reduce((sum, count) => sum + count, 0);
-        return { ...counts, calls: total(counts.callsByTool), namespacesQueried: total(counts.namespaceQueriesByPath), commandsQueried: total(counts.commandQueriesByPath) };
+        return { ...counts, queriesByTool: session === undefined ? structuredClone(this.queriesByTool) : {}, calls: total(counts.callsByTool), namespacesQueried: total(counts.namespaceQueriesByPath), commandsQueried: total(counts.commandQueriesByPath) };
     }
 
     /** @brief Commit both scopes atomically without losing concurrent dispatches or queries. */
-    private update(session: string, change: (counts: CommandCounts) => void): Promise<void> {
+    private update(session: string, change: (counts: CommandCounts) => void, targets: readonly QueryTarget[] = []): Promise<void> {
         const work = this.pending.then(async () => {
             const next = structuredClone(this.sessions.get(session) ?? this.empty());
             change(next);
+            const queriesByTool = structuredClone(this.queriesByTool);
+            for (const target of targets) if (!target.namespace && target.tool) this.increment(queriesByTool, target.tool);
+            if (targets.some(target => !target.namespace && target.tool)) await this.store.save('command_statistics_tool_queries', queriesByTool);
             if (!this.sessions.has(session)) await this.store.save('command_statistics_sessions', [...this.sessions.keys(), session]);
             await this.store.save(this.key(session), next);
             this.sessions.set(session, next);
             change(this.global);
+            this.queriesByTool = queriesByTool;
         });
         this.pending = work.catch(() => {});
         return work;

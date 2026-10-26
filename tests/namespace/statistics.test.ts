@@ -34,7 +34,7 @@ test('query targets count normalized occurrences without expanding members or ru
     const root = namespace([{ path: 'std.read', tool: 'read', doc: '', schema: {}, output: {} }]);
     assert.deepEqual(intellisenseQueryTargets(['', 'global.std.', 'std', 'std.read', 'global.std.read', 'std.read.', 'missing', 'console.', 'console.log'], root), [
         { path: '', namespace: true }, { path: 'std', namespace: true }, { path: 'std', namespace: true },
-        { path: 'std.read', namespace: false }, { path: 'std.read', namespace: false },
+        { path: 'std.read', namespace: false, tool: 'read' }, { path: 'std.read', namespace: false, tool: 'read' },
     ]);
     assert.throws(() => intellisenseQueryTargets(['std..'], root), /Invalid IntelliSense query/);
 });
@@ -78,4 +78,26 @@ for (const ptc of [false, true]) test(`physical IntelliSense records query targe
     assert.equal(counts.calls, 0);
     assert.deepEqual(counts.namespaceQueriesByPath, { std: 1 });
     assert.deepEqual(counts.commandQueriesByPath, { 'std.read': 1 });
+});
+
+
+test('global tool query totals follow physical identities across aliases and survive reload', async () => {
+    const store = new MemoryStore();
+    const statistics = new CommandStatistics(store);
+    const root = namespace([
+        { path: 'std.read', tool: 'read', doc: '', schema: {}, output: {} },
+        { path: 'files.read', tool: 'read', doc: '', schema: {}, output: {} },
+    ]);
+    await Promise.all([
+        statistics.recordQueries('first', intellisenseQueryTargets(['std.', 'std.read', 'global.std.read'], root)),
+        statistics.recordQueries('second', intellisenseQueryTargets(['files.', 'files.read'], root)),
+    ]);
+    const snapshot = await statistics.snapshot();
+    assert.deepEqual(snapshot.queriesByTool, { read: 3 });
+    assert.deepEqual(snapshot.namespaceQueriesByPath, { std: 1, files: 1 });
+    assert.deepEqual((await statistics.snapshot('first')).queriesByTool, {});
+    snapshot.queriesByTool.read = 100;
+    const restored = new CommandStatistics(store);
+    await restored.load();
+    assert.deepEqual((await restored.snapshot()).queriesByTool, { read: 3 });
 });

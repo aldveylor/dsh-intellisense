@@ -15,7 +15,7 @@ export function intellisenseQueryTargets(queries: readonly string[], root: Names
         const node = root.resolve(path ? path.split('.') : []);
         if (!node || node.disabled) return [];
         if (node instanceof NamespaceNode) return [{ path, namespace: true }];
-        return !query.endsWith('.') ? [{ path, namespace: false }] : [];
+        return !query.endsWith('.') ? [{ path, namespace: false, tool: node.tool }] : [];
     });
 }
 
