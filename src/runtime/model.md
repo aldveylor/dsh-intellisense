@@ -8,7 +8,7 @@
 
 `host.ts` 直接通过 process.execPath 启动带 --permission 的 Node 进程。Node 未授予文件读写、子进程、worker、addon、WASI、inspector 等权限。启动脚本由宿主构建为 bundle，经 stdin 一次性送入并关闭 stdin，之后控制与工具交互只有 IPC。没有为加载源码开放 dist/node_modules 文件读取权限。`sandbox.ts` 启动时检查权限未授权，并实际验证文件读取及子进程创建被 ERR_ACCESS_DENIED 拒绝；缺少能力时加载失败，无宽松回退。隔离范围由当前 Node 权限模型决定；Node 24 的 --permission 不限制网络，不再提供系统调用级网络或 ptrace 封锁。guest 仍不暴露 process、require、fetch 或模块导入能力。这不是已证明覆盖所有 Node/V8 漏洞的安全性结论。
 
-执行超时、取消、进程退出或 release 都终止进程，拒绝未决请求并取消宿主工具信号。重建 epoch 增加，后续运行获得新的进程状态。dispose 等待工具回调和进程退出。可调预算全部由 RuntimeConfig 验证；默认 wall timeout 为 120000ms，与安装的原生 Node PTC 后端默认一致，另有可调同步 VM deadline。
+执行超时、取消、进程退出或 release 都终止进程，拒绝未决请求并取消宿主工具信号。启动源码管道写入前注册错误处理，启动期间终止进程导致的 EPIPE 同样通过运行时关闭流程结算，不触发未处理的流错误。重建 epoch 增加，后续运行获得新的进程状态。dispose 等待工具回调和进程退出。可调预算全部由 RuntimeConfig 验证；默认 wall timeout 为 120000ms，与安装的原生 Node PTC 后端默认一致，另有可调同步 VM deadline。
 
 程序返回值先按标准 JSON.stringify 语义序列化，再校验传输数据：对象中的 undefined 字段省略，数组中的 undefined 和空位转换为 null，顶层 undefined 仍表示无返回值；循环引用和 BigInt 等不可序列化返回值明确报告程序返回值序列化失败。工具命令的 void 返回契约不变。
 

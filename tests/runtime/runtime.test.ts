@@ -128,6 +128,19 @@ test('timeout and cancellation terminate a process, abort pending RPC and advanc
     } finally { await host.dispose(); }
 });
 
+test('cancellation during worker startup rejects cleanly and permits a fresh execution', async () => {
+    const host = new RuntimeHost({ timeoutMs: 3000 });
+    try {
+        for (let index = 0; index < 3; index++) {
+            await assert.rejects(host.execute('startup', `cancel-${index}`, 'return 1;', [], unused, AbortSignal.timeout(10)), /cancelled/);
+            const next = await host.execute('startup', `retry-${index}`, 'return 42;', [], unused, signal());
+            assert.equal(next.error, undefined);
+            assert.equal(next.value, 42);
+            await host.release('startup');
+        }
+    } finally { await host.dispose(); }
+});
+
 test('A10: disposal rejects pending work and prevents any future runtime launch', async () => {
     const host = new RuntimeHost({ timeoutMs: 3000 });
     const first = await host.execute('dispose', 'one', 'return 1;', [], unused, signal());

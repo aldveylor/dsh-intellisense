@@ -56,18 +56,19 @@ export class RuntimeHost {
         const child = spawn(process.execPath, ['--permission', `--max-old-space-size=${this.config.heapMb}`, '--input-type=module', '-'], {
             env: {}, stdio: ['pipe', 'ignore', 'pipe', 'ipc'], serialization: 'advanced',
         });
-        child.stdin!.end(javascript);
         const state: ProcessState = { child, epoch: this.epoch(owner), sequence: 0, pending: new Map(), calls: new Set(), closed: false };
         this.processes.set(owner, state);
         let diagnostics = '';
         child.stderr?.on('data', chunk => { diagnostics = (diagnostics + String(chunk)).slice(-this.config.diagnosticChars); });
         child.on('error', error => this.close(owner, state, error));
+        child.stdin!.on('error', error => this.close(owner, state, error));
         child.on('exit', () => this.close(owner, state, new Error(`Runtime process exited; global state was reset${diagnostics ? ': ' + diagnostics : ''}`)));
         child.on('message', raw => {
             const work = this.receive(owner, state, raw);
             state.calls.add(work);
             void work.finally(() => state.calls.delete(work));
         });
+        child.stdin!.end(javascript);
         return state;
     }
 
