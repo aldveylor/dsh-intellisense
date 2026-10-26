@@ -30,6 +30,7 @@ export function namespaceDeclaration(items: readonly NamespaceDeclaration[], amb
     /** @brief Render reserved method names as object members, since namespace function bindings cannot use keywords. */
     function objectMembers(node: DeclarationNode, indent: string): void {
         for (const [name, child] of [...node.children].sort(([a], [b]) => a.localeCompare(b))) {
+            if (child.description && !child.declaration) lines.push(`${indent}/** @brief ${clean(child.description)} */`);
             if (child.namespace || child.children.size) {
                 lines.push(`${indent}${name}: {`);
                 objectMembers(child, indent + '  ');
@@ -53,7 +54,10 @@ export function namespaceDeclaration(items: readonly NamespaceDeclaration[], amb
                 lines.push(`${indent}}`);
             } else if (child.declaration) {
                 lines.push(...child.declaration.trim().replaceAll('`', '\u02cb').replaceAll('<|', '< |').split('\n').map(line => indent + line));
-            } else lines.push(`${indent}const ${name}: ${child.valueType ?? 'Function'};${brief}`);
+            } else {
+                if (child.description) lines.push(`${indent}/** @brief ${clean(child.description)} */`);
+                lines.push(`${indent}const ${name}: ${child.valueType ?? 'Function'};`);
+            }
         }
     }
     visit(root, ambient ? '  ' : '');

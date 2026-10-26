@@ -38,6 +38,8 @@ PTC 每次执行重建 VM Context，不保证环境连续，不支持 globalThis
 
 `declaration.ts` 定义共享命名空间声明项与唯一树渲染器，负责路径合并、稳定排序、嵌套、简略 Function 占位、常量和完整声明，以及提示围栏转义。namespace.ts 仅投影工具契约；intellisense.ts 仅选择查询结果；prompt.ts 仅选择提示内容。三种入口统一使用该树模型，内置签名与重载也共用 builtinDeclaration。
 
+常量与对象成员通过前置 Doxygen JSDoc 保留描述；tools.profile 因含 delete/switch 使用对象声明时，annotation、commands、profiles 等字段仍提供注释，单独查询字段同样保留。
+
 `tools` 根命名空间不可禁用：共享 permissions.disableable 为 false，UI 不显示禁用按钮且回调不允许禁用；registry 拒绝将 tools 写入 builtinDisabled。tools 下其余命令和 tools.profile 仍保留各自禁用权限，tools.intellisense 始终可用。
 
 
