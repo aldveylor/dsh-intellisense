@@ -9,7 +9,7 @@ import type { ScopeKey } from '@deepseek-ai/dsh-scope';
 import '@deepseek-ai/dsh-agent-preset-registry';
 import type { PhysicalTool, SemanticRegistry } from '../registry/registry.js';
 import type { ProfileSessions } from '../registry/profiles.js';
-import { manifest, nativeSchema, type Aliases, NamespaceNode, type CommandNode } from './namespace.js';
+import { declaration, manifest, nativeSchema, type Aliases, NamespaceNode, type CommandNode } from './namespace.js';
 import { namespaceDirectory, type NamespaceHint } from './prompt.js';
 import { pluginCommands, reservedToolIds } from '../runtime/builtins.js';
 import { type CommandBrief, type Profiles, profileAnnotation } from '../registry/profile_tree.js';
@@ -154,8 +154,9 @@ export class NamespaceComponent {
             }
             const mapping = registry.effective().find(mapping => mapping.id === entry.tool);
             const level = entry.fixLevel(mapping?.alwaysVisible);
-            if (level) hints.push({ path: entry.path, description: state.toolComments?.[entry.tool] ?? mapping?.description ?? entry.doc,
-                ...(level === 2 ? { declaration: entry.declaration(false) } : {}) });
+            const description = mapping?.description ?? entry.doc.trim().split(/\r?\n/, 1)[0]!;
+            if (level) hints.push({ path: entry.path, description,
+                ...(level === 2 ? { declaration: declaration({ ...entry, path: entry.path, doc: description }, false) } : {}) });
         }
         for (const item of state.namespaces ?? []) {
             const node = root.resolve(item.path.split('.'));
@@ -217,7 +218,9 @@ export class NamespaceComponent {
         const entries = await this.entries(agent);
         const visible = new Set((await this.nativeEntries(agent)).map(entry => entry.path));
         const bindings = nativeBindings(entries, this.physical(agent).map(tool => tool.id)).filter(({ entry }) => visible.has(entry.path));
-        const fingerprint = JSON.stringify(bindings.map(({ entry, name }) => ({ name, path: entry.path, node: entry.serialize() })));
+        const briefs = new Map((await this.registryFor(agent)).effective().map(mapping => [mapping.id, mapping.description]));
+        const descriptionFor = (entry: CommandNode): string => briefs.get(entry.tool) ?? entry.doc.trim().split(/\r?\n/, 1)[0]!;
+        const fingerprint = JSON.stringify(bindings.map(({ entry, name }) => ({ name, path: entry.path, node: entry.serialize(), description: descriptionFor(entry) })));
         const previous = this.nativeTools.get(agent.id);
         if (previous?.fingerprint === fingerprint) return bindings.map(binding => binding.name);
         for (const dispose of previous?.disposers ?? []) dispose();
@@ -226,7 +229,7 @@ export class NamespaceComponent {
         for (const { entry, name } of bindings) {
             if (name === entry.tool && !entry.argMap) continue;
             const definition: ToolDefinition = {
-                name, description: `${entry.path}: ${entry.doc}`, parameters: nativeSchema(entry),
+                name, description: `${entry.path}: ${descriptionFor(entry)}`, parameters: nativeSchema(entry),
                 output: { schema: entry.tool === 'tools_intellisense' ? entry.output ?? {} : {}, render: (_args, value) => [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value) }] },
                 execute: async (args, parent) => {
                     const caller = parent.agent;

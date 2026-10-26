@@ -27,7 +27,7 @@ test('native names satisfy API limits and avoid path and physical name collision
 
 test('native aliases publish callable names, map arguments and revoke stale handlers', async () => {
     const definitions = new Map<string, ToolDefinition>();
-    const ctx = { effect: () => {}, on: () => {}, emit: () => {}, tools: {
+    const ctx = { effect: () => {}, on: () => {}, emit: () => {}, agents: { list: () => [] }, tools: {
         register: (tool: ToolDefinition) => { definitions.set(tool.name, tool); return () => { definitions.delete(tool.name); }; },
     } } as unknown as Context;
     const store = new MemoryStore(), registry = new SemanticRegistry(store);
@@ -56,6 +56,7 @@ test('native aliases publish callable names, map arguments and revoke stale hand
     const prompt = await component.prompt(agent);
     assert.equal(prompt, '');
     const open = definitions.get('ns_fs__open')!;
+    assert.equal(open.description, 'fs.open: Read file');
     assert.deepEqual(open.parameters, { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] });
     component.dispatch = async (_agent, entry, args) => ({ tool: entry.tool, args });
     const parent = { agent } as ToolRunContext;
@@ -67,12 +68,13 @@ test('native aliases publish callable names, map arguments and revoke stale hand
     await component.release(agent.id);
 });
 
-test('native discovery prefers Profile briefs and keeps full documentation out of results', () => {
+test('native discovery shows original documentation only for exact functions', () => {
     const root = namespace([{ path: 'fs.read', tool: 'read_file', doc: 'Read file\nFull file documentation.', schema: {}, output: {} }]);
     for (const queries of [['fs.'], ['fs.read']]) {
         const discovery = JSON.parse(nativeDiscovery(queries, root, [], () => 'Profile brief'));
         assert.equal(discovery.members[0].brief, 'Profile brief');
-        assert(!JSON.stringify(discovery).includes('Full file documentation.'));
+        if (queries[0] === 'fs.read') assert.equal(discovery.members[0].description, 'Read file\nFull file documentation.');
+        else assert(!JSON.stringify(discovery).includes('Full file documentation.'));
     }
 });
 

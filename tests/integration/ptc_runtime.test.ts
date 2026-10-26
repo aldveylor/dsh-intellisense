@@ -555,10 +555,15 @@ test('Profile organization mounts catalog commands and applies briefs without mu
         assert.deepEqual(invoked.value, { logs: [], result: 'working_directory' });
         const tree = await namespaces.tree(agent);
         assert.equal(tree.resolve(['files'])?.serialize().description, 'File operations');
-        assert.equal(tree.resolve(['files', 'read'])?.serialize().command?.doc, 'Brief read');
-        assert.equal(tree.resolve(['files', 'tools_external'])?.serialize().command?.doc, 'Brief tools_external');
+        assert.equal(tree.resolve(['files', 'read'])?.serialize().command?.doc, 'Original read');
+        assert.equal(tree.resolve(['files', 'tools_external'])?.serialize().command?.doc, 'Original tools_external');
         const discovery = await run('return await tools.intellisense("files.read");');
         assert.equal(discovery.isError, false, JSON.stringify(discovery));
-        assert.match(JSON.stringify(discovery.value), /Brief read/);
+        assert.match(JSON.stringify(discovery.value), /Original read/);
+        assert.doesNotMatch(JSON.stringify(discovery.value), /Brief read/);
+        const members = await run('return await tools.intellisense("files.");');
+        assert.equal(members.isError, false, JSON.stringify(members));
+        assert.match(JSON.stringify(members.value), /Brief read/);
+        assert.doesNotMatch(JSON.stringify(members.value), /Original read/);
     } finally { await dispose(); }
 });

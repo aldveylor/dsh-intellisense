@@ -94,13 +94,13 @@ export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Ali
         for (const path of [mapping.path, ...mapping.aliases]) {
             // Unmounted physical tools are not synthesized below the protected tools namespace.
             if (path.startsWith('tools.')) continue;
-            insert({ path, tool: mapping.id, schema: mapping.tool.parameters, output: mapping.tool.output, doc: mapping.description ?? mapping.tool.description });
+            insert({ path, tool: mapping.id, schema: mapping.tool.parameters, output: mapping.tool.output, doc: mapping.tool.description });
         }
     }
     const mounted = new Set(effective.map(mapping => mapping.id));
     for (const alias of aliases) {
         const tool = registry.tools().find(tool => tool.id === alias.tool);
-        if (tool && mounted.has(tool.id)) insert({ ...alias, schema: tool.parameters, output: tool.output, doc: effective.find(mapping => mapping.id === tool.id)?.description ?? tool.description });
+        if (tool && mounted.has(tool.id)) insert({ ...alias, schema: tool.parameters, output: tool.output, doc: tool.description });
     }
     return root;
 }

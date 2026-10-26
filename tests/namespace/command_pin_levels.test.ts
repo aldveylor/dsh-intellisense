@@ -29,12 +29,14 @@ test('three command levels hide, summarize, or publish complete documented signa
         assert.equal(text.includes('namespace files'), level > 0);
         assert.equal(text.includes('const dir:') || text.includes('function dir('), level > 0);
         if (level === 1) {
-            assert(text.includes('const read: Function;  // Custom brief'));
+            assert(text.includes('/** @brief Custom brief */'));
+            assert(text.includes('const read: Function;'));
             assert(!text.includes('@param path'));
         }
         if (level === 2) {
             assert(text.includes('function read(path: string): Promise<string>;'));
-            assert(text.includes('@brief Read a file.'));
+            assert(text.includes('@brief Custom brief'));
+            assert(!text.includes('Read a file.'));
             assert(text.includes('@param path File path.'));
             assert(!text.includes('@returns'));
             assert(!text.includes('File contents.'));

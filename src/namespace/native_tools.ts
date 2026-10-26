@@ -37,8 +37,8 @@ export function nativeDiscovery(queries: readonly string[], root: NamespaceNode,
         return { path: node.path, ...(description?.trim() ? { brief: description } : {}),
             ...(node instanceof NamespaceNode ? { namespace: true } : {
                 deployment: node.deployment,
-                ...(node.deployment === 'tool' ? {} : { tool: names.get(node), description: node.doc }),
-                ...(exact.has(node.path) ? { parameters: nativeSchema(node), output: outputSchema(node.output) } : {}),
+                ...(node.deployment === 'tool' ? {} : { tool: names.get(node) }),
+                ...(exact.has(node.path) ? { description: node.doc, parameters: nativeSchema(node), output: outputSchema(node.output) } : {}),
             }) };
     });
     return JSON.stringify({ members }, null, 2);
