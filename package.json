@@ -46,16 +46,16 @@
       "types": "./dist/integration/presentation.d.ts",
       "default": "./dist/integration/presentation.js"
     },
-    "./locale/en.json": "./src/metadata/lang/en.json",
-    "./locale/zh.json": "./src/metadata/lang/zh.json",
-    "./client/locale/en.json": "./src/metadata/lang/en.json",
-    "./client/locale/zh.json": "./src/metadata/lang/zh.json",
-    "./preset/locale/en.json": "./src/metadata/lang/en.json",
-    "./preset/locale/zh.json": "./src/metadata/lang/zh.json",
-    "./namespace/locale/en.json": "./src/metadata/lang/en.json",
-    "./namespace/locale/zh.json": "./src/metadata/lang/zh.json",
-    "./presentation/locale/en.json": "./src/metadata/lang/en.json",
-    "./presentation/locale/zh.json": "./src/metadata/lang/zh.json"
+    "./locale/en.json": "./src/metadata/plugin/en.json",
+    "./locale/zh.json": "./src/metadata/plugin/zh.json",
+    "./client/locale/en.json": "./src/metadata/plugin/en.json",
+    "./client/locale/zh.json": "./src/metadata/plugin/zh.json",
+    "./preset/locale/en.json": "./src/metadata/preset/en.json",
+    "./preset/locale/zh.json": "./src/metadata/preset/zh.json",
+    "./namespace/locale/en.json": "./src/metadata/namespace/en.json",
+    "./namespace/locale/zh.json": "./src/metadata/namespace/zh.json",
+    "./presentation/locale/en.json": "./src/metadata/presentation/en.json",
+    "./presentation/locale/zh.json": "./src/metadata/presentation/zh.json"
   },
   "files": [
     "dist",
