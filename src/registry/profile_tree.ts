@@ -13,7 +13,10 @@ export interface CommandBrief { name: CommandName; brief: string; totalCalls: nu
 export interface Profiles { profiles: string[]; selected: string }
 
 /** @brief Profiles expose the same serialized tree/leaf node description as management clients. */
-export interface Profile { name: string; root: SerializedNode }
+export interface Profile { name: string; root: SerializedNode; restrict?: Record<string, ProfileRestriction> }
+
+/** @brief Agent guidance derived from permissions; fields are immutable, children lists exact membership. */
+export interface ProfileRestriction { fields: string[]; preservePath: boolean; required: boolean; fixedLevels: (0 | 1 | 2)[]; children?: string[] }
 
 /** @brief Validate shared permissions without trusting them as the server's authority. */
 const permissionSchema = z.strictObject({ renamable: z.boolean(), movable: z.boolean(), removable: z.boolean(), disableable: z.boolean(), acceptsChildren: z.boolean(), availableFixLevels: z.array(z.union([z.literal(0), z.literal(1), z.literal(2)])) });
@@ -27,8 +30,10 @@ const nodeSchema: z.ZodType<SerializedNode> = z.lazy(() => z.strictObject({
     fixedLevel: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(), disabled: z.boolean().optional(),
 }));
 
-/** @brief Validate complete editable Profile input before applying server-owned node policies. */
-export const ProfileSchema: z.ZodType<Profile> = z.strictObject({ name: z.string(), root: nodeSchema });
+/** @brief Validate editable Profile input; accept Agent-only restrict metadata without validating or trusting it. */
+export const ProfileSchema: z.ZodType<Profile> = z.strictObject({ name: z.string(), root: nodeSchema,
+    restrict: z.unknown().optional().describe('Read-only Agent guidance generated from node permissions, keyed by dot-separated node path. Preserve this metadata when organizing. fields lists immutable node fields (including nested values and absence); preservePath forbids moving; required forbids removal; fixedLevels lists allowed fixedLevel values (empty means preserve it); children, when present, lists exact direct child names, whose nodes remain editable according to their own rules. Server validation uses permissions, not restrict.') as z.ZodType<Profile['restrict']>,
+});
 
 /** @brief Create protected children first, then add configured mappings without replacing existing nodes. */
 export function profileTree(name: string, configuration: RegistryConfiguration): Profile {
@@ -48,8 +53,20 @@ export function profileTree(name: string, configuration: RegistryConfiguration):
         nodeFor(parts.slice(0, -1).join('.')).add(new CommandNode(parts.at(-1)!, nodeFor(parts.slice(0, -1).join('.')), { tool: mapping.id, schema: {}, output: {}, doc: configuration.toolComments?.[mapping.id] ?? mapping.description ?? '' }));
     }
     const snapshot = root.serialize();
+    const restrict: Record<string, ProfileRestriction> = {};
     const apply = (node: SerializedNode, prefix: string): void => {
         const path = prefix ? `${prefix}.${node.name}` : node.name;
+        const permissions = node.permissions;
+        if (!permissions.renamable || !permissions.movable || !permissions.removable) {
+            const fields = ['type', 'permissions', 'command', 'description', 'signature', 'deployment', 'preload'];
+            if (!permissions.renamable) fields.push('name');
+            if (!permissions.disableable) fields.push('disabled');
+            if (permissions.availableFixLevels.length <= 1) fields.push('fixedLevel');
+            restrict[path] = { fields, preservePath: !permissions.movable, required: !permissions.removable,
+                fixedLevels: [...permissions.availableFixLevels],
+                ...(node.type === 'tree' && !permissions.acceptsChildren ? { children: (node.children ?? []).map(child => child.name) } : {}),
+            };
+        }
         const mapping = configuration.mappings.find(item => [item.path, ...item.aliases].includes(path));
         const namespace = configuration.namespaces.find(item => item.path === path);
         node.fixedLevel = fixLevel(node.permissions, node.type === 'leaf' ? configuration.builtinVisible?.[path] ?? mapping?.alwaysVisible ?? 0
@@ -58,7 +75,7 @@ export function profileTree(name: string, configuration: RegistryConfiguration):
         for (const child of node.children ?? []) apply(child, path);
     };
     apply(snapshot, '');
-    return { name, root: snapshot };
+    return { name, root: snapshot, restrict };
 }
 
 /** @brief Apply Profile edits while the parent enforces server-owned child removal and insertion permissions. */
@@ -121,4 +138,17 @@ interface NamespaceNode {
     fixedLevel?: 0 | 1 | 2; disabled?: boolean;
 }
 /** @brief Named namespace configuration with an anonymous root. */
-interface Profile { name: string; root: NamespaceNode; }`;
+interface Profile { name: string; root: NamespaceNode; restrict?: Record<string, ProfileRestriction>; }
+/** @brief Read-only Agent guidance generated from permissions for protected nodes such as console and tools. Keys are dot-separated paths from root (e.g. tools.profile.save). Preserve restrict when organizing; the server uses permissions, not this metadata, for validation. */
+interface ProfileRestriction {
+    /** @brief Preserve these node fields exactly, including nested values and absent optional fields. */
+    fields: string[];
+    /** @brief When true, keep this node at its current path. */
+    preservePath: boolean;
+    /** @brief When true, keep this node present even when disabled. */
+    required: boolean;
+    /** @brief Allowed fixedLevel values; an empty list means preserve the current value. */
+    fixedLevels: (0 | 1 | 2)[];
+    /** @brief Exact direct child names when present: do not add, remove or rename members; edit each child's fields only according to its permissions and restrictions. */
+    children?: string[];
+}`;
