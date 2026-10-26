@@ -1,4 +1,4 @@
-name: Publish version release
+name: Publish npm package and version release
 
 on:
   push:
@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 concurrency:
   group: publish-version-release
@@ -39,8 +40,12 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
           # Dependency installation is optional, so the pnpm store may not exist.
           package-manager-cache: false
+
+      - name: Setup npm for trusted publishing
+        run: npm install --global npm@latest
 
       - name: Build and publish each version commit
         env:
@@ -103,6 +108,7 @@ jobs:
           console.log(archiveName);
           NODE
               )
+              npm publish --access public "build/release/$ARCHIVE_NAME"
               gh release create "v$VERSION" "build/release/$ARCHIVE_NAME" \
                 --target "$COMMIT" --title "$PROJECT_NAME v$VERSION" --notes-file "$RUNNER_TEMP/release_notes.md"
             )
