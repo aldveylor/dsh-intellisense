@@ -1,11 +1,12 @@
 import type { Context } from '@deepseek-ai/cordis';
 import { storageBackendServiceKey } from '@deepseek-ai/dsh-storage';
 import { z } from 'zod';
+import * as presetPlugin from './integration/preset.js';
 import * as namespacePlugin from './namespace/plugin.js';
 import { RuntimeConfig } from './runtime/host.js';
 
 export const name = 'dsh-intellisense';
-export const inject = ['tools', 'agents', 'systemPrompt', 'storage', storageBackendServiceKey('json'), 'connection'];
+export const inject = ['tools', 'agents', 'systemPrompt', 'storage', storageBackendServiceKey('json'), 'connection', 'agentPresets'];
 /** @brief Configure aliases and the isolated namespace execution backend. */
 export const Config = RuntimeConfig.extend({ aliasesFile: z.string().optional(), defaultSearchMethod: z.string().regex(/^[a-z][a-z0-9_]*$/).optional() });
 /** @brief Public plugin settings; each presentation selects its execution mode. */
@@ -16,6 +17,7 @@ export async function apply(ctx: Context, options: Config = {}): Promise<void> {
     const { aliasesFile, defaultSearchMethod, ...runtimeOptions } = Config.parse(options);
     ctx.provide('codeRuntimeOptions', runtimeOptions);
     await ctx.plugin(namespacePlugin, { aliasesFile, defaultSearchMethod });
+    await ctx.plugin(presetPlugin);
 }
 
 export { RuntimeHost } from './runtime/host.js';
@@ -34,3 +36,6 @@ export type { ToolDefinition } from '@deepseek-ai/dsh-tools';
 
 export { SearchEngineRegistry } from './search/engine_registry.js';
 export type { SearchEngine, SearchSelection, SearchDocument, SearchSelector, SearchField } from './search/engine_registry.js';
+
+export { CommandStatistics } from './namespace/statistics.js';
+export type { CommandCounts, CommandStatisticsSnapshot, QueryTarget } from './namespace/statistics.js';

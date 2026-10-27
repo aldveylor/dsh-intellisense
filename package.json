@@ -31,25 +31,13 @@
     "./package.json": "./package.json",
     "./icon": "./assets/icon.svg",
     "./client/icon": "./assets/icon.svg",
-    "./preset/icon": "./assets/icon.svg",
-    "./namespace/icon": "./assets/icon.svg",
     "./presentation/icon": "./assets/icon.svg",
-    "./preset": {
-      "types": "./dist/integration/preset.d.ts",
-      "default": "./dist/integration/preset.js"
-    },
-    "./namespace": {
-      "types": "./dist/namespace/plugin.d.ts",
-      "default": "./dist/namespace/plugin.js"
-    },
     "./presentation": {
       "types": "./dist/integration/presentation.d.ts",
       "default": "./dist/integration/presentation.js"
     },
     "./locale/*.json": "./src/metadata/plugin/*.json",
     "./client/locale/*.json": "./src/metadata/plugin/*.json",
-    "./preset/locale/*.json": "./src/metadata/preset/*.json",
-    "./namespace/locale/*.json": "./src/metadata/namespace/*.json",
     "./presentation/locale/*.json": "./src/metadata/presentation/*.json"
   },
   "files": [

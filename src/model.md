@@ -1,6 +1,6 @@
 # 源码模型
 
-包名为 @aldveylor/dsh-intellisense，组件显示名称由 metadata/ 中的 locale 元数据定义，不包含 npm scope；包入口引用、客户端模块 ID 与 bundle 配置页注册键使用完整包名。默认入口 index.ts 组合命名空间服务与受限运行时，注册 Intellisense PTC（intellisense-ptc，TS/JS 执行）和 Intellisense（intellisense，原生 DSML 执行）两个 Agent Mode；包入口 ./namespace 可独立挂载原生命名空间服务，不创建 VM。
+包名为 @aldveylor/dsh-intellisense，组件显示名称由 metadata/ 中的 locale 元数据定义，不包含 npm scope；包入口引用、客户端模块 ID 与 bundle 配置页注册键使用完整包名。默认入口 index.ts 组合命名空间服务与受限运行时，注册 Intellisense PTC（intellisense-ptc，TS/JS 执行）和 Intellisense（intellisense，原生 DSML 执行）两个 Agent Mode；命名空间服务与 preset 注册由主入口内部挂载，不再提供 ./namespace 和 ./preset 公开入口；主插件依赖 agentPresets 服务。
 
 根入口同时导出 NamespaceNode、CommandNode 类及公共工具、映射、注册器配置/状态、Profile、节点权限/序列化、运行时绑定/结果和 Store 类型；ToolDefinition 类型转导出自原生 dsh-tools，供外部扩展使用。
 
@@ -36,9 +36,9 @@ UI 不再显示 unknown 块。树上方显示当前可用但未挂载的工具�
 
 ## 构建和部署
 
-插件图标使用 `assets/icon.svg`，通过 package.json 的 icon 字段声明并纳入 files 发布清单；根入口与 client、preset、namespace、presentation 子路径均导出对应的 `/icon` 资源，供宿主读取插件显示元数据。
+插件图标使用 `assets/icon.svg`，通过 package.json 的 icon 字段声明并纳入 files 发布清单；根入口与 client、presentation 子路径均导出对应的 `/icon` 资源，供宿主读取插件显示元数据。
 
-`run.mjs` 与 scripts/local_plugin.mjs 将本包登记为原生 bundle；本地启动按 checkout 和插件目录集合的摘要使用独立开发 profile，不改写共享 web profile。本地注册保留其它 link 依赖和 bundle，冲突时报错，相同配置不重复写 manifest。cordis.patch.yml 注册插件和两个模式，默认 intellisense-ptc。presets/intellisense_ptc 与 presets/intellisense 各自保存 preset.yml 模式元数据和完整的 agent.cordis.yml 插件配置；各自 YAML 显式声明 presentation.config.mode 为 ptc/native，注册入口仅加载、校验并注册，不注入或改写执行模式；默认不加载额外的 YAML 别名，可通过 aliasesFile 显式指定共享别名文件。两个模式分别通过 presentation 配置选择 ptc/native 呈现，并据此生成初始 prompt。
+`run.mjs` 与 scripts/local_plugin.mjs 将本包登记为原生 bundle；本地启动按 checkout 和插件目录集合的摘要使用独立开发 profile，不改写共享 web profile。本地注册保留其它 link 依赖和 bundle，冲突时报错，相同配置不重复写 manifest。cordis.patch.yml 仅挂载主插件，由主插件内部注册两个模式，默认 intellisense-ptc。presets/intellisense_ptc 与 presets/intellisense 各自保存 preset.yml 模式元数据和完整的 agent.cordis.yml 插件配置；各自 YAML 显式声明 presentation.config.mode 为 ptc/native，注册入口仅加载、校验并注册，不注入或改写执行模式；默认不加载额外的 YAML 别名，可通过 aliasesFile 显式指定共享别名文件。两个模式分别通过 presentation 配置选择 ptc/native 呈现，并据此生成初始 prompt。
 
 两个模式的 presentation 配置项 ID 统一为 intellisense-presentation，通过 config.mode 的 ptc/native 区分执行方式。保留基础包 ptc-runtime，供其它模式使用。Intellisense PTC 的 presentation 隔离 namespaceRuntime/codeRuntime 服务，并在自身作用域创建 NamespaceRuntime 与 RuntimeHost，不替换全局 ptcRuntime；内置工具也仅注册到两个自定义模式的 presentation 作用域。
 

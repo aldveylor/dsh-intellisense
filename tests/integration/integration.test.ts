@@ -51,8 +51,14 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
             ctx.provide('subagents', { startActivation: async () => { throw new Error('Unused'); } });
             ctx.tools.register(defineTool({ name: 'read_file', description: 'Read a file\nComplete file documentation.', parameters: {},
                 output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] }, execute: async () => 'contents' }));
+            const presets = new Map<string, unknown>();
+            ctx.provide('agentPresets', { list: async () => [], register: async (preset: { id: string }) => {
+                presets.set(preset.id, preset);
+                return () => { presets.delete(preset.id); };
+            } });
             const model = new ScriptedModel(); ctx.llm.registerAdapter(['fake'], model);
             const mounted = mode === 'native' ? await ctx.plugin(namespacePlugin) : await ctx.plugin(plugin, { timeoutMs: 3000 });
+            assert.deepEqual([...presets.keys()].sort(), mode === 'native' ? [] : ['intellisense', 'intellisense-ptc']);
             assert.deepEqual([...routes.keys()].sort(), ['/api/ts-intellisense', '/api/ts-intellisense-client', '/api/ts-intellisense-profile', '/api/ts-intellisense-state']);
             const agent = await ctx.agentLoop.create(SessionId(`integration-${mode}`), { provider: 'fake', model: 'scripted' });
             const namespaces = ctx.commandNamespaces;
@@ -116,6 +122,7 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
             assert(!agent.session.snapshotEvents().some(event => String(event.type) === 'plugin:ts_intellisense/rewrite'));
             await mounted.dispose();
             assert.equal(ctx.get('commandNamespaces'), undefined);
+            assert.equal(presets.size, 0);
         } finally { await ctx.fiber.dispose(); await rm(directory, { recursive: true, force: true }); }
     });
 }
