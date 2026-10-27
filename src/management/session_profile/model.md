@@ -13,3 +13,5 @@ preset 投影变化及窗口重新获得焦点时重新读取；切换请求完�
 会话 Profile API 返回 profileBriefs 目录简介映射；原生 Menu 在名称下显示可选灰色简介，与默认配置菜单共用 ProfileLabel 布局。
 
 新对话首页的 Profile API 在 presentation 配置指定 profile 时返回 locked=true，按钮保留配置名称并置灰（含图标、箭头），不能打开菜单；POST 返回 403。管理页的 Profile 编辑器不受该按钮锁定影响。
+
+Profile 按钮禁用时使用宿主 label-tertiary 灰色（缺省 #81858c），图标与箭头继承按钮颜色；不引用宿主未定义的 label-quaternary。

@@ -42,7 +42,7 @@ div:has(> [data-slot="conversation.hero.options"] .ts-session-profile) {
 }
 
 .ts-session-profile-trigger:disabled {
-    color: var(--dsw-alias-label-quaternary);
+    color: var(--dsw-alias-label-tertiary, #81858c);
     cursor: default;
 }
 
