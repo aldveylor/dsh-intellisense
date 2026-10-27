@@ -51,6 +51,9 @@ export class NamespaceComponent {
     /** @brief Enable namespaces only for an explicitly configured Intellisense scope. */
     enabled(agent: Agent): boolean { return presentation.presentationFor(agent.ctx) !== undefined; }
 
+    /** @brief Read the Profile fixed by the nearest presentation configuration. */
+    fixedProfile(agent: Agent): string | undefined { return presentation.presentationConfigFor(agent.ctx)?.profile; }
+
     /** @brief Use the same scoped presentation config for runtime bindings and initial prompts. */
     isPtc(agent: Agent): boolean {
         return presentation.presentationFor(agent.ctx) === 'ptc';
@@ -111,10 +114,12 @@ export class NamespaceComponent {
     /** @brief Initialize child Profiles from their live parent's working copy, then retain independent snapshots. */
     async registryFor(agent?: Agent): Promise<SemanticRegistry> {
         if (!agent) { await this.refresh(); return this.registry; }
+        const profile = this.fixedProfile(agent);
         const registry = await this.profiles.forSession(agent.id, async () => {
             const parent = this.ctx.agents.list().find(candidate => candidate !== agent && this.ctx.agents.isOwnedBy(agent.id, candidate));
             return parent && this.enabled(parent) ? this.registryFor(parent) : this.registry;
-        });
+        }, profile);
+        if (profile !== undefined && registry.snapshot().profile !== profile) await this.profiles.load(agent.id, profile);
         registry.refresh(this.physical(agent));
         return registry;
     }

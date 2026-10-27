@@ -39,3 +39,5 @@ save 使用目标目录配置作为固定节点补齐基线，不存在该名称
 Profile 节点 permissions 为可选的普通权限差异项：commentable/renamable/movable/removable/disableable 默认 true，acceptsChildren 在命令为 false、命名空间为 true，availableFixLevels 在命令为 [0,1,2]、命名空间为 [0,1]。省略对象或字段均使用默认权限，受保护节点权限仍由服务端校验。Profile 构造及 save() 递归省略默认权限字段、空 permissions、fixedLevel=0 和 disabled=false；load 与 annotation/JSON Schema 同步说明默认值。提交节点省略 fixedLevel/disabled 时使用 0/false，缺失受保护节点仍从原配置恢复。
 
 IntelliSense 声明渲染仅接收查询、命名空间树、运行时模式与简略注释查询；禁用状态由节点的 disabled 属性提供，queryNodes 过滤禁用目标与成员，显式保留空命名空间时同样检查节点禁用状态，不再向渲染函数传入独立的路径禁用回调。
+
+配置了 presentation.config.profile 的会话禁止 tools.profile.switch 切换配置，返回 session_profile_locked；读取与目录保存不受影响。

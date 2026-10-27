@@ -1,3 +1,4 @@
+import { presentationConfigFor } from '../integration/presentation.js';
 import { registerBuiltin } from './builtin_trace.js';
 import { z } from 'zod';
 import type { Context } from '@deepseek-ai/cordis';
@@ -40,6 +41,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         execute: async (args, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
             const { name } = z.strictObject({ name: z.string().min(1) }).parse(args);
+            if (presentationConfigFor(execution.agent.ctx)?.profile !== undefined) throw new Error('session_profile_locked');
             await profiles.load(execution.agent.id, name);
             await changed(execution.agent);
             const text = `Profile updated to ${name}`;

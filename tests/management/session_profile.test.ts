@@ -8,7 +8,7 @@ import { ProfileSessions } from '../../src/registry/profiles.js';
 import { MemoryStore } from '../../src/storage/store.js';
 
 /** @brief Exercise session selections against real independent Profile registries. */
-async function fixture() {
+async function fixture(locked = false) {
     const catalog = new SemanticRegistry(new MemoryStore());
     await catalog.load();
     await catalog.saveProfile('Files', { ...catalog.configuration(), brief: 'File operations', namespaces: [{ path: 'files', description: 'File tools', alwaysVisible: true }] });
@@ -18,7 +18,7 @@ async function fixture() {
     let fetch!: (request: Request) => Promise<Response>;
     const ctx = { agents: { list: () => agents }, connection: { fetch: { register: (route: { fetch: typeof fetch }) => { fetch = route.fetch; } } } } as unknown as Context;
     const namespaces = {
-        profiles, enabled: (agent: typeof agents[number]) => agent.enabled,
+        fixedProfile: () => locked ? 'Files' : undefined, profiles, enabled: (agent: typeof agents[number]) => agent.enabled,
         registryFor: (agent: typeof agents[number]) => profiles.forSession(agent.id),
         configurationChanged: async (agent: typeof agents[number]) => { changed.push(agent.id); },
     } as unknown as NamespaceComponent;
@@ -66,4 +66,16 @@ test('new conversations capture the configured default rather than the previous 
     assert.equal(created.configuration().namespaces[0]?.path, 'files');
     assert.equal((await profiles.forSession('ptc')).snapshot().profile, 'Default');
     assert.equal((await profiles.forSession('new_before_default_change')).snapshot().profile, 'Default');
+});
+
+
+test('a fixed presentation Profile remains visible and rejects session selector writes', async () => {
+    const { profiles, changed, request } = await fixture(true);
+    await profiles.load('native', 'Files');
+    const response = await request('native');
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).locked, true);
+    assert.equal((await request('native', { profile: 'Default' })).status, 403);
+    assert.equal((await profiles.forSession('native')).snapshot().profile, 'Files');
+    assert.deepEqual(changed, []);
 });

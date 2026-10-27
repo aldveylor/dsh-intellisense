@@ -5,3 +5,5 @@
 `preset.ts` 由主入口内部挂载，依赖 agentPresets 服务，不提供独立包导出。从 presets/intellisense_ptc 和 presets/intellisense 各自的 preset.yml 与完整 agent.cordis.yml 加载、校验并注册两个 Agent Mode，不在注册时注入或改写配置。各自 YAML 统一使用 intellisense-presentation 配置项 ID，加载 @aldveylor/dsh-intellisense/presentation，显式声明 config.mode 为 ptc/native 以区分执行方式。两份完整能力清单均保留规划、技能及子代理支持。
 
 命名空间服务与节点实现在 `../namespace/`；内置工具注册与审计在 `../tools/`。
+
+`intellisense-presentation.config.profile` 可选指定已有具名 Profile。与 mode 一起按最近 presentation 作用域继承，显式子作用域未配置 profile 时不继承外层锁定。指定后会话以目录快照初始化，优先于父会话草稿和全局默认；已有会话选择不同名称时切换到指定配置，同名工作快照保留。缺失名称报错。

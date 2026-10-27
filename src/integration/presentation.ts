@@ -7,26 +7,29 @@ import { NamespaceRuntime } from '../namespace/runtime.js';
 
 export const name = 'intellisense-presentation';
 export const inject = ['tools', 'commandNamespaces'];
-/** @brief Select native namespace calls or the plugin-owned namespace execution tool. */
-export const Config = z.strictObject({ mode: z.enum(['native', 'ptc']) });
+/** @brief Select the execution form and optionally fix the conversation Profile. */
+export const Config = z.strictObject({ mode: z.enum(['native', 'ptc']), profile: z.string().min(1).max(80).optional() });
 /** @brief The configured execution form shared by tool presentation and initial prompts. */
 export type PresentationMode = z.infer<typeof Config>['mode'];
-const modes = new WeakMap<ScopeKey, PresentationMode>();
+const configurations = new WeakMap<ScopeKey, z.infer<typeof Config>>();
 
 /** @brief Resolve the nearest configured presentation, including inherited preset scopes. */
-export function presentationFor(ctx: Context): PresentationMode | undefined {
+export function presentationConfigFor(ctx: Context): z.infer<typeof Config> | undefined {
     for (const scope of scopeChainOf(scopeOf(ctx))) {
-        const mode = modes.get(scope);
-        if (mode) return mode;
+        const config = configurations.get(scope);
+        if (config) return config;
     }
 }
+
+/** @brief Resolve the execution mode from the nearest presentation configuration. */
+export function presentationFor(ctx: Context): PresentationMode | undefined { return presentationConfigFor(ctx)?.mode; }
 
 /** @brief Declare one scoped tool presentation, matching dsh-agent-tool-presentation's lifecycle. */
 export async function apply(ctx: Context, options: z.input<typeof Config>): Promise<void> {
     const config = Config.parse(options);
     const scope = scopeOf(ctx);
     if (!scope) throw new Error('Intellisense presentation requires an agent or preset scope');
-    ctx.effect(() => { modes.set(scope, config.mode); return () => { modes.delete(scope); }; });
+    ctx.effect(() => { configurations.set(scope, config); return () => { configurations.delete(scope); }; });
     ctx.commandNamespaces.register(ctx);
     if (config.mode === 'ptc') await ctx.isolate('namespaceRuntime').isolate('codeRuntime').plugin(NamespaceRuntime);
     ctx.tools.presentAs('native');

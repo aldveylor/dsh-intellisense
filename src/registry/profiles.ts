@@ -9,10 +9,10 @@ export class ProfileSessions {
     constructor(private catalog: SemanticRegistry, private store: Store) {}
 
     /** @brief Capture an optional parent working copy or the catalog default once per session. */
-    forSession(session: string, inherit?: () => Promise<SemanticRegistry>): Promise<SemanticRegistry> {
+    forSession(session: string, inherit?: () => Promise<SemanticRegistry>, profile?: string): Promise<SemanticRegistry> {
         let pending = this.sessions.get(session);
         if (!pending) {
-            pending = this.open(session, inherit);
+            pending = this.open(session, inherit, profile);
             this.sessions.set(session, pending);
             void pending.catch(() => { if (this.sessions.get(session) === pending) this.sessions.delete(session); });
         }
@@ -20,14 +20,14 @@ export class ProfileSessions {
     }
 
     /** @brief Keep one durable working snapshot per live session instead of an append-only version history. */
-    private async open(session: string, inherit?: () => Promise<SemanticRegistry>): Promise<SemanticRegistry> {
+    private async open(session: string, inherit?: () => Promise<SemanticRegistry>, profile?: string): Promise<SemanticRegistry> {
         const key = `profile_session_${this.hash(session)}`;
         const registry = new SemanticRegistry({
             load: async <T>() => {
                 const saved = await this.store.load<T>(key);
                 if (saved !== undefined) return saved;
-                const source = inherit ? await inherit() : this.catalog;
-                const initial = new RegistryState({ ...source.configuration().save(), profile: source.profileSelection().selected });
+                const source = profile === undefined && inherit ? await inherit() : this.catalog;
+                const initial = new RegistryState({ ...source.configuration(profile).save(), profile: profile ?? source.profileSelection().selected });
                 return initial.save() as T;
             },
             save: async <T>(_key: string, value: T) => { await this.store.save(key, value); },

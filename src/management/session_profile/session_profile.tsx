@@ -41,7 +41,7 @@ export function SessionProfile({ sessionId, useProjection, api, t }: PropsRuntim
 
     /** @brief Confirm a session-local load before displaying the selected profile. */
     async function select(profile: string): Promise<void> {
-        if (selecting.current) return;
+        if (selecting.current || state?.locked) return;
         setOpen(false);
         if (profile === state?.profile) return;
         selecting.current = true; setBusy(true); setError(undefined);
@@ -61,10 +61,10 @@ export function SessionProfile({ sessionId, useProjection, api, t }: PropsRuntim
     if (!state?.enabled && !error) return null;
     return <div className="ts-session-profile">
         <style>{styles + labelStyles}</style>
-        {state?.enabled && <Menu open={open} onClose={() => setOpen(false)} align="start" portal className="ts-session-profile-menu"
+        {state?.enabled && <Menu open={open && !state.locked} onClose={() => setOpen(false)} align="start" portal className="ts-session-profile-menu"
             items={state.profiles.map(profile => ({ id: profile, label: <ProfileLabel label={profile} brief={state.profileBriefs?.[profile]} /> }))} selectedId={state.profile}
             onSelect={profile => { void select(profile); }} anchor={<button type="button" className="ts-session-profile-trigger"
-                aria-label={t('session_profile_label')} title={t('select_session_profile')} aria-haspopup="menu" aria-expanded={open} disabled={busy}
+                aria-label={t('session_profile_label')} title={t('select_session_profile')} aria-haspopup="menu" aria-expanded={open} disabled={busy || state.locked}
                 onClick={() => setOpen(value => !value)}>
                 <IconDatabaseOutlineRegular className="ts-session-profile-icon" />
                 <span>{state.profile}</span>

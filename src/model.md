@@ -73,3 +73,5 @@ Profile 保存递归补齐省略的 tools 固定节点；同名节点仅检查�
 Profile、RegistryConfiguration 与 RegistryState 为可导出的运行时类，公共入口导出类及其 Data 类型；均实现 Saveable<T>.save()，通过 constructor(data?) 恢复独立实例。会话和目录内部使用类，存储/HTTP/PTC 传递纯数据；Profile 树的节点结构与操作规则保持不变。
 
 根目录 README.md 为英文完整文档，README.zh-cn.md 为中文完整文档，互相提供语言切换链接；assets/ 仅保存图标、横幅和分语言截图。
+
+`intellisense-presentation` 的 config 可选配置 `profile: <name>`，会话优先使用指定具名 Profile，新对话首页的 Profile 按钮保持显示并置灰；会话选择接口和 tools.profile.switch 拒绝切换。省略时沿用默认及父会话继承行为。

@@ -68,3 +68,8 @@ div:has(> [data-slot="conversation.hero.options"] .ts-session-profile) {
     font-size: 13px;
     line-height: 20px;
 }
+
+.ts-session-profile-trigger:disabled .ts-session-profile-icon,
+.ts-session-profile-trigger:disabled .ts-session-profile-chevron {
+    color: inherit;
+}

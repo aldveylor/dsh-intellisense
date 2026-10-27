@@ -11,3 +11,5 @@ preset 投影变化及窗口重新获得焦点时重新读取；切换请求完�
 当前对话通过显式 switch(name) 或会话 Profile 下拉框更新工作配置后，统一由 configurationChanged 刷新工具提示。仅 tools.profile.switch(name) 成功完成加载和刷新后，通过 Agent.inject 向当前对话注入 intellisense-profile 英文 notice：`Profile updated to <profile name>`；load(name)、UI 下拉选择、通用配置刷新、保存目录、读取草稿、失败操作及删除其它配置均不注入。
 
 会话 Profile API 返回 profileBriefs 目录简介映射；原生 Menu 在名称下显示可选灰色简介，与默认配置菜单共用 ProfileLabel 布局。
+
+新对话首页的 Profile API 在 presentation 配置指定 profile 时返回 locked=true，按钮保留配置名称并置灰（含图标、箭头），不能打开菜单；POST 返回 403。管理页的 Profile 编辑器不受该按钮锁定影响。

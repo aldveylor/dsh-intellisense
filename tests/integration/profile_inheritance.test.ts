@@ -22,13 +22,13 @@ test('runtime child ownership inherits the nearest parent working profile withou
     const detach: (() => void)[] = [];
 
     /** @brief Publish a real registry ownership relation separately from durable session lineage. */
-    async function agent(name: string, parent?: Agent, enabled = true): Promise<Agent> {
+    async function agent(name: string, parent?: Agent, enabled = true, profile?: string): Promise<Agent> {
         const id = SessionId(name);
         const value = { id, session: Session.create(id) } as Agent;
         const scope = createScope(ctx, value);
         scopes.push(scope);
         Object.assign(value, { ctx: scope.ctx });
-        if (enabled) await scope.ctx.plugin(presentation, { mode: 'native' });
+        if (enabled) await scope.ctx.plugin(presentation, { mode: 'native', profile });
         detach.push(ctx.agents.enter(value, parent));
         return value;
     }
@@ -39,6 +39,16 @@ test('runtime child ownership inherits the nearest parent working profile withou
         await profiles.load(parent.id, 'Work');
         const parentRegistry = await namespaces.registryFor(parent);
         await parentRegistry.replaceConfiguration({ ...parentRegistry.configuration(), namespaces: [{ path: 'draft', description: 'Not saved to catalog', alwaysVisible: true }] }, 'Work');
+        const fixed = await agent('fixed', parent, true, 'Work');
+        const fixedRegistry = await namespaces.registryFor(fixed);
+        assert.equal(fixedRegistry.snapshot().profile, 'Work');
+        assert.equal(fixedRegistry.configuration().namespaces[0]?.path, 'saved');
+        await profiles.load(fixed.id, 'Default');
+        assert.equal((await namespaces.registryFor(fixed)).snapshot().profile, 'Work');
+        const fixedRoot = await agent('fixed_root', undefined, true, 'Work');
+        assert.equal((await namespaces.registryFor(fixedRoot)).snapshot().profile, 'Work');
+        const missing = await agent('missing', undefined, true, 'Missing');
+        await assert.rejects(namespaces.registryFor(missing), /Profile does not exist/);
         const child = await agent('child', parent);
         const childRegistry = await namespaces.registryFor(child);
         assert.equal(childRegistry.snapshot().profile, 'Work');

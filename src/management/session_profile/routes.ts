@@ -17,7 +17,9 @@ export function registerSessionProfiles(ctx: Context, catalog: SemanticRegistry,
                 if (request.method === 'POST') return Response.json({ error: 'session_presentation_unavailable' }, { status: 400, headers });
                 return Response.json({ enabled: false, profiles: [] } satisfies SessionProfileState, { headers });
             }
+            const locked = namespaces.fixedProfile(agent) !== undefined;
             if (request.method === 'POST') {
+                if (locked) return Response.json({ error: 'session_profile_locked' }, { status: 403, headers });
                 if (!request.headers.get('content-type')?.startsWith('application/json')) return Response.json({ error: 'expected_json' }, { status: 415, headers });
                 const text = await request.text();
                 if (text.length > 4096) return Response.json({ error: 'session_request_too_large' }, { status: 413, headers });
@@ -26,7 +28,7 @@ export function registerSessionProfiles(ctx: Context, catalog: SemanticRegistry,
                 await namespaces.configurationChanged(agent);
             }
             const registry = await namespaces.registryFor(agent);
-            return Response.json({ enabled: true, profile: registry.snapshot().profile, profiles: catalog.snapshot().profiles ?? [], profileBriefs: catalog.profileBriefs() } satisfies SessionProfileState, { headers });
+            return Response.json({ enabled: true, ...(locked ? { locked } : {}), profile: registry.snapshot().profile, profiles: catalog.snapshot().profiles ?? [], profileBriefs: catalog.profileBriefs() } satisfies SessionProfileState, { headers });
         } catch (error) { return Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: 400, headers }); }
     } });
 }
