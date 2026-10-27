@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import type { PhysicalTool } from '../../registry/registry.js';
 import { useTranslation } from '../locale/locale.js';
 import { ToolDetails, ToolStatistics } from '../tool_picker/tool_details.js';
@@ -7,16 +7,24 @@ import { TooltipProvider, useTooltip } from './tooltip.js';
 /** @brief Bind pointer and keyboard access to one shared tree tooltip. */
 export function useTreeTooltip(content: ReactNode) {
     const tooltip = useTooltip();
+    const pointerFocus = useRef(false);
+
     return {
         'aria-describedby': tooltip.id,
         onPointerEnter: (event: React.PointerEvent<HTMLElement>) => tooltip.show(content, event.clientX, event.clientY),
         onPointerMove: (event: React.PointerEvent<HTMLElement>) => tooltip.move(event.clientX, event.clientY, event.ctrlKey),
         onPointerLeave: tooltip.leave,
+        onPointerDownCapture: () => { pointerFocus.current = true; tooltip.hide(); },
+        onKeyDownCapture: () => { pointerFocus.current = false; },
         onFocus: (event: React.FocusEvent<HTMLElement>) => {
+            if (pointerFocus.current) return;
             const rect = event.currentTarget.getBoundingClientRect();
             tooltip.show(content, rect.left, rect.bottom);
         },
-        onBlur: tooltip.leave,
+        onBlur: (event: React.FocusEvent<HTMLElement>) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) pointerFocus.current = false;
+            tooltip.leave();
+        },
         onClick: tooltip.hide,
         onDoubleClick: tooltip.hide,
         onDragStartCapture: tooltip.hide,
