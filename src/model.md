@@ -36,7 +36,7 @@ UI 不再显示 unknown 块。树上方显示当前可用但未挂载的工具�
 
 ## 构建和部署
 
-插件图标使用 `docs/icon.svg`，通过 package.json 的 icon 字段声明并纳入 files 发布清单；根入口与 client、preset、namespace、presentation 子路径均导出对应的 `/icon` 资源，供宿主读取插件显示元数据。
+插件图标使用 `assets/icon.svg`，通过 package.json 的 icon 字段声明并纳入 files 发布清单；根入口与 client、preset、namespace、presentation 子路径均导出对应的 `/icon` 资源，供宿主读取插件显示元数据。
 
 `run.mjs` 与 scripts/local_plugin.mjs 将本包登记为原生 bundle；本地启动按 checkout 和插件目录集合的摘要使用独立开发 profile，不改写共享 web profile。本地注册保留其它 link 依赖和 bundle，冲突时报错，相同配置不重复写 manifest。cordis.patch.yml 注册插件和两个模式，默认 intellisense-ptc。presets/intellisense_ptc 与 presets/intellisense 各自保存 preset.yml 模式元数据和完整的 agent.cordis.yml 插件配置；各自 YAML 显式声明 presentation.config.mode 为 ptc/native，注册入口仅加载、校验并注册，不注入或改写执行模式；默认不加载额外的 YAML 别名，可通过 aliasesFile 显式指定共享别名文件。两个模式分别通过 presentation 配置选择 ptc/native 呈现，并据此生成初始 prompt。
 
@@ -56,7 +56,7 @@ namespaceVisible 为随 Profile 保存的命名空间路径 → 固定提示布�
 
 `search/` 通过 SearchEngine 接口与 SearchEngineRegistry 注册器提供命令搜索，支持可选 MiniSearch BM25、包含匹配及自定义同步/异步引擎。tools.search 固定映射 tools_search，默认不固定，可禁用；method 枚举及默认值从注册器选择器直接生成，只有一个引擎时移除该参数。defaultSearchMethod 配置及 searchEngines.setDefault 均可指定默认方法。详见 search/model.md。
 
-发布元数据使用 Apache-2.0 许可，根目录 LICENSE 保存完整许可文本；engines.dsh 最低版本为 0.2.1-rc.2，repository 指向 origin，files 包含 dist、docs、cordis.patch.yml、README.md、LICENSE 和 presets。文档及许可通过 files 发布，不添加 exports 子路径。
+发布元数据使用 Apache-2.0 许可，根目录 LICENSE 保存完整许可文本；engines.dsh 最低版本为 0.2.1-rc.2，repository 指向 origin，files 包含 dist、assets、cordis.patch.yml、README.md、README.zh-cn.md、LICENSE 和 presets。文档及许可通过 files 发布，不添加 exports 子路径。
 
 文档截图通过 pnpm run screenshots 构建后调用 scripts/screenshots.mjs，复用主目录 Playwright 的 Chromium，运行内存示例 Profile 与生产管理页面，校验 Tooltip、二层类型与禁用卡片，生成中英文 namespace_table.png、tools.png、tooltip.png。脚本不访问用户数据或执行工具。所有 PNG 使用 Git LFS，源码分支不记录 dist/build 产物。
 
@@ -69,3 +69,5 @@ Profile 保存递归补齐省略的 tools 固定节点；同名节点仅检查�
 同一物理工具的每个挂载路径独立保存描述、固定等级及禁用状态；Mapping 不再区分 path 与 aliases，每条记录只代表一个挂载路径，不兼容旧存档。命令目录中的挂载路径包含禁用及当前作用域不可用的配置路径；执行、搜索与提示仍排除禁用路径。
 
 Profile、RegistryConfiguration 与 RegistryState 为可导出的运行时类，公共入口导出类及其 Data 类型；均实现 Saveable<T>.save()，通过 constructor(data?) 恢复独立实例。会话和目录内部使用类，存储/HTTP/PTC 传递纯数据；Profile 树的节点结构与操作规则保持不变。
+
+根目录 README.md 为英文完整文档，README.zh-cn.md 为中文完整文档，互相提供语言切换链接；assets/ 仅保存图标、横幅和分语言截图。

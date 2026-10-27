@@ -84,7 +84,7 @@ try {
             await page.locator('.ts-tree').evaluate(node => { node.scrollTop = 0; });
             await page.mouse.move(1400, 960);
             await page.waitForFunction(() => !document.querySelector('[role="tooltip"]'));
-            const directory = new URL(`../docs/${language}/`, import.meta.url);
+            const directory = new URL(`../assets/${language}/`, import.meta.url);
             await mkdir(directory, { recursive: true });
             await page.screenshot({ path: fileURLToPath(new URL('namespace_table.png', directory)) });
 
@@ -126,7 +126,7 @@ try {
             await page.screenshot({ path: fileURLToPath(new URL('tooltip.png', directory)) });
             assert.deepEqual(errors, []);
             await rm(new URL('unmounted_tools.png', directory), { force: true });
-            console.log(`Updated docs/${language}/{namespace_table,tools,tooltip}.png`);
+            console.log(`Updated assets/${language}/{namespace_table,tools,tooltip}.png`);
         } finally { await context.close(); }
     }
 } finally {

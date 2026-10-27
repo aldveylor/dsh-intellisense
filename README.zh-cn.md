@@ -1,8 +1,14 @@
 # @aldveylor/dsh-intellisense
 
-[English](../en/README.md) | [项目首页](../../README.md)
+![Intellisense — Tool discovery, on demand.](assets/banner.png)
 
-为 DeepSeek Harness 提供共享 Profile、命名空间工具调用和按需 TypeScript 签名查询。
+[English](README.md)
+
+dsh-intellisense 为 DeepSeek Harness 提供命名空间工具管理、可复用的 Profile 配置和按需工具查询。管理界面支持工具分组、挂载路径、排序与提示固定级别，Profile 可保存并在会话间复用。
+
+插件将工具目录映射为命名空间，按需提供成员列表与调用签名，减少初始提示中的工具信息。Intellisense PTC 在受限 Node.js 运行时中执行 TypeScript/JavaScript，并通过命名空间调用工具；Intellisense 则通过原生 DSML 直接调用工具。两种模式共享 Profile 配置，工具调用均经过原生权限检查与执行流程。
+
+Profile 可通过 `tools.profile.load()` 读取、通过 `tools.profile.save()` 保存；`tools.profile.annotation` 提供 TypeScript 数据模型，使用字段级 `/** @default ... */` 注释说明默认值。节点省略 `permissions` 或其字段时使用普通节点权限，服务端仍校验受保护节点的限制；`fixedLevel` 默认为 `0`，`disabled` 默认为 `false`。保存时省略默认权限、空权限对象和默认固定级别及禁用状态。
 
 两个 Agent Mode 使用相同的命名空间配置：
 
@@ -65,19 +71,19 @@ PTC 签名为 `function intellisense(...args: string[]): Promise<string>`，查�
 
 命名空间树展示工具分组、调用名称与工具说明。悬停命名空间可查看名称、完整路径和注释；悬停命令可查看简化注释、完整文档及调用统计，其原始命令名可打开第二层工具详情。可展开分组、双击名称或注释进行编辑，拖动同级条目调整顺序，并设置固定提示级别；顶部可切换、保存或另存为 Profile，方便复用不同的工具配置。
 
-![工具命名空间表：Profile 选择与树形工具管理](namespace_table.png)
+![工具命名空间表：Profile 选择与树形工具管理](assets/zh/namespace_table.png)
 
 ### 添加工具
 
 点击“命名空间树”标题后的工具图标打开添加工具界面；未挂载工具数量入口可筛选尚未挂载的工具。可按名称、路径或描述搜索，点击普通工具卡片加入当前节点，再在树中调整名称和分组。本插件内置命令以灰色禁用卡片显示，不能重复挂载。
 
-![添加工具：搜索、排序和灰色内置命令卡片](tools.png)
+![添加工具：搜索、排序和灰色内置命令卡片](assets/zh/tools.png)
 
 ### 工具详情
 
 悬停工具卡片可查看原始名称、描述、参数、返回类型和调用统计。参数类型拥有二层 Tooltip，类型直接显示表达式；参数与统计标题置于表格外，列宽按内容自适应。按住 Alt 固定提示，移入可手动滚动。
 
-![Bash 工具详情与类型展示](tooltip.png)
+![Bash 工具详情与类型展示](assets/zh/tooltip.png)
 
 ## 文档截图
 
@@ -93,7 +99,7 @@ pnpm run screenshots
 
 ## 许可
 
-[Apache License 2.0](../../LICENSE)。
+[Apache License 2.0](LICENSE)。
 
 ## 检查
 

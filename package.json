@@ -15,7 +15,7 @@
     "code-execution",
     "agent-tools"
   ],
-  "icon": "./docs/icon.svg",
+  "icon": "./assets/icon.svg",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -29,11 +29,11 @@
       "default": "./dist/client.js"
     },
     "./package.json": "./package.json",
-    "./icon": "./docs/icon.svg",
-    "./client/icon": "./docs/icon.svg",
-    "./preset/icon": "./docs/icon.svg",
-    "./namespace/icon": "./docs/icon.svg",
-    "./presentation/icon": "./docs/icon.svg",
+    "./icon": "./assets/icon.svg",
+    "./client/icon": "./assets/icon.svg",
+    "./preset/icon": "./assets/icon.svg",
+    "./namespace/icon": "./assets/icon.svg",
+    "./presentation/icon": "./assets/icon.svg",
     "./preset": {
       "types": "./dist/integration/preset.d.ts",
       "default": "./dist/integration/preset.js"
@@ -54,9 +54,10 @@
   },
   "files": [
     "dist",
-    "docs",
+    "assets",
     "cordis.patch.yml",
     "README.md",
+    "README.zh-cn.md",
     "LICENSE",
     "presets",
     "src/metadata"

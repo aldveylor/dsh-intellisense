@@ -1,40 +1,8 @@
-# dsh-intellisense
+# @aldveylor/dsh-intellisense
 
-![Intellisense — Tool discovery, on demand.](docs/banner.png)
+![Intellisense — Tool discovery, on demand.](assets/banner.png)
 
-Documentation: [English](docs/en/README.md) | [简体中文](docs/zh/README.md)
-
-Brief: [简体中文](#简体中文) | [English](#english)
-
-## 简体中文
-
-dsh-intellisense 为 DeepSeek Harness 提供命名空间工具管理、可复用的 Profile 配置和按需工具查询。管理界面支持工具分组、挂载路径、排序与提示固定级别，Profile 可保存并在会话间复用。
-
-插件将工具目录映射为命名空间，按需提供成员列表与调用签名，减少初始提示中的工具信息。Intellisense PTC 在受限 Node.js 运行时中执行 TypeScript/JavaScript，并通过命名空间调用工具；Intellisense 则通过原生 DSML 直接调用工具。两种模式共享 Profile 配置，工具调用均经过原生权限检查与执行流程。
-
-Profile 可通过 `tools.profile.load()` 读取、通过 `tools.profile.save()` 保存；`tools.profile.annotation` 提供 TypeScript 数据模型，使用字段级 `/** @default ... */` 注释说明默认值。节点省略 `permissions` 或其字段时使用普通节点权限，服务端仍校验受保护节点的限制；`fixedLevel` 默认为 `0`，`disabled` 默认为 `false`。保存时省略默认权限、空权限对象和默认固定级别及禁用状态。
-
-### 命名空间管理
-
-命名空间树展示工具分组、调用名称与工具说明。悬停命名空间可查看名称、完整路径和注释；悬停命令可查看简化注释、完整文档及调用统计，其原始命令名可打开第二层工具详情。可展开分组、双击名称或注释进行编辑，拖动同级条目调整顺序，并设置固定提示级别；顶部可切换、保存或另存为 Profile，方便复用不同的工具配置。
-
-![工具命名空间表：Profile 选择与树形工具管理](docs/zh/namespace_table.png)
-
-### 添加工具
-
-点击“命名空间树”标题后的工具图标打开添加工具界面；未挂载工具数量入口可筛选尚未挂载的工具。可按名称、路径或描述搜索，点击普通工具卡片加入当前节点，再在树中调整名称和分组。本插件内置命令以灰色禁用卡片显示，不能重复挂载。
-
-![添加工具：搜索、排序和灰色内置命令卡片](docs/zh/tools.png)
-
-### 工具详情
-
-悬停工具卡片可查看参数、返回类型与调用统计；参数类型可展开二层提示，直接展示类型表达式。按住 Ctrl 可固定当前提示，方便移入查看或滚动。
-
-![Bash 工具详情与类型展示](docs/zh/tooltip.png)
-
-需要 Node.js >=24、DSH >=0.2.1-rc.2。采用 [Apache License 2.0](LICENSE)。
-
-## English
+[简体中文](README.zh-cn.md)
 
 dsh-intellisense adds namespace-based tool management, reusable profiles, and on-demand tool discovery to DeepSeek Harness. Its management interface supports tool grouping, mount paths, ordering, and pinned prompt detail levels. Profiles can be saved and reused across sessions.
 
@@ -42,22 +10,106 @@ The plugin maps the tool catalog into namespaces and provides members and call s
 
 Read profiles with `tools.profile.load()` and save them with `tools.profile.save()`. `tools.profile.annotation` provides the TypeScript data model, with field-level `/** @default ... */` comments documenting defaults. Omitted `permissions` or permission fields use ordinary node permissions; the server still enforces protected node restrictions. `fixedLevel` defaults to `0` and `disabled` to `false`. Saved profiles omit default permissions, empty permission objects, and default pin levels and disabled flags.
 
+Both Agent Modes use the same namespace configuration:
+
+- **Intellisense PTC** (`intellisense-ptc`): execute TS/JS through the plugin-owned `tools_run_code` and call commands such as `std.cwd()` and `std.fs.read(...)` from code.
+- **Intellisense** (`intellisense`): call namespace tools such as `std.cwd`, `std.fs.read`, and `tools.intellisense` directly through native DSML.
+
+## Getting started
+
+Requires Node.js >=24 and DSH >=0.2.1-rc.2. The runtime uses Node.js native permissions (`--permission`). Node.js 24 permissions do not restrict network access. Isolation requirements are checked when the runtime loads.
+
+Run these commands from the project root:
+
+```sh
+pnpm install --frozen-lockfile
+./run.sh
+```
+
+`run.mjs` builds the package and registers it in the Web profile as a native bundle. It supports `--plugin <directory>`. The default workspace is `build/workspace`; configuration and data are stored in `build/.dsh`, which can be overridden with `DSH_HOME`. The bundle selects `intellisense-ptc` by default; existing user settings take precedence.
+
+## Tool discovery
+
+`tools.intellisense` always points to the built-in `tools_intellisense` command and appears in the initial namespace prompt. It accepts a list of queries and returns a merged TypeScript `declare namespace global` declaration. A query ending in a dot returns immediate children; a complete command path returns its detailed signature and documentation. Overlapping queries do not produce duplicate declarations.
+
+In PTC mode, call the plugin-owned `tools_run_code`:
+
+```json
+{
+  "code": "return await tools.intellisense(\"std.\", \"std.cwd\", \"std.fs.\");",
+  "description": "Query namespace members and signatures"
+}
+```
+
+The PTC signature is `function intellisense(...args: string[]): Promise<string>`. Pass separate string arguments, for example `tools.intellisense("std.", "std.cwd")`. An empty string is accepted: `tools.intellisense("")` queries root namespace members. In DSML mode, call the tool named `tools.intellisense` with these named arguments:
+
+```json
+{"queries": ["std.", "std.cwd", "std.fs."]}
+```
+
+Query an unknown command's signature before calling it directly. Queries are ordinary tool executions: results return through native tool history without interrupting model output, injecting system prompts, or automatically continuing code. Text code fences are for display only.
+
+## PTC execution
+
+The scoped namespace plugin provides `tools_run_code`, with `code` and a short `description` as arguments. Code runs as a strict async function body supporting TS type annotations, top-level await, and explicit return. Each execution creates an independent VM context; state persistence is not guaranteed. `globalThis`, a `vm` namespace, and restart commands are unavailable. Use `console` to log output; execution results return through in-memory streams and IPC. Failed namespace calls throw a `ToolCallError` carrying `toolName`.
+
+The plugin's `NamespaceRuntime` converts positional namespace arguments into actual tool arguments and dispatches through the native guard and execution pipeline, preserving parent/child call records and forwarding additional context. The execution tool uses the plugin's isolated runtime directly, leaving the deployment's default PTC backend available to other modes. Cancellation and timeouts terminate the restricted process; side effects are not automatically replayed.
+
+## Configuration and initial prompts
+
+Each preset selects `ptc` or `native` through `config.mode` in `@aldveylor/dsh-intellisense/presentation`. The main plugin configures runtime budgets and aliases. Both modes select native tool presentation within their scope; the plugin filters the model's tool schemas according to the selected mode. Initial prompts and actual tool schemas share the same configuration source: PTC exposes only `tools_run_code`, while native mode exposes the current namespace proxies.
+
+Runtime budgets include `timeoutMs`, `syncTimeoutMs`, `maxOutputBytes`, `maxMessageBytes`, `maxPendingCalls`, `heapMb`, `sandboxProbeTimeoutMs`, and `diagnosticChars`. You can also configure `aliasesFile`.
+
+## Profiles and management UI
+
+Manage named profiles, namespaces, aliases, tool annotations, ordering, and pinned hints on the **@aldveylor/dsh-intellisense** plugin's configuration page or through `/api/ts-intellisense`. No additional YAML aliases are loaded by default; use `aliasesFile` to specify a file of shared physical tool aliases and argument-name mappings. DSML uses mapped named arguments; PTC uses the positional arguments shown in query signatures.
+
+The built-in `tools.intellisense` command cannot be renamed, moved, deleted, or unpinned. `tools.profile.load`, `tools.profile.save`, `tools.profile.annotation`, and `tools.profile.commands` provide operations on the current profile; legacy management commands have been removed. Before calling unmounted tools, configure their paths in the management page or provide YAML aliases. Unavailable tools are excluded from execution and query lists. Each session holds its own profile reference.
+
+Native DSML proxies revalidate the actual caller's tool visibility at execution time and pass through the actual tool's native permission checks. Proxies are removed when the session is released or the plugin is unloaded. `@aldveylor/dsh-intellisense/namespace` can independently mount native namespace mode without creating a JS runtime.
+
 ### Namespace management
 
 The namespace tree shows tool groups, call names, and descriptions. Hover a namespace for its name, full path, and notes; hover a command for its summary, full documentation, and call totals. Its original command name opens a second tooltip with tool details. Expand groups, double-click names or comments to edit them, drag sibling entries to reorder them, and set pinned hint levels. Use the controls above the tree to switch, save, or save a copy of a profile for reuse across different tool configurations.
 
-![Tool namespace table with profile selection and tree editing](docs/en/namespace_table.png)
+![Tool namespace table with profile selection and tree editing](assets/en/namespace_table.png)
 
 ### Adding tools
 
 Click the tool icon beside “Namespace tree” to open the tool picker. The unmounted count opens a filtered list. Search by name, path, or description, then click an ordinary tool card to add it to the current node. Built-in plugin commands appear as disabled gray cards.
 
-![Tool picker with search, sorting, and disabled built-in command cards](docs/en/tools.png)
+![Tool picker with search, sorting, and disabled built-in command cards](assets/en/tools.png)
 
 ### Tool details
 
-Hover a tool card for parameters, return types, and call totals. Parameter types open nested tooltips with the type expression itself. Hold Ctrl to keep a tooltip in place while moving into it to read or scroll.
+Hover a card for its original name, description, parameters, return type, and call totals. Parameter types have nested tooltips showing the type expression directly. Table titles sit outside their tables, and columns size to content. Hold Alt to keep a tooltip in place, then move into it to scroll manually.
 
-![Bash tool details and type display](docs/en/tooltip.png)
+![Bash tool details and type display](assets/en/tooltip.png)
 
-Requires Node.js >=24 and DSH >=0.2.1-rc.2. Licensed under the [Apache License 2.0](LICENSE).
+## Documentation screenshots
+
+Install screenshot dependencies in your home directory (the script can reuse Playwright in ~/node_modules):
+
+```sh
+npm install --prefix ~ playwright
+~/node_modules/.bin/playwright install chromium
+pnpm run screenshots
+```
+
+The script builds the project, then uses a fixed in-memory example profile and the production management page to update namespace_table.png, tools.png, and tooltip.png in both languages, removing the old unmounted_tools.png. It does not read or modify user configuration or execute example tools. PNG files are managed with Git LFS.
+
+## License
+
+[Apache License 2.0](LICENSE).
+
+## Checks
+
+Run from the project root:
+
+```sh
+pnpm run build
+node node_modules/eslint/bin/eslint.js --config scripts/eslint_config.mjs src
+```
+
+Legacy marker-protocol tests and their standalone script configuration have been removed. Use a fake adapter for targeted verification of both modes; no real model is required.
