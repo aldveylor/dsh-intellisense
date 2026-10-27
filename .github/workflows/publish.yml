@@ -23,12 +23,17 @@ jobs:
 
       - name: Collect version commits
         env:
-          BEFORE: ${{ github.event.before }}
           AFTER: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
+          gh api "repos/$GH_REPO/releases" --paginate \
+            --jq '.[] | select(.draft == false) | .tag_name' > "$RUNNER_TEMP/release_tags.txt"
           node --input-type=module <<'NODE' > "$RUNNER_TEMP/release_versions.tsv"
+          import { readFileSync } from 'node:fs';
           import { collectVersions } from './scripts/release/collect_versions.mjs';
-          for (const { commit, name, version } of collectVersions(process.env.BEFORE, process.env.AFTER)) {
+          const releasedTags = readFileSync(`${process.env.RUNNER_TEMP}/release_tags.txt`, 'utf8').split('\n').filter(Boolean);
+          for (const { commit, name, version } of collectVersions(process.env.AFTER, releasedTags)) {
             console.log([commit, name.split('/').at(-1), version].join('\t'));
           }
           NODE

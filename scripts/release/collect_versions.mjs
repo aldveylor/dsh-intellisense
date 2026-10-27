@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 
-/** @brief Collect the first commit introducing each version in the pushed history. */
-export function collectVersions(before, after, cwd = process.cwd()) {
+/** @brief Collect the latest commit per unpublished version since successful releases. */
+export function collectVersions(after, releasedTags = [], cwd = process.cwd()) {
   const git = (...args) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
   const packages = new Map();
 
@@ -15,17 +15,14 @@ export function collectVersions(before, after, cwd = process.cwd()) {
     return packages.get(commit);
   }
 
-  const range = /^0+$/.test(before) ? [after] : [after, `^${before}`];
+  const range = [after, ...releasedTags.map(tag => `^refs/tags/${tag}`)];
   const commits = git('rev-list', '--reverse', '--topo-order', ...range).split('\n').filter(Boolean);
-  const versions = new Set();
-  const releases = [];
+  const published = new Set(releasedTags);
+  const releases = new Map();
   for (const commit of commits) {
     const current = readPackage(commit);
-    if (!current?.version || versions.has(current.version)) continue;
-    const parents = git('rev-list', '--parents', '-n', '1', commit).split(' ').slice(1);
-    if (parents.some(parent => readPackage(parent)?.version === current.version)) continue;
-    versions.add(current.version);
-    releases.push({ commit, name: current.name, version: current.version });
+    if (!current?.version || published.has(`v${current.version}`)) continue;
+    releases.set(current.version, { commit, name: current.name, version: current.version });
   }
-  return releases;
+  return [...releases.values()];
 }

@@ -25,59 +25,99 @@ function fixture(t: TestContext) {
   return { cwd, git, commit };
 }
 
-test('publishes every changed version from its introducing commit', t => {
-  const { cwd, commit } = fixture(t);
-  const before = commit('1.0');
-  const first = commit('1.1');
+test('selects the latest commit for every unpublished version', t => {
+  const { cwd, git, commit } = fixture(t);
+  commit('1.0');
+  git('tag', 'v1.0');
   commit('1.1');
+  const first = commit('1.1');
   const last = commit('1.2');
-  assert.deepEqual(collectVersions(before, last, cwd), [
+  assert.deepEqual(collectVersions(last, ['v1.0'], cwd), [
     { commit: first, name: 'release-test', version: '1.1' },
     { commit: last, name: 'release-test', version: '1.2' },
   ]);
 });
 
-test('keeps intermediate versions when the push ends at the original version', t => {
-  const { cwd, commit } = fixture(t);
-  const before = commit('1.0');
-  const first = commit('1.1');
-  const last = commit('1.0');
-  assert.equal(collectVersions(before, last, cwd)[0].commit, first);
+test('retries failed releases on later pushes without a version bump', t => {
+  const { cwd, git, commit } = fixture(t);
+  commit('1.0');
+  git('tag', 'v1.0');
+  const failed = commit('1.1');
+  assert.equal(collectVersions(failed, ['v1.0'], cwd)[0].commit, failed);
+  const fixed = commit('1.1');
+  assert.deepEqual(collectVersions(fixed, ['v1.0'], cwd), [
+    { commit: fixed, name: 'release-test', version: '1.1' },
+  ]);
+  git('tag', 'v1.1');
+  const after = commit('1.1');
+  assert.deepEqual(collectVersions(after, ['v1.0', 'v1.1'], cwd), []);
 });
 
-test('includes merged branch commits without duplicating inherited merge versions', t => {
+test('does not treat a tag without a Release as successful publication', t => {
   const { cwd, git, commit } = fixture(t);
-  const before = commit('1.0');
-  git('checkout', '-b', 'feature');
+  commit('1.0');
+  git('tag', 'v1.0');
+  const fixed = commit('1.0');
+  assert.equal(collectVersions(fixed, [], cwd)[0].commit, fixed);
+});
+
+test('keeps unpublished intermediate versions when returning to a released version', t => {
+  const { cwd, git, commit } = fixture(t);
+  commit('1.0');
+  git('tag', 'v1.0');
   const first = commit('1.1');
+  const last = commit('1.0');
+  assert.deepEqual(collectVersions(last, ['v1.0'], cwd), [
+    { commit: first, name: 'release-test', version: '1.1' },
+  ]);
+});
+
+test('selects the merge commit when it inherits an unpublished version', t => {
+  const { cwd, git, commit } = fixture(t);
+  commit('1.0');
+  git('tag', 'v1.0');
+  git('checkout', '-b', 'feature');
+  commit('1.1');
   commit('1.1');
   git('checkout', 'master');
   git('merge', '--no-ff', 'feature', '-m', 'Merge feature');
   const after = git('rev-parse', 'HEAD');
-  assert.deepEqual(collectVersions(before, after, cwd), [
-    { commit: first, name: 'release-test', version: '1.1' },
+  assert.deepEqual(collectVersions(after, ['v1.0'], cwd), [
+    { commit: after, name: 'release-test', version: '1.1' },
   ]);
 });
 
 test('includes versions introduced by merge commits', t => {
   const { cwd, git, commit } = fixture(t);
-  const before = commit('1.0');
+  commit('1.0');
+  git('tag', 'v1.0');
   git('checkout', '-b', 'feature');
-  commit('1.1');
+  const first = commit('1.1');
   git('checkout', 'master');
   git('merge', '--no-ff', '--no-commit', 'feature');
   const merge = commit('1.2');
-  assert.deepEqual(collectVersions(before, merge, cwd).map(({ version }) => version), ['1.1', '1.2']);
-  assert.equal(collectVersions(before, merge, cwd)[1].commit, merge);
+  assert.deepEqual(collectVersions(merge, ['v1.0'], cwd), [
+    { commit: first, name: 'release-test', version: '1.1' },
+    { commit: merge, name: 'release-test', version: '1.2' },
+  ]);
 });
 
-test('handles initial pushes, unchanged versions and empty ranges', t => {
-  const { cwd, commit } = fixture(t);
-  const first = commit('1.0');
+test('uses the latest commits when no Release exists and stops at successful history', t => {
+  const { cwd, git, commit } = fixture(t);
+  commit('1.0');
   const last = commit('1.0');
-  assert.deepEqual(collectVersions('0'.repeat(40), last, cwd), [
-    { commit: first, name: 'release-test', version: '1.0' },
+  assert.deepEqual(collectVersions(last, [], cwd), [
+    { commit: last, name: 'release-test', version: '1.0' },
   ]);
-  assert.deepEqual(collectVersions(first, last, cwd), []);
-  assert.deepEqual(collectVersions(last, last, cwd), []);
+  git('tag', 'v1.0');
+  assert.deepEqual(collectVersions(last, ['v1.0'], cwd), []);
+});
+
+test('ignores history before package creation', t => {
+  const { cwd, git, commit } = fixture(t);
+  git('commit', '--allow-empty', '-m', 'Initial commit');
+  const last = commit('1.0');
+  assert.deepEqual(collectVersions(last, [], cwd), [
+    { commit: last, name: 'release-test', version: '1.0' },
+  ]);
 });
