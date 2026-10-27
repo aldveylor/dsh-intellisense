@@ -227,15 +227,14 @@ interface TreeProps {
     pinBuiltin: (path: string) => void; toolComments: Record<string, string>; unmountedVisible: CommandVisibility; pinUnmounted: (id: string) => void;
 }
 
-/** @brief Keep closing children mounted until their disclosure animation has completed. */
+/** @brief Let CSS resize the child container and release its contents after closing. */
 function TreeChildren({ open, children }: { open: boolean; children: ReactNode }) {
     const [present, setPresent] = useState(open);
     useEffect(() => { if (open) setPresent(true); }, [open]);
-    if (!open && !present) return null;
     return <div className="ts-tree-children" data-open={open} aria-hidden={!open}
-        ref={element => { if (element) element.inert = !open; }} onAnimationEnd={event => {
-            if (event.target === event.currentTarget && !open) setPresent(false);
-        }}><ul>{children}</ul></div>;
+        ref={element => { if (element) element.inert = !open; }} onTransitionEnd={event => {
+            if (event.target === event.currentTarget && event.propertyName === 'grid-template-rows' && !open) setPresent(false);
+        }}><ul>{(open || present) && children}</ul></div>;
 }
 
 /** @brief Namespace row whose children toggle only through the leading disclosure button. */
@@ -554,7 +553,7 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
     }
     const drag = useTreeDrag(applyDrop);
     const remapMotion = useLayoutMotion(drag.container, '.ts-tree .ts-node-block,.ts-tree .ts-tree-tool,.ts-tree .ts-namespace-placeholder',
-        element => element.classList.contains('ts-namespace-placeholder') ? `${element.dataset.namespacePath}.__placeholder__` : element.dataset.namespacePath ?? element.dataset.treePath!);
+        element => element.classList.contains('ts-namespace-placeholder') ? `${element.dataset.namespacePath}.__placeholder__` : element.dataset.namespacePath ?? element.dataset.treePath!, expanded);
 
     /** @brief Lock descendant disable controls while preserving their own configured state. */
     function disabledByAncestor(path: string): boolean {
