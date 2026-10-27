@@ -104,7 +104,7 @@ jobs:
           const directory = 'build/release';
           const source = require('./package.json').publishConfig?.directory ?? '.';
           mkdirSync(directory, { recursive: true });
-          const [archive] = JSON.parse(execFileSync('npm', ['pack', `./${source}`, '--ignore-scripts', '--json', '--pack-destination', directory], { encoding: 'utf8' }));
+          const [archive] = Object.values(JSON.parse(execFileSync('npm', ['pack', `./${source}`, '--ignore-scripts', '--json', '--pack-destination', directory], { encoding: 'utf8' })));
           const archiveName = `${process.env.PROJECT_NAME}-v${process.env.VERSION}.tar.gz`;
           renameSync(`${directory}/${archive.filename}`, `${directory}/${archiveName}`);
           console.log(archiveName);
