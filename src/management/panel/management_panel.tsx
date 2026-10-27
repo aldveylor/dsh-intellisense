@@ -641,13 +641,13 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
                         })} />
                 </div>
             </div>
-                <small>{t('tree_hint')}</small>
                 {view && <div className="ts-profile-summary"><button className="ts-unmounted-count" type="button" data-unmounted-count={unmounted.length} aria-live="polite" disabled={!unmounted.length}
                     onClick={() => setToolPicker({ parent: '', unmountedOnly: true })}>{t('unmounted_count', { count: unmounted.length })}</button>
                     <button type="button" disabled={busy} onClick={() => setBriefEditor(brief ?? '')}>{t('edit_profile_brief')}</button></div>}
                 <div aria-busy={pending === 'editor' || undefined} ref={element => { if (element) element.inert = pending === 'editor'; }}>
                     <NamespaceTreeView roots={namespaceTree.roots} tree={tree} />
                 </div>
+                <small>{t('tree_hint')}</small>
             </section></main>
         </div>
         {toolPicker !== undefined && view && <ToolPicker parent={toolPicker.parent} tools={toolPicker.unmountedOnly ? unmounted : view.tools} mappings={mappings} protectedTools={providedTools(provided, view.tools)} callsByTool={view.callsByTool} queriesByTool={view.queriesByTool} busy={busy}

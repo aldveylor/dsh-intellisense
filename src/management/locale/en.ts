@@ -101,7 +101,7 @@ export const en = {
     "profile_brief": "Profile description",
     "generate_proposal": "Generate organization proposal",
     "namespace_tree": "Namespace tree",
-    "tree_hint": "Use arrows to expand; double-click names or comments to edit, drag sibling blocks to reorder, and click plus to add tools.",
+    "tree_hint": "Use arrows to expand; double-click names or comments to edit, drag nodes to reorder or move between namespaces, and click plus to add tools.",
     "prompt_comment": "Command prompt comment",
     "apply": "Apply",
     "reset": "Reset",

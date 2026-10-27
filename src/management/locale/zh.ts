@@ -101,7 +101,7 @@ export const zh = {
     "profile_brief": "配置描述",
     "generate_proposal": "生成整理提案",
     "namespace_tree": "命名空间树",
-    "tree_hint": "箭头控制展开；双击名称或注释编辑，同级块可拖动排序，点击加号添加工具。",
+    "tree_hint": "箭头控制展开；双击名称或注释编辑，拖动节点可排序或跨命名空间移动，点击加号添加工具。",
     "prompt_comment": "命令提示注释",
     "apply": "应用",
     "reset": "重置",
