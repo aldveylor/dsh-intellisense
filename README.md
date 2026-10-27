@@ -10,6 +10,24 @@ dsh-intellisense helps you organize and discover tools in DeepSeek Harness. Grou
 
 ## Installation
 
+**Official DSH Desktop:** Open **Settings → Plugins** in the app, search for `@aldveylor/dsh-intellisense`, and install it through the app's plugin manager. No command line is needed.
+
+**Regular dsh web:** Run this command, then restart dsh web:
+
+```sh
+dsh plugin --profile web add @aldveylor/dsh-intellisense
+```
+
+**Custom profile:** Replace `web` in that command with your host's actual profile name:
+
+```sh
+dsh plugin --profile <profile> add @aldveylor/dsh-intellisense
+```
+
+Follow your host's restart instructions.
+
+## Development
+
 Requires Node.js >=24 and DeepSeek Harness >=0.2.1-rc.2.
 
 ### Install from npm

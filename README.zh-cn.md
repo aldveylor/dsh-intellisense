@@ -10,6 +10,24 @@ dsh-intellisense 帮助你在 DeepSeek Harness 中整理和查找工具。你可
 
 ## 安装
 
+**官方 DSH 桌面端：** 打开应用中的 **设置 → 插件**，搜索 `@aldveylor/dsh-intellisense`，通过应用的插件管理器安装，无需使用命令行。
+
+**常规 dsh web：** 执行以下命令，然后重启 dsh web：
+
+```sh
+dsh plugin --profile web add @aldveylor/dsh-intellisense
+```
+
+**自定义运行配置：** 将命令中的 `web` 替换为宿主实际使用的运行配置名称：
+
+```sh
+dsh plugin --profile <profile> add @aldveylor/dsh-intellisense
+```
+
+按照宿主的说明重启。
+
+## 开发（Development）
+
 需要 Node.js >=24、DeepSeek Harness >=0.2.1-rc.2。
 
 ### 通过 npm 安装
