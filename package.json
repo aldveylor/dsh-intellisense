@@ -62,6 +62,10 @@
     "presets",
     "src/metadata"
   ],
+  "publishConfig": {
+    "directory": "build/package",
+    "linkDirectory": false
+  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
@@ -91,7 +95,7 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "pnpm run build && tsx --test tests/**/*.test.ts",
     "lint": "eslint --config scripts/eslint_config.mjs src tests",
-    "prepare": "pnpm run build",
+    "prepare": "pnpm run build && node scripts/release/prepare_package.mjs",
     "screenshots": "pnpm run build && node scripts/screenshots.mjs"
   },
   "license": "Apache-2.0",
