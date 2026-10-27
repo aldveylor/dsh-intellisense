@@ -1,6 +1,6 @@
-# @aldveylor/dsh-intellisense
-
 ![Intellisense — Tool discovery, on demand.](assets/banner.png)
+
+# dsh-intellisense
 
 [English](README.md)
 
