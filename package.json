@@ -36,9 +36,9 @@
       "types": "./dist/integration/presentation.d.ts",
       "default": "./dist/integration/presentation.js"
     },
-    "./locale/*.json": "./src/metadata/plugin/*.json",
-    "./client/locale/*.json": "./src/metadata/plugin/*.json",
-    "./presentation/locale/*.json": "./src/metadata/presentation/*.json"
+    "./locale/*.json": "./locale/plugin/*.json",
+    "./client/locale/*.json": "./locale/plugin/*.json",
+    "./presentation/locale/*.json": "./locale/presentation/*.json"
   },
   "files": [
     "dist",
@@ -48,7 +48,7 @@
     "README.zh-cn.md",
     "LICENSE",
     "presets",
-    "src/metadata"
+    "locale"
   ],
   "publishConfig": {
     "directory": "build/package",

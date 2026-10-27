@@ -1,6 +1,6 @@
 # 源码模型
 
-包名为 @aldveylor/dsh-intellisense，组件显示名称由 metadata/ 中的 locale 元数据定义，不包含 npm scope；包入口引用、客户端模块 ID 与 bundle 配置页注册键使用完整包名。默认入口 index.ts 组合命名空间服务与受限运行时，注册 Intellisense PTC（intellisense-ptc，TS/JS 执行）和 Intellisense（intellisense，原生 DSML 执行）两个 Agent Mode；命名空间服务与 preset 注册由主入口内部挂载，不再提供 ./namespace 和 ./preset 公开入口；主插件依赖 agentPresets 服务。
+包名为 @aldveylor/dsh-intellisense，组件显示名称由 根目录 locale/ 中的元数据定义，不包含 npm scope；包入口引用、客户端模块 ID 与 bundle 配置页注册键使用完整包名。默认入口 index.ts 组合命名空间服务与受限运行时，注册 Intellisense PTC（intellisense-ptc，TS/JS 执行）和 Intellisense（intellisense，原生 DSML 执行）两个 Agent Mode；命名空间服务与 preset 注册由主入口内部挂载，不再提供 ./namespace 和 ./preset 公开入口；主插件依赖 agentPresets 服务。
 
 根入口同时导出 NamespaceNode、CommandNode 类及公共工具、映射、注册器配置/状态、Profile、节点权限/序列化、运行时绑定/结果和 Store 类型；ToolDefinition 类型转导出自原生 dsh-tools，供外部扩展使用。
 
@@ -35,6 +35,8 @@ UI 不再显示 unknown 块。树上方显示当前可用但未挂载的工具�
 `management/server/routes.ts` 的管理接口沿用原生 Connection 的认证和 Host/Origin 保护。“生成整理提案”由客户端创建默认模型的 Intellisense PTC 新会话，按界面语言预填整理提示，等待用户点击提交；服务端不再提供提案生成或批准接口。
 
 ## 构建和部署
+
+根目录 locale/plugin 和 locale/presentation 分别保存主包及客户端共用的元数据与 presentation 元数据，通过各入口的 /locale/*.json 导出并随包发布；locale 不保留 model.md。
 
 插件图标使用 `assets/icon.svg`，通过 package.json 的 icon 字段声明并纳入 files 发布清单；根入口与 client、presentation 子路径均导出对应的 `/icon` 资源，供宿主读取插件显示元数据。
 
