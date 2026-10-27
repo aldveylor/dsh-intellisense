@@ -290,10 +290,12 @@ importers:
       typescript-eslint:
         specifier: 8.72.0
         version: 8.72.0(eslint@9.39.5(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3)
+    linkDirectory: false
     optionalDependencies:
       minisearch:
         specifier: 7.2.0
         version: 7.2.0
+    publishDirectory: build/package
 
 packages:
 
