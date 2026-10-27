@@ -128,7 +128,7 @@ export class NamespaceComponent {
     async tree(agent: Agent, current?: SemanticRegistry): Promise<NamespaceNode> { return manifest(current ?? await this.registryFor(agent), this.aliases); }
 
     /** @brief Flatten command bindings only for consumers that dispatch physical tools. */
-    async entries(agent: Agent, current?: SemanticRegistry): Promise<CommandNode[]> { return (await this.tree(agent, current)).commands(); }
+    async entries(agent: Agent, current?: SemanticRegistry): Promise<CommandNode[]> { return (await this.tree(agent, current)).commands().filter(entry => !entry.disabled); }
 
     /** @brief List catalog commands with mount paths including disabled paths, excluding plugin builtins. */
     async commandBriefs(agent?: Agent, current?: SemanticRegistry): Promise<CommandBrief[]> {
@@ -179,6 +179,7 @@ export class NamespaceComponent {
         const hints: NamespaceHint[] = [];
         const mappings = new Map(registry.effective().map(mapping => [mapping.path, mapping]));
         for (const entry of root.commands()) {
+            if (entry.disabled) continue;
             if (!entry.permissions.renamable) {
                 const level = entry.fixLevel((state.builtinVisible ?? pluginCommands.defaultBuiltinVisible)[entry.path] ?? 0);
                 if (level) hints.push({ path: entry.path, description: entry.doc,
@@ -193,7 +194,7 @@ export class NamespaceComponent {
         }
         for (const item of state.namespaces ?? []) {
             const node = root.resolve(item.path.split('.'));
-            if (item.alwaysVisible && node) hints.push({ ...item, namespace: true });
+            if (item.alwaysVisible && node && !node.disabled) hints.push({ ...item, namespace: true });
         }
         for (const [path, pinned] of Object.entries(state.namespaceVisible ?? {})) {
             const node = root.resolve(path.split('.'));
@@ -210,7 +211,7 @@ export class NamespaceComponent {
                 parent = parent.parent;
             }
         }
-        return namespaceDirectory(hints);
+        return namespaceDirectory(hints, !!root.resolve(['tools', 'intellisense']) && !registry.disabled('tools.intellisense'));
     }
 
     /** @brief Keep native exposure limited to discovery, pinned commands and explicitly queried functions. */
@@ -220,7 +221,7 @@ export class NamespaceComponent {
         const pinned = new Set(registry.effective().filter(mapping => mapping.alwaysVisible).map(mapping => mapping.path));
         const available = new Set(entries.map(entry => entry.path));
         for (const path of discovered ?? []) if (!available.has(path)) discovered!.delete(path);
-        return entries.filter(entry => !entry.permissions.disableable || discovered?.has(entry.path)
+        return entries.filter(entry => entry.fixLevel(state.builtinVisible?.[entry.path] ?? 0) > 0 || discovered?.has(entry.path)
             || pinned.has(entry.path)
             || state.builtinVisible?.[entry.path]);
     }
@@ -249,7 +250,7 @@ export class NamespaceComponent {
         const source = JSON.stringify([registry.generation, [...this.discovered.get(agent.id) ?? []]]);
         const previous = this.nativeTools.get(agent.id);
         if (previous?.source === source) return [...previous.names];
-        const entries = (root ?? manifest(registry, this.aliases)).commands();
+        const entries = (root ?? manifest(registry, this.aliases)).commands().filter(entry => !entry.disabled);
         const visible = new Set(this.nativeEntries(agent, registry, entries));
         const bindings = nativeBindings(entries, registry.tools().map(tool => tool.id)).filter(({ entry }) => visible.has(entry));
         const descriptionFor = (entry: CommandNode): string => registry.description(entry.path, entry.tool) ?? entry.doc.trim().split(/\r?\n/, 1)[0]!;

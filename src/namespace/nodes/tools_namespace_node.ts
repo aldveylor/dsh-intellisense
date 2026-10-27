@@ -6,10 +6,10 @@ import type { NamespaceNode } from './node.js';
 import type { NamespaceContext } from './context.js';
 import { pluginCommands } from '../../runtime/builtins.js';
 
-/** @brief Tools owns its protected discovery, search and Profile children and cannot be disabled. */
+/** @brief Tools owns its protected discovery, search and Profile children with inherited disablement. */
 export class ToolsNamespaceNode extends InnerNamespaceNode {
     constructor(parent: NamespaceNode, context: NamespaceContext) {
-        super('tools', parent, 'Tool discovery and Profile management', { disableable: false });
+        super('tools', parent, 'Tool discovery and Profile management', {}, context.disabled?.('tools'));
         for (const builtin of [pluginCommands.discoveryCommand, pluginCommands.searchCommand]) {
             if (context.disabled?.(builtin.path)) continue;
             const tool = context.tools.find(tool => tool.id === builtin.tool);

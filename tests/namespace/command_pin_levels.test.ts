@@ -85,3 +85,23 @@ test('PTC initial prompts retain descriptions of parents of pinned commands only
         assert.equal(text.includes('namespace library {  // Library files'), level > 0);
     }
 });
+
+test('disabled or absent discovery disappears from pinned prompts and builtin help', async () => {
+    for (const disabled of [[], ['tools.intellisense'], ['tools']] as string[][]) {
+        for (const available of [true, false]) {
+            const registry = new SemanticRegistry(new MemoryStore());
+            registry.refresh([tool, ...['tools_search', 'tools_profile_commands', ...(available ? ['tools_intellisense'] : [])].map(id => ({ id, description: '', parameters: {}, output: {} }))]);
+            await registry.replaceConfiguration({ ...registry.configuration(),
+                mappings: [{ id: tool.id, path: 'files.read', pinned: false, alwaysVisible: 2 }],
+                builtinDisabled: disabled, builtinVisible: { 'tools.search': 2, 'tools.profile.commands': 2 },
+            }, 'Default');
+            const text = await prompt(registry);
+            assert.equal(text.includes('tools.intellisense'), available && !disabled.length);
+            assert(text.includes('function read('));
+            const component = { registryFor: async () => registry, aliases: [], tree: NamespaceComponent.prototype.tree } as unknown as NamespaceComponent;
+            const entries = await NamespaceComponent.prototype.entries.call(component, {} as Agent);
+            assert.equal(entries.some(entry => entry.path === 'tools.intellisense'), available && !disabled.length);
+            assert.equal(entries.some(entry => entry.path === 'tools.search'), !disabled.includes('tools'));
+        }
+    }
+});

@@ -84,5 +84,14 @@ test('disable controls retain visible nodes, precede deletion and save command a
         await until(() => document.querySelector('[data-tree-path="tools.search"]')?.getAttribute('data-tool-status') === 'disabled');
         click('.ts-namespace-profile button[aria-label="Save"]');
         await until(() => registry.snapshot().builtinDisabled?.includes('tools.search') === true);
+        await until(() => document.querySelector('.ts-namespace-profile')?.getAttribute('aria-busy') !== 'true');
+        document.querySelector('[data-action="save"]')!.dispatchEvent(new dom.window.Event('animationiteration', { bubbles: true }));
+        click('[data-tree-path="tools.intellisense"] .ts-disable');
+        await until(() => document.querySelector('[data-tree-path="tools.intellisense"]')?.getAttribute('data-tool-status') === 'disabled');
+        click('[data-namespace-path="tools"] .ts-disable');
+        await until(() => document.querySelector('li[data-tree-path="tools"]')?.getAttribute('data-disabled') === 'true');
+        click('.ts-namespace-profile button[aria-label="Save"]');
+        await until(() => ['tools', 'tools.intellisense'].every(path => registry.snapshot().builtinDisabled?.includes(path)));
+
     } finally { dom.window.close(); }
 });

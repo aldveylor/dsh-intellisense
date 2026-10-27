@@ -26,7 +26,7 @@ tools.intellisense 固定映射到内置 tools_intellisense，强制固定等级
 
 ## 管理 UI
 
-`management/panel/management_panel.tsx` 和 `management/panel/tree_provider.ts` 显示 tools 固定树与可配置命名空间；内置命令描述固定英文，界面中文集中到翻译表，其余 UI 支持中英文。内置命令不可改名、拖动或删除，tools.intellisense 强制固定等级 2、禁用图钉切换，tools.profile 显示嵌套子树，其余可用命令的图钉按 0 → 1 → 2 → 0 切换，等级 2 使用黄色图标，并按当前 Profile 草稿保存。
+`management/panel/management_panel.tsx` 和 `management/panel/tree_provider.ts` 显示 tools 固定树与可配置命名空间；内置命令描述固定英文，界面中文集中到翻译表，其余 UI 支持中英文。内置命令不可改名、拖动或删除，tools.intellisense 强制固定等级 2、禁用图钉切换；tools 命名空间与 tools.intellisense 支持禁用，禁用后移除对应运行时工具及发现提示，tools.profile 显示嵌套子树，其余可用命令的图钉按 0 → 1 → 2 → 0 切换，等级 2 使用黄色图标，并按当前 Profile 草稿保存。
 
 UI 不再显示 unknown 块。树上方显示当前可用但未挂载的工具数量，点击打开只含未挂载工具的选择器；数量随挂载、移除映射和切换 Profile 更新。失效工具不计入，映射不再保存 enabled 标志，移除映射即取消挂载；内置管理工具、run_code 和 tools_run_code 不计入未挂载工具。
 

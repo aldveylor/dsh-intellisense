@@ -308,7 +308,7 @@ export class SemanticRegistry {
             || this.state.mappings.some(mapping => mapping.disabled && mapping.path === path);
     }
 
-    /** @brief Validate disabled builtin paths while preserving the tools namespace and discovery entry point. */
+    /** @brief Validate disabled builtin paths against node permissions. */
     private validateDisabled(paths: string[] | undefined): void {
         if (paths !== undefined && (!Array.isArray(paths) || paths.some(path => {
             if (typeof path !== 'string') return true;

@@ -9,6 +9,14 @@ import { namespaceDeclaration, builtinDeclaration } from '../declaration.js';
 /** @brief Restricted server commands own adapters and policies without exposing their class to clients. */
 export class InnerCommandNode extends CommandNode {
     constructor(name: string, parent: NamespaceNode, entry: Omit<ManifestEntry, 'path'>, readonly builtin: BuiltinTool, permissions: Partial<Permission> = {}) {
+        let root = parent;
+        while (root.parent) root = root.parent;
+        const discovery = root.resolve(['tools', 'intellisense']);
+        if (builtin !== pluginCommands.discoveryCommand && (!discovery || discovery.disabled)) {
+            const description = builtin.description.replace(' Use tools.intellisense for complete command details.', '').replace(' tools.intellisense cannot retrieve information by physical command name; query an enabled mount path available in the current conversation instead.', '');
+            builtin = { ...builtin, description };
+            entry = { ...entry, doc: description };
+        }
         super(name, parent, entry, nodePermissions('leaf', { renamable: false, commentable: false, movable: false, removable: false, ...permissions }));
     }
 
@@ -26,7 +34,7 @@ export class InnerCommandNode extends CommandNode {
     override result(value: unknown): unknown { return this.builtin.discardResult ? undefined : super.result(value); }
 
     override declaration(nested = true): string {
-        const contract = this.tool === 'tools_search' ? pluginCommands.searchContract(((this.schema.properties as Record<string, { enum?: string[] }> | undefined)?.method?.enum) ?? []) : this.builtin;
+        const contract = this.tool === 'tools_search' ? { ...pluginCommands.searchContract(((this.schema.properties as Record<string, { enum?: string[] }> | undefined)?.method?.enum) ?? []), description: this.doc } : this.builtin;
         return namespaceDeclaration([{ path: nested ? this.path : this.name, declaration: builtinDeclaration(contract) }], false);
     }
 }

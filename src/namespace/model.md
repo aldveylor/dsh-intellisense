@@ -20,7 +20,7 @@ Profile 可同时保存来自多个预设的映射；当前模型作用域未挂
 
 `nodes/` 按类拆分实现，详见其 model.md。`namespace.ts` 作为上层入口，通过 createNamespace(context) 组织初始 tools 子树，再由 manifest 注册当前映射及别名。根是普通匿名 NamespaceNode，不存在 RootNamespaceNode。NamespaceNode.add 不覆盖已有成员；remove 由父节点检查子节点 permissions.removable。InnerNamespaceNode 自行限制外部插入；ToolsNamespaceNode、ProfileNamespaceNode 在构造期间管理各自子对象，ToolsNamespaceNode 禁止禁用。
 
-tools.* 使用服务端 InnerCommandNode 和专用命令节点，绑定重载、丢弃结果及预加载。tools.intellisense 的节点权限仅允许固定等级 2 且不可禁用。所有成员都在初始化时创建，intellisense 查询只调用 queryNodes → resolve，查询期间不生成节点、不覆盖映射。PTC 函数绑定仅选择非 preload 的命令；所有命令节点均绑定物理工具，不再区分 tool/environment 部署类型。
+tools.* 使用服务端 InnerCommandNode 和专用命令节点，绑定重载、丢弃结果及预加载。tools.intellisense 的节点权限仅允许固定等级 2，但可禁用。所有成员都在初始化时创建，intellisense 查询只调用 queryNodes → resolve，查询期间不生成节点、不覆盖映射。PTC 函数绑定仅选择非 preload 的命令；所有命令节点均绑定物理工具，不再区分 tool/environment 部署类型。
 
 管理 API 将同一初始化树的 SerializedNode 传给客户端，客户端不导入内置命令表、不按 tools 等名称生成权限或节点。Profile.root 同样使用 SerializedNode 描述，保存时先按目标原配置递归补齐遗漏的受保护子对象，保留已提交节点的设置，再由服务端权威节点拒绝替换、改名、移动或外部插入；不能通过伪造 permissions 改写这些规则。实际工具执行权限仍由 DSH 原生 guard 处理。
 
@@ -40,7 +40,7 @@ PTC 同一对话复用 VM Context，允许 globalThis 挂载变量跨调用共�
 
 常量与对象成员通过前置 Doxygen JSDoc 保留描述；tools.profile 因含 delete/switch 使用对象声明时，annotation、commands、profiles 等字段仍提供注释，单独查询字段同样保留。
 
-`tools` 根命名空间不可禁用：共享 permissions.disableable 为 false，UI 不显示禁用按钮且回调不允许禁用；registry 拒绝将 tools 写入 builtinDisabled。tools 下其余命令和 tools.profile 仍保留各自禁用权限，tools.intellisense 始终可用。
+`tools` 根命名空间与 `tools.intellisense` 均可禁用，按 Profile 保存 builtinDisabled；禁用 tools 时所有子节点继承禁用。运行时绑定、原生工具集合与固定提示排除禁用节点；发现入口未注册或禁用时，初始执行说明、目录指引和内置命令说明移除 tools.intellisense 提示。
 
 
 命名空间描述由 manifest 从 Profile namespaces 元数据传入普通 NamespaceNode，内置 tools 等命名空间保留自身描述。native 成员查询的命名空间条目包含 brief，所有条目的 brief 为空或仅含空白时省略该键；PTC 查询与初始提示词为已展示的命名空间及其父链附加 description 注释，包含 tools.intellisense 的 tools 父命名空间；不因此展开未查询或未固定的其它成员。

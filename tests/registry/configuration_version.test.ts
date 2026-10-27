@@ -33,7 +33,7 @@ test('unversioned global settings preserve valid entries and persist schema vers
     assert.deepEqual(state.builtinVisible, { 'tools.search': 1 });
     assert.deepEqual(state.namespaceVisible, { files: true });
     assert.deepEqual(state.toolComments, { read: 'Read files' });
-    assert.deepEqual(state.builtinDisabled, ['tools.search']);
+    assert.deepEqual(state.builtinDisabled, ['tools.search', 'tools.intellisense']);
     assert.deepEqual(state.profiles, ['Broken', 'Other', 'Work']);
     assert.deepEqual(registry.configuration('Other').mappings, [{ ...mapping, path: 'other.read' }]);
     assert.deepEqual(registry.configuration('Broken').mappings, []);

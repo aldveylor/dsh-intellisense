@@ -72,6 +72,7 @@ export function registerIntellisense(ctx: Context, namespaces: NamespaceComponen
             execution.signal.throwIfAborted();
             const started = performance.now();
             const registry = await namespaces.registryFor(agent);
+            if (registry.disabled('tools.intellisense')) throw new Error('Execution denied: tools.intellisense');
             const root = await namespaces.tree(agent, registry);
             await namespaces.statistics.recordQueries(agent.id, intellisenseQueryTargets(queries, root));
             let info: string;

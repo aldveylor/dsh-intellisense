@@ -35,3 +35,14 @@ test('namespace briefs decode HTML entities before formatting the prompt', () =>
     assert(prompt.includes('/** @brief Read & change <directory> */'));
     assert(!prompt.includes('&amp;'));
 });
+
+test('unavailable discovery removes its instructions in both modes and the directory', () => {
+    for (const mode of ['native', 'ptc'] as const) {
+        const text = executionInstructions(mode, false);
+        assert(!text.includes('intellisense'));
+        assert(!text.includes('Query an exact command'));
+    }
+    const text = namespaceDirectory(['std.cwd'], false);
+    assert(!text.includes('intellisense'));
+    assert(text.includes('cwd: Function;'));
+});

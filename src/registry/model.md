@@ -18,7 +18,7 @@ configure 支持 activate=false，将指定的新副本写入非默认目录；�
 
 Mapping.disabled 与 Namespace.disabled 分别控制命令及子树的可用性；builtinDisabled 保存内置树的禁用路径。三者随 Profile、会话快照和编辑保存持久化。Profile 树的命令及命名空间节点允许 disabled 字段，导入导出保留该字段。SemanticRegistry.disabled 统一判断路径与祖先禁用状态。
 
-`tools` 根命名空间与 `tools.intellisense` 不可禁用，disabled 查询始终返回 false，builtinDisabled 校验拒绝这两个路径；tools 下其它节点按各自路径及可禁用父命名空间继承禁用。
+`tools` 根命名空间与 `tools.intellisense` 均可禁用，builtinDisabled 接受这两个路径；tools 下其它节点按各自路径及父命名空间继承禁用。
 
 CommandBrief 与 profileAnnotation 中共享同一数据定义：name 为原始物理命令名，brief 为描述，paths 为当前会话 Profile 的挂载路径（包含路径自身或祖先禁用的路径及已挂载工具的 YAML 配置路径；未挂载时为空数组，当前作用域不可用不移除已配置路径），不包含插件内置命令；totalCalls 为跨会话的累计派发次数，用于 AI 整理时参考调用频率。
 
