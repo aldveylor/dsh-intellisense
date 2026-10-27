@@ -2,17 +2,15 @@ import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-/** @brief Rewrite local README images to GitHub URLs, using media URLs for LFS assets. */
+/** @brief Rewrite local README images to raw GitHub URLs. */
 export function convertReadmeImages(markdown, repository, ref = 'master') {
   const repositoryPath = new URL(repository.replace(/^git\+/, '').replace(/\.git$/, '')).pathname.slice(1);
 
-  /** @brief Preserve remote URLs and route the non-LFS icon to the raw host. */
+  /** @brief Preserve remote URLs and route local images to the raw host. */
   function imageUrl(value) {
     if (/^(?:[a-z][a-z\d+.-]*:|\/\/|#)/i.test(value)) return value;
     const path = posix.normalize(value.replace(/^\//, ''));
-    const host = /^assets\/icon\.[^/?#]+(?:[?#].*)?$/.test(path)
-      ? 'raw.githubusercontent.com' : 'media.githubusercontent.com/media';
-    return `https://${host}/${repositoryPath}/${encodeURIComponent(ref)}/${path}`;
+    return `https://raw.githubusercontent.com/${repositoryPath}/${encodeURIComponent(ref)}/${path}`;
   }
 
   return markdown

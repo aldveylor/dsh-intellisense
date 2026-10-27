@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { convertReadmeImages, preparePackage } from '../../scripts/release/prepare_package.mjs';
 
-test('routes LFS images and icons separately while preserving external URLs and document links', () => {
+test('routes local images to raw GitHub URLs while preserving external URLs and document links', () => {
   const markdown = [
     '![banner](assets/banner.png "Banner")',
     '![icon](./assets/icon.png)',
@@ -19,11 +19,11 @@ test('routes LFS images and icons separately while preserving external URLs and 
   ].join('\n');
   const converted = convertReadmeImages(markdown, 'git+https://github.com/example/plugin.git');
   assert.equal(converted, [
-    '![banner](https://media.githubusercontent.com/media/example/plugin/master/assets/banner.png "Banner")',
+    '![banner](https://raw.githubusercontent.com/example/plugin/master/assets/banner.png "Banner")',
     '![icon](https://raw.githubusercontent.com/example/plugin/master/assets/icon.png)',
     '![icon](https://raw.githubusercontent.com/example/plugin/master/assets/icon.svg)',
-    '![screen](<https://media.githubusercontent.com/media/example/plugin/master/assets/en/screen.png>)',
-    '<img alt="screen" src="https://media.githubusercontent.com/media/example/plugin/master/assets/zh/screen.png">',
+    '![screen](<https://raw.githubusercontent.com/example/plugin/master/assets/en/screen.png>)',
+    '<img alt="screen" src="https://raw.githubusercontent.com/example/plugin/master/assets/zh/screen.png">',
     '![badge](https://example.com/badge.svg)',
     '![badge](//example.com/badge.svg)',
     '![inline](data:image/png;base64,abc)',
@@ -54,7 +54,7 @@ test('stages both READMEs without changing source files and removes stale output
   assert.equal(readFileSync(join(directory, 'dist/index.js'), 'utf8'), 'export {};\n');
   for (const file of ['README.md', 'README.zh-cn.md']) {
     assert.equal(readFileSync(join(root, file), 'utf8'), markdown);
-    assert.match(readFileSync(join(directory, file), 'utf8'), /https:\/\/media\.githubusercontent\.com\/media\//);
+    assert.equal(readFileSync(join(directory, file), 'utf8'), '![banner](https://raw.githubusercontent.com/example/plugin/master/assets/banner.png)\n');
   }
   assert.deepEqual(JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')), manifest);
   const staged = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'));
