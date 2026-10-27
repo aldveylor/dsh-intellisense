@@ -45,12 +45,14 @@ test('native Profile data tools and optional-name save/load use session defaults
     const before = registry.snapshot();
     await call('tools_profile_save', { profile });
     assert.deepEqual(registry.snapshot(), before);
-    assert.deepEqual(JSON.parse(JSON.stringify(profileTree('Default', catalog.configuration('Default')))), { ...profile, name: 'Default' });
+    const savedProfile = structuredClone(profile);
+    savedProfile.root.children.find((node: { name: string }) => node.name === 'tools').disabled = true;
+    assert.deepEqual(JSON.parse(JSON.stringify(profileTree('Default', catalog.configuration('Default')))), { ...savedProfile, name: 'Default' });
     await call('tools_profile_save', { name: 'Copy', profile });
     assert.deepEqual(registry.snapshot(), before);
     assert.deepEqual(await call('tools_profile_profiles'), { profiles: ['Copy', 'Default'], selected: 'Default' });
     await call('tools_profile_switch', { name: 'Copy' });
-    assert.deepEqual(JSON.parse(JSON.stringify(await call('tools_profile_load'))), { ...profile, name: 'Copy' });
+    assert.deepEqual(JSON.parse(JSON.stringify(await call('tools_profile_load'))), { ...savedProfile, name: 'Copy' });
     assert.deepEqual(await call('tools_profile_profiles'), { profiles: ['Copy', 'Default'], selected: 'Copy' });
     await call('tools_profile_load', { name: 'Default' });
     assert.equal(registry.snapshot().profile, 'Copy');
@@ -276,4 +278,27 @@ test('PTC agents can load, edit, save and switch plain Profile trees across host
         assert(registry.configuration().namespaces.some(node => node.path === 'agent_draft'));
         assert.deepEqual(catalog.configuration('Default'), before);
     } finally { await host.dispose(); }
+});
+
+test('Profile save defaults protected tools to disabled and honors explicit enablement', async () => {
+    const { call, load, catalog, registry, definitions, changed } = await fixture();
+    const before = registry.snapshot();
+    for (const state of ['missing', 'omitted', true, false] as const) {
+        const profile = await load();
+        const tools = profile.root.children!.find(node => node.name === 'tools')!;
+        if (state === 'missing') profile.root.children = profile.root.children!.filter(node => node !== tools);
+        else if (state === 'omitted') delete tools.disabled;
+        else tools.disabled = state;
+        const input = structuredClone(profile);
+        await call('tools_profile_save', { name: 'Copy', profile });
+        const saved = await load({ name: 'Copy' });
+        assert.equal(saved.root.children!.find(node => node.name === 'tools')!.disabled ?? false, state !== false);
+        assert.equal(catalog.configuration('Copy').builtinDisabled.includes('tools'), state !== false);
+        assert.deepEqual(profile, input);
+        assert.deepEqual(registry.snapshot(), before);
+    }
+    assert.deepEqual(changed, []);
+    assert(definitions.get('tools_profile_save')!.description.includes('tools namespace is protected and defaults to disabled'));
+    assert(profileAnnotation.includes('excluded from') || profileAnnotation.includes('disappear from discovery'));
+    assert(profileAnnotation.includes('preloaded values and pinned prompts'));
 });
