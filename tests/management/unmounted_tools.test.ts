@@ -162,10 +162,10 @@ test('built-in pins cycle through three levels, discovery stays detailed and pre
         await until(() => !!document.querySelector('[data-unmounted-count]'));
         for (const path of ['tools']) document.querySelector<HTMLButtonElement>(`[data-namespace-path="${path}"] .ts-disclosure`)!.click();
         const pin = (path: string) => document.querySelector<HTMLButtonElement>(`[data-tree-path="${path}"] .ts-pin`)!;
-        await until(() => !!pin('tools.search') && !!pin('tools.intellisense'));
+        await until(() => !!pin('tools.search') && !!pin('tools.inspect'));
         assert(!pin('tools.search').disabled);
-        assert(pin('tools.intellisense').disabled);
-        assert.equal(pin('tools.intellisense').dataset.level, '2');
+        assert(pin('tools.inspect').disabled);
+        assert.equal(pin('tools.inspect').dataset.level, '2');
         assert.equal(pin('tools.search').dataset.level, '0');
         for (const level of [1, 2, 0, 1, 2]) {
             pin('tools.search').click();
@@ -175,14 +175,14 @@ test('built-in pins cycle through three levels, discovery stays detailed and pre
         const button = (label: string) => Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(button => button.getAttribute('aria-label') === label)!;
         button('Save').click();
         await until(() => registry.snapshot().builtinVisible?.['tools.search'] === 2 && !button('Save').disabled);
-        assert.equal(pin('tools.intellisense').dataset.level, '2');
+        assert.equal(pin('tools.inspect').dataset.level, '2');
         button('Refresh').click();
         await until(() => !button('Refresh').disabled && pin('tools.search').getAttribute('aria-pressed') === 'true');
         assert.equal(pin('tools.search').dataset.level, '2');
         const initial = registry.configuration();
         await registry.manageProfile('create', 'Other', registry.snapshot().revision);
         assert.equal(registry.configuration().builtinVisible?.['tools.search'] ?? 0, 0);
-        assert.equal(TreeProvider(createNamespace({ tools: [], includeUnavailable: true }).serialize().children!).find(node => node.path === 'tools')!.commands.find(command => command.path === 'tools.intellisense')!.alwaysVisible, 2);
+        assert.equal(TreeProvider(createNamespace({ tools: [], includeUnavailable: true }).serialize().children!).find(node => node.path === 'tools')!.commands.find(command => command.path === 'tools.inspect')!.alwaysVisible, 2);
         await registry.manageProfile('select', 'Default', registry.snapshot().revision);
         assert.deepEqual(registry.configuration().builtinVisible, initial.builtinVisible);
     } finally { dom.window.close(); }

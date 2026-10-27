@@ -10,7 +10,7 @@ function fixture() {
     const configuration = { ...current,
         mappings: [...['read', 'write', 'list'].map((id, index) => ({ id, path: `files.${id}`, pinned: false, alwaysVisible: (2 - index) as 0 | 1 | 2 })), { id: 'read', path: 'read', pinned: false, alwaysVisible: 2 as const }],
         namespaces: [{ path: 'files', description: 'File operations', alwaysVisible: true }],
-        namespaceVisible: { tools: true }, builtinVisible: { 'tools.profile.load': 2 as const, 'tools.intellisense': 2 as const }, toolComments: { read: 'Read text' } };
+        namespaceVisible: { tools: true }, builtinVisible: { 'tools.profile.load': 2 as const, 'tools.inspect': 2 as const }, toolComments: { read: 'Read text' } };
     return { current, profile: profileTree('Work', configuration), commands: ['read', 'write', 'list'].map(name => ({ name, brief: name, paths: [], totalCalls: 0 })) };
 }
 
@@ -38,7 +38,7 @@ test('Profile schema rejects invalid nodes and configuration restores missing pr
     missing.root.children = missing.root.children!.filter(node => node.name !== 'tools');
     assert(profileTree('Work', profileConfiguration(missing, current, commands)).root.children!.some(node => node.name === 'tools'));
     const replaced = structuredClone(profile);
-    replaced.root.children!.find(node => node.name === 'tools')!.children!.find(node => node.name === 'intellisense')!.command!.tool = 'read';
+    replaced.root.children!.find(node => node.name === 'tools')!.children!.find(node => node.name === 'inspect')!.command!.tool = 'read';
     assert.throws(() => profileConfiguration(replaced, current, []), /Protected command cannot be replaced/);
 });
 
@@ -69,8 +69,8 @@ test('protected diagnostics reject rename and move while omissions restore prote
         assert(profileTree('Work', profileConfiguration(removed, current, commands)).root.children!.some(node => node.name === name));
     }
     const renamedLeaf = structuredClone(profile);
-    renamedLeaf.root.children!.find(node => node.name === 'tools')!.children!.find(node => node.name === 'intellisense')!.name = 'detail';
-    assert.throws(() => profileConfiguration(renamedLeaf, current, commands), /Node cannot be renamed: tools.intellisense -> tools.detail/);
+    renamedLeaf.root.children!.find(node => node.name === 'tools')!.children!.find(node => node.name === 'inspect')!.name = 'detail';
+    assert.throws(() => profileConfiguration(renamedLeaf, current, commands), /Node cannot be renamed: tools.inspect -> tools.detail/);
 });
 
 test('root info and log namespaces coexist with protected tools without a console namespace', () => {

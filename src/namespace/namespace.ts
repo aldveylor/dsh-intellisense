@@ -10,7 +10,7 @@ export { InnerNamespaceNode } from './nodes/inner_namespace_node.js';
 export { InnerCommandNode } from './nodes/inner_command_node.js';
 export { ToolsNamespaceNode } from './nodes/tools_namespace_node.js';
 export { ProfileNamespaceNode } from './nodes/profile_namespace_node.js';
-export { IntellisenseCommandNode } from './nodes/intellisense_command_node.js';
+export { InspectCommandNode } from './nodes/inspect_command_node.js';
 export type { NamespaceContext } from './nodes/context.js';
 import { nodePermissions, type CommandContract } from './node.js';
 export type { Node, NodeType, Permission, SerializedNode } from './node.js';
@@ -41,10 +41,10 @@ export function createNamespace(context: NamespaceContext): NamespaceNode {
 }
 
 /** @brief Ignore the ambient global namespace prefix and validate discovery paths. */
-export function normalizeIntellisenseQueries(queries: readonly string[]): string[] {
+export function normalizeInspectQueries(queries: readonly string[]): string[] {
     return queries.map(query => {
         const path = query.replace(/^global\./, '');
-        if (path !== '' && !/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*\.?$/.test(path)) throw new Error(`Invalid IntelliSense query: ${query}`);
+        if (path !== '' && !/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*\.?$/.test(path)) throw new Error(`Invalid Inspect query: ${query}`);
         return path;
     });
 }
@@ -52,7 +52,7 @@ export function normalizeIntellisenseQueries(queries: readonly string[]): string
 /** @brief Select exact commands or direct members by following the node chain. */
 export function queryNodes(root: NamespaceNode, queries: readonly string[]): (NamespaceNode | CommandNode)[] {
     const selected = new Set<NamespaceNode | CommandNode>();
-    for (const query of normalizeIntellisenseQueries(queries)) {
+    for (const query of normalizeInspectQueries(queries)) {
         const path = query.replace(/\.$/, '');
         const node = root.resolve(path ? path.split('.') : []);
         if (!node || node.disabled) continue;

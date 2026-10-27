@@ -49,7 +49,7 @@ for (const ptc of [false, true]) test(`builtin discovery and Profile annotation 
         apply: (scope: Context) => {
             caller = scope;
             registerBuiltin(scope, defineTool({
-                name: 'tools_intellisense', description: 'Discover commands', parameters: {},
+                name: 'tools_inspect', description: 'Discover commands', parameters: {},
                 output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
                 execute: async () => 'discovered commands',
             }));
@@ -59,7 +59,7 @@ for (const ptc of [false, true]) test(`builtin discovery and Profile annotation 
     try {
         assert.throws(() => caller.commandNamespaces, /without inject/);
         const execution = { callId: 'call-1', agent: { ctx: caller!, session }, signal: new AbortController().signal } as unknown as ToolRunContext;
-        assert.equal(await definitions.get('tools_intellisense')!.execute({}, execution), 'discovered commands');
+        assert.equal(await definitions.get('tools_inspect')!.execute({}, execution), 'discovered commands');
         assert.equal(await definitions.get('tools_profile_annotation')!.execute({}, execution), ptc ? profileAnnotation : JSON.stringify(ProfileSchema.toJSONSchema()));
         const records = session.snapshotEvents() as unknown as { type: string; data: Record<string, unknown> }[];
         assert.equal(records.length, 2);

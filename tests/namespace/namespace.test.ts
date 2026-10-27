@@ -6,7 +6,7 @@ import { SemanticRegistry } from '../../src/registry/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
 import { Aliases, manifest, resultFor, declaration } from '../../src/namespace/namespace.js';
 import { nativeDiscovery } from '../../src/namespace/native_tools.js';
-import { intellisense } from '../../src/tools/intellisense.js';
+import { inspect } from '../../src/tools/inspect.js';
 
 /** @brief Provide a scoped catalog with preserved native command documentation. */
 async function registry(): Promise<SemanticRegistry> {
@@ -43,20 +43,20 @@ test('detailed completion uses valid TypeScript/Doxygen declarations and preserv
     assert(!text.includes('@param args.path'));
     assert(text.includes('@param path 文件路径'));
     assert(text.includes('function read(path: string): Promise<string>'));
-    const file = ts.createSourceFile('intellisense.d.ts', text, ts.ScriptTarget.Latest, true);
+    const file = ts.createSourceFile('inspect.d.ts', text, ts.ScriptTarget.Latest, true);
     assert.equal(file.statements[0]?.kind, ts.SyntaxKind.ModuleDeclaration);
     assert.equal((file as typeof file & { parseDiagnostics: unknown[] }).parseDiagnostics.length, 0);
-    const info = intellisense(['std.fs.read'], entries, true);
+    const info = inspect(['std.fs.read'], entries, true);
     assert(info.includes('function read(path: string)'));
     assert(info.includes('@brief 读取文件（保留注释原文）'));
-    const fixed = intellisense(['console.log'], entries, true);
+    const fixed = inspect(['console.log'], entries, true);
     assert(!fixed.includes('namespace console'));
     assert(!fixed.includes('function log('));
-    assert(!intellisense(['tools.mount'], entries, true).includes('function mount'));
-    const root = intellisense([''], entries, true);
+    assert(!inspect(['tools.mount'], entries, true).includes('function mount'));
+    const root = inspect([''], entries, true);
     assert(root.includes('namespace tools'));
     assert(root.includes('namespace std'));
-    assert(!intellisense(['console.log'], entries, false).includes('function log('));
+    assert(!inspect(['console.log'], entries, false).includes('function log('));
 });
 
 test('cwd and other single-field results expose scalar contracts and repack positional arguments', async () => {
@@ -103,13 +103,13 @@ test('namespace descriptions survive native discovery and PTC member and exact q
     assert.equal(members.find((member: { path: string }) => member.path === 'files.library').brief, 'Library files');
     assert.equal(members.find((member: { path: string }) => member.path === 'tools').brief, 'Tool discovery and Profile management');
     for (const query of ['files.library.', 'global.files.library.read']) {
-        const text = intellisense([query], root, true);
+        const text = inspect([query], root, true);
         assert(text.includes('namespace files {  // File operations'));
         assert(text.includes('namespace library {  // Library files'));
         assert(!text.includes('namespace tools'));
     }
     for (const query of ['', 'tools.', 'tools.profile.']) {
-        assert(intellisense([query], root, true).includes('namespace tools {  // Tool discovery and Profile management'));
+        assert(inspect([query], root, true).includes('namespace tools {  // Tool discovery and Profile management'));
     }
 });
 

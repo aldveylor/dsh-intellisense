@@ -93,7 +93,7 @@ export function ToolDetails({ tool, calls, queries = 0 }: { tool: PhysicalTool; 
     </article>;
 }
 
-/** @brief Share global call and IntelliSense query totals between tool and namespace details. */
+/** @brief Share global call and Inspect query totals between tool and namespace details. */
 export function ToolStatistics({ calls, queries = 0 }: { calls?: number; queries?: number }) {
     const t = useTranslation();
     return <section className="ts-tool-statistics">

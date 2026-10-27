@@ -8,11 +8,11 @@
 
 `integration/presentation.ts` 通过 config.mode 选择 native/ptc 工具呈现与初始提示词，按作用域继承 preset 配置。仅显式挂载 presentation 的 Intellisense / Intellisense PTC 模式启用命名空间；标准模式及其它模式保持原生工具与提示词。执行模式仅由 presentation 配置选择，主插件和独立入口不声明默认模式，也不自动为会话挂载模式。
 
-`namespace/component.ts` 管理 Profile、工具目录与共享 manifest。Intellisense 模式按会话渐进注册原生工具，初始仅提供 tools.intellisense 和固定命令，仅精确查询函数路径后添加对应命令；挂载命令名称添加 ns_ 前缀，并以双下划线 __ 替换点号。命名空间通过普通匿名 NamespaceNode 及直接子节点引用表达，NodeType 仅为 leaf/tree。服务端 ToolsNamespaceNode 等节点管理受保护子树，Permission 描述编辑和固定等级限制，父节点删除成员前检查 removable；命令路径从父节点链派生，序列化不带父引用。命令通过 CommandNode 对象表达，调用时使用已绑定的物理 tool 与命名参数，经 DSH 原生执行流水线派发，权限由 DSH 处理。代理不进入物理工具目录，卸载时清理。
+`namespace/component.ts` 管理 Profile、工具目录与共享 manifest。Intellisense 模式按会话渐进注册原生工具，初始仅提供 tools.inspect 和固定命令，仅精确查询函数路径后添加对应命令；挂载命令名称添加 ns_ 前缀，并以双下划线 __ 替换点号。命名空间通过普通匿名 NamespaceNode 及直接子节点引用表达，NodeType 仅为 leaf/tree。服务端 ToolsNamespaceNode 等节点管理受保护子树，Permission 描述编辑和固定等级限制，父节点删除成员前检查 removable；命令路径从父节点链派生，序列化不带父引用。命令通过 CommandNode 对象表达，调用时使用已绑定的物理 tool 与命名参数，经 DSH 原生执行流水线派发，权限由 DSH 处理。代理不进入物理工具目录，卸载时清理。
 
 Intellisense PTC 模式仅向模型提供插件自有 tools_run_code 工具。`namespace/runtime.ts` 将已有受限 RuntimeHost 和 manifest 命名空间接入作用域执行入口，避免原生共享 run_code 选择部署的全局后端。两个模式在原生工具层均呈现 native，由插件组装器选择模型工具集合。PTC 初始化时将命令编译为 VM 函数绑定，VM 直接转换参数并通过 IPC 发送物理 tool 名称和底层参数；宿主不重复解析命名空间，不自行判定权限。子调用通过 DSH 原生执行流水线派发，保留父子审计、附加上下文和普通工具结果历史。本插件不拦截模型流，不解析代码围栏或提供源码续写。
 
-`tools/intellisense.ts` 注册 tools_intellisense，固定映射 tools.intellisense。查询列表包含尾点成员查询与精确签名查询，PTC 合并返回 TypeScript global 命名空间声明；DSML 返回 JSON 成员与命名参数 schema，并更新系统提示词中的工具集合，不提示 TS/JS。PTC 使用 tools.intellisense(["std.", "std.cwd", "std.fs."])；DSML 调用同名工具，使用 { queries: string[] } 命名参数；PTC 接口为 function intellisense(queries: string[]): Promise<string>，通过通用字段适配器传递单个字符串数组，tools.intellisense([""]) 查询根命名空间。查询时忽略开头的 global. 前缀。结果通过普通工具历史返回，并保存 plugin:ts_intellisense/intellisense 审计。
+`tools/inspect.ts` 注册 tools_inspect，固定映射 tools.inspect。查询列表包含尾点成员查询与精确签名查询，PTC 合并返回 TypeScript global 命名空间声明；DSML 返回 JSON 成员与命名参数 schema，并更新系统提示词中的工具集合，不提示 TS/JS。PTC 使用 tools.inspect(["std.", "std.cwd", "std.fs."])；DSML 调用同名工具，使用 { queries: string[] } 命名参数；PTC 接口为 function inspect(queries: string[]): Promise<string>，通过通用字段适配器传递单个字符串数组，tools.inspect([""]) 查询根命名空间。查询时忽略开头的 global. 前缀。结果通过普通工具历史返回，并保存 plugin:ts_intellisense/inspect 审计。
 
 `runtime/` 管理每会话受限 Node 进程、严格 async 函数体、IPC、取消和超时。同一对话复用 VM Context，允许 globalThis 挂载变量跨调用共享；每次执行刷新命令与预加载值，VM 重启后状态丢失，不保证环境连续；移除 vm 命名空间及 vm.restart。console 输出写入内存流并通过 IPC 返回。DSML 模式不创建会话运行时。
 
@@ -20,13 +20,13 @@ Intellisense PTC 模式仅向模型提供插件自有 tools_run_code 工具。`n
 
 `registry/registry.ts` 管理全局具名 Profile 目录、挂载路径、注释、排序和固定路径。`registry/profiles.ts` 为每会话持有独立配置快照，草稿覆盖保存且释放会话时删除；目录覆盖/删除不修改既有会话。普通新会话捕获 UI 默认配置；子 agent 首次初始化继承运行时父对话的当前 Profile 工作快照，包含未保存修改，之后父子各自独立；已有工作区会话的首页在含 intellisense-presentation 的 preset 右侧显示 Profile 下拉框，选择仅替换该会话快照并刷新工具和提示词，不更改全局默认。工具权限始终由原生 guard/策略决定。
 
-tools.intellisense 固定映射到内置 tools_intellisense，强制固定等级 2，不受 Profile 图钉偏好影响。tools 包含 intellisense、search 和 profile：profile.load(name?) 只读取当前会话草稿或目录中的具名 Profile 数据，不切换会话或刷新提示；profile.save(name, profile) 仅保存目录中的树，省略名称时使用当前 Profile 名称，也支持 save(profile)；保存不更新当前会话配置或选择，显式 switch(name) 后应用保存的配置。profile.profiles 返回目录名称列表与当前会话选择（Profiles），native 下为无参数命令，PTC 下为随工具成功回复刷新的只读字段；profile.annotation 与 profile.commands 在 VM 执行前预加载为冻结常量，在 DSML 中为可直接调用的无参数工具，分别返回模型文档（DSML 为 JSON Schema）与排除插件内置命令的完整目录中的原始命令摘要、当前会话 Profile 的挂载路径 paths（包含被禁用的路径，未挂载时为空数组）及全局总调用次数 totalCalls（含当前上下文没有的命令）；其余旧 tools 管理命令移除。未配置物理工具需挂载或提供自定义别名后调用；不生成 unknown 命名空间。路径保留名称、重复和树碰撞检查。失效工具保留配置，但不进入实际 manifest、补全或执行环境。builtinVisible 记录内置固定提示偏好，按 Profile 保存；默认仅固定 tools.intellisense。unmountedVisible 保存未挂载工具的固定提示偏好，不兼容旧字段名。
+tools.inspect 固定映射到内置 tools_inspect，强制固定等级 2，不受 Profile 图钉偏好影响。tools 包含 intellisense、search 和 profile：profile.load(name?) 只读取当前会话草稿或目录中的具名 Profile 数据，不切换会话或刷新提示；profile.save(name, profile) 仅保存目录中的树，省略名称时使用当前 Profile 名称，也支持 save(profile)；保存不更新当前会话配置或选择，显式 switch(name) 后应用保存的配置。profile.profiles 返回目录名称列表与当前会话选择（Profiles），native 下为无参数命令，PTC 下为随工具成功回复刷新的只读字段；profile.annotation 与 profile.commands 在 VM 执行前预加载为冻结常量，在 DSML 中为可直接调用的无参数工具，分别返回模型文档（DSML 为 JSON Schema）与排除插件内置命令的完整目录中的原始命令摘要、当前会话 Profile 的挂载路径 paths（包含被禁用的路径，未挂载时为空数组）及全局总调用次数 totalCalls（含当前上下文没有的命令）；其余旧 tools 管理命令移除。未配置物理工具需挂载或提供自定义别名后调用；不生成 unknown 命名空间。路径保留名称、重复和树碰撞检查。失效工具保留配置，但不进入实际 manifest、补全或执行环境。builtinVisible 记录内置固定提示偏好，按 Profile 保存；默认仅固定 tools.inspect。unmountedVisible 保存未挂载工具的固定提示偏好，不兼容旧字段名。
 
 `storage/store.ts` 通过 DSH JSON backend 保存工具目录、具名 Profile 和会话工作快照；MemoryStore/FileStore 用于独立使用。运行时不保存可执行状态或重放工具。
 
 ## 管理 UI
 
-`management/panel/management_panel.tsx` 和 `management/panel/tree_provider.ts` 显示 tools 固定树与可配置命名空间；内置命令描述固定英文，界面中文集中到翻译表，其余 UI 支持中英文。内置命令不可改名、拖动或删除，tools.intellisense 强制固定等级 2、禁用图钉切换；tools 命名空间与 tools.intellisense 支持禁用，禁用后移除对应运行时工具及发现提示，tools.profile 显示嵌套子树，其余可用命令的图钉按 0 → 1 → 2 → 0 切换，等级 2 使用黄色图标，并按当前 Profile 草稿保存。
+`management/panel/management_panel.tsx` 和 `management/panel/tree_provider.ts` 显示 tools 固定树与可配置命名空间；内置命令描述固定英文，界面中文集中到翻译表，其余 UI 支持中英文。内置命令不可改名、拖动或删除，tools.inspect 强制固定等级 2、禁用图钉切换；tools 命名空间与 tools.inspect 支持禁用，禁用后移除对应运行时工具及发现提示，tools.profile 显示嵌套子树，其余可用命令的图钉按 0 → 1 → 2 → 0 切换，等级 2 使用黄色图标，并按当前 Profile 草稿保存。
 
 UI 不再显示 unknown 块。树上方显示当前可用但未挂载的工具数量，点击打开只含未挂载工具的选择器；数量随挂载、移除映射和切换 Profile 更新。失效工具不计入，映射不再保存 enabled 标志，移除映射即取消挂载；内置管理工具、run_code 和 tools_run_code 不计入未挂载工具。
 
@@ -54,7 +54,7 @@ package.json 的 build 命令依次调用 build:server 和 build:client；build:
 
 namespaceVisible 为随 Profile 保存的命名空间路径 → 固定提示布尔值映射，默认空对象；命令各自保留独立的提示等级。所有模式均不提供 console 命名空间及其命令、查询声明或管理节点；PTC 运行时原生 console 输出对象仍独立可用。
 
-命令映射与命名空间通过可选 disabled 标志保存禁用状态；内置树使用 builtinDisabled 路径集合。禁用项保留在管理 UI，禁用按钮位于删除按钮左侧，节点变灰；manifest、补全、固定提示与 PTC 预加载排除禁用路径，命名空间禁用作用于所有后代。tools.intellisense 保留可用。
+命令映射与命名空间通过可选 disabled 标志保存禁用状态；内置树使用 builtinDisabled 路径集合。禁用项保留在管理 UI，禁用按钮位于删除按钮左侧，节点变灰；manifest、补全、固定提示与 PTC 预加载排除禁用路径，命名空间禁用作用于所有后代。tools.inspect 保留可用。
 
 `search/` 通过 SearchEngine 接口与 SearchEngineRegistry 注册器提供命令搜索，支持可选 MiniSearch BM25、包含匹配及自定义同步/异步引擎。tools.search 固定映射 tools_search，默认不固定，可禁用；method 枚举及默认值从注册器选择器直接生成，只有一个引擎时移除该参数。defaultSearchMethod 配置及 searchEngines.setDefault 均可指定默认方法。详见 search/model.md。
 

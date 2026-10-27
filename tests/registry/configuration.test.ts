@@ -20,9 +20,9 @@ test('configuration restoration and save detach nested settings in both directio
     const restored = new RegistryConfiguration(JSON.parse(JSON.stringify(saved)));
     assert.deepEqual(restored, configuration);
     saved.mappings[0]!.disabled = false;
-    saved.builtinVisible!['tools.intellisense'] = 0;
+    saved.builtinVisible!['tools.inspect'] = 0;
     assert.equal(configuration.mappings[0]!.disabled, true);
-    assert.equal(configuration.builtinVisible['tools.intellisense'], 2);
+    assert.equal(configuration.builtinVisible['tools.inspect'], 2);
     restored.namespaces[0]!.description = 'Restored';
     assert.equal(configuration.namespaces[0]!.description, 'Files');
 });

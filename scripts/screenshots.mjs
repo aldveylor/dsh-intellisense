@@ -44,7 +44,7 @@ async function documentationRegistry() {
             { path: 'std.shell', description: 'Shell execution', alwaysVisible: false },
             { path: 'std.fs', description: 'Files and directories', alwaysVisible: false },
         ],
-        order: ['console', 'tools', 'std', 'std.shell', 'std.fs'], unmountedVisible: {}, builtinVisible: { 'tools.intellisense': 2 }, namespaceVisible: {}, toolComments: {},
+        order: ['console', 'tools', 'std', 'std.shell', 'std.fs'], unmountedVisible: {}, builtinVisible: { 'tools.inspect': 2 }, namespaceVisible: {}, toolComments: {},
     }, 'Default');
     return registry;
 }

@@ -83,23 +83,23 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
             const names = request.tools?.map(tool => tool.name) ?? [];
             if (mode === 'standard') {
                 assert(names.includes('read_file'));
-                assert(!systemOf(request).includes('Use tools.intellisense'));
+                assert(!systemOf(request).includes('Use tools.inspect'));
                 assert.equal(ctx.get('codeRuntime'), undefined);
             } else if (mode === 'ptc') {
                 assert.deepEqual(names, ['tools_run_code']);
                 assert(systemOf(request).includes('globalThis'));
-                assert(systemOf(request).includes('function intellisense('));
+                assert(systemOf(request).includes('function inspect('));
                 assert(systemOf(request).includes('namespace tools {  // Tool discovery and Profile management'));
                 const execution = await agent.ctx.tools.execute({ agent, callId: ToolCallId('integration-code'), name: 'tools_run_code', arguments: { code: 'return 42;', description: 'Check scoped runtime' }, signal: new AbortController().signal });
                 assert.equal(execution.isError, false, JSON.stringify(execution));
                 assert.deepEqual(execution.value, { logs: [], result: 42 });
             } else {
-                assert.deepEqual(names, ['ns_tools__intellisense']);
+                assert.deepEqual(names, ['ns_tools__inspect']);
                 assert.equal(agent.ctx.get('codeRuntime'), undefined);
                 assert(!systemOf(request).includes('TypeScript/JavaScript'));
                 let discoverySequence = 0;
                 const discover = async (queries: string[]) => {
-                    const result = await agent.ctx.tools.execute({ agent, callId: ToolCallId(`integration-discovery-${++discoverySequence}`), name: 'ns_tools__intellisense', arguments: { queries }, signal: new AbortController().signal });
+                    const result = await agent.ctx.tools.execute({ agent, callId: ToolCallId(`integration-discovery-${++discoverySequence}`), name: 'ns_tools__inspect', arguments: { queries }, signal: new AbortController().signal });
                     assert.equal(result.isError, false, JSON.stringify(result));
                     return JSON.parse(result.value as string);
                 };
@@ -109,7 +109,7 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
                 const listing = await discover(['global.std.fs.']);
                 assert.deepEqual(listing.members, [{ path: 'std.fs.read', brief: 'Read file contents' }]);
                 await send();
-                assert.deepEqual(model.requests[1]!.tools?.map(tool => tool.name), ['ns_tools__intellisense']);
+                assert.deepEqual(model.requests[1]!.tools?.map(tool => tool.name), ['ns_tools__inspect']);
                 const info = await discover(['global.std.fs.read']);
                 assert(info.members.some((member: { path: string }) => member.path === 'std.fs.read'));
                 assert(info.members.every((member: object) => !Object.hasOwn(member, 'tool')));
@@ -117,7 +117,7 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
                 assert.match(info.members[0].description, /Complete file documentation\./);
                 assert(Object.hasOwn(info.members[0], 'parameters'));
                 await send();
-                assert.deepEqual(model.requests[2]!.tools?.map(tool => tool.name).sort(), ['ns_std__fs__read', 'ns_tools__intellisense']);
+                assert.deepEqual(model.requests[2]!.tools?.map(tool => tool.name).sort(), ['ns_std__fs__read', 'ns_tools__inspect']);
             }
             assert(!agent.session.snapshotEvents().some(event => String(event.type) === 'plugin:ts_intellisense/rewrite'));
             await mounted.dispose();

@@ -33,17 +33,17 @@ export class PluginCommands {
     readonly profileValues: readonly BuiltinTool[] = [
         { tool: 'tools_profile_profiles', preload: true, path: 'tools.profile.profiles', signature: 'Profiles', description: 'Available Profile names and the currently selected conversation Profile. Updated after tool calls.' },
         { tool: 'tools_profile_annotation', preload: true, path: 'tools.profile.annotation', signature: 'string', description: 'English TypeScript declarations for the Profile data model.' },
-        { tool: 'tools_profile_commands', preload: true, path: 'tools.profile.commands', signature: 'CommandBrief[]', description: 'All catalog commands excluding plugin builtins, with physical names, summaries, mount paths in this conversation Profile (including disabled paths; empty when unmounted), and total calls across all sessions. tools.intellisense cannot retrieve information by physical command name; query an enabled mount path available in the current conversation instead.' },
+        { tool: 'tools_profile_commands', preload: true, path: 'tools.profile.commands', signature: 'CommandBrief[]', description: 'All catalog commands excluding plugin builtins, with physical names, summaries, mount paths in this conversation Profile (including disabled paths; empty when unmounted), and total calls across all sessions. tools.inspect cannot retrieve information by physical command name; query an enabled mount path available in the current conversation instead.' },
     ];
 
     /** @brief Fixed discovery command available in both native and PTC modes. */
-    readonly discoveryCommand: BuiltinTool = { tool: 'tools_intellisense', path: 'tools.intellisense', signature: '(queries: string[]) => Promise<string>', description: 'Query namespace members and complete TypeScript tool signatures.', parameterDocs: { queries: 'Array of namespace member paths or exact command paths. A trailing dot lists immediate members; an exact path returns the complete command contract. An optional global. prefix is ignored. Include an empty string ("") to query root namespace members: tools.intellisense([""]).' } };
+    readonly discoveryCommand: BuiltinTool = { tool: 'tools_inspect', path: 'tools.inspect', signature: '(queries: string[]) => Promise<string>', description: 'Query namespace members and complete TypeScript tool signatures.', parameterDocs: { queries: 'Array of namespace member paths or exact command paths. A trailing dot lists immediate members; an exact path returns the complete command contract. An optional global. prefix is ignored. Include an empty string ("") to query root namespace members: tools.inspect([""]).' } };
 
     /** @brief Optional-ranked command search, unpinned by default and independently disableable. */
     readonly searchCommand: BuiltinTool = {
         tool: 'tools_search', path: 'tools.search',
         signature: "(keywords: string[], method?: string, max_results?: number, target?: 'name' | 'description' | 'parameters' | 'all', namespace_path?: string) => Promise<string[]>",
-        description: 'Search command names, descriptions, or parameters within a namespace subtree; defaults to the configured method, 10 results, all fields and the entire tree. Use tools.intellisense for complete command details.',
+        description: 'Search command names, descriptions, or parameters within a namespace subtree; defaults to the configured method, 10 results, all fields and the entire tree. Use tools.inspect for complete command details.',
     };
 
     /** @brief Derive the positional search signature from the installed physical contract. */

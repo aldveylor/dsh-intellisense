@@ -4,7 +4,7 @@ import '@deepseek-ai/dsh-session';
 export interface Position { turn: number; step: number }
 
 /** @brief Batched discovery arguments and the complete declaration result. */
-export interface SenseEvent extends Position {
+export interface InspectEvent extends Position {
     queries: string[];
     info: string;
     elapsedMs: number;
@@ -26,7 +26,7 @@ export interface BuiltinEvent {
 
 declare module '@deepseek-ai/dsh-session' {
     interface PluginRecordMap {
-        'plugin:ts_intellisense/intellisense': SenseEvent;
+        'plugin:ts_intellisense/inspect': InspectEvent;
         'plugin:ts_intellisense/builtin': BuiltinEvent;
     }
 }

@@ -7,7 +7,7 @@ import { Session, SessionId } from '@deepseek-ai/dsh-session';
 import { MemoryStore } from '../../src/storage/store.js';
 import { CommandStatistics } from '../../src/namespace/statistics.js';
 import { NamespaceComponent } from '../../src/namespace/component.js';
-import { intellisenseQueryTargets, registerIntellisense } from '../../src/tools/intellisense.js';
+import { inspectQueryTargets, registerInspect } from '../../src/tools/inspect.js';
 import { namespace } from './fixtures.js';
 
 test('concurrent session updates preserve global totals and durable detached snapshots', async () => {
@@ -32,11 +32,11 @@ test('concurrent session updates preserve global totals and durable detached sna
 
 test('query targets count normalized occurrences without expanding members or runtime APIs', async () => {
     const root = namespace([{ path: 'std.read', tool: 'read', doc: '', schema: {}, output: {} }]);
-    assert.deepEqual(intellisenseQueryTargets(['', 'global.std.', 'std', 'std.read', 'global.std.read', 'std.read.', 'missing', 'console.', 'console.log'], root), [
+    assert.deepEqual(inspectQueryTargets(['', 'global.std.', 'std', 'std.read', 'global.std.read', 'std.read.', 'missing', 'console.', 'console.log'], root), [
         { path: '', namespace: true }, { path: 'std', namespace: true }, { path: 'std', namespace: true },
         { path: 'std.read', namespace: false, tool: 'read' }, { path: 'std.read', namespace: false, tool: 'read' },
     ]);
-    assert.throws(() => intellisenseQueryTargets(['std..'], root), /Invalid IntelliSense query/);
+    assert.throws(() => inspectQueryTargets(['std..'], root), /Invalid Inspect query/);
 });
 
 test('dispatch counts physical tools once for both entry and direct dispatch, including failures', async () => {
@@ -57,7 +57,7 @@ test('dispatch counts physical tools once for both entry and direct dispatch, in
     assert.deepEqual(events, ['tool/ptc-dispatch-start', 'tool/ptc-dispatch', 'tool/ptc-dispatch-start', 'tool/ptc-dispatch']);
 });
 
-for (const ptc of [false, true]) test(`physical IntelliSense records query targets internally in ${ptc ? 'PTC' : 'native'} mode`, async () => {
+for (const ptc of [false, true]) test(`physical Inspect records query targets internally in ${ptc ? 'PTC' : 'native'} mode`, async () => {
     const statistics = new CommandStatistics(new MemoryStore());
     const root = namespace([{ path: 'std.read', tool: 'read', doc: '', schema: {}, output: {} }]);
     const namespaces = {
@@ -68,7 +68,7 @@ for (const ptc of [false, true]) test(`physical IntelliSense records query targe
     const ctx = { effect: (callback: () => unknown) => callback(), tools: {
         register: (value: ToolDefinition) => { definition = value; return () => {}; },
     } } as unknown as Context;
-    registerIntellisense(ctx, namespaces);
+    registerInspect(ctx, namespaces);
     const execution = {
         callId: 'query', signal: new AbortController().signal,
         agent: { id: 'session', session: Session.create(SessionId('statistics-query')), ctx: { get: (key: string) => key === 'commandNamespaces' ? namespaces : undefined } },
@@ -89,8 +89,8 @@ test('global tool query totals follow physical identities across aliases and sur
         { path: 'files.read', tool: 'read', doc: '', schema: {}, output: {} },
     ]);
     await Promise.all([
-        statistics.recordQueries('first', intellisenseQueryTargets(['std.', 'std.read', 'global.std.read'], root)),
-        statistics.recordQueries('second', intellisenseQueryTargets(['files.', 'files.read'], root)),
+        statistics.recordQueries('first', inspectQueryTargets(['std.', 'std.read', 'global.std.read'], root)),
+        statistics.recordQueries('second', inspectQueryTargets(['files.', 'files.read'], root)),
     ]);
     const snapshot = await statistics.snapshot();
     assert.deepEqual(snapshot.queriesByTool, { read: 3 });

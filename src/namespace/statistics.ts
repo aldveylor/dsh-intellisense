@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { Store } from '../storage/store.js';
 
-/** @brief Per-tool dispatch counts and per-path IntelliSense query counts. */
+/** @brief Per-tool dispatch counts and per-path Inspect query counts. */
 export interface CommandCounts {
     callsByTool: Record<string, number>;
     namespaceQueriesByPath: Record<string, number>;
@@ -16,7 +16,7 @@ export interface CommandStatisticsSnapshot extends CommandCounts {
     queriesByTool: Record<string, number>;
 }
 
-/** @brief A normalized, resolved IntelliSense query target. */
+/** @brief A normalized, resolved Inspect query target. */
 export interface QueryTarget { path: string; namespace: boolean; tool?: string }
 
 /** @brief Persist session and global counters together through serialized updates. */

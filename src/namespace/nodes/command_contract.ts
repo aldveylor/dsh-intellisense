@@ -30,7 +30,7 @@ export function resultField(entry: ManifestEntry): [string, JsonSchemaNode] | un
     return fields.length === 1 ? fields[0] : undefined;
 }
 
-/** @brief Unwrap the native response using the same contract exposed by IntelliSense. */
+/** @brief Unwrap the native response using the same contract exposed by Inspect. */
 export function resultFor(entry: ManifestEntry, value: unknown): unknown {
     const field = resultField(entry);
     return field && value && typeof value === 'object' ? Object.hasOwn(value, field[0]) ? (value as Record<string, unknown>)[field[0]] : undefined : value;

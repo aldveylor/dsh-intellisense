@@ -1,6 +1,6 @@
 import { outputSchema } from '../output_schema.js';
 import { createHash } from 'node:crypto';
-import { normalizeIntellisenseQueries, queryNodes, CommandNode, NamespaceNode } from './namespace.js';
+import { normalizeInspectQueries, queryNodes, CommandNode, NamespaceNode } from './namespace.js';
 
 /** @brief Bind namespace paths to unique API-safe names without shadowing physical tools. */
 export function nativeBindings(entries: CommandNode[], reserved: Iterable<string>): { entry: CommandNode; name: string }[] {
@@ -24,13 +24,13 @@ export function nativeBindings(entries: CommandNode[], reserved: Iterable<string
 
 /** @brief Select only explicitly queried command paths for native tool registration. */
 export function nativeQueryEntries(queries: readonly string[], root: NamespaceNode): CommandNode[] {
-    const exact = new Set(normalizeIntellisenseQueries(queries));
+    const exact = new Set(normalizeInspectQueries(queries));
     return queryNodes(root, queries).filter((node): node is CommandNode => node instanceof CommandNode && exact.has(node.path));
 }
 
 /** @brief Render shallow native discovery and exact named-argument contracts as JSON. */
 export function nativeDiscovery(queries: readonly string[], root: NamespaceNode, brief: (tool: string, path: string) => string | undefined = () => undefined): string {
-    const exact = new Set(normalizeIntellisenseQueries(queries));
+    const exact = new Set(normalizeInspectQueries(queries));
     const members = queryNodes(root, queries).sort((a, b) => a.path.localeCompare(b.path)).map(node => {
         const description = node instanceof NamespaceNode ? node.description : brief(node.tool, node.path) ?? node.doc.trim().split(/\r?\n/, 1)[0];
         return { path: node.path, ...(description?.trim() ? { brief: description } : {}),

@@ -5,9 +5,9 @@ import { SemanticRegistry, type Mapping } from '../../src/registry/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
 import { NamespaceComponent } from '../../src/namespace/component.js';
 import { manifest } from '../../src/namespace/namespace.js';
-import { intellisense } from '../../src/tools/intellisense.js';
+import { inspect } from '../../src/tools/inspect.js';
 
-test('custom pinned briefs preserve original IntelliSense documentation at every pin level', async () => {
+test('custom pinned briefs preserve original Inspect documentation at every pin level', async () => {
     const registry = new SemanticRegistry(new MemoryStore());
     registry.refresh([{ id: 'read', description: 'Original command documentation', parameters: { type: 'object', properties: { path: { type: 'string', description: 'Absolute path' } }, required: ['path'] }, output: { type: 'string' } }]);
     const mapping: Mapping = { id: 'read', path: 'files.read', pinned: false };
@@ -24,7 +24,7 @@ test('custom pinned briefs preserve original IntelliSense documentation at every
             assert.match(hint, /@brief Custom prompt note/);
             assert.match(hint, /function read\(path: string\)/);
         }
-        const info = intellisense(['files.read'], manifest(registry, []));
+        const info = inspect(['files.read'], manifest(registry, []));
         assert.match(info, /Original command documentation/);
         assert(!info.includes('Custom prompt note'));
     }

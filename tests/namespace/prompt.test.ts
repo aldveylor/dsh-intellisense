@@ -5,7 +5,7 @@ import { executionInstructions, namespaceDirectory } from '../../src/namespace/p
 test('execution guidance selects native named arguments or conversation-scoped async PTC execution', () => {
     const native = executionInstructions('native');
     assert(native.includes('native DSML tools with named arguments'));
-    assert(native.includes('ns_tools__intellisense'));
+    assert(native.includes('ns_tools__inspect'));
     assert(!native.includes('TypeScript/JavaScript'));
     const ptc = executionInstructions('ptc');
     assert(ptc.includes('Call tools_run_code with code'));
@@ -39,10 +39,10 @@ test('namespace briefs decode HTML entities before formatting the prompt', () =>
 test('unavailable discovery removes its instructions in both modes and the directory', () => {
     for (const mode of ['native', 'ptc'] as const) {
         const text = executionInstructions(mode, false);
-        assert(!text.includes('intellisense'));
+        assert(!text.includes('inspect'));
         assert(!text.includes('Query an exact command'));
     }
     const text = namespaceDirectory(['std.cwd'], false);
-    assert(!text.includes('intellisense'));
+    assert(!text.includes('inspect'));
     assert(text.includes('cwd: Function;'));
 });

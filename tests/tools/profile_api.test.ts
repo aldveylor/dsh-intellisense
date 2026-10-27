@@ -11,7 +11,7 @@ import { MemoryStore } from '../../src/storage/store.js';
 import { registerToolCommands } from '../../src/tools/tool_commands.js';
 import { manifest } from '../../src/namespace/namespace.js';
 import { nodePermissions } from '../../src/namespace/node.js';
-import { intellisense } from '../../src/tools/intellisense.js';
+import { inspect } from '../../src/tools/inspect.js';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
 import { RuntimeHost } from '../../src/runtime/host.js';
 
@@ -61,21 +61,21 @@ test('native Profile data tools and optional-name save/load use session defaults
 test('manifest exposes only the new tools API and projects VM array arguments', async () => {
     const { definitions, registry } = await fixture();
     registry.refresh([...definitions.values()].map(tool => ({ id: tool.name, description: tool.description, parameters: tool.parameters, output: tool.output.schema } )).concat([
-        { id: 'tools_intellisense', description: 'Inspect commands.', parameters: { type: 'object', properties: { queries: { type: 'array', items: { type: 'string' } } }, required: ['queries'] }, output: { type: 'string' } },
+        { id: 'tools_inspect', description: 'Inspect commands.', parameters: { type: 'object', properties: { queries: { type: 'array', items: { type: 'string' } } }, required: ['queries'] }, output: { type: 'string' } },
         { id: 'tools_mount', description: 'Old command.', parameters: {}, output: {} },
     ]));
     const entries = manifest(registry, []);
-    assert.deepEqual(entries.commands().map(entry => entry.path).sort(), ['tools.intellisense', 'tools.profile.annotation', 'tools.profile.commands', 'tools.profile.delete', 'tools.profile.load', 'tools.profile.profiles', 'tools.profile.save', 'tools.profile.setdefault', 'tools.profile.switch']);
-    const discovery = entries.commands().find(entry => entry.path === 'tools.intellisense')!;
+    assert.deepEqual(entries.commands().map(entry => entry.path).sort(), ['tools.inspect', 'tools.profile.annotation', 'tools.profile.commands', 'tools.profile.delete', 'tools.profile.load', 'tools.profile.profiles', 'tools.profile.save', 'tools.profile.setdefault', 'tools.profile.switch']);
+    const discovery = entries.commands().find(entry => entry.path === 'tools.inspect')!;
     assert.deepEqual(await positionalArguments(discovery, [['files.']]), { queries: ['files.'] });
     await assert.rejects(positionalArguments(discovery, ['files.']));
     assert.deepEqual(await positionalArguments(entries.commands().find(entry => entry.path === 'tools.profile.save')!, [{ name: 'Default', root: {} }]), { profile: { name: 'Default', root: {} } });
-    const vm = intellisense(['tools.profile.', 'tools.profile.save', 'tools.intellisense'], entries, true);
+    const vm = inspect(['tools.profile.', 'tools.profile.save', 'tools.inspect'], entries, true);
     assert(vm.includes('readonly annotation: string'));
     assert(vm.includes('readonly profiles: Profiles'));
     assert(vm.includes('save(profile: Profile)'));
-    assert(vm.includes('function intellisense(queries: string[])'));
-    const native = intellisense(['tools.profile.annotation'], entries, false);
+    assert(vm.includes('function inspect(queries: string[])'));
+    const native = inspect(['tools.profile.annotation'], entries, false);
     assert(native.includes('function annotation()'));
     for (const source of [vm, native]) {
         const file = ts.createSourceFile('api.d.ts', source, ts.ScriptTarget.Latest, true);
@@ -228,7 +228,7 @@ test('Profile setdefault persists the default for new sessions and preserves exi
     registry.refresh([...definitions.values()].map(tool => ({ id: tool.name, description: tool.description, parameters: tool.parameters, output: tool.output.schema })));
     const entry = manifest(registry, []).commands().find(node => node.path === 'tools.profile.setdefault')!;
     assert.deepEqual(await positionalArguments(entry, ['Copy']), { name: 'Copy' });
-    assert(intellisense(['tools.profile.setdefault'], manifest(registry, []), true).includes('setdefault(name: string)'));
+    assert(inspect(['tools.profile.setdefault'], manifest(registry, []), true).includes('setdefault(name: string)'));
     const edited = await load();
     const command = edited.root.children!.find(node => node.name === 'tools')!.children!.find(node => node.name === 'profile')!.children!.find(node => node.name === 'setdefault')!;
     assert.equal(command.permissions?.disableable, undefined);

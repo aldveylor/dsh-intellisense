@@ -85,7 +85,7 @@ test('command briefs expose current session mount paths including disabled paths
         ctx.provide('systemPrompt', { tools: () => () => {} });
         await ctx.plugin(ToolRuntime);
         ctx.provide('agents', { list: () => [] });
-        for (const name of ['read_file', 'write_file', 'unmounted', 'tools_intellisense', 'tools_profile_commands', 'tools_run_code']) register(ctx, name);
+        for (const name of ['read_file', 'write_file', 'unmounted', 'tools_inspect', 'tools_profile_commands', 'tools_run_code']) register(ctx, name);
         const store = new MemoryStore(), registry = new SemanticRegistry(store);
         const component = new NamespaceComponent(ctx, registry, new ProfileSessions(registry, store), [{ tool: 'read_file', path: 'text.read' }]);
         await component.refresh();

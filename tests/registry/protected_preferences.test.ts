@@ -8,7 +8,7 @@ function staleConfiguration(): RegistryConfiguration {
     return new RegistryConfiguration({
         mappings: [{ id: 'read', path: 'files.read', pinned: false }],
         builtinVisible: { 'console.log': 2, 'tools.removed': 1, 'tools.search': 1 },
-        builtinDisabled: ['console', 'console.log', 'tools.removed', 'tools.intellisense', 'tools.search'],
+        builtinDisabled: ['console', 'console.log', 'tools.removed', 'tools.inspect', 'tools.search'],
         namespaceVisible: { console: true, 'tools.removed': true, tools: true, files: true },
         order: ['console', 'console.log', 'tools.removed', 'tools', 'tools.search', 'files', 'files.read'],
     });
@@ -22,13 +22,13 @@ for (const scope of ['global', 'session'] as const) test(`${scope} load removes 
     await registry.load();
     for (const configuration of [registry.configuration(), registry.configuration('Other')]) {
         assert.deepEqual(configuration.builtinVisible, { 'tools.search': 1 });
-        assert.deepEqual(configuration.builtinDisabled, ['tools.intellisense', 'tools.search']);
+        assert.deepEqual(configuration.builtinDisabled, ['tools.inspect', 'tools.search']);
         assert.deepEqual(configuration.namespaceVisible, { tools: true, files: true });
         assert.deepEqual(configuration.order, ['tools', 'tools.search', 'files', 'files.read']);
         assert.deepEqual(configuration.mappings, staleConfiguration().mappings);
     }
     const saved = await store.load<RegistryStateData>('registry');
-    assert.deepEqual(saved!.builtinDisabled, ['tools.intellisense', 'tools.search']);
+    assert.deepEqual(saved!.builtinDisabled, ['tools.inspect', 'tools.search']);
     assert.deepEqual(saved!.inactiveProfiles!.Other!.builtinVisible, { 'tools.search': 1 });
     assert.equal(saved!.revision, 4);
     store.save = async () => { throw new Error('Unexpected rewrite'); };
@@ -48,5 +48,5 @@ test('failed cleanup persistence leaves memory and storage unchanged and permits
     assert.deepEqual(await store.load('registry'), data);
     store.save = save;
     await registry.load();
-    assert.deepEqual(registry.snapshot().builtinDisabled, ['tools.intellisense', 'tools.search']);
+    assert.deepEqual(registry.snapshot().builtinDisabled, ['tools.inspect', 'tools.search']);
 });

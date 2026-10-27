@@ -1,6 +1,6 @@
 import type MiniSearch from 'minisearch';
 import type { ManifestEntry } from '../namespace/namespace.js';
-import { normalizeIntellisenseQueries } from '../namespace/namespace.js';
+import { normalizeInspectQueries } from '../namespace/namespace.js';
 import { SearchEngineRegistry, type SearchEngine, type SearchField, type SearchSelector } from './engine_registry.js';
 
 /** @brief Load optional BM25 support; missing installations retain substring matching. */
@@ -76,7 +76,7 @@ export async function searchEntries(entries: readonly ManifestEntry[], options: 
     const keywords = [...new Set(options.keywords.map(word => word.trim().toLowerCase()).filter(Boolean))];
     const limit = options.max_results ?? 10;
     if (!Number.isSafeInteger(limit) || limit < 0) throw new Error('max_results must be a nonnegative integer');
-    const namespace = normalizeIntellisenseQueries([options.namespace_path ?? ''])[0]!.replace(/\.$/, '');
+    const namespace = normalizeInspectQueries([options.namespace_path ?? ''])[0]!.replace(/\.$/, '');
     const fields = targets[options.target ?? 'all'];
     if (!fields) throw new Error('Invalid search target');
     const method = options.method ?? selector.defaultMethod;

@@ -8,7 +8,7 @@
 
 namespaceVisible 为随 Profile 保存的命名空间路径 → 固定提示布尔值映射，默认空对象；命令各自保留独立的提示等级。所有模式均不提供 console 命名空间及其命令、查询声明或管理节点；PTC 运行时原生 console 输出对象仍独立可用。
 
-注册表负责配置与工具目录；声明由 namespace/namespace.ts 投影实际 manifest 的命令契约，namespace/declaration.ts 统一渲染命名空间树，供单项声明、IntelliSense 与提示词共用，执行由原生工具流水线负责。
+注册表负责配置与工具目录；声明由 namespace/namespace.ts 投影实际 manifest 的命令契约，namespace/declaration.ts 统一渲染命名空间树，供单项声明、Inspect 与提示词共用，执行由原生工具流水线负责。
 
 `path.ts` 的 reserved 集合禁止用户配置覆盖内置 tools 及 console 等运行时全局及 TypeScript 标准库名称（如 Map、Set、Date、Number、Intl）。该限制作用于路径根节点；即使当前 guest 没有使用对应全局，也统一保留这些名称，避免生成的命名空间声明与全局值/类型合并冲突，或遮蔽运行时标准接口。所有层级还禁止原型相关名称、then 和 __dsh 前缀；语言关键字不能作为根名称。
 
@@ -18,7 +18,7 @@ configure 支持 activate=false，将指定的新副本写入非默认目录；�
 
 Mapping.disabled 与 Namespace.disabled 分别控制命令及子树的可用性；builtinDisabled 保存内置树的禁用路径。三者随 Profile、会话快照和编辑保存持久化。Profile 树的命令及命名空间节点允许 disabled 字段，导入导出保留该字段。SemanticRegistry.disabled 统一判断路径与祖先禁用状态。
 
-`tools` 根命名空间与 `tools.intellisense` 均可禁用，builtinDisabled 接受这两个路径；tools 下其它节点按各自路径及父命名空间继承禁用。
+`tools` 根命名空间与 `tools.inspect` 均可禁用，builtinDisabled 接受这两个路径；tools 下其它节点按各自路径及父命名空间继承禁用。
 
 CommandBrief 与 profileAnnotation 中共享同一数据定义：name 为原始物理命令名，brief 为描述，paths 为当前会话 Profile 的挂载路径（包含路径自身或祖先禁用的路径及已挂载工具的 YAML 配置路径；未挂载时为空数组，当前作用域不可用不移除已配置路径），不包含插件内置命令；totalCalls 为跨会话的累计派发次数，用于 AI 整理时参考调用频率。
 
@@ -49,4 +49,4 @@ Profile 与配置快照共享可选 brief 字符串，描述配置用途；保�
 
 ProfileSessions.forSession 可传入固定 profile 名称，首次创建快照时优先于父会话继承与全局默认，持久化会话快照仍优先读取。
 
-Profile save 覆盖目录树时，tools 仍为受保护命名空间，但默认禁用：省略 tools 节点或其 disabled 字段时写入 builtinDisabled，显式 disabled: false 时启用；不切换或修改当前会话。其它已提交设置保留，缺失保护节点继续递归补齐。save 的原生说明与 PTC 声明同步描述该规则。annotation 与 JSON Schema 说明禁用节点及后代从发现、运行时绑定、原生工具、预加载值和固定提示中排除，保留配置以供重新启用；禁用 tools 时移除 tools.intellisense 指引。
+Profile save 覆盖目录树时，tools 仍为受保护命名空间，但默认禁用：省略 tools 节点或其 disabled 字段时写入 builtinDisabled，显式 disabled: false 时启用；不切换或修改当前会话。其它已提交设置保留，缺失保护节点继续递归补齐。save 的原生说明与 PTC 声明同步描述该规则。annotation 与 JSON Schema 说明禁用节点及后代从发现、运行时绑定、原生工具、预加载值和固定提示中排除，保留配置以供重新启用；禁用 tools 时移除 tools.inspect 指引。

@@ -11,7 +11,7 @@ import { manifest, declaration } from '../../src/namespace/namespace.js';
 import { createSearchEngines, accurateEngine } from '../../src/search/search.js';
 import { SearchEngineRegistry } from '../../src/search/engine_registry.js';
 import { searchDefinition, registerSearch } from '../../src/tools/tool_search.js';
-import { intellisense } from '../../src/tools/intellisense.js';
+import { inspect } from '../../src/tools/inspect.js';
 import { TreeProvider } from '../../src/management/panel/tree_provider.js';
 import { profileTree, profileConfiguration } from '../../src/registry/profile_tree.js';
 
@@ -81,6 +81,6 @@ test('disabled subtrees and commands stay saved but disappear from search and di
     assert(!manifest(registry, [{ path: 'other.read', tool: 'read' }]).commands().some(entry => entry.tool === 'read'));
     await registry.replaceConfiguration({ ...config, builtinDisabled: ['tools.search'] }, 'Default');
     assert(!manifest(registry, []).commands().some(entry => entry.path === 'tools.search'));
-    assert(!intellisense(['tools.'], manifest(registry, []), true).includes('const search'));
+    assert(!inspect(['tools.'], manifest(registry, []), true).includes('const search'));
     await assert.rejects(definition.execute({ keywords: ['documents'] }, execution), /Execution denied/);
 });

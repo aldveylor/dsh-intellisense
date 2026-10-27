@@ -101,13 +101,13 @@ test('native discovery stays detailed when enabled and is revoked by command or 
         register: (tool: ToolDefinition) => { definitions.set(tool.name, tool); return () => { definitions.delete(tool.name); }; },
     } } as unknown as Context;
     const registry = new SemanticRegistry(new MemoryStore());
-    registry.refresh([{ id: 'tools_intellisense', description: '', parameters: {}, output: {} }]);
+    registry.refresh([{ id: 'tools_inspect', description: '', parameters: {}, output: {} }]);
     const component = new NamespaceComponent(ctx, registry, new ProfileSessions(registry, new MemoryStore()), []);
     component.registryFor = async () => registry;
     const agent = { id: 'discovery-disable', ctx } as Agent;
-    for (const disabled of [[], ['tools.intellisense'], [], ['tools'], []]) {
+    for (const disabled of [[], ['tools.inspect'], [], ['tools'], []]) {
         await registry.replaceConfiguration({ ...registry.configuration(), builtinVisible: {}, builtinDisabled: disabled }, 'Default');
-        assert.deepEqual(await component.syncNative(agent), disabled.length ? [] : ['ns_tools__intellisense']);
-        assert.equal(definitions.has('ns_tools__intellisense'), !disabled.length);
+        assert.deepEqual(await component.syncNative(agent), disabled.length ? [] : ['ns_tools__inspect']);
+        assert.equal(definitions.has('ns_tools__inspect'), !disabled.length);
     }
 });

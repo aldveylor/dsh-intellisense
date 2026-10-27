@@ -16,7 +16,7 @@ import { type CommandBrief, type Profiles, profileAnnotation } from '../registry
 import type { z } from 'zod';
 import { createSearchEngines } from '../search/search.js';
 import { registerSearch } from '../tools/tool_search.js';
-import { registerIntellisense } from '../tools/intellisense.js';
+import { registerInspect } from '../tools/inspect.js';
 import { registerToolCommands } from '../tools/tool_commands.js';
 import { nativeBindings, nativeDiscovery, nativeQueryEntries } from './native_tools.js';
 import { CommandStatistics } from './statistics.js';
@@ -43,7 +43,7 @@ export class NamespaceComponent {
 
     /** @brief Register builtin tools in the owning presentation scope. */
     register(ctx: Context): void {
-        registerIntellisense(ctx, this);
+        registerInspect(ctx, this);
         registerSearch(ctx, this);
         registerToolCommands(ctx, this.registry, this.profiles, agent => this.registryFor(agent), agent => this.configurationChanged(agent), agent => this.commandBriefs(agent));
     }
@@ -211,7 +211,7 @@ export class NamespaceComponent {
                 parent = parent.parent;
             }
         }
-        return namespaceDirectory(hints, !!root.resolve(['tools', 'intellisense']) && !registry.disabled('tools.intellisense'));
+        return namespaceDirectory(hints, !!root.resolve(['tools', 'inspect']) && !registry.disabled('tools.inspect'));
     }
 
     /** @brief Keep native exposure limited to discovery, pinned commands and explicitly queried functions. */
@@ -268,14 +268,14 @@ export class NamespaceComponent {
             if (name === entry.tool) continue;
             const definition: ToolDefinition = {
                 name, description: `${entry.path}: ${descriptionFor(entry)}`, parameters: entry.schema,
-                output: { schema: entry.tool === 'tools_intellisense' ? entry.output ?? {} : {}, render: (_args, value) => [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value) }] },
+                output: { schema: entry.tool === 'tools_inspect' ? entry.output ?? {} : {}, render: (_args, value) => [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value) }] },
                 execute: async (args, parent) => {
                     const caller = parent.agent;
                     if (!caller) throw new Error('A live conversation is required');
                     return await this.dispatch(caller, entry, entry.nativeArguments(args), parent, 1) ?? null;
                 },
             };
-            if (entry.tool === 'tools_intellisense') {
+            if (entry.tool === 'tools_inspect') {
                 const physical = agent.ctx.tools.get(entry.tool, agent)!;
                 definition.presentCall = args => physical.presentCall?.(entry.nativeArguments(args));
                 definition.presentResult = (args, result) => physical.presentResult?.(entry.nativeArguments(args), result);

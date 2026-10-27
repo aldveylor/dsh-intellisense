@@ -4,9 +4,9 @@ import type { ManifestEntry } from '../namespace.js';
 import { pluginCommands } from '../../runtime/builtins.js';
 
 /** @brief Discovery owns its detailed pin policy while allowing disablement. */
-export class IntellisenseCommandNode extends InnerCommandNode {
+export class InspectCommandNode extends InnerCommandNode {
     constructor(parent: NamespaceNode, entry: Omit<ManifestEntry, 'path'>) {
-        super('intellisense', parent, entry, pluginCommands.discoveryCommand, { availableFixLevels: [2] });
+        super('inspect', parent, entry, pluginCommands.discoveryCommand, { availableFixLevels: [2] });
     }
 }
 
