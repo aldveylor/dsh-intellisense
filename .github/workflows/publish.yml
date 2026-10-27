@@ -96,6 +96,7 @@ jobs:
                 npm ci
                 npm run build
               fi
+              npm run prepack --if-present
               export PROJECT_NAME VERSION
               ARCHIVE_NAME=$(node --input-type=commonjs <<'NODE'
           const { mkdirSync, renameSync } = require('node:fs');
