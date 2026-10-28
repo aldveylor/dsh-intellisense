@@ -78,7 +78,7 @@ export function ToolPicker({ parent, tools, mappings, unmountedOnly = false, pro
             const rect = event.currentTarget.getBoundingClientRect();
             if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) close();
         }}>
-        <TooltipProvider><header><h2 id="ts-tool-picker-title">{t('add_tools')} · {parent || t('root')}</h2>
+        <TooltipProvider><header><h2 id="ts-tool-picker-title">{t('add_tools')} <span className="ts-tool-picker-path">· {parent || t('root')}</span></h2>
             <CloseButton close={close} label={t('close_picker')} hint={t('close_picker_hint')} />
         </header>
         <div className="ts-tool-picker-search">

@@ -104,6 +104,7 @@
 /* Opaque DSH dialog surfaces keep light-theme text distinct from the dimmed page. */
 .ts-tool-picker header{padding-bottom:16px;border-bottom:1px solid var(--ts-border)}
 .ts-tool-picker header h2{margin:0;font-size:18px;font-weight:600}
+.ts-tool-picker-path{font-size:13px;font-weight:400;color:var(--dsw-alias-label-tertiary,light-dark(#626b78,#a5a5a5))}
 .ts-tool-picker .ts-tool-picker-search{margin:20px 0}
 .ts-tool-picker input[type=search]{background:var(--dsw-alias-bg-base,light-dark(#f7f8fa,#181818));padding:10px 12px}
 .ts-tool-picker input::placeholder{color:var(--dsw-alias-label-secondary,light-dark(#4b5563,#bdbdbd));opacity:1}
