@@ -308,6 +308,20 @@ test('Profile save defaults protected tools to disabled and honors explicit enab
     assert(profileAnnotation.includes('preloaded values and pinned prompts'));
 });
 
+test('Profile annotation keeps field semantics without repeating Profile command guidance', () => {
+    const schema = JSON.stringify(ProfileSchema.toJSONSchema());
+    for (const text of [profileAnnotation, schema]) {
+        assert(!text.includes('defaults to disabled'));
+        assert(!text.includes('tools.profile.save'));
+        assert(!text.includes('tools.profile.switch'));
+        assert(!text.includes('fix all other commands'));
+        assert(text.includes('disabled'));
+        assert(text.includes('permissions'));
+    }
+    assert(profileAnnotation.includes('The live runtime namespace tree must not be mutated'));
+    assert(profileAnnotation.includes('children.cwd'));
+});
+
 test('Profile save reports completion and advisory discovery issues without changing pins or blocking persistence', async () => {
     const { call, load, catalog, registry, definitions } = await fixture();
     const completed = 'info: `tools` namespace is completed.';

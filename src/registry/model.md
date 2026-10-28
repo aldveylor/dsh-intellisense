@@ -58,3 +58,5 @@ permissions 描述明确约束待保存的 Profile 树：受保护成员即使�
 保护树仅包含插件自身的 tools 子树（inspect、search、profile 及其成员）；宿主提供的 fs.*、bash 等普通物理工具及其挂载不属于保护树，保存省略后不会恢复。annotation、JSON Schema 与 native/PTC save 说明明确此范围；permissions 省略代表普通默认权限（包含 removable=true），不能据此推断受保护。
 
 profile.apply 增量保存时不应用 tools.profile.save 的 tools 缺省禁用规则，省略的 tools 及后代 disabled 字段保留原状态；删除 disabled 字段后按普通默认值 false 处理。
+
+Profile annotation 专注数据结构、字段语义、权限和运行时树不可直接修改的约束；保存默认禁用、补齐保护子树、显式 switch 及发现不可用时的建议等命令说明仅由 tools.profile.* 契约提供，不在 annotation 重复。native JSON Schema 同样省略根节点和 disabled 字段中的命令流程强调。

@@ -72,7 +72,7 @@ const permissionSchema = z.strictObject({
 const nodeProperties = {
     permissions: permissionSchema.optional().describe('Constraints on the saved Profile tree: retain protected members with their required names, paths and command identities. Protection belongs only to the plugin-owned tools subtree; ordinary mounted commands such as fs.* and bash are removable and are not restored when omitted. Optional permission overrides. Defaults: commentable, renamable, movable, removable and disableable true; acceptsChildren false for commands, true for namespaces; availableFixLevels [0,1,2] for commands, [0,1] for namespaces. Omitted permissions or fields use ordinary defaults and do not imply protection; server restrictions remain authoritative.'),
     fixedLevel: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional().describe('Pin level (default 0, omitted): 0 none, 1 brief, 2 detailed; allowed values come from permissions.availableFixLevels.'),
-    disabled: z.boolean().optional().describe('Default false (omitted), except tools.profile.save defaults the protected tools namespace to disabled unless explicitly set to false. Disabled nodes and descendants are excluded from discovery, runtime bindings, native tools, preloaded values and pinned prompts; configuration is retained for re-enabling. Disabling tools also removes tools.inspect guidance.'),
+    disabled: z.boolean().optional().describe('Default false (omitted). Disabled nodes and descendants are excluded from discovery, runtime bindings, native tools, preloaded values and pinned prompts; configuration is retained for re-enabling. Disabling tools also removes tools.inspect guidance.'),
 };
 
 /** @brief Recursive namespace transport with directly nested command or namespace members. */
@@ -91,7 +91,7 @@ const nodeSchema: z.ZodType<ProfileTreeNode> = z.lazy(() => z.union([
 ]));
 
 /** @brief Validate editable Profile input; server-owned permissions remain authoritative. */
-export const ProfileSchema: z.ZodType<ProfileData> = z.strictObject({ name: z.string(), brief: z.string().optional().describe('Short description of the Profile purpose.'), root: namespaceSchema.describe("Anonymous root of editable Profile data. Only the plugin-owned tools subtree is protected. Ordinary mounted commands such as fs.* and bash are removable; omitted ordinary commands and namespaces are not restored. The saved Profile must retain protected members at their original names and paths with their original command identities. Missing protected descendants are restored recursively from the original Profile; submitted node settings are preserved. Server permissions govern edits, and forbidden descriptions are ignored.") });
+export const ProfileSchema: z.ZodType<ProfileData> = z.strictObject({ name: z.string(), brief: z.string().optional().describe('Short description of the Profile purpose.'), root: namespaceSchema.describe("Anonymous namespace root of editable Profile data. Member names are children record keys. Server-owned node permissions govern edits.") });
 
 /** @brief Create protected children first, then add configured mappings without replacing existing nodes. */
 export function profileTree(name: string, configuration: RegistryConfigurationData): Profile {
@@ -200,7 +200,7 @@ export const profileAnnotation = `/** @brief Physical command identity, summary,
 interface CommandBrief { name: string; brief: string; paths: string[]; totalCalls: number; }
 /** @brief Available catalog Profile names and the current conversation selection. */
 interface Profiles { profiles: string[]; selected: string; }
-/** @brief Server-owned constraints on the saved Profile tree, applying only to the plugin-owned tools subtree for protection. Ordinary mounted commands such as fs.* and bash are removable and are not restored when omitted. Determine each edit from its permission field; omitted permissions use ordinary defaults, not protected status. The Profile must retain protected members at their original names and paths with their original command identities, even if unused. Each field governs its own Profile edit: commentable controls simplified descriptions, removable controls removal, disableable controls disabled, and availableFixLevels controls fixedLevel. Omitted permissions or fields use their documented defaults. Only nondefault overrides are serialized. Submitted permissions cannot override server restrictions. */
+/** @brief Server-owned constraints on edits to the saved Profile tree. Submitted permissions cannot override server restrictions. */
 interface Permission {
     /** @brief When false, preserve the original Profile description/command.doc; submitted changes are ignored. */
     /** @default true */
@@ -224,11 +224,8 @@ interface Permission {
     /** @default [0, 1, 2] for commands; [0, 1] for namespaces */
     availableFixLevels?: (0 | 1 | 2)[];
 }
-/** @brief Edit the Profile data returned by tools.profile.load(), then save it and call tools.profile.switch(name) to apply it. The live runtime namespace tree must not be mutated: do not assign, delete, rename, move or add runtime namespace members, regardless of Profile permissions. Profile permissions govern the saved configuration tree. Only the plugin-owned tools subtree (tools.inspect, tools.search and tools.profile with its members) is protected. Ordinary mounted commands such as fs.* and bash are not protected builtins: they may be renamed, moved or removed according to their permissions, and save does not restore them when omitted. Omitted permissions use ordinary defaults, including removable: true. Save recursively restores missing protected nodes from the existing Profile; submitted nodes retain their fixedLevel and other settings. Protected nodes still cannot be moved, renamed, replaced or extended. New commands may use any exact physical name from tools.profile.commands, even when absent from the loaded tree. A missing tree member is not a command template.
- * The tools namespace is protected but defaults to disabled on save, including when omitted or when its disabled field is omitted. Set tools.disabled to false explicitly to enable it.
- * When inspect is unavailable, including when tools is disabled, fix all other commands at level 2 or disable them. This is advisory and does not block saving.
- * To mount a new command, assign children.cwd = { type: 'command', command: { tool: '<exact physical name>', doc: '<one sentence>' } } on an ordinary namespace. Member names are children record keys; rename or move members by changing their keys or parent records.
- * Edit optional command.doc for a one-sentence summary of the command functionality; it cannot modify the original command documentation or schema. Edit optional description for namespace descriptions. Server permissions.commentable governs edits; forbidden descriptions are ignored. Saving replaces the named catalog tree without switching the conversation. A rejected save or delete preserves saved Profiles.
+/** @brief The live runtime namespace tree must not be mutated: do not assign, delete, rename, move or add runtime namespace members, regardless of Profile permissions. Profile permissions govern the saved configuration tree.
+ * To mount a new command, assign children.cwd = { type: 'command', command: { tool: '<exact physical name>', doc: '<one sentence>' } } on an ordinary namespace. Use an exact physical name from tools.profile.commands, including unmounted commands. Member names are children record keys; rename or move members by changing their keys or parent records.
  */
 /** @brief Shared editable type and visibility. Default values are omitted from serialization. disabled applies to the node and its subtree: they disappear from discovery, runtime bindings, native tools, preloaded values and pinned prompts, while their configuration is retained for re-enabling. Disabling tools also removes tools.inspect guidance. fixedLevel controls pinning (0: none, 1: brief, 2: detailed). */
 interface ProfileNode {
@@ -238,7 +235,7 @@ interface ProfileNode {
     permissions?: Permission;
     /** @default 0 */
     fixedLevel?: number;
-    /** @default false; tools.profile.save defaults the protected tools namespace to true unless explicitly false */
+    /** @default false */
     disabled?: boolean;
 }
 /** @brief Physical command mounted at a named Profile member. */
