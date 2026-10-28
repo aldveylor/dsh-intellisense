@@ -1,3 +1,4 @@
+import { EditableText } from '../controls/editable_text.js';
 import { HintButton } from '../tooltip/action_hint.js';
 import { ProfileLabel } from './profile_label.js';
 import styles from './profile_label.css';
@@ -12,26 +13,12 @@ function NativeProfileItem({ value, label, brief, selected, disabled, removable,
     onChange: () => void; onRename: (name: string) => void; onRemove: () => void;
 }) {
     const t = useTranslation();
-    const [draft, setDraft] = useState<string>();
-
-    /** @brief Commit a nonempty name once on Enter or focus loss. */
-    function commit(): void {
-        if (draft === undefined) return;
-        const name = draft.trim(); setDraft(undefined);
-        if (name && name !== value) onRename(name);
-    }
-
     return <div className="ts-profile-item" data-selected={selected} data-profile-value={value}>
-        {draft === undefined ? <HintButton type="button" className="ts-profile-option" action={label} aria-pressed={selected} aria-disabled={disabled} title={readOnly ? hint : t('edit_profile_hint')}
-            onClick={() => { if (!disabled) onChange(); }} onDoubleClick={() => { if (!readOnly && !disabled) setDraft(value); }}>
-            <span className="ts-profile-check" aria-hidden="true">{selected ? '✓' : ''}</span><ProfileLabel label={label} brief={brief} />
-        </HintButton> : <input aria-label={t('rename_profile')} autoFocus maxLength={80} value={draft} disabled={disabled}
-            onFocus={event => event.target.select()} onChange={event => setDraft(event.target.value)} onBlur={commit}
-            onKeyDown={event => {
-                if (event.nativeEvent.isComposing) return;
-                if (event.key === 'Enter') { event.preventDefault(); commit(); }
-                if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setDraft(undefined); }
-            }} />}
+        <EditableText value={value} label={t('rename_profile')} busy={disabled} readOnly={readOnly} maxLength={80} selectOnFocus
+            commit={onRename} renderDisplay={beginEdit => <HintButton type="button" className="ts-profile-option" action={label} aria-pressed={selected} aria-disabled={disabled} title={readOnly ? hint : t('edit_profile_hint')}
+                onClick={() => { if (!disabled) onChange(); }} onDoubleClick={event => beginEdit(event.currentTarget)}>
+                <span className="ts-profile-check" aria-hidden="true">{selected ? '✓' : ''}</span><ProfileLabel label={label} brief={brief} />
+            </HintButton>} />
         {!readOnly && <HintButton type="button" className="ts-profile-delete" aria-label={`${t('delete_profile')} ${value}`} title={t('delete_profile_hint')}
             disabled={disabled || !removable} onClick={onRemove}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">

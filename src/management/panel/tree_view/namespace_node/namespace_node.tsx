@@ -1,6 +1,6 @@
 import { useTranslation } from '../../../locale/locale.js';
 import type { TreeProps } from '../tree_props.js';
-import { EditableText } from '../editable_text/editable_text.js';
+import { EditableText } from '../../../controls/editable_text.js';
 import { PinButton, RemoveButton, DisableButton } from '../tree_controls/tree_controls.js';
 import { acceptTreeDrag, leaveTreeDrag } from '../native_drag.js';
 import type { ReactNode } from 'react';
@@ -28,7 +28,7 @@ export function NamespaceNode({ node, tree, children }: { node: NamespaceTreeNod
             {!node.permissions.renamable ? <span className="ts-node-name">{path.split('.').at(-1)}</span> : <EditableText className="ts-node-name" value={path.split('.').at(-1)!} label={t('namespace_path_name', { path })} busy={tree.busy}
                 commit={name => tree.renameNamespace(path, name)} />}
             <small className="ts-node-count" aria-label={t('command_count', { path })}>{count}</small>
-            {fixed ? <span className="ts-node-preview">{node.description}</span> : <><EditableText className="ts-node-preview" value={config?.description ?? ''} label={t('namespace_comment', { path })} busy={tree.busy} empty
+            {fixed ? <span className="ts-node-preview">{node.description}</span> : <><EditableText className="ts-node-preview" value={config?.description ?? ''} label={t('namespace_comment', { path })} busy={tree.busy} placeholder={t('add_comment')} empty
                 commit={description => { tree.configure(path, { description }); return true; }} />
             <span className="ts-node-actions">
                 <PinButton label={t('pin_namespace', { path })} active={config?.alwaysVisible ?? false} busy={tree.busy}

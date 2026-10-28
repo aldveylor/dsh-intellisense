@@ -3,7 +3,7 @@ import { HintButton } from '../../tooltip/action_hint.js';
 import { useTranslation } from '../../locale/locale.js';
 import { ProfilePicker } from '../../profile_picker/profile_picker.js';
 import { NamespaceTreeView } from '../tree_view/namespace_tree_view.js';
-import { EditableText } from '../tree_view/editable_text/editable_text.js';
+import { EditableText } from '../../controls/editable_text.js';
 import type { TreeProps } from '../tree_view/tree_props.js';
 import type { TreeNode } from '../tree_node.js';
 

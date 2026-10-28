@@ -1,6 +1,6 @@
 import { useTranslation } from '../../../locale/locale.js';
 import type { TreeProps } from '../tree_props.js';
-import { EditableText } from '../editable_text/editable_text.js';
+import { EditableText } from '../../../controls/editable_text.js';
 import { PinButton, RemoveButton, DisableButton } from '../tree_controls/tree_controls.js';
 import { acceptTreeDrag, leaveTreeDrag } from '../native_drag.js';
 import type { CommandTreeNode } from '../../tree_node.js';
