@@ -2,11 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { ProfileSessions } from '../../src/registry/profiles.js';
+import { storageVersion } from '../../src/storage/version.js';
 import { MemoryStore } from '../../src/storage/store.js';
 
 const mapping = { id: 'read', path: 'files.read', pinned: false };
 
-test('unversioned global settings preserve valid entries and persist schema version one', async () => {
+test('unversioned global settings preserve valid entries and persist the current schema version', async () => {
     const store = new MemoryStore();
     await store.save('registry', {
         revision: 7, profile: 'Work', mappings: [mapping, { ...mapping, path: 'files.read.child' }, { id: 'broken' }],
@@ -23,7 +24,7 @@ test('unversioned global settings preserve valid entries and persist schema vers
     const registry = new SemanticRegistry(store);
     await registry.load();
     const state = registry.snapshot();
-    assert.equal(state.version, 1);
+    assert.equal(state.version, storageVersion);
     assert.equal(state.revision, 7);
     assert.equal(state.profile, 'Work');
     assert.deepEqual(state.mappings, [mapping]);
@@ -38,19 +39,19 @@ test('unversioned global settings preserve valid entries and persist schema vers
     assert.deepEqual(registry.configuration('Other').mappings, [{ ...mapping, path: 'other.read' }]);
     assert.deepEqual(registry.configuration('Broken').mappings, []);
     const persisted = await store.load<{ version: number }>('registry');
-    assert.equal(persisted?.version, 1);
+    assert.equal(persisted?.version, storageVersion);
     const restored = new SemanticRegistry(store);
     await restored.load();
     assert.deepEqual(restored.snapshot(), state);
 });
 
 test('changed global versions recover malformed containers and metadata', async () => {
-    for (const version of [0, 2]) {
+    for (const version of [0, 1, storageVersion + 1]) {
         const store = new MemoryStore();
         await store.save('registry', { version, revision: 'bad', profile: '__proto__', mappings: null, inactiveProfiles: [] });
         const registry = new SemanticRegistry(store);
         await registry.load();
-        assert.equal(registry.snapshot().version, 1);
+        assert.equal(registry.snapshot().version, storageVersion);
         assert.equal(registry.snapshot().revision, 0);
         assert.equal(registry.snapshot().profile, 'Default');
         assert.deepEqual(registry.snapshot().mappings, []);
@@ -59,10 +60,10 @@ test('changed global versions recover malformed containers and metadata', async 
 
 test('current global version stays strict and does not rewrite valid snapshots', async () => {
     const store = new MemoryStore();
-    await store.save('registry', { version: 1, revision: 0, mappings: [mapping] });
+    await store.save('registry', { version: storageVersion, revision: 0, mappings: [mapping] });
     store.save = async () => { throw new Error('Unexpected write'); };
     await new SemanticRegistry(store).load();
-    store.load = async <T>() => ({ version: 1, revision: 0, mappings: [null] }) as T;
+    store.load = async <T>() => ({ version: storageVersion, revision: 0, mappings: [null] }) as T;
     await assert.rejects(new SemanticRegistry(store).load(), /Invalid mapping/);
 });
 
@@ -77,11 +78,27 @@ test('failed migration persistence preserves the loaded in-memory configuration'
     assert.deepEqual(await store.load('registry'), { mappings: [mapping] });
 });
 
-test('session working snapshots do not run global version recovery', async () => {
+test('session working snapshots recover outdated versions and preserve valid siblings', async () => {
     const store = new MemoryStore();
-    store.load = async <T>() => ({ version: 0, revision: 0, mappings: [mapping] }) as T;
-    store.save = async () => { throw new Error('Unexpected session write'); };
+    const values: unknown[] = [];
+    store.load = async <T>() => ({ version: 0, revision: 4, mappings: [mapping, null] }) as T;
+    store.save = async <T>(_key: string, value: T) => { values.push(value); };
     const catalog = new SemanticRegistry(new MemoryStore());
     const sessions = new ProfileSessions(catalog, store);
-    await assert.rejects(sessions.forSession('existing'), /Invalid registry snapshot/);
+    const registry = await sessions.forSession('existing');
+    assert.equal(registry.snapshot().version, storageVersion);
+    assert.deepEqual(registry.snapshot().mappings, [mapping]);
+    assert.equal(values.length, 1);
+});
+
+test('explicit recovery discards invalid current-version entries and preserves other profiles', async () => {
+    const store = new MemoryStore();
+    await store.save('registry', { version: storageVersion, revision: 2, profile: 'Work', mappings: [mapping, null],
+        inactiveProfiles: { Other: { mappings: [{ ...mapping, path: 'other.read' }] } } });
+    const registry = new SemanticRegistry(store);
+    await assert.rejects(registry.load());
+    await registry.load(true);
+    assert.deepEqual(registry.configuration().mappings, [mapping]);
+    assert.deepEqual(registry.configuration('Other').mappings, [{ ...mapping, path: 'other.read' }]);
+    await new SemanticRegistry(store).load();
 });

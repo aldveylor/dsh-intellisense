@@ -2,6 +2,7 @@ import { CommandNode, NamespaceNode, createNamespace } from '../namespace/namesp
 import { pluginCommands } from '../runtime/builtins.js';
 import { toolName, validatePath } from './path.js';
 export { validatePath } from './path.js';
+import { storageVersion } from '../storage/version.js';
 import type { Store } from '../storage/store.js';
 import { RegistryConfiguration, RegistryState, type RegistryConfigurationData, type RegistryStateData } from './configuration.js';
 
@@ -39,7 +40,7 @@ export { RegistryConfiguration, RegistryState } from './configuration.js';
 export type { RegistryConfigurationData, RegistryStateData } from './configuration.js';
 
 /** @brief Global configuration schema version, independent of the package version. */
-const configurationVersion = 1;
+const configurationVersion = storageVersion;
 
 /** @brief Transactional semantic registry; unconfigured identities use encoded tools paths. */
 export class SemanticRegistry {
@@ -50,19 +51,23 @@ export class SemanticRegistry {
     private state = new RegistryState({ inactiveProfiles: {} });
     private writeChain: Promise<unknown> = Promise.resolve();
 
-    constructor(private store: Store, private readonly scope: 'global' | 'session' = 'global') {}
+    constructor(private store: Store, _scope: 'global' | 'session' = 'global') {}
 
-    async load(): Promise<void> {
+    /** @brief Serialize loading and recovery with ordinary configuration writes. */
+    load(recover = false): Promise<void> { return this.transaction(() => this.loadSnapshot(recover)); }
+
+    /** @brief Validate or recover persisted settings before publishing a new in-memory state. */
+    private async loadSnapshot(recover: boolean): Promise<void> {
         let saved = await this.store.load<RegistryStateData>('registry');
         if (saved !== undefined) {
-            const migrate = this.scope === 'global' && (saved?.version ?? 0) !== configurationVersion;
+            const migrate = recover || (saved?.version ?? 0) !== configurationVersion;
             if (migrate) saved = this.recoverState(saved);
             saved = structuredClone(saved);
             let cleaned = this.pruneProtectedPreferences(saved);
             for (const configuration of Object.values(saved.inactiveProfiles ?? {})) {
                 cleaned = this.pruneProtectedPreferences(configuration) || cleaned;
             }
-            if (saved.version !== 1 || !Number.isSafeInteger(saved.revision) || !Array.isArray(saved.mappings)) throw new Error('Invalid registry snapshot');
+            if (saved.version !== configurationVersion || !Number.isSafeInteger(saved.revision) || !Array.isArray(saved.mappings)) throw new Error('Invalid registry snapshot');
             this.validateProfileName(saved.profile ?? 'Default');
             this.validateMappings(saved.mappings);
             this.validateNamespaces(saved.namespaces ?? [], saved.mappings);

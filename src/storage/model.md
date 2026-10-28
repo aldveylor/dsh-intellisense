@@ -6,6 +6,6 @@ Store 提供 load/save/remove。DshStore 每次读取当前 KV 快照，不缓�
 
 Store 可选 loadMany 批量读取；DshStore 从同一次 KV 快照提取多个键，避免逐键读取整个单元。统计在 command_statistics 单条记录中保存会话计数和物理工具查询计数，通过单次 save 保持一致。
 
-全局 registry 记录独立配置版本（当前 1，无字段为 0）；版本变化时由 SemanticRegistry 保留可加载部分并重新保存，存储层不迁移会话记录。
+`version.ts` 统一定义存储模型版本（当前 2），用于 KV 单元、registry、会话草稿和 command_statistics；缺失记录版本按旧版本处理。KV 单元接受旧版本 1 的记录以保留有效内容；领域加载器在版本不同时逐项验证，丢弃失败部分，保存新版本后才发布内存状态。同版本保持严格校验，显式 load(true) 执行相同的局部恢复。统计恢复按会话、计数字段及计数项保留有效值，无法迭代的 sessions 部分丢弃，不影响有效 queriesByTool。加载和恢复与普通写入串行。
 
 `saveable.ts` 定义通用 Saveable<T> 接口，仅包含 save(): T，用于模型导出独立纯数据。模型加载由各类 constructor(data?) 完成；Store 保留异步键值读写职责，仅保存模型 save() 的结果，不持久化实例原型或方法。Profile 配置、注册表/session snapshot 和编辑树均采用此约定。

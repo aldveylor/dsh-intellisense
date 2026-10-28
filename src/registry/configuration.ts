@@ -1,3 +1,4 @@
+import { storageVersion } from '../storage/version.js';
 import type { Saveable } from '../storage/saveable.js';
 import type { Mapping, Namespace, CommandVisibility } from './registry.js';
 import { pluginCommands } from '../runtime/builtins.js';
@@ -48,7 +49,7 @@ export class RegistryState extends RegistryConfiguration implements Saveable<Reg
 
     constructor(data?: Partial<RegistryStateData>) {
         super(data);
-        this.version = data?.version ?? 1;
+        this.version = data?.version ?? storageVersion;
         this.revision = data?.revision ?? 0;
         this.profile = data?.profile ?? 'Default';
         if (data?.profiles !== undefined) this.profiles = [...data.profiles];

@@ -1,3 +1,5 @@
+import { z } from 'zod';
+import { storageVersion } from '../storage/version.js';
 import type { Store } from '../storage/store.js';
 
 /** @brief Per-tool dispatch counts and per-path Inspect query counts. */
@@ -18,6 +20,22 @@ export interface CommandStatisticsSnapshot extends CommandCounts {
 /** @brief A normalized, resolved Inspect query target. */
 export interface QueryTarget { path: string; namespace: boolean; tool?: string }
 
+/** @brief Validate persisted counters before exposing them to aggregation. */
+const counter = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
+const counters = z.record(z.string(), counter);
+const countsSchema = z.object({ callsByTool: counters, namespaceQueriesByPath: counters, commandQueriesByPath: counters });
+const statisticsSchema = z.object({ version: z.literal(storageVersion), sessions: z.array(z.tuple([z.string(), countsSchema])), queriesByTool: counters });
+
+/** @brief Read only plain record-shaped persisted data. */
+function record(value: unknown): Record<string, unknown> {
+    return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+/** @brief Retain independently valid counters during version recovery. */
+function recoverCounters(value: unknown): Record<string, number> {
+    return Object.fromEntries(Object.entries(record(value)).filter(([, value]) => counter.safeParse(value).success)) as Record<string, number>;
+}
+
 /** @brief Persist session and global counters together through serialized updates. */
 export class CommandStatistics {
     private global = this.empty();
@@ -29,16 +47,38 @@ export class CommandStatistics {
     constructor(private store: Store) {}
 
     /** @brief Restore counters before exposing the namespace service. */
-    async load(): Promise<void> {
-        const saved = await this.store.load<{ sessions: [string, CommandCounts][]; queriesByTool: Record<string, number> }>('command_statistics');
-        this.queriesByTool = saved?.queriesByTool ?? {};
-        this.sessions = new Map(saved?.sessions ?? []);
-        this.global = this.empty();
-        for (const counts of this.sessions.values()) {
+    load(recover = false): Promise<void> {
+        const work = this.pending.then(() => this.loadSnapshot(recover));
+        this.pending = work.catch(() => {});
+        return work;
+    }
+
+    /** @brief Validate or recover a snapshot without racing pending counter writes. */
+    private async loadSnapshot(recover: boolean): Promise<void> {
+        const raw = await this.store.load<unknown>('command_statistics');
+        if (raw === undefined) return;
+        const saved = record(raw);
+        const migrate = recover || saved.version !== storageVersion;
+        let data: z.infer<typeof statisticsSchema>;
+        if (migrate) {
+            const sessions: [string, CommandCounts][] = [];
+            for (const entry of Array.isArray(saved.sessions) ? saved.sessions : []) {
+                if (!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== 'string' || !entry[1] || typeof entry[1] !== 'object' || Array.isArray(entry[1])) continue;
+                const counts = record(entry[1]);
+                sessions.push([entry[0], { callsByTool: recoverCounters(counts.callsByTool), namespaceQueriesByPath: recoverCounters(counts.namespaceQueriesByPath), commandQueriesByPath: recoverCounters(counts.commandQueriesByPath) }]);
+            }
+            data = { version: storageVersion, sessions: [...new Map(sessions)], queriesByTool: recoverCounters(saved.queriesByTool) };
+        } else data = statisticsSchema.parse(raw);
+        const global = this.empty();
+        for (const counts of new Map(data.sessions).values()) {
             for (const field of ['callsByTool', 'namespaceQueriesByPath', 'commandQueriesByPath'] as const) {
-                for (const [key, count] of Object.entries(counts[field])) this.increment(this.global[field], key, count);
+                for (const [key, count] of Object.entries(counts[field])) this.increment(global[field], key, count);
             }
         }
+        if (migrate) await this.store.save('command_statistics', data);
+        this.queriesByTool = data.queriesByTool;
+        this.sessions = new Map(data.sessions);
+        this.global = global;
     }
 
     /** @brief Count one dispatch attempt, including native failures. */
@@ -81,7 +121,7 @@ export class CommandStatistics {
                 change(global);
                 for (const target of targets) if (!target.namespace && target.tool) this.increment(queriesByTool, target.tool);
             }
-            await this.store.save('command_statistics', { sessions: [...sessions], queriesByTool });
+            await this.store.save('command_statistics', { version: storageVersion, sessions: [...sessions], queriesByTool });
             this.sessions = sessions;
             this.global = global;
             this.queriesByTool = queriesByTool;

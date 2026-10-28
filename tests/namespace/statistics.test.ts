@@ -167,3 +167,46 @@ test('updates arriving during persistence form a subsequent durable batch', asyn
     assert.equal((await restored.snapshot()).calls, 2);
     assert.equal((await restored.snapshot()).queriesByTool.read, 1);
 });
+
+test('statistics recover only invalid portions of older snapshots and stamp the current version', async () => {
+    const { storageVersion } = await import('../../src/storage/version.js');
+    for (const version of [undefined, 1, storageVersion + 1]) {
+        const store = new MemoryStore();
+        await store.save('command_statistics', { version, sessions: [
+            ['good', { callsByTool: { read: 3, broken: -1 }, namespaceQueriesByPath: null, commandQueriesByPath: { 'std.read': 2 } }],
+            ['bad', null], null,
+        ], queriesByTool: { read: 2, bad: 'broken' } });
+        const statistics = new CommandStatistics(store);
+        await statistics.load();
+        assert.equal((await statistics.snapshot()).calls, 3);
+        assert.equal((await statistics.snapshot()).commandsQueried, 2);
+        assert.deepEqual((await statistics.snapshot()).queriesByTool, { read: 2 });
+        assert.equal((await store.load<{ version: number }>('command_statistics'))?.version, storageVersion);
+        await new CommandStatistics(store).load();
+    }
+    const store = new MemoryStore();
+    await store.save('command_statistics', { sessions: { old: {} }, queriesByTool: { read: 4 } });
+    const statistics = new CommandStatistics(store);
+    await statistics.load();
+    assert.equal((await statistics.snapshot()).calls, 0);
+    assert.deepEqual((await statistics.snapshot()).queriesByTool, { read: 4 });
+});
+
+test('current statistics stay strict until explicit recovery and failed recovery writes preserve memory', async () => {
+    const { storageVersion } = await import('../../src/storage/version.js');
+    const store = new MemoryStore();
+    const statistics = new CommandStatistics(store);
+    await statistics.recordCall('good', 'read');
+    const before = await statistics.snapshot();
+    await store.save('command_statistics', { version: storageVersion, sessions: {}, queriesByTool: { read: 4, bad: -1 } });
+    await assert.rejects(statistics.load());
+    assert.deepEqual(await statistics.snapshot(), before);
+    const save = store.save.bind(store);
+    store.save = async () => { throw new Error('Disk failed'); };
+    await assert.rejects(statistics.load(true), /Disk failed/);
+    assert.deepEqual(await statistics.snapshot(), before);
+    store.save = save;
+    await statistics.load(true);
+    assert.equal((await statistics.snapshot()).calls, 0);
+    assert.deepEqual((await statistics.snapshot()).queriesByTool, { read: 4 });
+});
