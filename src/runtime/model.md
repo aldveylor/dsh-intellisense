@@ -33,3 +33,5 @@ PTC 初始化先建立运行时环境（包括 console 输出对象），再安�
 `tools.profile.profiles` 为 VM 内冻结的只读对象，通过 getter 提供目录名称列表与会话当前选择。宿主在成功工具回复中携带最新 profiles 数据；VM 在兑现调用 Promise 前更新闭包快照并冻结名称数组，保持对象引用稳定，不开放写入。
 
 内置命令的功能说明与参数注释统一定义于 `runtime/builtins.ts`（源码根目录下）的 `PluginCommands` 契约表；原生注册、Inspect、固定提示及管理 UI 引用同一来源。BuiltinTool 保存共享或按 native/PTC 区分的描述、参数注释与 discoveryHint，通过 projectBuiltin(command, mode) 投影为纯字符串注释的 BuiltinCommand；原生注册按 presentation 作用域选择模式，会话命名空间按当前执行模式选择，管理目录默认使用 PTC 投影。依赖 inspect 的可选指引由投影后的 discoveryHint 标记，禁用发现时按该标记移除。
+
+worker 在创建 VM Context 时编译一次固定命名空间安装函数，后续 init 复用已编译函数；每轮仍移除旧部署根、重新传入宿主回调、命令及预加载数据，并创建新的 guest 命令闭包和冻结树。缓存不跨 worker/VM Context 共享，也不缓存用户源码转译结果。

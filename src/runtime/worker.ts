@@ -26,33 +26,8 @@ const output = new Writable({ write: (chunk: Buffer, _encoding, done) => {
 } });
 let console = new Console({ stdout: output, stderr: output, colorMode: false, inspectOptions: { customInspect: false, getters: false } });
 
-/** @brief Validate every outgoing frame before it reaches the host. */
-function send(message: unknown): void { process.send?.(WorkerMessage.parse(message)); }
-
-/** @brief Install only VM-realm wrapper functions; the captured host callbacks are never visible as guest properties. */
-function initialize(commands: CommandBinding[], values: Record<string, unknown>): void {
-    for (const name of deployedRoots) {
-        if (!Reflect.deleteProperty(global, name)) throw new Error('Cannot refresh namespace: ' + name);
-    }
-    deployedRoots.clear();
-    console = new Console({ stdout: output, stderr: output, colorMode: false, inspectOptions: { customInspect: false, getters: false } });
-    const hostCall = (tool: string, json: string): Promise<string> => {
-        if (!execution) return Promise.reject(new Error('No active execution'));
-        const id = RpcId.parse(++sequence);
-        let resolve!: (value: string) => void;
-        let reject!: (error: Error) => void;
-        const promise = new Promise<string>((accept, fail) => { resolve = accept; reject = fail; });
-        outstanding.set(id, { promise, resolve, reject });
-        send({ type: 'call', id, execution, tool, args: JSON.parse(json) });
-        return promise;
-    };
-    const hostPrint = (method: string, args: unknown[]): void => {
-        if (!execution) return;
-        const fn = console[method as keyof Console];
-        if (typeof fn !== 'function') throw new Error('Unknown console method');
-        Reflect.apply(fn, console, args);
-    };
-    const install = vm.runInContext(`(function(root, call, print, commands, methods, values) {
+/** @brief Compile the fixed guest installer once per worker while refreshing all invocation data. */
+const installNamespaces = vm.runInContext(`(function(root, call, print, commands, methods, values) {
         "use strict";
         const parse=JSON.parse, stringify=JSON.stringify;
         if(!Object.hasOwn(root,'ToolCallError')) {
@@ -164,8 +139,36 @@ function initialize(commands: CommandBinding[], values: Record<string, unknown>)
         }
         return deployed;
 
-    })`, context, { timeout: syncTimeoutMs }) as (root: object, call: typeof hostCall, print: typeof hostPrint, commands: string, methods: string, values: string) => string[];
-    for (const name of install(global, hostCall, hostPrint, JSON.stringify(commands), JSON.stringify(Object.keys(console).filter(name => !name.startsWith('_'))), JSON.stringify(values))) deployedRoots.add(name);
+    })`, context, { timeout: syncTimeoutMs }) as (root: object, call: (tool: string, json: string) => Promise<string>, print: (method: string, args: unknown[]) => void, commands: string, methods: string, values: string) => string[];
+
+/** @brief Validate every outgoing frame before it reaches the host. */
+function send(message: unknown): void { process.send?.(WorkerMessage.parse(message)); }
+
+/** @brief Install only VM-realm wrapper functions; the captured host callbacks are never visible as guest properties. */
+function initialize(commands: CommandBinding[], values: Record<string, unknown>): void {
+    for (const name of deployedRoots) {
+        if (!Reflect.deleteProperty(global, name)) throw new Error('Cannot refresh namespace: ' + name);
+    }
+    deployedRoots.clear();
+    console = new Console({ stdout: output, stderr: output, colorMode: false, inspectOptions: { customInspect: false, getters: false } });
+    const hostCall = (tool: string, json: string): Promise<string> => {
+        if (!execution) return Promise.reject(new Error('No active execution'));
+        const id = RpcId.parse(++sequence);
+        let resolve!: (value: string) => void;
+        let reject!: (error: Error) => void;
+        const promise = new Promise<string>((accept, fail) => { resolve = accept; reject = fail; });
+        outstanding.set(id, { promise, resolve, reject });
+        send({ type: 'call', id, execution, tool, args: JSON.parse(json) });
+        return promise;
+    };
+    const hostPrint = (method: string, args: unknown[]): void => {
+        if (!execution) return;
+        const fn = console[method as keyof Console];
+        if (typeof fn !== 'function') throw new Error('Unknown console method');
+        Reflect.apply(fn, console, args);
+    };
+
+    for (const name of installNamespaces(global, hostCall, hostPrint, JSON.stringify(commands), JSON.stringify(Object.keys(console).filter(name => !name.startsWith('_'))), JSON.stringify(values))) deployedRoots.add(name);
 }
 
 /** @brief Traverse only own data descriptors; accessors and proxies never run during completion. */
