@@ -66,7 +66,7 @@ export const en = {
     "tool_total_calls": "Total calls",
     "tool_total_queries": "Total queries",
     "tool_statistics": "Statistics",
-    "tool_all_calls_label": "Total calls across all commands: {count}",
+    "tool_all_calls_label": "Total tool calls: {count}",
     "tool_no_description": "No description",
     "tool_calls_label": "Total calls: {count}",
     "tool_filter": "Filter tools",
