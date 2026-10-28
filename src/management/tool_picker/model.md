@@ -13,3 +13,6 @@ ToolStatistics 按物理工具 ID 展示全局累计调用次数，复用于树�
 ToolStatistics 增加全局总查询次数；工具卡片及树命令详情读取 queriesByTool，同一物理工具的别名共享累计值。命名空间复用该表格，仅显示 namespaceQueriesByPath 对应路径的查询次数。
 
 工具选择器按输入 tools、mappings 和 protectedTools 缓存工具 ID 到挂载列表及受保护路径的索引，同时预计算小写搜索文本；输入搜索词和切换排序时复用索引，避免逐工具重复扫描全部映射。
+
+
+工具选择器使用 DSH 的 bg-layer-2、bg-base、mask、elevation 和圆角 token，弹窗背景不透明；无宿主 token 时通过 light-dark 跟随继承的 color-scheme。独立页面支持系统浅色/深色模式；普通卡片使用可辨识的文字和底色，受保护卡片采用次要文字，避免透明度叠加导致浅色内容难以辨识；保留原有卡片外框、顶部凸耳和尺寸布局，仅适配主题样式。弹窗标题、搜索/排序、滚动卡片区和统计页脚分区显示。

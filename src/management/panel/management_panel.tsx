@@ -1,3 +1,4 @@
+import { ActionButton } from '../controls/action_button.js';
 import { useTranslation } from '../locale/locale.js';
 import styles from './management_panel.css';
 import { ErrorDialog } from './error_dialog.js';
@@ -618,11 +619,11 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
             {status === 'loading' ? <p role="status" aria-live="polite">{t('loading')}</p>
                 : <><p className="ts-error-message" role="alert">{t(status)}</p>
                     <div className="ts-dialog-actions">
-                        <button type="button" disabled={busy} onClick={() => void action('loading', () => reload(undefined, null))}>{t('refresh')}</button>
-                        <button type="button" disabled={busy} title={t('reset_failed_data')} onClick={() => void action('loading', async () => {
+                        <ActionButton type="button" disabled={busy} onClick={() => void action('loading', () => reload(undefined, null))}>{t('refresh')}</ActionButton>
+                        <ActionButton type="button" disabled={busy} title={t('reset_failed_data')} onClick={() => void action('loading', async () => {
                             await request(api, { action: 'recover' });
                             await reload(undefined, null);
-                        })}>{t('reset')}</button>
+                        })}>{t('reset')}</ActionButton>
                     </div></>}
         </div>}
         <div className="ts-panel-content" ref={element => { if (element) element.inert = !view; }}>
@@ -636,9 +637,9 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
                         disabled={!view} label={t('default_profile')} readOnly allowCreate={false} onChange={selectDefault}
                         onCreate={createProfile} onRename={(name, newName) => manageProfile('rename', name, newName)} onRemove={name => manageProfile('delete', name)} /></div>
                 </div>
-                <button className="ts-organize" disabled={pending === 'organize' || !organize} onClick={() => void action('organizing', async () => {
+                <ActionButton className="ts-organize" disabled={pending === 'organize' || !organize} onClick={() => void action('organizing', async () => {
                     await organize!(t('organization_prompt')); setStatus('');
-                }, 'organize')}>{t('generate_proposal')}</button>
+                }, 'organize')}>{t('generate_proposal')}</ActionButton>
             </div></div>
             <main><section className="ts-namespaces"><div className="ts-namespace-heading"><h2>{t('namespace_tree')}</h2>
                 <button className="ts-add-tool ts-open-tools" type="button" aria-label={t('add_tools')} title={t('add_tools')} disabled={!view}
@@ -665,7 +666,7 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
             </div>
                 {view && <div className="ts-profile-summary"><button className="ts-unmounted-count" type="button" data-unmounted-count={unmounted.length} aria-live="polite" disabled={!unmounted.length}
                     onClick={() => setToolPicker({ parent: '', unmountedOnly: true })}>{t('unmounted_count', { count: unmounted.length })}</button>
-                    <button type="button" disabled={busy} onClick={() => setBriefEditor(brief ?? '')}>{t('edit_profile_brief')}</button></div>}
+                    <ActionButton type="button" disabled={busy} onClick={() => setBriefEditor(brief ?? '')}>{t('edit_profile_brief')}</ActionButton></div>}
                 <div aria-busy={pending === 'editor' || undefined} ref={element => { if (element) element.inert = pending === 'editor'; }}>
                     <NamespaceTreeView roots={namespaceTree.roots} tree={tree} />
                 </div>
@@ -682,8 +683,8 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
             <form onSubmit={event => { event.preventDefault(); setBrief(briefEditor.trim() || undefined); setBriefEditor(undefined); }}>
                 <h2 id="ts-brief-title">{t('edit_profile_brief')}</h2>
                 <textarea aria-label={t('profile_brief')} autoFocus rows={4} value={briefEditor} onChange={event => setBriefEditor(event.target.value)} />
-                <div className="ts-dialog-actions"><button type="submit">{t('apply')}</button>
-                    <button type="button" onClick={() => setBriefEditor(undefined)}>{t('cancel')}</button></div>
+                <div className="ts-dialog-actions"><ActionButton variant="primary" type="submit">{t('apply')}</ActionButton>
+                    <ActionButton type="button" onClick={() => setBriefEditor(undefined)}>{t('cancel')}</ActionButton></div>
             </form>
         </section></div>}
         {descriptionEditor && <div className="ts-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="ts-description-title">
@@ -696,9 +697,9 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
                 <h2 id="ts-description-title">{t('prompt_comment')} · {descriptionEditor.path}</h2>
                 <textarea aria-label={t('prompt_comment')} autoFocus rows={8} value={descriptionEditor.text ?? view?.tools.find(t => t.id === descriptionEditor.id)?.description ?? ''}
                     onChange={event => setDescriptionEditor({ ...descriptionEditor, text: event.target.value })} />
-                <div className="ts-dialog-actions"><button type="submit">{t('apply')}</button>
-                    <button type="button" onClick={() => setDescriptionEditor({ id: descriptionEditor.id, path: descriptionEditor.path })}>{t('reset')}</button>
-                    <button type="button" onClick={() => setDescriptionEditor(undefined)}>{t('cancel')}</button></div>
+                <div className="ts-dialog-actions"><ActionButton variant="primary" type="submit">{t('apply')}</ActionButton>
+                    <ActionButton type="button" onClick={() => setDescriptionEditor({ id: descriptionEditor.id, path: descriptionEditor.path })}>{t('reset')}</ActionButton>
+                    <ActionButton type="button" onClick={() => setDescriptionEditor(undefined)}>{t('cancel')}</ActionButton></div>
             </form>
         </section></div>}
     </div>;

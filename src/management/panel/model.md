@@ -65,3 +65,6 @@ Profile 草稿包含可选 brief；未挂载工具按钮右侧提供“编辑配
 首次加载失败的叠层依次显示“刷新”“重置”；重置 POST recover，服务端只丢弃加载失败的数据部分，保留有效配置和统计，成功后重新读取管理状态。
 
 命名空间块仅保留顶部 10px 外边距，子树末项不保留底部外边距，避免动画容器阻止外边距折叠后叠加留白；命名空间与子节点、后续同级条目之间保持 10px 间距。
+
+
+管理前端优先使用 DSH 样式：NativePanel 注入原生 Button，由 controls/ActionButton 应用于文字操作与弹窗按钮；独立页面使用对应 token 的备用控件。弹窗使用 bg-layer-2、mask、elevation-prominent 与 panel 圆角，输入/菜单/Tooltip 复用主题颜色和字体，键盘焦点使用 DSH focus ring。卡片外框、顶部凸耳及尺寸布局保持不变，仅修改主题样式，保留未挂载工具的错误色及内置卡片的次要文字。无宿主时 light-dark 跟随独立页面 color-scheme。

@@ -1,4 +1,7 @@
 import { useContext, useMemo, useSyncExternalStore, type ComponentType } from 'react';
+import { ButtonContext } from '../controls/action_button.js';
+import type { Button as DshButton } from '@deepseek-ai/dsh-client-ui-primitives';
+import type { ComponentProps } from 'react';
 import type { CodeBlockProps } from '@deepseek-ai/dsh-client-ui-primitives';
 import { CodeBlockContext } from '../code_block/code_block.js';
 import type { Context } from '@deepseek-ai/cordis';
@@ -7,7 +10,7 @@ import { ManagementPanel, type ManagementPanelProps } from '../panel/management_
 import { TranslationContext, messageKey, type LocaleKey } from './locale.js';
 
 /** @brief Bridge host locale revisions into the editor without remounting or losing drafts. */
-export function NativePanel({ locale, CodeBlock, ...props }: ManagementPanelProps & { locale: Context['locale']; CodeBlock?: ComponentType<CodeBlockProps> }) {
+export function NativePanel({ locale, CodeBlock, Button, ...props }: ManagementPanelProps & { locale: Context['locale']; CodeBlock?: ComponentType<CodeBlockProps>; Button?: ComponentType<ComponentProps<typeof DshButton>> }) {
     const inheritedBlock = useContext(CodeBlockContext);
     const snapshot = useSyncExternalStore(listener => locale.subscribe(listener), () => locale.getSnapshot());
     const t = useMemo(() => {
@@ -17,5 +20,5 @@ export function NativePanel({ locale, CodeBlock, ...props }: ManagementPanelProp
             return known ? bound(known as LocaleKey, values) : key;
         };
     }, [locale, snapshot.revision]);
-    return <TranslationContext.Provider value={t}><CodeBlockContext.Provider value={CodeBlock ?? inheritedBlock}><ManagementPanel {...props} /></CodeBlockContext.Provider></TranslationContext.Provider>;
+    return <TranslationContext.Provider value={t}><CodeBlockContext.Provider value={CodeBlock ?? inheritedBlock}><ButtonContext.Provider value={Button}><ManagementPanel {...props} /></ButtonContext.Provider></CodeBlockContext.Provider></TranslationContext.Provider>;
 }

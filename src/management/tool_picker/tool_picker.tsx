@@ -1,3 +1,4 @@
+import { ActionButton } from '../controls/action_button.js';
 import { useTranslation } from '../locale/locale.js';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { TooltipProvider, useTooltip } from '../tooltip/tooltip.js';
@@ -71,7 +72,7 @@ export function ToolPicker({ parent, tools, mappings, protectedTools = emptyProt
             if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) close();
         }}>
         <TooltipProvider><header><h2 id="ts-tool-picker-title">{t('add_tools')} · {parent || t('root')}</h2>
-            <button type="button" aria-label={t('close_picker')} onClick={close}>{t('close')}</button>
+            <ActionButton variant="ghost" type="button" aria-label={t('close_picker')} onClick={close}>{t('close')}</ActionButton>
         </header>
         <div className="ts-tool-picker-search">
             <input type="search" autoFocus aria-label={t('search_tools')} placeholder={t('search_hint')} value={search} onChange={event => setSearch(event.target.value)} />

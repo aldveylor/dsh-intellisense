@@ -1,3 +1,4 @@
+import { ActionButton } from '../controls/action_button.js';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from '../locale/locale.js';
 
@@ -24,8 +25,8 @@ export function SaveAsDialog({ profiles, busy, save, close, title }: {
                     onKeyDown={event => { if (event.nativeEvent.isComposing && event.key === 'Enter') event.preventDefault(); }} />
             </label>
             <div className="ts-dialog-actions">
-                <button type="button" onClick={close}>{t('cancel')}</button>
-                <button type="submit" disabled={busy || !draft.trim() || profiles.includes(draft.trim())}>{t('confirm')}</button>
+                <ActionButton type="button" onClick={close}>{t('cancel')}</ActionButton>
+                <ActionButton variant="primary" type="submit" disabled={busy || !draft.trim() || profiles.includes(draft.trim())}>{t('confirm')}</ActionButton>
             </div>
         </form>
     </dialog>;
