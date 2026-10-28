@@ -19,7 +19,7 @@ export function profileSaveInformation(profile: ProfileData, tools: readonly str
     };
     visit(profile.root, '');
     const information: string[] = [];
-    if (!canDiscover && incompletePins) information.push('warning: `inspect` is disabled when there are some commands not fixed with level 2.');
+    if (!canDiscover && incompletePins) information.push('warning: `tools.inspect` is disabled when there are some commands not fixed with level 2.');
     return information.length ? information.join('\n') : null;
 }
 
