@@ -1,0 +1,9 @@
+.ts-filter-icon{overflow:visible}
+.ts-filter-funnel{transform-origin:12px 12px;transition:transform .2s ease}
+.ts-filter-icon[data-valid=true]:hover .ts-filter-funnel{transform:translateY(-1px) rotate(-8deg)}
+.ts-filter-icon[data-open=true] .ts-filter-funnel{transform:rotate(12deg) scale(.9)}
+.ts-filter-dot{transform-origin:19px 18px;transform:scale(0);opacity:0;transition:transform .2s ease,opacity .2s ease}
+.ts-filter-icon[data-active=true] .ts-filter-dot{transform:scale(1);opacity:1}
+.ts-tool-filter-check path{opacity:0;transition:opacity .15s ease}
+.ts-tool-filter-check[data-checked=true] path{opacity:1}
+@media(prefers-reduced-motion:reduce){.ts-filter-funnel,.ts-filter-dot,.ts-tool-filter-check path{transition:none}}

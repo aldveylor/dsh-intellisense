@@ -1,3 +1,4 @@
+import type { IconProps } from '../../controls/icon.js';
 import { useEffect, useId, useRef, useState, type ComponentType } from 'react';
 import { ActionButton } from '../../controls/action_button.js';
 import { useTranslation } from '../../locale/locale.js';
@@ -5,12 +6,12 @@ import { NameOptionIcon, CallsOptionIcon, QueriesOptionIcon, DefaultOptionIcon, 
 
 import { SortMenuIcon, GroupMenuIcon, ViewMenuIcon, MenuChevronIcon } from './animated_icons.js';
 
-const optionIcons: Record<string, ComponentType> = {
+const optionIcons: Record<string, ComponentType<IconProps>> = {
     name: NameOptionIcon, calls: CallsOptionIcon, queries: QueriesOptionIcon, default: DefaultOptionIcon,
     cards: CardsOptionIcon, list: ListOptionIcon, type: TypeOptionIcon, source: SourceOptionIcon, none: NoneOptionIcon,
 };
 
-const menuIcons: Record<'sort' | 'group' | 'view', ComponentType<{ open: boolean; value: string }>> = {
+const menuIcons: Record<'sort' | 'group' | 'view', ComponentType<IconProps & { open: boolean; value: string }>> = {
     sort: SortMenuIcon, group: GroupMenuIcon, view: ViewMenuIcon,
 };
 
@@ -53,9 +54,9 @@ export function ToolLayout({ kind, value, options, disabled, onChange }: {
             aria-label={t(`tool_${kind}`)} title={`${t(`tool_${kind}`)}: ${t(`tool_${kind}_${value}`)}`}
             aria-expanded={open} aria-controls={menuId} aria-haspopup="menu"
             onClick={() => setPhase(current => current === 'open' ? 'closing' : 'open')}>
-            <MenuIcon open={open} value={value} />
+            <MenuIcon valid={!disabled} open={open} value={value} />
             <span>{t(`tool_${kind}`)}</span>
-            <MenuChevronIcon open={open} />
+            <MenuChevronIcon valid={!disabled} open={open} />
         </ActionButton>
         {phase !== 'closed' && <div id={menuId} role="menu" aria-label={t(`tool_${kind}`)} className="ts-tool-filter-menu" data-phase={phase}
             aria-hidden={!open} ref={element => { if (element) element.inert = !open; }}
@@ -64,7 +65,7 @@ export function ToolLayout({ kind, value, options, disabled, onChange }: {
                 const Icon = optionIcons[option] ?? NoneOptionIcon;
                 return <button type="button" key={option} className="ts-tool-filter-option" role="menuitemradio"
                     aria-checked={value === option} disabled={disabled} onClick={() => { onChange(option); setPhase('closing'); trigger.current?.focus(); }}>
-                    <Icon /><span>{t(`tool_${kind}_${option}`)}</span>
+                    <Icon valid={!disabled} /><span>{t(`tool_${kind}_${option}`)}</span>
                 </button>;
             })}
         </div>}

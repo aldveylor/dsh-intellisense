@@ -1,3 +1,4 @@
+import { SortDirectionIcon } from './sort_direction_icon.js';
 import { ActionHint } from '../tooltip/action_hint.js';
 import { ActionButton } from '../controls/action_button.js';
 import { CloseButton } from '../controls/close_button.js';
@@ -111,10 +112,7 @@ export function ToolPicker({ parent, tools, mappings, unmountedOnly = false, pro
             <ActionButton className="ts-tool-sort-direction" type="button" aria-label={t(descending ? 'tool_sort_ascending' : 'tool_sort_descending')}
                 aria-pressed={descending} title={t(descending ? 'sort_descending_hint' : 'sort_ascending_hint')}
                 disabled={busy || sort === 'default'} onClick={() => setDescending(value => !value)}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path className="ts-sort-arrow" d="M7 20V4m-4 4 4-4 4 4" />
-                    <path className="ts-sort-bars" d="M14 6h3m-3 6h5m-5 6h7" />
-                </svg>
+                <SortDirectionIcon valid={!busy && sort !== 'default'} descending={descending} />
             </ActionButton>
             <ToolFilter value={categories} disabled={busy} onChange={categories => setPreferences(current => ({ ...current, categories }))} />
             <ToolLayout kind="group" value={grouping} options={['none', 'type', 'source']} disabled={busy} onChange={grouping => setPreferences(current => ({ ...current, grouping }))} />

@@ -1,0 +1,5 @@
+.ts-sort-arrow{transform-origin:7px 12px;transition:transform .25s ease}
+.ts-sort-bars{transform-origin:17px 12px;transition:transform .25s ease}
+.ts-sort-direction-icon[data-descending=true] .ts-sort-arrow{transform:rotate(180deg)}
+.ts-sort-direction-icon[data-descending=true] .ts-sort-bars{transform:scaleY(-1)}
+@media(prefers-reduced-motion:reduce){.ts-sort-arrow,.ts-sort-bars{transition:none}}

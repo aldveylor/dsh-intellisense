@@ -9,3 +9,5 @@
 `option_icons.tsx` 将各选项图标拆为独立 React 组件；菜单按选项映射选择组件，不再通过 LayoutOptionIcon 的条件分支拼接 SVG。
 
 `animated_icons.tsx` 提供独立的排序、分组、视图触发图标与下拉箭头组件，通过 open/value 接收动画状态；`animated_icons.css` 管理悬停、展开、选项形态变化及减少动态效果偏好。菜单只选择和使用图标组件，面板样式不再维护这些 SVG 动画。所有图标文件直接位于 tool_layout 目录。
+
+选项与触发图标统一具备 valid 参数，关闭动画不移除所选状态。悬停规则仅选择 Icon 自身，展开和视图变形通过 open/value 显式传入，不依赖父按钮的 aria-expanded。

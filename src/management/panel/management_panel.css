@@ -122,24 +122,24 @@
 .ts-tool-filter{position:relative;flex:0 0 auto}
 .ts-intellisense .ts-tool-filter-trigger{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;padding:8px}
 .ts-tool-filter-trigger svg{display:block;overflow:visible}
-.ts-filter-funnel{transform-origin:12px 12px;transition:transform .2s ease}
-.ts-tool-filter-trigger:hover .ts-filter-funnel{transform:translateY(-1px) rotate(-8deg)}
-.ts-tool-filter-trigger[aria-expanded=true] .ts-filter-funnel{transform:rotate(12deg) scale(.9)}
-.ts-filter-dot{transform-origin:19px 18px;transform:scale(0);opacity:0;transition:transform .2s ease,opacity .2s ease}
-.ts-tool-filter[data-active=true] .ts-filter-dot{transform:scale(1);opacity:1}
+
+.ts-tool-filter-trigger:hover 
+.ts-tool-filter-trigger[aria-expanded=true] 
+
+.ts-tool-filter[data-active=true] 
 .ts-tool-filter[data-active=true] .ts-tool-filter-trigger{color:var(--ts-border-focus)}
 .ts-tool-filter-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:100;min-width:180px;padding:6px;border:1px solid var(--ts-border);border-radius:var(--dsw-radius-lg,10px);background:var(--dsw-alias-bg-base,light-dark(#ffffff,#202020));box-shadow:var(--dsw-elevation-panel,0 8px 28px #0003);transform-origin:top right;animation:ts-profile-open .18s ease-out both}
 .ts-tool-filter-menu[data-phase=closing]{pointer-events:none;animation:ts-profile-close .18s ease-in both}
 .ts-intellisense .ts-tool-filter-option{display:flex;align-items:center;gap:10px;width:100%;padding:8px;border:0;border-radius:var(--dsw-radius-md,6px);white-space:nowrap;text-align:left;cursor:pointer}
 .ts-tool-filter-option:focus-visible{background:var(--dsw-alias-interactive-bg-hover,light-dark(#edf0f4,#ffffff14))}
 .ts-tool-filter-check{flex-shrink:0}
-.ts-tool-filter-check path{opacity:0;transition:opacity .15s ease}
-.ts-tool-filter-option[aria-checked=true] .ts-tool-filter-check path{opacity:1}
-.ts-sort-arrow{transform-origin:7px 12px;transition:transform .25s ease}
-.ts-sort-bars{transform-origin:17px 12px;transition:transform .25s ease}
-.ts-tool-sort-direction[aria-pressed=true] .ts-sort-arrow{transform:rotate(180deg)}
-.ts-tool-sort-direction[aria-pressed=true] .ts-sort-bars{transform:scaleY(-1)}
-@media(prefers-reduced-motion:reduce){.ts-tool-filter-menu{animation-duration:1ms}.ts-filter-funnel,.ts-filter-dot,.ts-sort-arrow,.ts-sort-bars,.ts-tool-filter-check path{transition:none}}
+
+.ts-tool-filter-option[aria-checked=true] 
+
+
+.ts-tool-sort-direction[aria-pressed=true] 
+.ts-tool-sort-direction[aria-pressed=true] 
+@media(prefers-reduced-motion:reduce){.ts-tool-filter-menu{animation-duration:1ms}.ts-filter-funnel,.ts-filter-dot,.ts-sort-arrow,.ts-sort-bars,}
 
 /* Shared SVG close controls for dialog headers. */
 .ts-intellisense button.ts-close-button{display:inline-flex;align-items:center;justify-content:center;flex:0 0 28px;width:28px;height:28px;min-height:28px;padding:4px;border:0}

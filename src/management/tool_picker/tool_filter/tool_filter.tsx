@@ -1,3 +1,4 @@
+import { FilterIcon, FilterCheckIcon } from './filter_icons.js';
 import { useEffect, useId, useRef, useState } from 'react';
 import { ActionButton } from '../../controls/action_button.js';
 import { useTranslation } from '../../locale/locale.js';
@@ -44,10 +45,7 @@ export function ToolFilter({ value, disabled, onChange }: {
         <ActionButton className="ts-tool-filter-trigger" ref={trigger} aria-label={t('tool_filter')} title={t('tool_filter_hint')}
             aria-expanded={open} aria-controls={menuId} aria-haspopup="menu" disabled={disabled}
             onClick={() => setPhase(current => current === 'open' ? 'closing' : 'open')}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path className="ts-filter-funnel" d="M3 4h18l-7 8v7l-4 2v-9z" />
-                <circle className="ts-filter-dot" cx="19" cy="18" r="3" fill="currentColor" stroke="none" />
-            </svg>
+            <FilterIcon valid={!disabled} open={open} active={value.length !== toolCategories.length} />
         </ActionButton>
         {phase !== 'closed' && <div id={menuId} className="ts-tool-filter-menu" data-phase={phase} role="menu" aria-label={t('tool_filter')}
             aria-hidden={!open} ref={element => { if (element) element.inert = !open; }}
@@ -55,10 +53,7 @@ export function ToolFilter({ value, disabled, onChange }: {
             {toolCategories.map(category => <button key={category} type="button" className="ts-tool-filter-option" role="menuitemcheckbox"
                 value={category} aria-checked={value.includes(category)} disabled={disabled}
                 onClick={() => onChange(value.includes(category) ? value.filter(item => item !== category) : [...value, category])}>
-                <svg className="ts-tool-filter-check" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-                    <rect x="2" y="2" width="16" height="16" rx="3" />
-                    <path d="m5 10 3 3 7-7" />
-                </svg>
+                <FilterCheckIcon valid={!disabled} checked={value.includes(category)} />
                 <span>{t(`tool_filter_${category}`)}</span>
             </button>)}
         </div>}
