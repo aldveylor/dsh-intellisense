@@ -2,6 +2,7 @@ import { ConversationRequiredError, ProfileLockedError, CurrentProfileDeletionEr
 import { ProfileWriteSchema, profileWrite, validateProfilePatch } from '../registry/profile_write.js';
 import { pluginCommands, projectBuiltin } from '../runtime/builtins.js';
 import { mergeProfilePatch, profileSaveInformation } from './profile_save.js';
+import { ProfileLock } from './profile_lock.js';
 import { presentationConfigFor, presentationFor } from '../integration/presentation.js';
 import { registerBuiltin } from './builtin_trace.js';
 import { z } from 'zod';
@@ -17,18 +18,14 @@ import { type CommandBrief, type ProfileData, ProfileSchema, profileConfiguratio
 export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, profiles: ProfileSessions, registryFor: (agent: Agent) => Promise<SemanticRegistry>, changed: (agent: Agent) => Promise<void>, commands: (agent: Agent) => Promise<CommandBrief[]>): void {
     /** @brief Resolve mode-specific comments in the registration scope. */
     const contract = (tool: string) => projectBuiltin(pluginCommands.find(tool)!, presentationFor(ctx) ?? 'native');
-    const queues = new Map<string, Promise<unknown>>();
-    /** @brief Serialize configuration changes belonging to one conversation. */
+    const lock = new ProfileLock();
+    /** @brief Lock complete Profile reads and mutations across conversations, including read-modify-write operations. */
     const register = (definition: Parameters<typeof ctx.tools.register>[0]) => registerBuiltin(ctx, {
         ...definition,
-        execute: (args, execution) => {
-            const id = execution.agent?.id ?? '';
-            const prior = queues.get(id) ?? Promise.resolve();
-            const work = prior.catch(() => {}).then(() => { execution.signal.throwIfAborted(); return definition.execute(args, execution); });
-            queues.set(id, work);
-            void work.finally(() => { if (queues.get(id) === work) queues.delete(id); }).catch(() => {});
-            return work;
-        },
+        execute: (args, execution) => lock.run(async () => {
+            execution.signal.throwIfAborted();
+            return definition.execute(args, execution);
+        }),
     });
     const output = { schema: { type: 'object', additionalProperties: true } as const, render: (_args: unknown, value: unknown) => [{ type: 'text' as const, text: typeof value === 'string' ? value : JSON.stringify(value) }] };
     /** @brief Validate and publish a Profile without replacing the conversation draft. */

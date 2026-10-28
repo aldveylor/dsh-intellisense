@@ -21,7 +21,8 @@ import { RuntimeHost } from '../../src/runtime/host.js';
 async function fixture() {
     const definitions = new Map<string, ToolDefinition>();
     const ctx = { effect: (work: () => unknown) => work(), tools: { register: (tool: ToolDefinition) => { definitions.set(tool.name, tool); return () => {}; } } } as unknown as Context;
-    const catalog = new SemanticRegistry(new MemoryStore());
+    const store = new MemoryStore();
+    const catalog = new SemanticRegistry(store);
     const physical = { id: 'read_file', description: 'Read a file.', parameters: { type: 'object' }, output: { type: 'string' } };
     catalog.refresh([physical]);
     const profiles = new ProfileSessions(catalog, new MemoryStore());
@@ -34,7 +35,7 @@ async function fixture() {
     const execution = { agent: { id: 'session', inject: () => {}, ctx: agentContext, session: Session.create(SessionId('session')) }, signal: new AbortController().signal } as unknown as ToolRunContext;
     const call = (name: string, args: unknown = {}) => definitions.get(name)!.execute(args, execution);
     const load = async (args: unknown = {}) => ProfileSchema.parse(await call('tools_profile_load', args));
-    return { definitions, registry, catalog, call, load, changed };
+    return { definitions, registry, catalog, call, load, changed, execution, store };
 }
 
 test('native Profile data tools and optional-name save/load use session defaults', async () => {
@@ -647,4 +648,64 @@ test('Profile failures use explicit domain error classes and save shares patch p
         await assert.rejects(call('tools_profile_save', { profile }), /Unknown or read-only field/);
         assert.deepEqual(catalog.snapshot(), before);
     }
+});
+
+test('concurrent conversations preserve independent patches to the same catalog Profile', async () => {
+    const { definitions, execution, load, registry } = await fixture();
+    const apply = definitions.get('tools_profile_apply')!;
+    const before = registry.snapshot();
+    const executions = Array.from({ length: 8 }, (_, index) => ({ ...execution,
+        agent: { ...execution.agent!, id: `session_${index}` },
+    } as ToolRunContext));
+    await Promise.all(executions.map((context, index) => apply.execute({ name: 'Default', value: { root: { children: {
+        [`mount_${index}`]: { type: 'command', command: { tool: 'read_file' } },
+    } } } }, context)));
+    const saved = await load({ name: 'Default' });
+    for (let index = 0; index < executions.length; index++) assert.equal(saved.root.children![`mount_${index}`].command!.tool, 'read_file');
+    assert.deepEqual(registry.snapshot(), before);
+});
+
+test('Profile lock releases after another conversation fails validation or cancellation', async () => {
+    const { definitions, execution, load } = await fixture();
+    const apply = definitions.get('tools_profile_apply')!;
+    const aborted = new AbortController();
+    aborted.abort();
+    const other = { ...execution, agent: { ...execution.agent!, id: 'other' } } as ToolRunContext;
+    const results = await Promise.allSettled([
+        apply.execute({ name: 'Default', value: { root: { children: { tools: null } } } }, execution),
+        apply.execute({ name: 'Default', value: { brief: 'Cancelled' } }, { ...other, signal: aborted.signal }),
+        apply.execute({ name: 'Default', value: { brief: 'Saved after failures' } }, other),
+    ]);
+    assert.deepEqual(results.map(result => result.status), ['rejected', 'rejected', 'fulfilled']);
+    assert.equal((await load({ name: 'Default' })).brief, 'Saved after failures');
+});
+
+test('Profile lock blocks other conversations until persistence completes and checks waiting cancellation', async () => {
+    const { definitions, execution, store, catalog } = await fixture();
+    const apply = definitions.get('tools_profile_apply')!;
+    const load = definitions.get('tools_profile_load')!;
+    const other = { ...execution, agent: { ...execution.agent!, id: 'other' } } as ToolRunContext;
+    const before = catalog.snapshot();
+    let entered!: () => void;
+    let release!: () => void;
+    const persisting = new Promise<void>(resolve => { entered = resolve; });
+    const blocked = new Promise<void>(resolve => { release = resolve; });
+    const save = store.save.bind(store);
+    store.save = async (key, value) => { entered(); await blocked; await save(key, value); };
+    const write = apply.execute({ name: 'Default', value: { brief: 'Committed' } }, execution);
+    await persisting;
+    const controller = new AbortController();
+    const cancelled = apply.execute({ name: 'Default', value: { brief: 'Cancelled' } }, { ...other, signal: controller.signal });
+    const rejected = assert.rejects(cancelled, error => error instanceof Error && error.name === 'AbortError');
+    let readFinished = false;
+    const read = load.execute({ name: 'Default' }, other).then(value => { readFinished = true; return value; });
+    try {
+        await new Promise<void>(resolve => setImmediate(resolve));
+        assert.equal(readFinished, false);
+        assert.deepEqual(catalog.snapshot(), before);
+        controller.abort();
+    } finally { release(); }
+    await write;
+    await rejected;
+    assert.equal((await read as { brief?: string }).brief, 'Committed');
 });

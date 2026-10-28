@@ -63,3 +63,6 @@ Profile 写入模型使用 `registry/profile_write.ts` 的 ProfileWrite（从 Pr
 
 
 ProfileRootWrite 的匿名根只允许 type/children，拒绝没有持久化表示的根级 disabled、fixedLevel、description（包括 apply 的 null 删除）；普通成员仍使用 NamespaceWrite/CommandWrite。ConversationRequiredError、ProfileLockedError、CurrentProfileDeletionError 与 UnknownCommandError 在 src/error.ts 定义，不再用普通 Error 或权限错误表达这些 Profile 失败；非法 patch 键使用 ValidationError。
+
+
+`profile_lock.ts` 的 ProfileLock 为当前命名空间组件提供共享 FIFO 异步互斥锁。所有 `tools.profile.*` 操作共用该锁，读写均在获取锁后执行；apply 的读取、合并、校验及目录持久化位于同一临界区，避免跨会话并发增量保存丢失更新。等待结束后再次检查取消信号，失败或取消通过 finally 释放锁，不阻塞后续操作。锁只协调本组件的 Profile 工具调用，不提供跨进程或绕过工具接口的存储事务。
