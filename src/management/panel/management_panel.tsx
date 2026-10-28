@@ -1,3 +1,4 @@
+import { UsageDialog } from '../documentation/usage_dialog.js';
 import { ActionButton } from '../controls/action_button.js';
 import { useTranslation } from '../locale/locale.js';
 import styles from './management_panel.css';
@@ -296,6 +297,7 @@ const NamespaceTreeView = memo(function NamespaceTreeView({ roots, tree }: { roo
 /** @brief React registry editor with versioned drafts and conversation-based organization. */
 export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, organize }: ManagementPanelProps) {
     const t = useTranslation();
+    const [showUsage, setShowUsage] = useState(false);
     const Select = DefaultProfileSelect ?? PortableProfileSelect;
     const [view, setView] = useState<View>();
     const [brief, setBrief] = useState<string>();
@@ -627,7 +629,8 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
                     </div></>}
         </div>}
         <div className="ts-panel-content" ref={element => { if (element) element.inert = !view; }}>
-            <header><h1>{t('title')}</h1></header>
+            <header className="ts-panel-header"><h1>{t('title')}</h1><ActionButton onClick={() => setShowUsage(true)}>{t('usage_guide')}</ActionButton></header>
+            {showUsage && <UsageDialog api={api} close={() => setShowUsage(false)} />}
             {view && status && (['loading', 'updating_profile', 'organizing'].includes(status)
                 ? <p role="status" aria-live="polite">{t(status)}</p>
                 : <ErrorDialog message={t(status)} close={() => setStatus('')} />)}

@@ -78,7 +78,7 @@ test('host language switches update an open editor while preserving its unsaved 
                 listeners.forEach(listener => listener());
             };
             createRoot(document.getElementById('root')).render(<NativePanel api='/api/ts-intellisense-state' locale={locale} />);
-        ` }, bundle: true, platform: 'browser', format: 'iife', jsx: 'automatic', loader: { '.css': 'text' }, write: false,
+        ` }, bundle: true, platform: 'browser', format: 'iife', jsx: 'automatic', loader: { '.css': 'text', '.md': 'text' }, write: false,
     });
     const dom = browser();
     try {

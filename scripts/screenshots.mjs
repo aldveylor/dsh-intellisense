@@ -70,14 +70,14 @@ let browser;
 try {
     browser = await chromium.launch({ headless: true });
     for (const language of ['en', 'zh']) {
-        const context = await browser.newContext({ locale: language === 'zh' ? 'zh-CN' : 'en-US', viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1, reducedMotion: 'reduce', colorScheme: 'dark' });
+        const context = await browser.newContext({ locale: language === 'zh' ? 'zh-CN' : 'en-US', viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1, reducedMotion: 'reduce', colorScheme: 'light' });
         try {
             const page = await context.newPage();
             const errors = [];
             page.on('pageerror', error => errors.push(error));
             await page.goto(`http://127.0.0.1:${server.address().port}/api/ts-intellisense`);
             await page.locator('[data-unmounted-count]').waitFor();
-            await page.addStyleTag({ content: 'html{background:#181818}body{font-family:system-ui,"Microsoft YaHei",sans-serif}#root{max-width:1400px;margin:24px auto}.ts-tool-picker{background:#202020}' });
+            await page.addStyleTag({ content: 'html{color-scheme:light}body{font-family:system-ui,"Microsoft YaHei",sans-serif}#root{max-width:1400px;margin:24px auto}' });
             for (const path of ['std', 'std.shell']) {
                 await page.locator(`[data-namespace-path="${path}"] > .ts-disclosure`).click();
             }
@@ -108,6 +108,13 @@ try {
             await page.locator('.ts-open-tools').click();
             await page.locator('.ts-tool-picker[open]').waitFor();
             assert.equal(await page.locator('.ts-tool-picker .ts-builtin-tool:disabled').count(), pluginCommands.builtinTools.length);
+            const colors = await page.locator('.ts-tool-picker').evaluate(node => {
+                const style = getComputedStyle(node);
+                return { background: style.backgroundColor, color: style.color };
+            });
+            assert.equal(colors.background, 'rgb(255, 255, 255)');
+            assert.equal(colors.color, 'rgb(32, 33, 36)');
+            assert.equal(await page.locator('.ts-tool-picker [data-tool-id="bash"]').evaluate(node => getComputedStyle(node, '::before').display), 'block');
             await page.mouse.move(1400, 960);
             await page.screenshot({ path: fileURLToPath(new URL('tools.png', directory)) });
             await page.locator('.ts-tool-picker [data-tool-id="bash"]').hover();
@@ -124,6 +131,16 @@ try {
             await page.locator('.ts-tool-picker [data-tool-id="bash"]').hover();
             await details.waitFor();
             await page.screenshot({ path: fileURLToPath(new URL('tooltip.png', directory)) });
+            await page.mouse.move(1400, 960);
+            await page.waitForFunction(() => !document.querySelector('[role="tooltip"]'));
+            await page.emulateMedia({ colorScheme: 'dark' });
+            // The page uses DSH theme variables when available, and inherited color-scheme otherwise.
+            await page.addStyleTag({ content: 'html{color-scheme:dark}' });
+            assert.equal(await page.locator('.ts-tool-picker').evaluate(node => getComputedStyle(node).backgroundColor), 'rgb(32, 32, 32)');
+            const hostTheme = await page.addStyleTag({ content: '.ts-intellisense{--dsw-alias-bg-layer-2:rgb(40,45,50);--dsw-alias-label-primary:rgb(230,235,240)}' });
+            assert.equal(await page.locator('.ts-tool-picker').evaluate(node => getComputedStyle(node).backgroundColor), 'rgb(40, 45, 50)');
+            assert.equal(await page.locator('.ts-tool-picker').evaluate(node => getComputedStyle(node).color), 'rgb(230, 235, 240)');
+            await hostTheme.evaluate(node => node.remove());
             assert.deepEqual(errors, []);
             await rm(new URL('unmounted_tools.png', directory), { force: true });
             console.log(`Updated assets/${language}/{namespace_table,tools,tooltip}.png`);

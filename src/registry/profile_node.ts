@@ -1,9 +1,9 @@
 import type { Permission } from '../namespace/node.js';
 
-/** @brief Shared editable type, permissions and visibility settings. */
+/** @brief Shared node type, read-only server permissions and editable visibility settings. */
 export interface ProfileNode {
     type: string;
-    /** @brief Constraints on members retained and edited in the saved Profile, including original names and paths of protected members; these do not permit runtime namespace mutation. Optional overrides of ordinary node permissions; server-owned restrictions remain authoritative. */
+    /** @brief Constraints on members retained and edited in the saved Profile, including original names and paths of protected members; these do not permit runtime namespace mutation. Read-only server rules returned by load; save/apply reject permissions at every depth. */
     permissions?: Partial<Permission>;
     /** @brief Pin level, default 0; omitted when default. */
     fixedLevel?: number;

@@ -1,5 +1,7 @@
 /** @brief Chinese interface dictionary. */
 export const zh = {
+    "usage_guide": "使用文档",
+    "documentation_language": "zh",
     "page_loading": "正在加载工具管理…",
     "session_profile_label": "配置文件",
     "operation_failed_detail": "操作失败：{message}",

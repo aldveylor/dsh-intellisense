@@ -88,3 +88,6 @@ Profile save 保留原生 string | null 返回值：null 表示无提示的成�
 Profile 写入模型使用 `registry/profile_write.ts` 的 ProfileWrite（从 ProfileData 排除 name，递归排除 permissions），apply 使用递归 Partial 的 ProfilePatch。permissions 仅作为 load 的服务端只读规则返回；save/apply 对 name、permissions、未知字段（含 null 删除）强校验并抛错。调用方从 load 数据显式投影为写入树，宿主可使用 profileWrite；annotation 提供读取与写入两套类型，native annotation 返回写入 JSON Schema。null 仅删除可选字段或 children 成员，删除必填字段直接报告 null 输入。save/apply 仍只写目录，commands.paths 继续指向当前会话，验证保存结果用 load(name)，显式 switch 后才更新会话路径。
 
 `src/error.ts` 定义 ValidationError、ProfilePermissionError、ProfileNotFoundError、ToolCallError 和 PositionalArgumentError。normalizeError 尝试将原生 ZodError 转换为 src/error.ts 自定义 ZodError，使用 ErrorData/ErrorIssue 结构与 type、path/message 紧凑 JSON；不判断长度、不修改原错误，转换不适用或失败时返回原错误；guest 的位置参数错误为带 toolName/code 的 ToolCallError 子类，服务端错误码随 IPC 回复传递。
+
+
+管理页提供内置“使用文档”入口，按当前语言显示 docs/en/usage.md 与 docs/zh-cn/usage.md，构建时通过 Markdown 文本 loader 纳入客户端。文档随 package.files 发布；图片复用 README 的 assets/en 与 assets/zh 浅色截图，经认证的 ts-intellisense-docs-image 路由按语言及图片名称枚举读取。截图脚本同时检查浅色对比、深色回退、DSH token 优先级和原卡片凸耳保留；不使用截图专用背景修补。

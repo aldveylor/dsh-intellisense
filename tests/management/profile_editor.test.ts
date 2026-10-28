@@ -36,7 +36,7 @@ async function fixture(prepare: (registry: SemanticRegistry) => Promise<void> = 
             import { ManagementPanel } from './src/management/panel/management_panel.js';
             import { NativeProfileSelect } from './src/management/profile_picker/native_profile_select.js';
             createRoot(document.getElementById('root')).render(<ManagementPanel api='/api/ts-intellisense-state' ProfileSelect={NativeProfileSelect} />);
-        ` }, bundle: true, platform: 'browser', format: 'iife', jsx: 'automatic', loader: { '.css': 'text' }, write: false,
+        ` }, bundle: true, platform: 'browser', format: 'iife', jsx: 'automatic', loader: { '.css': 'text', '.md': 'text' }, write: false,
     });
     const virtualConsole = new VirtualConsole();
     virtualConsole.on('jsdomError', error => { if (!error.message.includes('Could not parse CSS')) throw error; });

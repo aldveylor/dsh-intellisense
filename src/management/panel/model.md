@@ -68,3 +68,6 @@ Profile 草稿包含可选 brief；未挂载工具按钮右侧提供“编辑配
 
 
 管理前端优先使用 DSH 样式：NativePanel 注入原生 Button，由 controls/ActionButton 应用于文字操作与弹窗按钮；独立页面使用对应 token 的备用控件。弹窗使用 bg-layer-2、mask、elevation-prominent 与 panel 圆角，输入/菜单/Tooltip 复用主题颜色和字体，键盘焦点使用 DSH focus ring。卡片外框、顶部凸耳及尺寸布局保持不变，仅修改主题样式，保留未挂载工具的错误色及内置卡片的次要文字。无宿主时 light-dark 跟随独立页面 color-scheme。
+
+
+页面标题右侧的“使用文档”打开 documentation/UsageDialog，按界面语言显示构建时打包的 docs 使用文档及 README 共用的浅色截图。

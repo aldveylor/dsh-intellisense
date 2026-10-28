@@ -1,5 +1,7 @@
 /** @brief English interface dictionary. */
 export const en = {
+    "usage_guide": "Usage guide",
+    "documentation_language": "en",
     "page_loading": "Loading tool management…",
     "session_profile_label": "Profile",
     "operation_failed_detail": "Operation failed: {message}",

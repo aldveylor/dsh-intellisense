@@ -64,6 +64,8 @@ Both modes share your tool profiles. **Intellisense PTC** lets the agent combine
 
 ## Tool management
 
+Read the [usage guide](docs/en/usage.md), also available from the configuration page. Screenshots below use light mode.
+
 ### Namespace management
 
 The namespace tree shows tool groups, call names, and descriptions. Hover a namespace for its name, full path, and notes; hover a command for its summary, full documentation, and call totals. Its original command name opens a second tooltip with tool details. Expand groups, double-click names or comments to edit them, drag sibling entries to reorder them, and set pinned hint levels. Use the controls above the tree to switch, save, or save a copy of a profile for reuse across different tool configurations.

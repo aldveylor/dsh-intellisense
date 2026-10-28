@@ -28,7 +28,7 @@ test('disable controls retain visible nodes, precede deletion and save command a
         import { createRoot } from 'react-dom/client';
         import { ManagementPanel } from './src/management/panel/management_panel.js';
         createRoot(document.getElementById('root')).render(<ManagementPanel api='/api/ts-intellisense-state' />);
-    ` }, bundle: true, platform: 'browser', format: 'iife', jsx: 'automatic', loader: { '.css': 'text' }, write: false });
+    ` }, bundle: true, platform: 'browser', format: 'iife', jsx: 'automatic', loader: { '.css': 'text', '.md': 'text' }, write: false });
     const virtualConsole = new VirtualConsole();
     virtualConsole.on('jsdomError', error => { if (!error.message.includes('Could not parse CSS')) throw error; });
     const dom = new JSDOM('<div id="root"></div>', { url: 'https://localhost/', runScripts: 'outside-only', virtualConsole });

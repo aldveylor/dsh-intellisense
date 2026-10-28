@@ -31,6 +31,15 @@ export function registerManagement(ctx: Context, globalRegistry: SemanticRegistr
     let catalog: { generation: string; tools: PhysicalTool[]; provided: SerializedNode[] } | undefined;
     ctx.connection.fetch.register({ path: '/api/ts-intellisense', methods: ['GET'], requestBody: 'buffered', fetch: async () => new Response(managementHtml, { headers: { ...headers, 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'" } }) });
     ctx.connection.fetch.register({ path: '/api/ts-intellisense-client', methods: ['GET'], requestBody: 'buffered', fetch: async () => new Response(await readFile(new URL('../standalone.js', import.meta.url), 'utf8'), { headers: { ...headers, 'Content-Type': 'text/javascript; charset=utf-8' } }) });
+    ctx.connection.fetch.register({ path: '/api/ts-intellisense-docs-image', methods: ['GET'], requestBody: 'buffered', fetch: async request => {
+        const query = new URL(request.url).searchParams;
+        const result = z.strictObject({ language: z.enum(['en', 'zh']), name: z.enum(['namespace_table', 'tools', 'tooltip']) }).safeParse(Object.fromEntries(query));
+        if (!result.success) return new Response(null, { status: 404, headers });
+        const { language, name } = result.data;
+        try {
+            return new Response(await readFile(new URL(`../../../assets/${language}/${name}.png`, import.meta.url)), { headers: { ...headers, 'Content-Type': 'image/png' } });
+        } catch { return new Response(null, { status: 404, headers }); }
+    } });
     ctx.connection.fetch.register({ path: '/api/ts-intellisense-state', methods: ['GET', 'POST'], requestBody: 'buffered', fetch: async request => {
         try {
             if (request.method === 'GET') {
