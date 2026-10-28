@@ -1,5 +1,6 @@
 import { HintButton } from '../tooltip/action_hint.js';
 import { UsageDialog } from '../documentation/usage_dialog.js';
+import { UsageButton } from '../documentation/usage_button.js';
 import { ActionButton } from '../controls/action_button.js';
 import { useTranslation } from '../locale/locale.js';
 import styles from './management_panel.css';
@@ -630,7 +631,7 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
                     </div></>}
         </div>}
         <div className="ts-panel-content" ref={element => { if (element) element.inert = !view; }}>
-            <header className="ts-panel-header"><h1>{t('title')}</h1><ActionButton title={t('usage_guide_hint')} onClick={() => setShowUsage(true)}>{t('usage_guide')}</ActionButton></header>
+            <header className="ts-panel-header"><h1>{t('title')}</h1><UsageButton open={() => setShowUsage(true)} /></header>
             {showUsage && <UsageDialog api={api} close={() => setShowUsage(false)} />}
             {view && status && (['loading', 'updating_profile', 'organizing'].includes(status)
                 ? <p role="status" aria-live="polite">{t(status)}</p>

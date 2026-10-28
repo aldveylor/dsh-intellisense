@@ -36,11 +36,12 @@ test('documentation images accept only supported languages and screenshot names'
 });
 
 test('the configuration page opens localized bundled usage documentation and screenshot URLs', async () => {
-    for (const language of ['en', 'zh']) {
+    for (const { language, viewed } of [{ language: 'en', viewed: false }, { language: 'zh', viewed: false }, { language: 'zh', viewed: true }]) {
         const routes = fixture();
         const dom = new JSDOM(managementHtml, { url: 'http://localhost/api/ts-intellisense', runScripts: 'outside-only', pretendToBeVisual: true });
         try {
             const { window } = dom;
+            if (viewed) window.localStorage.setItem('ts-intellisense:usage-guide-viewed', 'true');
             Object.defineProperty(window.navigator, 'languages', { value: [language] });
             window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
             window.structuredClone = structuredClone;
@@ -48,6 +49,11 @@ test('the configuration page opens localized bundled usage documentation and scr
             window.eval(await readFile(new URL('../../dist/management/standalone.js', import.meta.url), 'utf8'));
             await until(() => !!window.document.querySelector('.ts-panel-header button'));
             const help = window.document.querySelector<HTMLButtonElement>('.ts-panel-header button')!;
+            assert.equal(help.previousElementSibling?.tagName, 'H1');
+            assert.equal(help.getAttribute('aria-label'), language === 'zh' ? '使用文档' : 'Usage guide');
+            assert(help.querySelector('svg'));
+            assert.equal(help.textContent, '');
+            assert.equal(!!help.querySelector('.ts-usage-unread'), !viewed);
             help.dispatchEvent(new window.MouseEvent('pointerover', { bubbles: true, clientX: 20, clientY: 20 }));
             await until(() => !!window.document.querySelector('[role="tooltip"] .ts-action-hint'));
             const hint = window.document.querySelector('.ts-action-hint')!;
@@ -56,6 +62,8 @@ test('the configuration page opens localized bundled usage documentation and scr
             assert.equal(help.getAttribute('title'), null, 'Use styled hints instead of a duplicate browser tooltip');
             help.click();
             await until(() => !!window.document.querySelector('.ts-usage-dialog[open]'));
+            assert.equal(help.querySelector('.ts-usage-unread'), null);
+            assert.equal(window.localStorage.getItem('ts-intellisense:usage-guide-viewed'), 'true');
             const guide = window.document.querySelector('.ts-usage-dialog')!;
             assert.equal(guide.querySelector('h2')!.textContent, language === 'zh' ? '使用文档' : 'Usage guide');
             assert(guide.textContent!.includes(language === 'zh' ? 'Agent 能看到什么' : 'What the agent can see'));
@@ -65,6 +73,7 @@ test('the configuration page opens localized bundled usage documentation and scr
             assert(guide.querySelector('img')!.src.includes(`language=${language}`));
             guide.querySelector<HTMLButtonElement>('button')!.click();
             await until(() => !window.document.querySelector('.ts-usage-dialog'));
+            assert.equal(help.querySelector('.ts-usage-unread'), null);
         } finally { dom.window.close(); }
     }
 });

@@ -23,7 +23,7 @@ export function UsageDialog({ api, close }: { api: string; close: () => void }) 
         <article>{source.trim().split(/\n\s*\n/).map((block, index) => {
             if (block.startsWith('# ')) return null;
             if (block.startsWith('## ')) return <h3 key={index}>{block.slice(3)}</h3>;
-            const image = /^!\[([^\]]*)\]\([^)]*\/(namespace_table|tools|tooltip)\.png\)$/.exec(block);
+            const image = /^!\[([^\]]*)\]\([^)]*\/(namespace_table|profile_editor|namespace_tree|tools|tooltip|new_conversation)\.png\)$/.exec(block);
             if (image) {
                 const url = new URL('./ts-intellisense-docs-image', api);
                 url.searchParams.set('language', language);

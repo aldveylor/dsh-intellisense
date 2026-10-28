@@ -70,6 +70,6 @@ Profile 草稿包含可选 brief；未挂载工具按钮右侧提供“编辑配
 管理前端优先使用 DSH 样式：NativePanel 注入原生 Button，由 controls/ActionButton 应用于文字操作与弹窗按钮；独立页面使用对应 token 的备用控件。弹窗使用 bg-layer-2、mask、elevation-prominent 与 panel 圆角，输入/菜单/Tooltip 复用主题颜色和字体，键盘焦点使用 DSH focus ring。卡片外框、顶部凸耳及尺寸布局保持不变，仅修改主题样式，保留未挂载工具的错误色及内置卡片的次要文字。无宿主时 light-dark 跟随独立页面 color-scheme。
 
 
-页面标题右侧的“使用文档”打开 documentation/UsageDialog，按界面语言显示构建时打包的 docs 使用文档及 README 共用的浅色截图。
+页面标题后紧邻的问号 SVG 图标按钮打开 documentation/UsageDialog，按界面语言显示构建时打包的 docs 使用文档及 README 共用的浅色截图；首次使用显示黄色提示点，点击后清除并在浏览器记住已查看状态。
 
 管理按钮的 Tooltip 解释实际操作效果：默认选择与编辑选择分离，刷新替换未保存草稿、保存不更新已有会话、整理入口仅打开待发送草稿；固定等级提示当前状态及下一次点击效果，锁定的发现工具仅显示锁定说明。禁用说明包含后代影响，移除说明区分挂载与卸载。

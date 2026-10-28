@@ -127,7 +127,10 @@
 .ts-intellisense .ts-tool-picker .ts-tool.ts-unmounted{color:var(--dsw-alias-state-error-primary,light-dark(#b42318,#ed8b8b))}
 
 
-.ts-panel-header{justify-content:space-between}
+.ts-intellisense .ts-panel-header{justify-content:flex-start;gap:8px}
+.ts-intellisense .ts-usage-button{position:relative;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:28px;height:28px;padding:4px;border:0;background:transparent;color:var(--dsw-alias-label-secondary,light-dark(#4b5563,#bdbdbd))}
+.ts-intellisense .ts-usage-button:hover{color:var(--dsw-alias-label-primary,light-dark(#202124,#dce3ed));background:var(--dsw-alias-interactive-bg-hover,light-dark(#edf0f4,#ffffff0d))}
+.ts-usage-unread{position:absolute;top:0;right:0;width:7px;height:7px;border-radius:50%;background:#facc15;pointer-events:none}
 .ts-management-dialog.ts-usage-dialog{width:min(1000px,85vw);max-height:85vh;padding:0;overflow:hidden}
 .ts-usage-dialog>header{justify-content:space-between;padding:20px 24px;border-bottom:1px solid var(--ts-border)}
 .ts-usage-dialog>header h2{margin:0}
