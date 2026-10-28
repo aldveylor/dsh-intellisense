@@ -14,6 +14,10 @@ export interface EditableTextProps {
     empty?: boolean;
     placeholder?: string;
     maxLength?: number;
+    multiline?: boolean;
+    autoWidth?: boolean;
+    /** @brief Minimum editor content width in pixels. */
+    minWidth?: number;
     selectOnFocus?: boolean;
     renderDisplay?: (beginEdit: (element: HTMLElement, textElement?: HTMLElement) => void) => ReactNode;
     commit: (value: string) => boolean | void;
@@ -44,7 +48,7 @@ function textStart(element: HTMLElement): { left: number; top: number } {
 
 /** @brief Display text until double-click or Enter, commit on Enter/blur and cancel on Escape. */
 export function EditableText({ value, label, className, busy = false, readOnly = false, empty = false, placeholder,
-    maxLength, selectOnFocus = false, renderDisplay, commit }: EditableTextProps) {
+    maxLength, multiline = false, autoWidth = false, minWidth = 0, selectOnFocus = false, renderDisplay, commit }: EditableTextProps) {
     const NativeEditor = useContext(InlineEditorContext);
     const [draft, setDraft] = useState<{ value: string; element: HTMLElement; textElement: HTMLElement; style: CSSProperties }>();
     const overlay = useRef<HTMLSpanElement>(null);
@@ -77,14 +81,22 @@ export function EditableText({ value, label, className, busy = false, readOnly =
             const horizontalInset = (parseFloat(style.borderLeftWidth) || 0) + (parseFloat(style.borderRightWidth) || 0)
                 + (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
             const verticalInset = border + (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
-            const width = Math.min(Math.max(0, bounds.width - insetLeft - insetRight + marginX + horizontalInset), Math.max(0, view.innerWidth - 8));
+            const measure = anchor!.ownerDocument.createElement('span');
+            Object.assign(measure.style, { position: 'absolute', visibility: 'hidden', whiteSpace: 'pre', width: 'max-content', ...draft!.style });
+            measure.textContent = value || placeholder || '';
+            node.append(measure);
+            const textWidth = measure.getBoundingClientRect().width || textAnchor!.getBoundingClientRect().width;
+            measure.remove();
+            const contentWidth = autoWidth ? bounds.width - insetLeft - insetRight : textWidth;
+            const width = Math.min(Math.max(0, minWidth, contentWidth) + marginX + horizontalInset, Math.max(0, view.innerWidth - 8));
             const availableHeight = Math.max(0, view.innerHeight - 8 - marginY);
-            const minimumHeight = Math.min(Math.max(rect.height + verticalInset, 32), availableHeight);
+            const sourceHeight = multiline ? rect.height : parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.2 || 18;
+            const minimumHeight = Math.min(Math.max(sourceHeight + verticalInset, 32), availableHeight);
             node.style.width = `${width}px`;
             editor.style.minHeight = `${minimumHeight}px`;
             editor.style.maxHeight = `${availableHeight}px`;
             editor.style.height = '0px';
-            const height = Math.min(Math.max(minimumHeight, editor.scrollHeight + border), availableHeight);
+            const height = Math.min(Math.max(minimumHeight, (multiline ? editor.scrollHeight + border : minimumHeight)), availableHeight);
             editor.style.height = `${height}px`;
             node.style.height = `${height + marginY}px`;
             const start = textStart(textAnchor!);
@@ -114,7 +126,7 @@ export function EditableText({ value, label, className, busy = false, readOnly =
             view.removeEventListener('scroll', position, true);
             node.hidePopover?.();
         };
-    }, [anchor, textAnchor]);
+    }, [anchor, textAnchor, multiline, autoWidth, minWidth, value, placeholder]);
 
     useLayoutEffect(() => {
         const editor = input.current;
@@ -122,10 +134,13 @@ export function EditableText({ value, label, className, busy = false, readOnly =
         Object.assign(editor.style, draft.style);
         editor.disabled = busy;
         editor.readOnly = readOnly;
+        editor.wrap = multiline ? 'soft' : 'off';
+        editor.style.whiteSpace = multiline ? 'pre-wrap' : 'pre';
+        editor.style.overflowWrap = multiline ? 'anywhere' : 'normal';
         if (maxLength !== undefined) editor.maxLength = maxLength;
         else editor.removeAttribute('maxlength');
         fit.current?.();
-    }, [draft, busy, readOnly, maxLength]);
+    }, [draft, busy, readOnly, maxLength, multiline]);
 
     /** @brief Start editing only when the caller permits changes. */
     function beginEdit(element: HTMLElement, textElement = element): void {
@@ -152,9 +167,9 @@ export function EditableText({ value, label, className, busy = false, readOnly =
                 if (!busy && !readOnly && event.key === 'Enter') { event.preventDefault(); beginEdit(event.currentTarget); }
             }}>{value || placeholder}</span>;
 
-    /** @brief Update the local draft without losing newlines. */
+    /** @brief Preserve line breaks only when multiline editing is enabled. */
     function changeDraft(value: string): void {
-        if (draft && !busy && !readOnly) setDraft({ ...draft, value });
+        if (draft && !busy && !readOnly) setDraft({ ...draft, value: multiline ? value : value.replace(/[\r\n]+/g, ' ') });
     }
 
     return <>{display}{draft && <span ref={overlay} className="ts-inline-editor-overlay" style={{
@@ -164,7 +179,7 @@ export function EditableText({ value, label, className, busy = false, readOnly =
         if (selectOnFocus && event.target instanceof HTMLTextAreaElement) event.target.select();
     }} onKeyDownCapture={event => {
         if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) { event.stopPropagation(); return; }
-        if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.stopPropagation(); input.current?.blur(); }
+        if (event.key === 'Enter' && (!multiline || !event.shiftKey)) { event.preventDefault(); event.stopPropagation(); input.current?.blur(); }
         if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setDraft(undefined); }
     }} onPointerDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()}>
         {NativeEditor ? <NativeEditor value={draft.value} label={label} onChange={changeDraft}

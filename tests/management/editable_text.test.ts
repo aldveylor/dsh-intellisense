@@ -17,13 +17,13 @@ test('inline editors retain their anchors and use a top-layer editor that follow
             window.flush = flushSync;
             window.commits = [];
             flushSync(() => createRoot(document.getElementById('root')).render(<>
-                <EditableText value='Name' label='Name' commit={value => {
+                <EditableText multiline autoWidth value='Name' label='Name' commit={value => {
                     window.commits.push(value); return value !== 'invalid';
                 }} />
-                <EditableText value='Profile' label='Profile' commit={value => window.commits.push(value)}
+                <EditableText multiline autoWidth value='Profile' label='Profile' commit={value => window.commits.push(value)}
                     renderDisplay={beginEdit => <button onDoubleClick={event => beginEdit(event.currentTarget)}>Profile</button>} />
                 <InlineEditorContext.Provider value={NativeEditor}>
-                    <EditableText value='Native' label='Native' commit={value => window.commits.push(value)} />
+                    <EditableText multiline autoWidth value='Native' label='Native' commit={value => window.commits.push(value)} />
                 </InlineEditorContext.Provider>
             </>));
         ` }, bundle: true, platform: 'browser', format: 'iife', jsx: 'automatic', write: false,
@@ -113,5 +113,60 @@ test('inline editors retain their anchors and use a top-layer editor that follow
             assert.equal(shown.size, 0, 'Closing an editor must release the top layer');
         }
         assert.deepEqual(Array.from(window.commits), ['invalid', 'Renamed', 'Renamed']);
+    } finally { window.close(); }
+});
+
+/** @brief Verify original text sizing, minimum widths and single-line behavior in both renderers. */
+test('inline editors default to a single line and the original text width', async () => {
+    const bundle = await build({
+        stdin: { resolveDir: process.cwd(), loader: 'tsx', contents: `
+            import { createRoot } from 'react-dom/client';
+            import { flushSync } from 'react-dom';
+            import { EditableText, InlineEditorContext } from './src/management/controls/editable_text.js';
+            function NativeEditor({ value, label, onChange }) {
+                return <textarea aria-label={label} value={value} onChange={event => onChange(event.target.value)} />;
+            }
+            window.flush = flushSync;
+            window.commits = [];
+            flushSync(() => createRoot(document.getElementById('root')).render(<>
+                <EditableText value='Name' label='Default' commit={value => window.commits.push(value)} />
+                <EditableText value='Name' label='Minimum' minWidth={100} commit={value => window.commits.push(value)} />
+                <InlineEditorContext.Provider value={NativeEditor}>
+                    <EditableText value='Name' label='Native' commit={value => window.commits.push(value)} />
+                </InlineEditorContext.Provider>
+            </>));
+        ` }, bundle: true, platform: 'browser', format: 'iife', jsx: 'automatic', write: false,
+    });
+    const dom = new JSDOM('<style>textarea{margin:0;padding:6px 8px;border:1px solid}</style><div id="root"></div>', { runScripts: 'outside-only', pretendToBeVisual: true });
+    const window = dom.window;
+    const document = window.document;
+    window.HTMLElement.prototype.getBoundingClientRect = function () {
+        return { left: 20, top: 40, width: this.style.visibility === 'hidden' ? this.textContent!.length * 10 : 400, height: 18 } as DOMRect;
+    };
+    try {
+        window.eval(bundle.outputFiles[0]!.text);
+        for (const label of ['Default', 'Minimum', 'Native']) {
+            const display = document.querySelector<HTMLElement>(`[aria-label="${label}"]`)!;
+            display.style.lineHeight = '18px';
+            window.flush(() => display.dispatchEvent(new window.MouseEvent('dblclick', { bubbles: true })));
+            const input = document.querySelector<HTMLTextAreaElement>('textarea')!;
+            const overlay = input.closest<HTMLElement>('.ts-inline-editor-overlay')!;
+            assert.equal(overlay.style.width, label === 'Minimum' ? '118px' : '58px');
+            assert.equal(input.wrap, 'off');
+            assert.equal(input.style.whiteSpace, 'pre');
+            assert.equal(overlay.style.height, '32px');
+            Object.defineProperty(input, 'scrollHeight', { get: () => 200 });
+            const setValue = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')!.set!;
+            setValue.call(input, 'Long pasted\nname');
+            window.flush(() => input.dispatchEvent(new window.Event('input', { bubbles: true })));
+            assert.equal(input.value, 'Long pasted name', 'Single-line paste must replace line breaks');
+            assert.equal(overlay.style.width, label === 'Minimum' ? '118px' : '58px', 'Draft changes must retain original width');
+            assert.equal(overlay.style.height, '32px', 'Single-line editors must not grow with scrollHeight');
+            window.dispatchEvent(new window.Event('resize'));
+            assert.equal(overlay.style.width, label === 'Minimum' ? '118px' : '58px');
+            window.flush(() => input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, bubbles: true })));
+            assert.equal(document.querySelector('textarea'), null, 'Shift+Enter must submit single-line editors');
+        }
+        assert.deepEqual(Array.from(window.commits), ['Long pasted name', 'Long pasted name', 'Long pasted name']);
     } finally { window.close(); }
 });
