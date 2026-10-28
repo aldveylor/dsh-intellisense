@@ -1,4 +1,8 @@
-import { useState, type CSSProperties, type ReactNode } from 'react';
+import { createContext, useContext, useState, type ComponentProps, type ComponentType, type CSSProperties, type ReactNode } from 'react';
+import type { Input } from '@deepseek-ai/dsh-client-ui-primitives';
+
+/** @brief Host DSH Input renderer, optional for standalone pages. */
+export const InputContext = createContext<ComponentType<ComponentProps<typeof Input>> | undefined>(undefined);
 
 /** @brief Shared inline editor with optional custom display and local draft validation. */
 export interface EditableTextProps {
@@ -18,6 +22,7 @@ export interface EditableTextProps {
 /** @brief Display text until double-click or Enter, commit on Enter/blur and cancel on Escape. */
 export function EditableText({ value, label, className, busy = false, readOnly = false, empty = false, placeholder,
     maxLength, selectOnFocus = false, renderDisplay, commit }: EditableTextProps) {
+    const NativeInput = useContext(InputContext);
     const [draft, setDraft] = useState<{ value: string; style: CSSProperties }>();
 
     /** @brief Start editing only when the caller permits changes. */
@@ -52,12 +57,17 @@ export function EditableText({ value, label, className, busy = false, readOnly =
                 if (!busy && !readOnly && event.key === 'Enter') { event.preventDefault(); beginEdit(event.currentTarget); }
             }}>{value || placeholder}</span>;
 
-    return <input className={className} aria-label={label} autoFocus value={draft.value} disabled={busy} readOnly={readOnly} maxLength={maxLength}
-        style={draft.style}
-        onFocus={event => { if (selectOnFocus) event.target.select(); }}
-        onChange={event => setDraft({ ...draft, value: event.target.value })} onBlur={finishEdit} onKeyDown={event => {
+    const inputProps: ComponentProps<typeof Input> = {
+        'aria-label': label, autoFocus: true, value: draft.value, disabled: busy, readOnly, maxLength,
+        onFocus: event => { if (selectOnFocus) event.target.select(); },
+        onChange: event => setDraft({ ...draft, value: event.target.value }), onBlur: finishEdit,
+        onKeyDown: event => {
             if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
             if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); }
             if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setDraft(undefined); }
-        }} />;
+        },
+    };
+    return NativeInput ? <span className={`${className ?? ''} ts-inline-editor`} style={{ ...draft.style, display: 'inline-flex' }}>
+        <NativeInput {...inputProps} className="ts-inline-editor-input" data-dsh-control="input" />
+    </span> : <input {...inputProps} className={className} style={draft.style} />;
 }
