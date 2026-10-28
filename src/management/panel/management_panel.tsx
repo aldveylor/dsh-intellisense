@@ -595,6 +595,23 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
         toggle: path => setExpanded(current => ({ ...current, [path]: !(current[path] ?? false) })), dropNode: (event) => nativeDrop(event, treeDropTarget(event.currentTarget, event.clientY)),
     }), [namespaceTree, mappings, namespaces, order, paths, provided, expanded, namespaceVisible, builtinDisabled, toolComments, unmountedVisible, toolsById, view?.tools, view?.callsByTool, view?.queriesByTool, view?.namespaceQueriesByPath, view?.effective]);
 
+    const inspectWarning = useMemo(() => {
+        let inspectAvailable = false;
+        let incompletePins = false;
+        const visit = (node: TreeNode): void => {
+            if (tree.disabled(node.path)) return;
+            node.render({
+                command: command => {
+                    if (command.path === 'tools.inspect') inspectAvailable = toolsById.has(command.command?.id ?? '');
+                    else if (command.level !== 2) incompletePins = true;
+                },
+                namespace: namespace => namespace.children.forEach(visit),
+            });
+        };
+        namespaceTree.roots.forEach(visit);
+        return !inspectAvailable && incompletePins;
+    }, [namespaceTree, tree, toolsById]);
+
     return <div className="ts-intellisense" ref={drag.container} onPointerDownCapture={drag.pointerDown} onDragStartCapture={drag.preventNativeDrag}>
         <style>{styles}</style>
         {!view && <div className="ts-load-overlay" aria-busy={status === 'loading'}>
@@ -647,6 +664,7 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
                     <NamespaceTreeView roots={namespaceTree.roots} tree={tree} />
                 </div>
                 <small>{t('tree_hint')}</small>
+                {inspectWarning && <p className="ts-inspect-warning" role="status" aria-live="polite">{t('inspect_disabled_warning')}</p>}
             </section></main>
         </div>
         {toolPicker !== undefined && view && <ToolPicker parent={toolPicker.parent} tools={toolPicker.unmountedOnly ? unmounted : view.tools} mappings={mappings} protectedTools={providedTools(provided, view.tools)} callsByTool={view.callsByTool} queriesByTool={view.queriesByTool} busy={busy}

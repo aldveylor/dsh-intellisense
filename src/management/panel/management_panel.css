@@ -94,3 +94,7 @@
 .ts-profile-summary{display:flex;align-items:center;gap:8px;margin-top:12px}.ts-profile-summary .ts-unmounted-count{margin-top:0}.ts-profile-option>.ts-profile-text{white-space:normal}
 
 .ts-default-profile{flex:1}.ts-default-profile-control{min-width:50%}.ts-default-profile-control>span,.ts-default-profile-control>.ts-profile-select{width:100%}.ts-default-profile-control button[aria-haspopup=menu]{display:flex;align-items:center;justify-content:space-between;width:100%}
+
+.ts-intellisense .ts-inspect-warning{margin:12px 0 0;padding:12px 16px;border:1px solid #eab308;border-radius:var(--dsw-radius-md,6px);background:rgba(234,179,8,.12);color:var(--dsw-alias-label-primary,#dce3ed);line-height:1.6;transform-origin:top center;animation:ts-inspect-warning-open .22s ease-out both}
+@keyframes ts-inspect-warning-open{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+@media(prefers-reduced-motion:reduce){.ts-intellisense .ts-inspect-warning{animation:none}}

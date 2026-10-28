@@ -16,7 +16,7 @@ async function until(predicate: () => boolean): Promise<void> {
 
 test('disable controls retain visible nodes, precede deletion and save command and namespace state', async () => {
     const registry = new SemanticRegistry(new MemoryStore());
-    registry.refresh([{ id: 'read', description: 'Read document', parameters: { type: 'object' }, output: { type: 'string' } }]);
+    registry.refresh([{ id: 'tools_inspect', description: 'Inspect commands', parameters: {}, output: {} }, { id: 'read', description: 'Read document', parameters: { type: 'object' }, output: { type: 'string' } }]);
     await registry.configure([
         { id: 'read', path: 'files.read', pinned: false },
         { id: 'read', path: 'files.nested.read', pinned: false },
@@ -40,7 +40,36 @@ test('disable controls retain visible nodes, precede deletion and save command a
         Object.defineProperty(dom.window, 'AnimationEvent', { value: dom.window.Event });
         dom.window.eval(result.outputFiles[0]!.text);
         await until(() => !!document.querySelector('[data-namespace-path="files"] .ts-disclosure'));
+        const warning = (): Element | null => document.querySelector('.ts-inspect-warning');
+        assert.equal(warning(), null);
+        click('[data-namespace-path="tools"] .ts-disclosure');
+        await until(() => !!document.querySelector('[data-tree-path="tools.inspect"] .ts-disable'));
+        click('[data-tree-path="tools.inspect"] .ts-disable');
+        await until(() => !!warning());
+        assert(warning()!.textContent!.includes('disable'));
+        assert.equal(warning()!.getAttribute('role'), 'status');
+        click('[data-namespace-path="tools"] .ts-disable');
+        await until(() => document.querySelector('li[data-tree-path="tools"]')?.getAttribute('data-disabled') === 'true');
+        assert(warning());
         click('[data-namespace-path="files"] .ts-disclosure');
+        await until(() => !!document.querySelector('[data-tree-path="files.read"] .ts-pin'));
+        click('[data-tree-path="files.read"] .ts-pin');
+        await until(() => document.querySelector('[data-tree-path="files.read"] .ts-pin')?.getAttribute('data-level') === '1');
+        assert(warning());
+        click('[data-tree-path="files.read"] .ts-pin');
+        click('[data-namespace-path="files.nested"] .ts-disable');
+        await until(() => !warning());
+        click('[data-namespace-path="files.nested"] .ts-disable');
+        await until(() => !!warning());
+        click('[data-namespace-path="files"] .ts-disable');
+        await until(() => !warning());
+        click('[data-namespace-path="files"] .ts-disable');
+        click('[data-namespace-path="tools"] .ts-disable');
+        await until(() => !document.querySelector<HTMLButtonElement>('[data-tree-path="tools.inspect"] .ts-disable')!.disabled);
+        click('[data-tree-path="tools.inspect"] .ts-disable');
+        await until(() => !warning());
+        click('[data-tree-path="files.read"] .ts-pin');
+        click('[data-namespace-path="tools"] .ts-disclosure');
         await until(() => !!document.querySelector('[data-tree-path="files.read"] .ts-disable'));
         const disable = document.querySelector('[data-tree-path="files.read"] .ts-disable')!;
         assert(disable.nextElementSibling!.classList.contains('ts-remove'));

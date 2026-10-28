@@ -230,6 +230,7 @@ interface Permission {
 }
 /** @brief Start from tools.profile.load(). Save recursively restores missing protected nodes from the existing Profile; submitted nodes retain their fixedLevel and other settings. Protected nodes still cannot be moved, renamed, replaced or extended. New commands may use any exact physical name from tools.profile.commands, even when absent from the loaded tree. A missing tree member is not a command template.
  * The tools namespace is protected but defaults to disabled on save, including when omitted or when its disabled field is omitted. Set tools.disabled to false explicitly to enable it.
+ * When inspect is unavailable, including when tools is disabled, fix all other commands at level 2 or disable them. This is advisory and does not block saving.
  * To mount a new command, append { type: 'command', name: 'cwd', command: { tool: '<exact physical name>', doc: '<one sentence>' } } to an ordinary namespace's children.
  * Edit optional command.doc for a one-sentence summary of the command functionality; it cannot modify the original command documentation or schema. Edit optional description for namespace descriptions. Server permissions.commentable governs edits; forbidden descriptions are ignored. Saving replaces the named catalog tree without switching the conversation. A rejected save or delete preserves saved Profiles.
  */

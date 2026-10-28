@@ -101,6 +101,7 @@ export const en = {
     "profile_brief": "Profile description",
     "generate_proposal": "Generate organization proposal",
     "namespace_tree": "Namespace tree",
+    "inspect_disabled_warning": "inspect is disabled or unavailable, so namespace members cannot be discovered. Fix all other commands at level 2, or disable them.",
     "tree_hint": "Use arrows to expand; double-click names or comments to edit, drag nodes to reorder or move between namespaces, and click plus to add tools.",
     "prompt_comment": "Command prompt comment",
     "apply": "Apply",

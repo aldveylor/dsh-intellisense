@@ -101,6 +101,7 @@ export const zh = {
     "profile_brief": "配置描述",
     "generate_proposal": "生成整理提案",
     "namespace_tree": "命名空间树",
+    "inspect_disabled_warning": "inspect 已禁用或不可调用，无法获取命名空间成员。请将所有其它命令固定为等级 2，或者禁用。",
     "tree_hint": "箭头控制展开；双击名称或注释编辑，拖动节点可排序或跨命名空间移动，点击加号添加工具。",
     "prompt_comment": "命令提示注释",
     "apply": "应用",
