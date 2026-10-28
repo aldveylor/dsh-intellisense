@@ -66,3 +66,43 @@ test('selector subscriptions, duplicate registration and unloading keep defaults
     assert.equal(changes, 3);
     unsubscribe();
 });
+
+test('BM25 reuses alternating document sets and invalidates changed documents and fields', async () => {
+    const { default: MiniSearch } = await import('minisearch');
+    let builds = 0;
+    /** @brief Count actual index construction while retaining real BM25 behavior. */
+    class CountingSearch extends MiniSearch {
+        constructor(options: ConstructorParameters<typeof MiniSearch>[0]) { super(options); builds++; }
+    }
+    const selector = createSearchEngines(undefined, CountingSearch).selector();
+    const options = { keywords: ['document'], target: 'description' as const };
+    await searchEntries(entries, options, selector);
+    await searchEntries(entries, { ...options, namespace_path: 'files' }, selector);
+    await searchEntries(structuredClone(entries), options, selector);
+    assert.equal(builds, 2);
+    const changed = structuredClone(entries);
+    changed[0]!.doc = 'Unique replacement phrase';
+    assert.deepEqual(await searchEntries(changed, { keywords: ['Unique'], target: 'description' }, selector), ['files.read']);
+    assert.equal(builds, 3);
+    assert.deepEqual(await searchEntries(entries, { keywords: ['Unique'], target: 'description' }, selector), []);
+    await searchEntries(entries, { keywords: ['read'], target: 'name' }, selector);
+    assert.equal(builds, 4);
+});
+
+test('BM25 evicts least recently used indexes after eight distinct document sets', async () => {
+    const { default: MiniSearch } = await import('minisearch');
+    let builds = 0;
+    /** @brief Observe cache eviction through index creation. */
+    class CountingSearch extends MiniSearch {
+        constructor(options: ConstructorParameters<typeof MiniSearch>[0]) { super(options); builds++; }
+    }
+    const selector = createSearchEngines(undefined, CountingSearch).selector();
+    const search = (index: number) => searchEntries([{ ...entries[0]!, doc: `document variant ${index}` }], { keywords: ['document'] }, selector);
+    for (let index = 0; index < 8; index++) await search(index);
+    await search(0);
+    await search(8);
+    await search(0);
+    assert.equal(builds, 9);
+    await search(1);
+    assert.equal(builds, 10);
+});

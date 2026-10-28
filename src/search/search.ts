@@ -1,7 +1,7 @@
 import type MiniSearch from 'minisearch';
 import type { ManifestEntry } from '../namespace/namespace.js';
 import { normalizeInspectQueries } from '../namespace/namespace.js';
-import { SearchEngineRegistry, type SearchEngine, type SearchField, type SearchSelector } from './engine_registry.js';
+import { SearchEngineRegistry, type SearchDocument, type SearchEngine, type SearchField, type SearchSelector } from './engine_registry.js';
 
 /** @brief Load optional BM25 support; missing installations retain substring matching. */
 const miniSearch: typeof MiniSearch | undefined = await import('minisearch').then(module => module.default).catch((error: unknown) => {
@@ -36,17 +36,35 @@ export const accurateEngine: SearchEngine = {
 /** @brief Build an independent registry with optional BM25 and always-available substring matching. */
 export function createSearchEngines(defaultMethod?: string, ranked = miniSearch): SearchEngineRegistry {
     const registry = new SearchEngineRegistry(defaultMethod);
-    let cached: { key: string; index: MiniSearch } | undefined;
+    const cache: Array<{ fields: readonly SearchField[]; documents: readonly SearchDocument[]; index: MiniSearch; size: number }> = [];
+    let cachedChars = 0;
+    const maxCachedChars = 2_000_000;
     if (ranked) registry.register({
         name: 'bm25', description: 'BM25 ranked fuzzy and prefix search.',
         search: ({ documents, keywords, fields }) => {
-            const key = JSON.stringify([fields, documents]);
-            if (cached?.key !== key) {
-                const index = new ranked({ fields: [...fields], tokenize, searchOptions: { combineWith: 'OR', fuzzy: .2, prefix: true, boost: { name: 2 } } });
+            const hit = cache.findIndex(candidate => candidate.fields.length === fields.length
+                && candidate.fields.every((field, index) => field === fields[index])
+                && candidate.documents.length === documents.length
+                && candidate.documents.every((document, index) => {
+                    const next = documents[index]!;
+                    return document.id === next.id && fields.every(field => document[field] === next[field]);
+                }));
+            let index: MiniSearch;
+            if (hit >= 0) {
+                const [cached] = cache.splice(hit, 1);
+                cache.push(cached!);
+                index = cached!.index;
+            } else {
+                index = new ranked({ fields: [...fields], tokenize, searchOptions: { combineWith: 'OR', fuzzy: .2, prefix: true, boost: { name: 2 } } });
                 index.addAll([...documents]);
-                cached = { key, index };
+                const size = documents.reduce((sum, document) => sum + document.id.length + fields.reduce((sum, field) => sum + document[field].length, 0), 0);
+                if (size <= maxCachedChars) {
+                    while (cache.length && (cache.length >= 8 || cachedChars + size > maxCachedChars)) cachedChars -= cache.shift()!.size;
+                    cache.push({ fields: [...fields], documents: documents.map(document => ({ ...document })), index, size });
+                    cachedChars += size;
+                }
             }
-            return cached.index.search(keywords.join(' ')).sort((a, b) => b.score - a.score || String(a.id).localeCompare(String(b.id)))
+            return index.search(keywords.join(' ')).sort((a, b) => b.score - a.score || String(a.id).localeCompare(String(b.id)))
                 .map(result => String(result.id));
         },
     });
