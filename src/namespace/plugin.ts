@@ -31,11 +31,11 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
     const backend = ctx.storage.backend.get('json');
     if (!backend.kv) throw new Error('DSH json backend does not support KV storage');
     const unit = await backend.kv.open({ name: 'ts_intellisense', version: storageVersion, compatibleVersions: [1], tables: ['state'], hasGlobal: false, layout: 'per-record' });
-    ctx.effect(() => () => unit.close());
     const store = new DshStore(unit);
     const registry = new SemanticRegistry(store);
     const profiles = new ProfileSessions(registry, store);
-    const statistics = new CommandStatistics(store);
+    const statistics = new CommandStatistics(store, { onError: error => ctx.logger.warn('Statistics persistence failed; dirty data will be retried.', error) });
+    ctx.effect(() => async () => { try { await statistics.dispose(); } finally { await unit.close(); } });
     let namespaces: NamespaceComponent | undefined;
     let initialization: Promise<void> | undefined;
 

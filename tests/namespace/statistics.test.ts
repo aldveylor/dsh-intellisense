@@ -24,6 +24,7 @@ test('concurrent session updates preserve global totals and durable detached sna
     assert.equal((await statistics.snapshot('second')).commandsQueried, 0);
     assert.equal((await statistics.snapshot('missing')).calls, 0);
     snapshot.callsByTool.read = 100;
+    await statistics.flush();
     const restored = new CommandStatistics(store);
     await restored.load();
     assert.equal((await restored.snapshot()).callsByTool.read, 30);
@@ -97,56 +98,49 @@ test('global tool query totals follow physical identities across aliases and sur
     assert.deepEqual(snapshot.namespaceQueriesByPath, { std: 1, files: 1 });
     assert.deepEqual((await statistics.snapshot('first')).queriesByTool, {});
     snapshot.queriesByTool.read = 100;
+    await statistics.flush();
     const restored = new CommandStatistics(store);
     await restored.load();
     assert.deepEqual((await restored.snapshot()).queriesByTool, { read: 3 });
 });
 
-test('failed statistics batches leave durable and live counters unchanged and permit recovery', async () => {
-    /** @brief Fail one atomic statistics snapshot before it reaches storage. */
+test('failed persistence retains live deltas and retries the same journal before new increments', async () => {
+    /** @brief Reject the journal write until storage becomes available again. */
     class FailingStore extends MemoryStore {
         fail = false;
-        writes = 0;
-
         override async save<T>(key: string, value: T): Promise<void> {
-            this.writes++;
             if (this.fail) throw new Error('injected write failure');
             await super.save(key, value);
         }
     }
     const store = new FailingStore();
     const statistics = new CommandStatistics(store);
-    await statistics.load();
     await statistics.recordCall('existing', 'read');
-    const before = await statistics.snapshot();
+    await statistics.flush();
     store.fail = true;
-    const outcomes = await Promise.allSettled([
-        statistics.recordQueries('new', [{ path: 'std.read', namespace: false, tool: 'read' }]),
-        statistics.recordCall('existing', 'write'),
-    ]);
-    assert(outcomes.every(outcome => outcome.status === 'rejected'));
-    assert.equal(store.writes, 2);
-    assert.deepEqual(await statistics.snapshot(), before);
+    await statistics.recordQueries('new', [{ path: 'std.read', namespace: false, tool: 'read' }]);
+    await assert.rejects(statistics.flush(), /injected/);
+    assert.equal((await statistics.snapshot()).commandsQueried, 1);
     const restored = new CommandStatistics(store);
     await restored.load();
-    assert.deepEqual(await restored.snapshot(), before);
-    assert.equal((await restored.snapshot('new')).commandsQueried, 0);
-    store.fail = false;
+    assert.equal((await restored.snapshot()).commandsQueried, 0);
     await Promise.all(Array.from({ length: 30 }, () => statistics.recordCall('existing', 'read')));
-    assert.equal(store.writes, 3);
+    store.fail = false;
+    await statistics.flush();
     await restored.load();
+    assert.deepEqual(await restored.snapshot(), await statistics.snapshot());
     assert.equal((await restored.snapshot()).calls, 31);
+    await statistics.dispose();
 });
 
-test('updates arriving during persistence form a subsequent durable batch', async () => {
+test('updates during IO remain visible and form the next dirty batch without blocking dispatch', async () => {
     let started!: () => void;
     let finish!: () => void;
     const writing = new Promise<void>(resolve => { started = resolve; });
     const gate = new Promise<void>(resolve => { finish = resolve; });
-    /** @brief Hold the first save to exercise updates queued during storage IO. */
+    /** @brief Hold one journal write while allowing new memory increments. */
     class DelayedStore extends MemoryStore {
         writes = 0;
-
         override async save<T>(key: string, value: T): Promise<void> {
             if (++this.writes === 1) { started(); await gate; }
             await super.save(key, value);
@@ -154,18 +148,22 @@ test('updates arriving during persistence form a subsequent durable batch', asyn
     }
     const store = new DelayedStore();
     const statistics = new CommandStatistics(store);
-    const first = statistics.recordCall('first', 'read');
+    await statistics.recordCall('first', 'read');
+    const first = statistics.flush();
     await writing;
-    const second = statistics.recordCall('second', 'read');
-    const third = statistics.recordQueries('first', [{ path: 'std.read', namespace: false, tool: 'read' }]);
+    await statistics.recordCall('second', 'read');
+    await statistics.recordQueries('first', [{ path: 'std.read', namespace: false, tool: 'read' }]);
+    assert.equal((await statistics.snapshot()).calls, 2);
+    assert.equal((await statistics.snapshot()).queriesByTool.read, 1);
     finish();
-    await Promise.all([first, second, third]);
-    assert.equal(store.writes, 2);
+    await first;
     const restored = new CommandStatistics(store);
     await restored.load();
+    assert.equal((await restored.snapshot()).calls, 1);
+    await statistics.flush();
+    await restored.load();
     assert.deepEqual(await restored.snapshot(), await statistics.snapshot());
-    assert.equal((await restored.snapshot()).calls, 2);
-    assert.equal((await restored.snapshot()).queriesByTool.read, 1);
+    await statistics.dispose();
 });
 
 test('statistics recover only invalid portions of older snapshots and stamp the current version', async () => {
@@ -197,6 +195,7 @@ test('current statistics stay strict until explicit recovery and failed recovery
     const store = new MemoryStore();
     const statistics = new CommandStatistics(store);
     await statistics.recordCall('good', 'read');
+    await statistics.flush();
     const before = await statistics.snapshot();
     await store.save('command_statistics', { version: storageVersion, sessions: {}, queriesByTool: { read: 4, bad: -1 } });
     await assert.rejects(statistics.load());
@@ -209,4 +208,111 @@ test('current statistics stay strict until explicit recovery and failed recovery
     await statistics.load(true);
     assert.equal((await statistics.snapshot()).calls, 0);
     assert.deepEqual((await statistics.snapshot()).queriesByTool, { read: 4 });
+});
+
+test('dirty timers merge updates, preserve their deadline, and stop writing when clean', async t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const store = new MemoryStore();
+    const statistics = new CommandStatistics(store);
+    const writes: string[] = [];
+    const save = store.save.bind(store);
+    store.save = async (key, value) => { writes.push(key); await save(key, value); };
+    await statistics.recordCall('first', 'read');
+    t.mock.timers.tick(500);
+    await statistics.recordCall('first', 'read');
+    assert.equal(writes.length, 0);
+    assert.equal((await statistics.snapshot()).calls, 2);
+    t.mock.timers.tick(500);
+    // The expired timer's write precedes this explicitly queued drain.
+    await statistics.flush();
+    assert.equal(writes.filter(key => key === 'command_statistics_journal').length, 1);
+    assert.equal(writes.length, 3);
+    assert.equal((await store.loadEntries('command_statistics')).length, 2);
+    t.mock.timers.tick(10_000);
+    await statistics.flush();
+    assert.equal(writes.length, 3);
+    await statistics.dispose();
+    await assert.rejects(statistics.recordCall('first', 'read'), /disposed/);
+});
+
+test('persistence modifies only dirty session checkpoints and the global checkpoint', async () => {
+    const store = new MemoryStore();
+    const statistics = new CommandStatistics(store);
+    await statistics.recordCall('untouched', 'read');
+    await statistics.flush();
+    const initial = await store.loadEntries('command_statistics_session_');
+    const untouchedKey = initial[0]![0];
+    const writes: Array<[string, unknown]> = [];
+    const save = store.save.bind(store);
+    store.save = async (key, value) => { writes.push([key, structuredClone(value)]); await save(key, value); };
+    await Promise.all(Array.from({ length: 50 }, () => statistics.recordCall('target', '__proto__')));
+    await statistics.recordQueries('target', [{ path: '', namespace: true }, { path: 'alias.read', namespace: false, tool: '__proto__' }]);
+    assert.equal(writes.length, 0);
+    await statistics.flush();
+    assert.equal(writes.length, 3);
+    assert(!writes.some(([key]) => key === untouchedKey));
+    assert.deepEqual(await store.load(untouchedKey), initial[0]![1]);
+    const journal = writes[0]![1] as { writes: Array<[string, { session?: string; counts: { callsByTool: Record<string, number> } }]> };
+    assert.equal(journal.writes.length, 2);
+    assert.equal(journal.writes[0]![1].session, 'target');
+    assert.equal(journal.writes[0]![1].counts.callsByTool.__proto__, 50);
+    assert.equal((await statistics.snapshot()).calls, 51);
+    const restored = new CommandStatistics(store);
+    await restored.load();
+    assert.deepEqual(await restored.snapshot(), await statistics.snapshot());
+    assert.deepEqual(await restored.snapshot('target'), await statistics.snapshot('target'));
+});
+
+test('automatic persistence failure reports the error and schedules a dirty retry', async t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const store = new MemoryStore();
+    const save = store.save.bind(store);
+    let fail = true;
+    let report!: () => void;
+    const reported = new Promise<void>(resolve => { report = resolve; });
+    const errors: unknown[] = [];
+    const statistics = new CommandStatistics(store, { flushDelayMs: 100, onError: error => { errors.push(error); report(); } });
+    store.save = async (key, value) => { if (fail) throw new Error('temporarily unavailable'); await save(key, value); };
+    await statistics.recordCall('first', 'read');
+    t.mock.timers.tick(100);
+    await reported;
+    assert.equal(errors.length, 1);
+    assert.equal((await statistics.snapshot()).calls, 1);
+    fail = false;
+    t.mock.timers.tick(100);
+    await statistics.flush();
+    const restored = new CommandStatistics(store);
+    await restored.load();
+    assert.equal((await restored.snapshot()).calls, 1);
+    await statistics.dispose();
+});
+
+test('dispose flushes dirty data and cancels its scheduled timer', async t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const store = new MemoryStore();
+    const statistics = new CommandStatistics(store);
+    await statistics.recordCall('last', 'read');
+    await statistics.dispose();
+    const restored = new CommandStatistics(store);
+    await restored.load();
+    assert.equal((await restored.snapshot()).calls, 1);
+    const save = store.save.bind(store);
+    store.save = async () => { throw new Error('disposed timer must not run'); };
+    t.mock.timers.tick(10_000);
+    await statistics.dispose();
+    store.save = save;
+});
+
+test('counter overflow rejects an entire increment without partially publishing it', async () => {
+    const { storageVersion } = await import('../../src/storage/version.js');
+    const store = new MemoryStore();
+    await store.save('command_statistics', { version: storageVersion, sequence: 0,
+        counts: { callsByTool: {}, namespaceQueriesByPath: {}, commandQueriesByPath: {} }, queriesByTool: { read: Number.MAX_SAFE_INTEGER } });
+    const statistics = new CommandStatistics(store);
+    await statistics.load();
+    const before = await statistics.snapshot();
+    await assert.rejects(statistics.recordQueries('new', [{ path: 'files.read', namespace: false, tool: 'read' }]));
+    assert.deepEqual(await statistics.snapshot(), before);
+    assert.equal((await statistics.snapshot('new')).commandsQueried, 0);
+    await statistics.dispose();
 });

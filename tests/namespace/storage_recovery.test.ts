@@ -17,6 +17,7 @@ test('startup loading failures keep management available and reset preserves val
             descriptors.push(descriptor);
             return { loadAll: async () => ({ tables: { state: structuredClone(records) } }),
                 putRecord: async (_table: string, key: string, value: unknown) => { records[key] = structuredClone(value); },
+                deleteRecord: async (_table: string, key: string) => { delete records[key]; },
                 close: async () => {},
             };
         } } }) } },
@@ -67,4 +68,31 @@ test('KV version upgrade retains compatible records for domain-level partial rec
         assert.deepEqual(registry.snapshot().mappings, [{ id: 'read', path: 'files.read', pinned: false }]);
         assert.deepEqual((await statistics.snapshot()).queriesByTool, { read: 4 });
     } finally { await backend.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('plugin teardown flushes delayed statistics before closing their storage backend', async () => {
+    const records: Record<string, unknown> = {};
+    const cleanup: Array<() => Promise<void>> = [];
+    let closed = false;
+    const ctx = {
+        storage: { backend: { get: () => ({ kv: { open: async () => ({
+            loadAll: async () => { assert(!closed); return { tables: { state: structuredClone(records) } }; },
+            putRecord: async (_table: string, key: string, value: unknown) => { assert(!closed); records[key] = structuredClone(value); },
+            deleteRecord: async (_table: string, key: string) => { assert(!closed); delete records[key]; },
+            close: async () => { closed = true; },
+        }) } }) } },
+        connection: { fetch: { register: () => {} } },
+        logger: { warn: () => {} },
+        effect: (callback: () => () => Promise<void>) => { cleanup.push(callback()); },
+        on: () => {}, emit: () => {}, get: () => undefined,
+        agents: { list: () => [] }, tools: { schemas: () => [] },
+        provide: (name: string, value: unknown) => { Object.assign(ctx, { [name]: value }); },
+    } as unknown as Context;
+    await apply(ctx);
+    await ctx.commandNamespaces.statistics.recordCall('last', 'read');
+    assert.equal(records.command_statistics, undefined);
+    for (const dispose of cleanup.reverse()) await dispose();
+    assert(closed);
+    assert.equal((records.command_statistics as { counts: { callsByTool: { read: number } } }).counts.callsByTool.read, 1);
+    assert.equal(records.command_statistics_journal, undefined);
 });
