@@ -75,6 +75,11 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
     const settleTimer = useRef<ReturnType<typeof setTimeout>>();
     const settled = useRef(false);
 
+    /** @brief Keep following tooltips transparent to pointer hit testing until interaction is enabled. */
+    function updateInteractivity(): void {
+        if (element.current) element.current.style.pointerEvents = settled.current || ctrl.current ? 'auto' : 'none';
+    }
+
     /** @brief Cancel dismissal while crossing the gap into the tooltip. */
     function cancelHide(): void {
         clearTimeout(hideTimer.current);
@@ -94,6 +99,7 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
         settleTimer.current = setTimeout(() => {
             settleTimer.current = undefined;
             settled.current = true;
+            updateInteractivity();
         }, 500);
     }
 
@@ -115,12 +121,12 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         /** @brief Track Ctrl even when the pointer is outside the original card. */
         function keydown(event: KeyboardEvent): void {
-            if (event.key === 'Control') { ctrl.current = true; cancelSettle(); cancelHide(); }
+            if (event.key === 'Control') { ctrl.current = true; updateInteractivity(); cancelSettle(); cancelHide(); }
         }
 
         /** @brief Resume normal dismissal when Ctrl is released outside both regions. */
         function keyup(event: KeyboardEvent): void {
-            if (event.key === 'Control') { ctrl.current = false; scheduleSettle(); scheduleHide(); }
+            if (event.key === 'Control') { ctrl.current = false; updateInteractivity(); scheduleSettle(); scheduleHide(); }
         }
 
         /** @brief Clear held modifiers and dismiss when the browser loses focus. */
@@ -142,6 +148,7 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
     function position(): void {
         const node = element.current;
         if (!node) return;
+        updateInteractivity();
         const { width, height } = node.getBoundingClientRect();
         const { x, y } = point.current;
         node.style.left = `${Math.max(8, Math.min(x + width + 20 > window.innerWidth ? x - width - 16 : x + 16, window.innerWidth - width - 8))}px`;
@@ -158,6 +165,7 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
         },
         move: (x, y, ctrlKey) => {
             ctrl.current = ctrlKey;
+            updateInteractivity();
             if (ctrlKey || settled.current) return;
             if (point.current.x === x && point.current.y === y) return;
             point.current = { x, y }; position();

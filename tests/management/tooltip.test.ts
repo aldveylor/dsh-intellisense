@@ -67,6 +67,7 @@ test('tooltips require pointer rest before hover retention and retain Ctrl contr
     try {
         dom.window.eval(result.outputFiles[0]!.text);
         show();
+        assert.equal(tooltip()!.style.pointerEvents, 'none', 'Following tooltips must not intercept entry into underlying anchors');
         advance(300);
         browser.run(() => browser.controls.move(50, 50, false));
         advance(300);
@@ -77,6 +78,7 @@ test('tooltips require pointer rest before hover retention and retain Ctrl contr
 
         show();
         advance(500);
+        assert.equal(tooltip()!.style.pointerEvents, 'auto', 'Settled tooltips accept pointer interaction');
         const left = tooltip()!.style.left;
         browser.run(() => browser.controls.move(100, 100, false));
         assert.equal(tooltip()!.style.left, left, 'Settled tooltips stop following the pointer');
@@ -92,6 +94,7 @@ test('tooltips require pointer rest before hover retention and retain Ctrl contr
         show();
         advance(500);
         show('second');
+        assert.equal(tooltip()!.style.pointerEvents, 'none', 'Switching anchors disables hit testing until the new tooltip settles');
         browser.run(() => browser.controls.move(80, 80, false));
         assert.equal(tooltip()!.textContent, 'second');
         assert.equal(tooltip()!.style.left, '96px', 'New tooltips resume following');
@@ -102,6 +105,7 @@ test('tooltips require pointer rest before hover retention and retain Ctrl contr
 
         show();
         control(true);
+        assert.equal(tooltip()!.style.pointerEvents, 'auto', 'Ctrl immediately enables pointer interaction');
         browser.run(() => browser.controls.move(80, 80, true));
         show('blocked');
         assert.equal(tooltip()!.textContent, 'first', 'Ctrl fixes content');
@@ -114,6 +118,7 @@ test('tooltips require pointer rest before hover retention and retain Ctrl contr
         advance(500);
         assert(tooltip(), 'Ctrl keeps details open outside both regions');
         control(false);
+        assert.equal(tooltip()!.style.pointerEvents, 'none', 'Releasing Ctrl restores hit testing for an unsettled tooltip');
         advance(200);
         assert.equal(tooltip(), null, 'Releasing Ctrl resumes dismissal');
 
