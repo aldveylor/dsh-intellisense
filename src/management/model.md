@@ -7,3 +7,5 @@ code_block/ 提供代码渲染上下文；client.ts 向 NativePanel 注入宿主
 package.json 的 dsh.client.inject 显式声明客户端服务提供包 ui-renderer（slots）、locale、api-session-controller（sessions）、ui-workspace、ui-conversation 和 ui-layout，以及提供 plugins.bundle.config 插槽的 ui-plugin-manager。ui-slots 与 ui-primitives 为共享模块，不作为客户端插件依赖声明。
 
 `session_profile/` 在已有会话的首页 preset 右侧提供原生 Profile 菜单，只在当前作用域启用 intellisense-presentation 时显示；切换只加载当前会话命名空间。详见 session_profile/model.md。
+
+客户端插件构建 external React、JSX runtime、ui-primitives 与 Zod，复用 DSH 宿主共享模块，并启用 minify；源码保持普通 import。standalone 独立页面继续打包自身依赖并压缩，不依赖宿主模块表。
