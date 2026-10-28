@@ -620,7 +620,7 @@ test('PTC Profile save preserves native null or informational strings through di
             return [clean, advisory, both, (await tools.profile.load('Info')).name];
         `);
         assert.equal(result.isError, false, JSON.stringify(result));
-        const advisory = '`inspect` and `search` are disabled when there are some commands not fixed with level 2.';
-        assert.deepEqual(result.value, { logs: [], result: [null, advisory, '`tools` namespace is completed.\n' + advisory, 'Info'] });
+        const advisory = 'warning: `inspect` is disabled when there are some commands not fixed with level 2.';
+        assert.deepEqual(result.value, { logs: [], result: [null, advisory, 'info: `tools` namespace is completed.\n' + advisory, 'Info'] });
     } finally { await dispose(); }
 });

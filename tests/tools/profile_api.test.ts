@@ -305,8 +305,8 @@ test('Profile save defaults protected tools to disabled and honors explicit enab
 
 test('Profile save reports completion and advisory discovery issues without changing pins or blocking persistence', async () => {
     const { call, load, catalog, registry, definitions } = await fixture();
-    const completed = '`tools` namespace is completed.';
-    const advisory = '`inspect` and `search` are disabled when there are some commands not fixed with level 2.';
+    const completed = 'info: `tools` namespace is completed.';
+    const advisory = 'warning: `inspect` is disabled when there are some commands not fixed with level 2.';
     const profile = await load();
     profile.root.children!.push({ type: 'namespace', name: 'files', children: [
         { type: 'command', name: 'read', fixedLevel: 1, command: { tool: 'read_file' } },
@@ -328,7 +328,7 @@ test('Profile save reports completion and advisory discovery issues without chan
     assert.deepEqual(schema, { oneOf: [{ type: 'string' }, { type: 'null' }] });
 });
 
-test('Profile save checks enabled descendants and accepts either callable discovery tool', async () => {
+test('Profile save checks enabled descendants and requires callable inspect regardless of search availability', async () => {
     const { call, load, registry } = await fixture();
     registry.refresh([...registry.tools(), ...['tools_inspect', 'tools_search'].map(id => ({ id, description: '', parameters: {}, output: {} }))]);
     const profile = await load();
@@ -340,7 +340,7 @@ test('Profile save checks enabled descendants and accepts either callable discov
         inspect.disabled = inspectDisabled;
         search.disabled = searchDisabled;
         const information = await call('tools_profile_save', { name: 'Discovery', profile });
-        assert.equal(typeof information === 'string', inspectDisabled && searchDisabled);
+        assert.equal(typeof information === 'string', inspectDisabled);
     }
     tools.children!.find(node => node.name === 'profile')!.disabled = true;
     assert.equal(await call('tools_profile_save', { name: 'Discovery', profile }), null);
