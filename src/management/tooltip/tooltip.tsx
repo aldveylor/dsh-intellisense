@@ -72,6 +72,8 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
     const ctrl = useRef(false);
     const hovered = useRef<'anchor' | 'tooltip'>();
     const hideTimer = useRef<ReturnType<typeof setTimeout>>();
+    const settleTimer = useRef<ReturnType<typeof setTimeout>>();
+    const settled = useRef(false);
 
     /** @brief Cancel dismissal while crossing the gap into the tooltip. */
     function cancelHide(): void {
@@ -79,28 +81,46 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
         hideTimer.current = undefined;
     }
 
+    /** @brief Cancel pending pointer rest detection without releasing an already fixed tooltip. */
+    function cancelSettle(): void {
+        clearTimeout(settleTimer.current);
+        settleTimer.current = undefined;
+    }
+
+    /** @brief Fix the current tooltip after the pointer rests on its anchor for 500ms. */
+    function scheduleSettle(): void {
+        cancelSettle();
+        if (settled.current || ctrl.current || hovered.current !== 'anchor') return;
+        settleTimer.current = setTimeout(() => {
+            settleTimer.current = undefined;
+            settled.current = true;
+        }, 500);
+    }
+
     /** @brief Immediately dismiss for explicit actions such as selection or Escape. */
     function hide(): void {
         cancelHide();
+        cancelSettle();
+        settled.current = false;
         setContent(undefined);
     }
 
     /** @brief Allow pointer transfer to the tooltip and keep Ctrl-held details open. */
     function scheduleHide(): void {
         cancelHide();
-        if (ctrl.current || hovered.current) return;
-        hideTimer.current = setTimeout(() => setContent(undefined), 200);
+        if (ctrl.current || hovered.current === 'anchor' || (settled.current && hovered.current === 'tooltip')) return;
+        hideTimer.current = setTimeout(hide, 200);
     }
 
     useEffect(() => {
         /** @brief Track Ctrl even when the pointer is outside the original card. */
         function keydown(event: KeyboardEvent): void {
-            if (event.key === 'Control') { ctrl.current = true; cancelHide(); }
+            if (event.key === 'Control') { ctrl.current = true; cancelSettle(); cancelHide(); }
         }
 
         /** @brief Resume normal dismissal when Ctrl is released outside both regions. */
         function keyup(event: KeyboardEvent): void {
-            if (event.key === 'Control') { ctrl.current = false; scheduleHide(); }
+            if (event.key === 'Control') { ctrl.current = false; scheduleSettle(); scheduleHide(); }
         }
 
         /** @brief Clear held modifiers and dismiss when the browser loses focus. */
@@ -111,6 +131,7 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
         window.addEventListener('blur', blur);
         return () => {
             cancelHide();
+            cancelSettle();
             window.removeEventListener('keydown', keydown);
             window.removeEventListener('keyup', keyup);
             window.removeEventListener('blur', blur);
@@ -131,21 +152,28 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
         show: (next, x, y) => {
             cancelHide(); hovered.current = 'anchor';
             if (ctrl.current && element.current) return;
+            settled.current = false;
             point.current = { x, y }; setContent(next);
+            scheduleSettle();
         },
         move: (x, y, ctrlKey) => {
             ctrl.current = ctrlKey;
-            if (ctrlKey) return;
+            if (ctrlKey || settled.current) return;
+            if (point.current.x === x && point.current.y === y) return;
             point.current = { x, y }; position();
+            scheduleSettle();
         },
-        leave: () => { if (hovered.current === 'anchor') hovered.current = undefined; scheduleHide(); },
+        leave: () => {
+            if (hovered.current === 'anchor') hovered.current = undefined;
+            cancelSettle(); scheduleHide();
+        },
         hide,
     }}>
         <div className="ts-tooltip-scope" onScrollCapture={hide} onKeyDownCapture={event => {
             if (event.key === 'Escape' && content !== undefined) { event.preventDefault(); event.stopPropagation(); hide(); }
         }}>{children}</div>
         {content !== undefined && <Tooltip id={id} element={element} position={position}
-            enter={() => { hovered.current = 'tooltip'; cancelHide(); }}
+            enter={() => { hovered.current = 'tooltip'; cancelSettle(); scheduleHide(); }}
             leave={() => { hovered.current = undefined; scheduleHide(); }}>{content}</Tooltip>}
     </TooltipContext.Provider>;
 }
