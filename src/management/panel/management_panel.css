@@ -147,7 +147,13 @@
 .ts-tool-filter[data-active=true] .ts-tool-filter-trigger{color:var(--ts-border-focus)}
 .ts-tool-filter-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:100;min-width:180px;padding:6px;border:1px solid var(--ts-border);border-radius:var(--dsw-radius-lg,10px);background:var(--dsw-alias-bg-base,light-dark(#ffffff,#202020));box-shadow:var(--dsw-elevation-panel,0 8px 28px #0003);transform-origin:top right;animation:ts-profile-open .18s ease-out both}
 .ts-tool-filter-menu[data-phase=closing]{pointer-events:none;animation:ts-profile-close .18s ease-in both}
-.ts-tool-filter-menu label{display:flex;align-items:center;gap:10px;padding:8px;border-radius:var(--dsw-radius-md,6px);white-space:nowrap;cursor:pointer}
-.ts-tool-filter-menu label:hover,.ts-tool-filter-menu label:focus-within{background:var(--dsw-alias-interactive-bg-hover,light-dark(#edf0f4,#ffffff14))}
-.ts-tool-filter-menu input[type=checkbox]{margin:0;accent-color:var(--ts-border-focus)}
-@media(prefers-reduced-motion:reduce){.ts-tool-filter-menu{animation-duration:1ms}.ts-filter-funnel,.ts-filter-dot{transition:none}}
+.ts-intellisense .ts-tool-filter-option{display:flex;align-items:center;gap:10px;width:100%;padding:8px;border:0;border-radius:var(--dsw-radius-md,6px);white-space:nowrap;text-align:left;cursor:pointer}
+.ts-tool-filter-option:focus-visible{background:var(--dsw-alias-interactive-bg-hover,light-dark(#edf0f4,#ffffff14))}
+.ts-tool-filter-check{flex-shrink:0}
+.ts-tool-filter-check path{opacity:0;transition:opacity .15s ease}
+.ts-tool-filter-option[aria-checked=true] .ts-tool-filter-check path{opacity:1}
+.ts-sort-arrow{transform-origin:7px 12px;transition:transform .25s ease}
+.ts-sort-bars{transform-origin:17px 12px;transition:transform .25s ease}
+.ts-tool-sort-direction[aria-pressed=true] .ts-sort-arrow{transform:rotate(180deg)}
+.ts-tool-sort-direction[aria-pressed=true] .ts-sort-bars{transform:scaleY(-1)}
+@media(prefers-reduced-motion:reduce){.ts-tool-filter-menu{animation-duration:1ms}.ts-filter-funnel,.ts-filter-dot,.ts-sort-arrow,.ts-sort-bars,.ts-tool-filter-check path{transition:none}}

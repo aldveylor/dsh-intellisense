@@ -89,7 +89,8 @@ export function ToolPicker({ parent, tools, mappings, unmountedOnly = false, pro
                 aria-pressed={descending} title={t(descending ? 'sort_descending_hint' : 'sort_ascending_hint')}
                 disabled={busy || sort === 'default'} onClick={() => setDescending(value => !value)}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d={descending ? 'M7 4v16m-4-4 4 4 4-4M14 6h7m-7 6h5m-5 6h3' : 'M7 20V4m-4 4 4-4 4 4M14 6h3m-3 6h5m-5 6h7'} />
+                    <path className="ts-sort-arrow" d="M7 20V4m-4 4 4-4 4 4" />
+                    <path className="ts-sort-bars" d="M14 6h3m-3 6h5m-5 6h7" />
                 </svg>
             </ActionButton>
             <ToolFilter value={categories} disabled={busy} onChange={setCategories} />

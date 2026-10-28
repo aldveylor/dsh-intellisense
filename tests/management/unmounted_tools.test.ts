@@ -79,9 +79,9 @@ test('unknown is absent; count follows mounting, unmounting, saving and profile 
             const filter = document.querySelector<HTMLButtonElement>('.ts-tool-filter-trigger')!;
             filter.click();
             await until(() => filter.getAttribute('aria-expanded') === 'true');
-            const mounted = document.querySelector<HTMLInputElement>('.ts-tool-filter-menu input[value="mounted"]')!;
-            assert(!mounted.checked);
-            assert(document.querySelector<HTMLInputElement>('.ts-tool-filter-menu input[value="unmounted"]')!.checked);
+            const mounted = document.querySelector<HTMLButtonElement>('.ts-tool-filter-option[value="mounted"]')!;
+            assert.equal(mounted.getAttribute('aria-checked'), 'false');
+            assert.equal(document.querySelector('.ts-tool-filter-option[value="unmounted"]')!.getAttribute('aria-checked'), 'true');
             mounted.click();
             await until(() => !!document.querySelector('dialog [data-tool-id="write"]'));
             assert.equal(document.querySelectorAll('dialog [data-tool-id]:not(:disabled)').length, 3);
