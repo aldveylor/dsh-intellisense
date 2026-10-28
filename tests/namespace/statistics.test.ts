@@ -62,7 +62,7 @@ for (const ptc of [false, true]) test(`physical Inspect records query targets in
     const statistics = new CommandStatistics(new MemoryStore());
     const root = namespace([{ path: 'std.read', tool: 'read', doc: '', schema: {}, output: {} }]);
     const namespaces = {
-        statistics, registryFor: async () => ({ effective: () => [], description: () => undefined, disabled: () => false, snapshot: () => ({ revision: 0 }) }),
+        statistics, registryFor: async () => ({ effective: () => [], description: () => undefined, disabled: () => false, revision: 0, snapshot: () => ({ revision: 0 }) }),
         tree: async () => root, isPtc: () => ptc, discover: async () => '{}', position: () => ({ turn: 0, step: 0 }),
     } as unknown as NamespaceComponent;
     let definition!: ToolDefinition;
@@ -315,4 +315,22 @@ test('counter overflow rejects an entire increment without partially publishing 
     assert.deepEqual(await statistics.snapshot(), before);
     assert.equal((await statistics.snapshot('new')).commandsQueried, 0);
     await statistics.dispose();
+});
+
+test('counter projections retain live session counts and return detached records', async () => {
+    const statistics = new CommandStatistics(new MemoryStore());
+    await statistics.load();
+    try {
+        await statistics.recordCall('first', '__proto__');
+        await statistics.recordCall('second', 'write');
+        await statistics.recordQueries('first', [{ path: 'files', namespace: true }]);
+        const calls = await statistics.counterSnapshot('callsByTool');
+        assert.equal(Object.getOwnPropertyDescriptor(calls, '__proto__')?.value, 1);
+        assert.equal(calls.write, 1);
+        calls.write = 100;
+        assert.deepEqual(await statistics.counterSnapshot('callsByTool', 'second'), { write: 1 });
+        assert.deepEqual(await statistics.counterSnapshot('namespaceQueriesByPath', 'first'), { files: 1 });
+        assert.deepEqual(await statistics.counterSnapshot('callsByTool', 'missing'), {});
+        assert.equal((await statistics.counterSnapshot('callsByTool')).write, 1);
+    } finally { await statistics.dispose(); }
 });

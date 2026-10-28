@@ -71,6 +71,6 @@ native 模式在 tools.inspect 不可用（自身禁用、tools 祖先禁用或�
 
 NamespaceComponent 的作用域释放会 dispose 统计服务，确保独立挂载组件（不通过主插件）也在释放时取消计时器并刷新脏计数；主插件仍在关闭 KV unit 前执行最后刷新。重复 dispose 为无脏状态操作。
 
-PTC 预加载和子调用回复刷新共用 values：先按当前 Profile 的禁用规则过滤，再按请求字段计算；回复仅在 revision 变化时计算 commands，始终按需刷新启用的 profiles。
+PTC 预加载通过 values 先按当前 Profile 的禁用规则过滤，再计算字段。子调用回复只刷新本次初始化已部署的字段，commands 仅在 revision 变化时计算；执行中切换到禁用字段的 Profile 仍刷新已有引用，新一次执行不再部署禁用字段。
 
 统计 counterSnapshot(field, session?) 返回指定字段的独立副本，不复制其它明细或汇总总数；命令摘要使用该接口读取全局 callsByTool。

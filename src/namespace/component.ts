@@ -165,11 +165,11 @@ export class NamespaceComponent {
         return { profiles: this.registry.profileSelection().profiles, selected: registry.profileSelection().selected };
     }
 
-    /** @brief Compute only requested, enabled Profile metadata before guest execution or refresh. */
-    async values(agent?: Agent, current?: SemanticRegistry, paths: readonly string[] = ['tools.profile.annotation', 'tools.profile.commands', 'tools.profile.profiles']): Promise<Record<string, z.infer<ReturnType<typeof z.json>>>> {
+    /** @brief Compute only enabled Profile metadata before guest execution. */
+    async values(agent?: Agent, current?: SemanticRegistry): Promise<Record<string, z.infer<ReturnType<typeof z.json>>>> {
         const registry = current ?? (agent ? await this.registryFor(agent) : this.registry);
         const values: Record<string, z.infer<ReturnType<typeof z.json>>> = {};
-        for (const path of paths) {
+        for (const path of ['tools.profile.annotation', 'tools.profile.commands', 'tools.profile.profiles']) {
             if (registry.disabled(path)) continue;
             if (path === 'tools.profile.annotation') values[path] = profileAnnotation;
             else if (path === 'tools.profile.commands') values[path] = (await this.commandBriefs(agent, registry)).map(command => ({ ...command }));

@@ -72,16 +72,20 @@ export class NamespaceRuntime extends Service {
             const registry = await namespaces.registryFor(agent);
             let revision = registry.revision;
             const entries = (await namespaces.entries(agent, registry)).filter(entry => !entry.preload);
+            const preloaded = await namespaces.values(agent, registry);
             const result = await this.runtime.execute(agent.id, `run-code-${++this.sequence}`, code, entries.map(entry => entry.binding()), async (tool, input, signal) => {
                 signal.throwIfAborted();
                 const work = namespaces.dispatchTool(agent, tool, input, { ...parent, signal: controller.signal }, ++sequence);
                 pending.add(work);
                 void work.finally(() => { pending.delete(work); }).catch(() => {});
                 return bindingResult(work, signal);
-            }, controller.signal, await namespaces.values(agent, registry), async () => {
+            }, controller.signal, preloaded, async () => {
                 const currentRevision = registry.revision;
-                const values = await namespaces.values(agent, registry, currentRevision === revision
-                    ? ['tools.profile.profiles'] : ['tools.profile.profiles', 'tools.profile.commands']);
+                const values = {
+                    ...(Object.hasOwn(preloaded, 'tools.profile.profiles') ? { 'tools.profile.profiles': { ...await namespaces.profileNames(agent) } } : {}),
+                    ...(currentRevision !== revision && Object.hasOwn(preloaded, 'tools.profile.commands')
+                        ? { 'tools.profile.commands': (await namespaces.commandBriefs(agent, registry)).map(command => ({ ...command })) } : {}),
+                };
                 revision = currentRevision;
                 return values;
             });
