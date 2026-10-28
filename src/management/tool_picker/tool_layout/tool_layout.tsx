@@ -1,8 +1,7 @@
 import { useEffect, useId, useRef, useState, type ComponentType } from 'react';
 import { ActionButton } from '../../controls/action_button.js';
 import { useTranslation } from '../../locale/locale.js';
-
-import { NameOptionIcon, CallsOptionIcon, QueriesOptionIcon, DefaultOptionIcon, CardsOptionIcon, ListOptionIcon, TypeOptionIcon, SourceOptionIcon, NoneOptionIcon } from './option_icons/option_icons.js';
+import { NameOptionIcon, CallsOptionIcon, QueriesOptionIcon, DefaultOptionIcon, CardsOptionIcon, ListOptionIcon, TypeOptionIcon, SourceOptionIcon, NoneOptionIcon } from './option_icons.js';
 
 const optionIcons: Record<string, ComponentType> = {
     name: NameOptionIcon, calls: CallsOptionIcon, queries: QueriesOptionIcon, default: DefaultOptionIcon,
