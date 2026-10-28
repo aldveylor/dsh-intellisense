@@ -9,11 +9,11 @@ test('inline editors retain their anchors and use a top-layer editor that follow
         stdin: { resolveDir: process.cwd(), loader: 'tsx', contents: `
             import { createRoot } from 'react-dom/client';
             import { flushSync } from 'react-dom';
-            import { forwardRef } from 'react';
-            import { EditableText, InputContext } from './src/management/controls/editable_text.js';
-            const NativeInput = forwardRef(function NativeInput({ className, ...props }, ref) {
-                return <span className={className} data-native-renderer><input ref={ref} {...props} /></span>;
-            });
+            import { EditableText, InlineEditorContext } from './src/management/controls/editable_text.js';
+            function NativeEditor({ value, label, onChange, className }) {
+                return <textarea className={className} data-native-renderer aria-label={label} value={value}
+                    onChange={event => onChange(event.target.value)} />;
+            }
             window.flush = flushSync;
             window.commits = [];
             flushSync(() => createRoot(document.getElementById('root')).render(<>
@@ -22,15 +22,17 @@ test('inline editors retain their anchors and use a top-layer editor that follow
                 }} />
                 <EditableText value='Profile' label='Profile' commit={value => window.commits.push(value)}
                     renderDisplay={beginEdit => <button onDoubleClick={event => beginEdit(event.currentTarget)}>Profile</button>} />
-                <InputContext.Provider value={NativeInput}>
+                <InlineEditorContext.Provider value={NativeEditor}>
                     <EditableText value='Native' label='Native' commit={value => window.commits.push(value)} />
-                </InputContext.Provider>
+                </InlineEditorContext.Provider>
             </>));
         ` }, bundle: true, platform: 'browser', format: 'iife', jsx: 'automatic', write: false,
     });
     const dom = new JSDOM('<div id="root" style="overflow:hidden;height:20px"></div>', { runScripts: 'outside-only', pretendToBeVisual: true });
     const window = dom.window;
     const document = window.document;
+    let containerWidth = 400;
+    document.getElementById('root')!.getBoundingClientRect = () => ({ left: 10, width: containerWidth }) as DOMRect;
     const shown = new Set<HTMLElement>();
     window.HTMLElement.prototype.showPopover = function () { shown.add(this); };
     window.HTMLElement.prototype.hidePopover = function () { shown.delete(this); };
@@ -43,23 +45,24 @@ test('inline editors retain their anchors and use a top-layer editor that follow
                 letterSpacing: '0.5px', padding: '0px', border: '0px solid',
             });
             let top = 40;
-            display.getBoundingClientRect = () => ({ left: 20, top, width: 144.5, height: 18 }) as DOMRect;
+            let sourceHeight = 18;
+            display.getBoundingClientRect = () => ({ left: 20, top, width: 144.5, height: sourceHeight }) as DOMRect;
             window.flush(() => display.dispatchEvent(new window.MouseEvent('dblclick', { bubbles: true })));
-            const input = document.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
+            const input = document.querySelector<HTMLTextAreaElement>(`textarea[aria-label="${label}"]`)!;
             const sized = input.closest<HTMLElement>('.ts-inline-editor-overlay')!;
             assert.equal(display.isConnected, true, 'Display anchor must keep occupying its original layout');
             assert.equal(label === 'Profile' ? document.querySelector('button') : document.querySelector(`[aria-label="${label}"]`), display);
             assert(shown.has(sized), 'Editor must enter the browser top layer to escape overflow clipping');
             assert.equal(sized.getAttribute('popover'), 'manual');
             if (label === 'Native') {
-                assert(input.closest('[data-native-renderer]'), 'Host Input must render the editor');
-                assert.equal(input.dataset.dshControl, 'input');
+                assert(input.closest('[data-native-renderer]'), 'Host InlineEditor must render the editor');
+                assert.equal(input.tagName, 'TEXTAREA');
             }
             assert.equal(sized.style.position, 'fixed');
-            assert.equal(sized.style.width, '144.5px');
+            assert.equal(sized.style.width, '400px');
             assert.equal(sized.style.height, '32px', 'Input can extend beyond the 18px source block');
-            assert.equal(sized.style.left, '20px');
-            assert.equal(sized.style.top, '33px');
+            assert.equal(sized.style.left, '10px');
+            assert.equal(sized.style.top, '40px');
             assert.equal(sized.style.fontFamily, 'monospace');
             assert.equal(sized.style.fontSize, '12px');
             assert.equal(sized.style.fontWeight, '600');
@@ -67,16 +70,33 @@ test('inline editors retain their anchors and use a top-layer editor that follow
             assert.equal(sized.style.letterSpacing, '0.5px');
             top = 70;
             window.dispatchEvent(new window.Event('scroll'));
-            assert.equal(sized.style.top, '63px');
-            const setValue = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!;
+            assert.equal(sized.style.top, '70px');
+            const setValue = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')!.set!;
+            Object.defineProperty(input, 'scrollHeight', { get: () => input.value.length > 100 ? 128 : 18 });
+            setValue.call(input, 'Long wrapped content '.repeat(20));
+            window.flush(() => input.dispatchEvent(new window.Event('input', { bubbles: true })));
+            assert.equal(sized.style.width, '400px', 'Content must not expand the container-based width');
+            assert.equal(sized.style.height, '128px', 'Wrapped content must grow the editor height');
+            containerWidth = 320;
+            window.dispatchEvent(new window.Event('resize'));
+            assert.equal(sized.style.width, '320px', 'Width must follow the parent container');
+            containerWidth = 400;
             setValue.call(input, label === 'Name' ? 'invalid' : 'Renamed');
             window.flush(() => input.dispatchEvent(new window.Event('input', { bubbles: true })));
+            assert.equal(sized.style.height, '32px', 'Shortening text must restore the minimum height');
+            sourceHeight = 96;
+            window.dispatchEvent(new window.Event('resize'));
+            assert.equal(sized.style.height, '96px', 'Original multiline display height must remain the minimum');
+            window.flush(() => input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, bubbles: true })));
+            assert.equal(input.isConnected, true, 'Shift+Enter must leave the multiline editor open');
+            window.flush(() => input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', isComposing: true, bubbles: true })));
+            assert.equal(input.isConnected, true, 'IME Escape must not cancel the draft');
             window.flush(() => input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
             if (label === 'Name') {
-                assert.equal(document.querySelector('input'), input);
+                assert.equal(document.querySelector('textarea'), input);
                 window.flush(() => input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
             }
-            assert.equal(document.querySelector('input'), null);
+            assert.equal(document.querySelector('textarea'), null);
             assert.equal(shown.size, 0, 'Closing an editor must release the top layer');
         }
         assert.deepEqual(Array.from(window.commits), ['invalid', 'Renamed', 'Renamed']);

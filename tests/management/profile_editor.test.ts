@@ -224,9 +224,9 @@ test('profile brief edits appear in menus and persist or clear only after Save',
         await until(() => !!document.querySelector('.ts-default-profile .ts-profile-brief'));
         assert.equal(document.querySelector('.ts-default-profile .ts-profile-brief')?.textContent, 'Read local files');
         document.querySelector('.ts-profile-summary [role="button"]')!.dispatchEvent(new dom.window.MouseEvent('dblclick', { bubbles: true }));
-        await until(() => !!document.querySelector('input[aria-label="Profile description"]'));
-        const input = document.querySelector<HTMLInputElement>('input[aria-label="Profile description"]')!;
-        Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value')!.set!.call(input, 'Development tools');
+        await until(() => !!document.querySelector('textarea[aria-label="Profile description"]'));
+        const input = document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Profile description"]')!;
+        Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, 'value')!.set!.call(input, 'Development tools');
         input.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
         input.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
         await until(() => document.querySelector('.ts-namespace-profile .ts-profile-label')?.textContent === 'Default *');
@@ -237,9 +237,9 @@ test('profile brief edits appear in menus and persist or clear only after Save',
         document.querySelector('[data-action="save"]')!.dispatchEvent(new dom.window.Event('animationiteration', { bubbles: true }));
         await until(() => document.querySelector('[data-action="save"]')?.getAttribute('data-running') === 'false');
         document.querySelector('.ts-profile-summary [role="button"]')!.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-        await until(() => !!document.querySelector('input[aria-label="Profile description"]'));
-        const clear = document.querySelector<HTMLInputElement>('input[aria-label="Profile description"]')!;
-        Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value')!.set!.call(clear, '');
+        await until(() => !!document.querySelector('textarea[aria-label="Profile description"]'));
+        const clear = document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Profile description"]')!;
+        Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, 'value')!.set!.call(clear, '');
         clear.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
         clear.blur();
         await until(() => document.querySelector('.ts-namespace-profile .ts-profile-label')?.textContent === 'Default *');
