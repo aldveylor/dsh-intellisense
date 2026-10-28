@@ -25,10 +25,15 @@ function ToolCard({ tool, mappings, builtinPath, calls, queries, busy, select, d
             const rect = event.currentTarget.getBoundingClientRect();
             tooltip.show(<><ActionHint action={t('add_tools')} description={t(builtinPath ? 'builtin_tool_card_hint' : 'add_tool_card_hint')} /><ToolDetails tool={tool} calls={calls} queries={queries} /></>, rect.left, rect.bottom);
         }} onBlur={tooltip.leave} onClick={() => { if (!builtinPath && !busy) { tooltip.hide(); select(tool); } }}>
-        <strong>{tool.id}</strong>
-        {detailed && <><span className="ts-tool-list-source">{tool.source?.trim() || t('tool_source_unknown')}</span><span className="ts-tool-list-description">{tool.description || t('tool_no_description')}</span></>}
-        <code className="ts-tool-footer">{builtinPath || mappings.map(mapping => mapping.path).join(', ') || t('unmounted')}</code>
-        {detailed && <><span className="ts-tool-list-count">{calls}</span><span className="ts-tool-list-count">{queries}</span></>}
+        {detailed ? <>
+            <span className="ts-tool-list-main">
+                <span className="ts-tool-list-title"><strong>{tool.id}</strong><code className="ts-tool-footer">{builtinPath || mappings.map(mapping => mapping.path).join('; ') || t('unmounted')}</code></span>
+                <span className="ts-tool-list-description">{tool.description || t('tool_no_description')}</span>
+            </span>
+            <span className="ts-tool-list-source">{tool.source?.trim() || t('tool_source_unknown')}</span>
+            <span className="ts-tool-list-count">{calls}</span><span className="ts-tool-list-count">{queries}</span>
+        </> : <><strong>{tool.id}</strong><code className="ts-tool-footer">{builtinPath || mappings.map(mapping => mapping.path).join('; ') || t('unmounted')}</code></>}
+
     </button>;
 }
 
@@ -115,8 +120,9 @@ export function ToolPicker({ parent, tools, mappings, unmountedOnly = false, pro
             <ToolLayout kind="view" value={view} options={['cards', 'list']} disabled={busy} onChange={setView} />
         </div>
         <div className="ts-tool-results" data-view={view}>
+            {!matches.length && <p>{filter || categories.length !== toolCategories.length ? t('no_matches') : t('no_tools')}</p>}
             {view === 'list' && <div className="ts-tool-list-heading" aria-hidden="true">
-                {['tool_name', 'tool_source', 'tool_description', 'tool_mount_paths', 'tool_total_calls', 'tool_total_queries'].map(key => <span key={key}>{t(key)}</span>)}
+                {['tool_name', 'tool_source', 'tool_total_calls', 'tool_total_queries'].map(key => <span key={key}>{t(key)}</span>)}
             </div>}
             {orderedGroups.map(([key, group]) => <section key={key} className="ts-tool-group-section" aria-label={grouping === 'none' ? undefined : grouping === 'type' ? t(`tool_filter_${key}`) : key || t('tool_source_unknown')}>
                 {grouping !== 'none' && <h3 className="ts-tool-group-heading">{grouping === 'type' ? t(`tool_filter_${key}`) : key || t('tool_source_unknown')} <small>({group.length})</small></h3>}
@@ -124,7 +130,6 @@ export function ToolPicker({ parent, tools, mappings, unmountedOnly = false, pro
                     mappings={mappingsByTool.get(tool.id) ?? []} builtinPath={protectedPaths.get(tool.id)} calls={callsByTool[tool.id] ?? 0} queries={queriesByTool[tool.id] ?? 0} busy={busy} select={select} />)}</div>
             </section>)}
         </div>
-        {!matches.length && <p>{filter || categories.length !== toolCategories.length ? t('no_matches') : t('no_tools')}</p>}
         <footer className="ts-tool-picker-footer">
             <small>{t('tool_count', { count: matches.length })}</small>
             <small>{t('tool_all_calls_label', { count: totalCalls })}</small>

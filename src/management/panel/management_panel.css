@@ -168,7 +168,7 @@
 
 .ts-intellisense input.ts-profile-brief{width:100%}
 
-.ts-tool-results{--ts-tool-columns:minmax(130px,1.2fr) minmax(90px,.8fr) minmax(160px,2fr) minmax(100px,1fr) 70px 70px}
+.ts-tool-results{--ts-tool-columns:minmax(0,1fr) minmax(100px,180px) 90px 90px}
 .ts-tool-group-heading{margin:16px 0 10px;font-size:13px;font-weight:600;color:var(--dsw-alias-label-secondary,light-dark(#4b5563,#bdbdbd))}
 .ts-tool-group-heading small{font-weight:400;font-variant-numeric:tabular-nums}
 .ts-tool-list-heading,.ts-tool-picker .ts-tool-list .ts-tool{display:grid;grid-template-columns:var(--ts-tool-columns);gap:12px;align-items:center}
@@ -204,3 +204,16 @@
 .ts-intellisense .ts-tool-layout .ts-tool-filter-option[aria-checked=true]:hover{background:var(--dsw-alias-interactive-bg-accent-hover,light-dark(#cde2f5,#294b65))}
 .ts-tool-layout .ts-tool-filter-option:focus-visible{outline:2px solid var(--ts-border-focus);outline-offset:-2px}
 @media(prefers-reduced-motion:reduce){.ts-tool-layout .ts-layout-chevron,.ts-tool-layout .ts-tool-filter-option{transition:none}}
+
+
+/* Fixed viewport share; only the tool results scroll as content changes. */
+.ts-tool-picker{box-sizing:border-box;width:60vw;height:80vh;min-width:900px;min-height:560px;max-width:none;max-height:none;overflow:hidden}
+.ts-tool-picker[open]{display:flex;flex-direction:column}
+.ts-tool-picker>header,.ts-tool-picker-search,.ts-tool-picker-footer{flex-shrink:0}
+.ts-tool-results{flex:1;min-height:0;overflow:auto;scrollbar-gutter:stable;padding-right:6px}
+.ts-tool-list-heading{position:sticky;top:0;z-index:1;background:var(--dsw-alias-bg-layer-2,var(--dsw-alias-bg-base,light-dark(#ffffff,#202020)))}
+.ts-tool-list-main{display:flex;flex-direction:column;gap:5px;min-width:0}
+.ts-tool-list-title{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 14px;min-width:0}
+.ts-tool-list-title>strong{flex:0 1 auto}
+.ts-tool-picker .ts-tool-list .ts-tool-footer{min-width:0;white-space:normal;overflow-wrap:anywhere}
+.ts-tool-list-main .ts-tool-list-description{color:var(--dsw-alias-label-tertiary,light-dark(#6b7280,#a5a5a5));text-align:left}
