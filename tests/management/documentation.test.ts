@@ -77,7 +77,7 @@ test('the configuration page opens localized bundled usage documentation and scr
             assert(!guide.textContent!.includes('commands.paths'));
             assert(!guide.textContent!.includes('ProfileWrite'));
             assert.deepEqual(Array.from(guide.querySelectorAll('img'), image => new URL(image.src).searchParams.get('name')),
-                ['profile_editor', 'tools', 'namespace_tree', 'tooltip', 'new_conversation']);
+                ['profile_editor', 'tools', 'namespace_tree', 'new_conversation', 'tooltip']);
             const conversation = guide.querySelector<HTMLImageElement>('img[src*="name=new_conversation"]')!;
             let heading: Element | null = conversation.previousElementSibling;
             while (heading && heading.tagName !== 'H3') heading = heading.previousElementSibling;
