@@ -30,6 +30,8 @@ dsh plugin --profile <profile> add @aldveylor/dsh-intellisense
 
 Follow your host's restart instructions.
 
+The bundle includes **Intellisense Preset** (`intellisense/preset`, entry `@aldveylor/dsh-intellisense/preset`), which registers the Intellisense and Intellisense PTC agent presets. The main component provides namespace services and execution; preset registration is handled separately.
+
 ## Development
 
 Requires Node.js >=24 and DeepSeek Harness >=0.2.1-rc.2.

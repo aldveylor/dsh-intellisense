@@ -38,7 +38,13 @@
     },
     "./locale/*.json": "./locale/plugin/*.json",
     "./client/locale/*.json": "./locale/plugin/*.json",
-    "./presentation/locale/*.json": "./locale/presentation/*.json"
+    "./presentation/locale/*.json": "./locale/presentation/*.json",
+    "./preset": {
+      "types": "./dist/preset/index.d.ts",
+      "default": "./dist/preset/index.js"
+    },
+    "./preset/icon": "./assets/icon.svg",
+    "./preset/locale/*.json": "./locale/preset/*.json"
   },
   "files": [
     "dist",

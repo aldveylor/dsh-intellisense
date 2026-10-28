@@ -2,9 +2,9 @@ import { namespace } from '../namespace/fixtures.js';
 import { positionalArguments } from '../namespace/fixtures.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { Context } from '@deepseek-ai/cordis';
+import { Context } from '@deepseek-ai/cordis';
 import { registerManagement } from '../../src/management/server/routes.js';
-import { apply as registerPresets } from '../../src/integration/preset.js';
+import * as presetPlugin from '../../src/preset/index.js';
 import type { KvUnit } from '@deepseek-ai/dsh-storage';
 import { DshStore, MemoryStore } from '../../src/storage/store.js';
 import { ProfileSessions } from '../../src/registry/profiles.js';
@@ -104,11 +104,28 @@ test('management rejects malformed writes and requires an explicit complete save
 test('shared preset capabilities retain independent native and PTC presentation modes', async () => {
     const presets: { id: string; plugins: { id: string; config?: unknown }[] }[] = [];
     const ctx = { agentPresets: { register: async (preset: typeof presets[number]) => { presets.push(preset); return async () => {}; } }, effect: () => {} } as unknown as Context;
-    await registerPresets(ctx);
+    await presetPlugin.apply(ctx);
     assert.equal(presets.length, 2);
     for (const preset of presets) assert.deepEqual(preset.plugins.find(plugin => plugin.id === 'intellisense-presentation')?.config, { mode: preset.id === 'intellisense-ptc' ? 'ptc' : 'native' });
     const capabilities = (preset: typeof presets[number]) => preset.plugins.filter(plugin => plugin.id !== 'intellisense-presentation');
     assert.deepEqual(capabilities(presets[0]!), capabilities(presets[1]!));
+});
+
+test('preset component registers and releases presets with only the native registry service', async () => {
+    const ctx = new Context();
+    const presets = new Map<string, unknown>();
+    try {
+        ctx.provide('agentPresets', { register: async (preset: { id: string }) => {
+            presets.set(preset.id, preset);
+            return () => { presets.delete(preset.id); };
+        } });
+        const mounted = await ctx.plugin(presetPlugin);
+        assert.deepEqual([...presets.keys()].sort(), ['intellisense', 'intellisense-ptc']);
+        assert.equal(ctx.get('commandNamespaces'), undefined);
+        assert.equal(ctx.get('codeRuntime'), undefined);
+        await mounted.dispose();
+        assert.equal(presets.size, 0);
+    } finally { await ctx.fiber.dispose(); }
 });
 
 test('management reuses one tool projection until the registry contract changes', async () => {

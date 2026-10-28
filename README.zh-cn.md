@@ -30,6 +30,8 @@ dsh plugin --profile <profile> add @aldveylor/dsh-intellisense
 
 按照宿主的说明重启。
 
+插件包包含独立的 **Intellisense Preset** 组件（ID 为 `intellisense/preset`，入口为 `@aldveylor/dsh-intellisense/preset`），仅负责注册 Intellisense 和 Intellisense PTC agent 预设。主组件提供命名空间与执行能力，预设由独立组件注册。
+
 ## 开发（Development）
 
 需要 Node.js >=24、DeepSeek Harness >=0.2.1-rc.2。
