@@ -22,7 +22,7 @@ Profile 可同时保存来自多个预设的映射；当前模型作用域未挂
 
 tools.* 使用服务端 InnerCommandNode 和专用命令节点，绑定重载、丢弃结果及预加载。tools.inspect 的节点权限仅允许固定等级 2，但可禁用。所有成员都在初始化时创建，inspect 查询只调用 queryNodes → resolve，查询期间不生成节点、不覆盖映射。PTC 函数绑定仅选择非 preload 的命令；所有命令节点均绑定物理工具，不再区分 tool/environment 部署类型。
 
-管理 API 将同一初始化树的 SerializedNode 传给客户端，客户端不导入内置命令表、不按 tools 等名称生成权限或节点。Profile.root 同样使用 SerializedNode 描述，保存时先按目标原配置递归补齐遗漏的受保护子对象，保留已提交节点的设置，再由服务端权威节点拒绝替换、改名、移动或外部插入；不能通过伪造 permissions 改写这些规则。实际工具执行权限仍由 DSH 原生 guard 处理。
+管理 API 将同一初始化树的 SerializedNode 传给客户端，客户端不导入内置命令表、不按 tools 等名称生成权限或节点。Profile.root 同样使用 SerializedNode 描述，保存时由服务端权威节点拒绝移除、替换、改名、移动、修改受保护文档或外部插入；不能通过伪造 permissions 改写这些规则。实际工具执行权限仍由 DSH 原生 guard 处理。
 
 `prompt.ts` 根据 native/ptc 配置生成初始说明，PTC 渲染 Profile 选中的部分命名空间树。初始说明仅保留命令发现入口、模式调用约定和通用运行时语义，不重复列举具体函数调用示例或 Profile API 的读取、切换、保存、删除及预加载字段用法；未知命令先直接查询 tools.inspect；PTC 通过 tools_run_code 调用命名空间，native 直接使用 DSML 命名空间工具。tools.inspect 的参数规则（queries 字符串数组参数、末尾点号、精确路径、global. 前缀与空字符串查询根命名空间）仅在 @param 中说明，函数摘要、执行入口描述与初始提示不重复强调，初始提示不附加查询结果为参考数据的宣示；初始提示强调当前工具基于命名空间，ns_ 标记挂载命令，双下划线 __ 是调用名称中的命名空间分隔符，对应查询路径中的点号；不再附加根命名空间摘要和工具映射 JSON，描述只保留在工具 schema 中，不生成 TS/JS 声明或执行说明。
 

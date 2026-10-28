@@ -24,7 +24,7 @@ PTC 在每次执行前预加载 commands，并由 VM 命令包装同步更新本
 
 `tools.profile.profiles` 返回 `Profiles { profiles: string[]; selected: string }`，列表来自全局目录，selected 来自当前会话。native 为无参数命令，每次调用读取最新状态；PTC 为只读字段，每次执行前初始化，并在工具调用成功返回前通过 IPC 刷新，load/save 后同次执行内的读取和持有的对象引用均可见新状态。
 
-Profile save 的 name 省略或为 undefined 时，始终覆盖当前会话选择对应的目录项，忽略树中的 profile.name；save 不替换当前会话快照、不切换选择，也不刷新工具提示或注入配置更新通知；创建新目录项必须传入显式字符串名称。支持 save(profile) 和 save(name, profile)，缺少 Profile、非法名称类型或非法树均抛错；写入失败透传异常。native schema 与 PTC 声明在 save 简介中强调递归补齐缺失的受保护固有命令及命名空间、保留提交设置，并保留保存目标默认规则、递归补齐受保护节点的树参数和显式切换说明，省略通用错误行为与重复的必填说明。
+Profile save 的 name 省略或为 undefined 时，始终覆盖当前会话选择对应的目录项，忽略树中的 profile.name；save 不替换当前会话快照、不切换选择，也不刷新工具提示或注入配置更新通知；创建新目录项必须传入显式字符串名称。支持 save(profile) 和 save(name, profile)，缺少 Profile、非法名称类型或非法树均抛错；写入失败透传异常。native schema 与 PTC 声明同步说明权限违规抛错、受保护树必须完整保留、默认禁用及显式 switch 规则。
 
 `tools.profile.delete(name: string)` 删除全局目录中的指定配置；必须显式指定目标名称，省略或传入 undefined 时拒绝调用，删除当前会话配置一律拒绝。其它会话已有快照保留，成功删除后 PTC 的 profiles 字段随工具回复刷新。
 
@@ -32,22 +32,26 @@ Profile save 的 name 省略或为 undefined 时，始终覆盖当前会话选�
 
 当前对话通过显式 switch(name) 或会话 Profile 下拉框更新工作配置后，统一由 configurationChanged 刷新工具提示。仅 tools.profile.switch(name) 成功完成加载和刷新后，通过 Agent.inject 向当前对话注入 intellisense-profile 英文 notice：`Profile updated to <profile name>`；load(name)、UI 下拉选择、通用配置刷新、保存目录、读取草稿、失败操作及删除其它配置均不注入。
 
-save 使用目标目录配置作为固定节点补齐基线，不存在该名称时使用会话配置。缺少整个子树则补入，存在同名节点则递归检查下一层，不覆盖已提交的固定等级、禁用状态及其它字段；普通命令树仍按输入替换。禁止编辑简化注释的服务端节点忽略描述字段，简化注释键可选。
+save 使用目标目录配置作为受保护节点文档及锁定等级的校验基线，不存在该名称时使用会话配置。缺失受保护成员、非法替换、改名、移动、文档修改、固定等级或受限命名空间插入均抛错；普通命令树按输入替换。
 
 `tools.profile.setdefault(name: string)` 将已有目录配置设为全局默认 Profile，复用管理界面的默认配置选择事务并持久化；新建根会话使用该默认配置，已有会话工作快照保持不变，不刷新当前会话工具或注入配置切换通知。native 与 PTC 均可调用，支持通过 builtinDisabled 禁用。
 
-Profile 节点 permissions 为可选的普通权限差异项：commentable/renamable/movable/removable/disableable 默认 true，acceptsChildren 在命令为 false、命名空间为 true，availableFixLevels 在命令为 [0,1,2]、命名空间为 [0,1]。省略对象或字段均使用默认权限，受保护节点权限仍由服务端校验。Profile 构造及 save() 递归省略默认权限字段、空 permissions、fixedLevel=0 和 disabled=false；load 与 annotation/JSON Schema 同步说明默认值。提交节点省略 fixedLevel/disabled 时通常使用 0/false；tools.profile.save 对 tools 命名空间缺省使用 disabled=true。缺失受保护节点仍从原配置恢复。
+Profile 节点 permissions 为可选的普通权限差异项：commentable/renamable/movable/removable/disableable 默认 true，acceptsChildren 在命令为 false、命名空间为 true，availableFixLevels 在命令为 [0,1,2]、命名空间为 [0,1]。省略对象或字段均使用默认权限，受保护节点权限仍由服务端校验。Profile 构造及 save() 递归省略默认权限字段、空 permissions、fixedLevel=0 和 disabled=false；load 与 annotation/JSON Schema 同步说明默认值。提交节点省略 fixedLevel/disabled 时通常使用 0/false；tools.profile.save 对 tools 命名空间缺省使用 disabled=true。缺失受保护节点会抛错。
 
 Inspect 声明渲染仅接收查询、命名空间树、运行时模式与简略注释查询；禁用状态由节点的 disabled 属性提供，queryNodes 过滤禁用目标与成员，显式保留空命名空间时同样检查节点禁用状态，不再向渲染函数传入独立的路径禁用回调。
 
 配置了 presentation.config.profile 的会话禁止 tools.profile.switch 切换配置，返回 session_profile_locked；读取与目录保存不受影响。
 
-Profile save 覆盖目录树时，tools 仍为受保护命名空间，但默认禁用：省略 tools 节点或其 disabled 字段时写入 builtinDisabled，显式 disabled: false 时启用；不切换或修改当前会话。其它已提交设置保留，缺失保护节点继续递归补齐。save 的原生说明与 PTC 声明同步描述该规则。annotation 与 JSON Schema 说明禁用节点及后代从发现、运行时绑定、原生工具、预加载值和固定提示中排除，保留配置以供重新启用；禁用 tools 时移除 tools.inspect 指引。
+Profile save 覆盖目录树时，tools 仍为受保护命名空间，但默认禁用：省略 tools 的 disabled 字段时写入 builtinDisabled，显式 disabled: false 时启用；不切换或修改当前会话。其它合法设置保留，缺失保护节点会抛错。save 的原生说明与 PTC 声明同步描述该规则。annotation 与 JSON Schema 说明禁用节点及后代从发现、运行时绑定、原生工具、预加载值和固定提示中排除，保留配置以供重新启用；禁用 tools 时移除 tools.inspect 指引。
 
-`profile_save.ts` 根据保存后 Profile 生成非阻断信息。save 返回 string | null，不转换原生结果；null 表示成功且无信息，字符串表示保存成功后的补全及建议。递归补齐 tools 或其后代时返回 “info: `tools` namespace is completed.”；inspect 禁用或缺失（含 tools 祖先禁用）且存在启用的其它命令未固定等级 2 时返回 “warning: `inspect` is disabled when there are some commands not fixed with level 2.”，两条信息同时出现时用换行连接。禁用节点及后代不参与固定等级检查。建议不阻止保存、不更改固定等级，save 说明强调inspect 无法调用时无法查询命名空间成员，应将其它命令固定等级 2 或者禁用。
+`profile_save.ts` 根据保存后 Profile 生成非阻断信息。save 返回 string | null，null 表示成功且无信息；inspect 不可用且存在启用命令未固定等级 2 时返回建议字符串。禁用节点及后代不参与检查；建议不阻止保存、不改变固定等级。缺失受保护成员直接抛错，不再返回补全信息。
 
 内置命令的功能说明与参数注释统一定义于 `runtime/builtins.ts`（源码根目录下）的 `PluginCommands` 契约表；原生注册、Inspect、固定提示及管理 UI 引用同一来源。BuiltinTool 保存共享或按 native/PTC 区分的描述、参数注释与 discoveryHint，通过 projectBuiltin(command, mode) 投影为纯字符串注释的 BuiltinCommand；原生注册按 presentation 作用域选择模式，会话命名空间按当前执行模式选择，管理目录默认使用 PTC 投影。依赖 inspect 的可选指引由投影后的 discoveryHint 标记，禁用发现时按该标记移除。
 
-`tools.profile.apply(value: object)` / `apply(name: string | undefined, value: object)` 按 load(name?) 规则读取当前会话草稿或已有目录配置，递归合并部分对象 patch 后复用 save 的验证及持久化流程。未提交字段保留，null 删除对象字段，children 对象按成员名递归合并，数组整体替换，不按索引合并。合并结果必须满足 ProfileSchema；受保护节点继续按 save 规则恢复，返回相同的 string | null 信息。显式名称必须已存在；省略名称读取会话草稿并保存到当前选择的目录名称。保存不更改会话工作快照或选择，不刷新提示，应用仍需显式 switch。`profile_save.ts` 提供对象 patch 合并及保存信息生成。
+`tools.profile.apply(value: object)` / `apply(name: string | undefined, value: object)` 按 load(name?) 规则读取当前会话草稿或已有目录配置，递归合并部分对象 patch 后复用 save 的验证及持久化流程。未提交字段保留，null 删除对象字段，children 对象按成员名递归合并，数组整体替换，不按索引合并。合并结果必须满足 ProfileSchema；受保护节点继续按 save 规则校验，违规修改抛错，返回相同的 string | null 信息。显式名称必须已存在；省略名称读取会话草稿并保存到当前选择的目录名称。保存不更改会话工作快照或选择，不刷新提示，应用仍需显式 switch。`profile_save.ts` 提供对象 patch 合并及保存信息生成。
 
 apply 不使用 save 对 tools 的默认禁用规则：未提交禁用字段时保留 tools 及其内部命名空间、命令的原状态，显式 disabled 仍可切换状态，null 删除字段后使用节点默认值 false。save 的整树替换默认规则保持不变。
+
+Profile 成员键必须为非空标识符，不能以 $ 或 __ 开头；禁止 Object.prototype 自有名称、prototype、then 等 JS 约定键。children 在 record 解析前校验，显式拒绝 JSON __proto__；apply 在合并前校验所有 patch 键，包括 null 删除项。普通路径继续使用 validatePath 校验运行时全局和语言保留名。普通命名空间的名称不得占用保护树中的任何成员名（如 inspect、profile、save），即使位于其它父路径；原位置的受保护命令也不能替换为命名空间。
+
+apply 的命令说明明确改名或移动普通挂载时，需要将原 children 键设为 null 并新增目标键；仅新增键会保留两个挂载。save 和 apply 共用校验，失败不写入目录或改变会话草稿。

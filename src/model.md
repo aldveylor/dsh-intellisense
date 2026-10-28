@@ -66,7 +66,7 @@ namespaceVisible 为随 Profile 保存的命名空间路径 → 固定提示布�
 
 `tools.profile.switch(name: string)` 显式切换当前会话配置，必须指定已有名称；可通过 builtinDisabled 禁用，使用普通内置命令的 disableable 权限。load(name?) 只读取配置数据，不切换当前会话；省略名称读取会话草稿，指定名称读取目录中的配置。
 
-Profile 保存递归补齐省略的 tools 固定节点；同名节点仅检查和补齐下一层，不覆盖提交的 fixedLevel、disabled 等设置。恢复值来自目标目录 Profile，新名称回退到当前会话配置。commentable 权限控制简化注释编辑，受保护节点禁止修改，提交的相关注释键被忽略；Profile 输入中的 command.doc 可省略。
+Profile save/apply 对受保护节点的移除、改名、移动、替换、文档修改及不允许的固定等级直接抛错，不再静默补齐或忽略。校验以目标目录配置为基线，新名称回退当前会话配置。普通命令的 command.doc 仍可省略。
 
 同一物理工具的每个挂载路径独立保存描述、固定等级及禁用状态；Mapping 不再区分 path 与 aliases，每条记录只代表一个挂载路径，不兼容旧存档。命令目录中的挂载路径包含禁用及当前作用域不可用的配置路径；执行、搜索与提示仍排除禁用路径。
 
@@ -76,9 +76,9 @@ Profile、RegistryConfiguration 与 RegistryState 为可导出的运行时类，
 
 `intellisense-presentation` 的 config 可选配置 `profile: <name>`，会话优先使用指定具名 Profile，新对话首页的 Profile 按钮保持显示并置灰；会话选择接口和 tools.profile.switch 拒绝切换。省略时沿用默认及父会话继承行为。
 
-Profile save 覆盖目录树时，受保护 tools 命名空间默认禁用（省略节点或 disabled 均禁用），显式 disabled: false 可启用；当前会话仍需显式 switch 才应用保存结果。annotation 与 schema 说明禁用节点及后代退出发现、调用绑定、预加载和提示，保留配置用于重新启用。
+Profile save 覆盖目录树时，受保护 tools 命名空间必须保留，默认禁用（省略 disabled 时禁用），显式 disabled: false 可启用；当前会话仍需显式 switch 才应用保存结果。annotation 与 schema 说明禁用节点及后代退出发现、调用绑定、预加载和提示，保留配置用于重新启用。
 
-Profile save 保留原生 string | null 返回值：null 表示无提示的成功，发生受保护树补全或inspect 无法调用且其它启用命令未全部固定等级 2 时返回信息字符串；建议不阻止保存，也不自动修改固定等级。
+Profile save 保留原生 string | null 返回值：null 表示无提示的成功，inspect 无法调用且其它启用命令未全部固定等级 2 时返回建议字符串；建议不阻止保存，也不自动修改固定等级。权限违规直接抛错。
 
 管理 UI 命名空间树在 inspect 不可调用且其它启用命令未全部固定等级 2 时，在下方展示黄色边框和背景的缩放淡入警告。此规则仅提示，不阻止操作或保存；应将其它命令固定为等级 2 或者禁用，保存说明与 annotation 同步此约定。
 

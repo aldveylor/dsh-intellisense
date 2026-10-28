@@ -34,11 +34,10 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         const registry = await registryFor(agent);
         const target = name ?? registry.snapshot().profile!;
         const original = catalog.snapshot().profiles?.includes(target) ? catalog.configuration(target) : registry.configuration();
-        let completed = false;
-        const configuration = profileConfiguration(profile, original, await commands(agent), () => { completed = true; });
+        const configuration = profileConfiguration(profile, original, await commands(agent));
         if (defaultToolsDisabled && profile.root.children?.tools?.disabled !== false
             && !configuration.builtinDisabled.includes('tools')) configuration.builtinDisabled.push('tools');
-        const information = profileSaveInformation(profileTree(target, configuration), registry.tools().map(tool => tool.id), completed);
+        const information = profileSaveInformation(profileTree(target, configuration), registry.tools().map(tool => tool.id));
         await catalog.saveProfile(target, configuration);
         return information;
     };
@@ -92,7 +91,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         output: { ...output, schema: { oneOf: [{ type: 'string' }, { type: 'null' }] }, render: (_args, value) => [{ type: 'text', text: value ?? '' }] },
         execute: async (args, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
-            const { name, value } = z.strictObject({ name: z.string().optional(), value: z.record(z.string(), z.json()) }).parse(args);
+            const { name, value } = z.strictObject({ name: z.string().optional(), value: z.custom<Record<string, unknown>>(value => value !== null && typeof value === 'object' && !Array.isArray(value), 'Expected a Profile object patch') }).parse(args);
             const registry = name === undefined ? await registryFor(execution.agent) : catalog;
             const profile = JSON.parse(JSON.stringify(profileTree(name ?? registry.snapshot().profile!, registry.configuration(name))));
             return save(execution.agent, name, ProfileSchema.parse(mergeProfilePatch(profile, value)), false);

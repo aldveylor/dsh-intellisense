@@ -4,6 +4,7 @@ import type { Saveable } from '../storage/saveable.js';
 import { CommandNode, NamespaceNode, createNamespace } from '../namespace/namespace.js';
 import { fixLevel, nodePermissions, type SerializedNode } from '../namespace/node.js';
 import type { ProfileTreeNode, NamespaceTreeNode } from './profile_node.js';
+import { validatePath } from './path.js';
 
 /** @brief Physical command identity used by editable Profile trees. */
 export type CommandName = string;
@@ -59,10 +60,10 @@ function profileNode(node: SerializedNode): ProfileTreeNode {
 
 /** @brief Validate shared permissions without trusting them as the server's authority. */
 const permissionSchema = z.strictObject({
-    commentable: z.boolean().optional().describe('Whether description/command.doc may be edited in the saved Profile; when false, preserve the original description (submitted changes are ignored).'),
+    commentable: z.boolean().optional().describe('Whether description/command.doc may be edited in the saved Profile; when false, preserve the original description; forbidden changes throw.'),
     renamable: z.boolean().optional().describe('Whether this member may be renamed in the saved Profile; when false, preserve its original name.'),
     movable: z.boolean().optional().describe('Whether this member may be moved in the saved Profile; when false, preserve its original parent and path.'),
-    removable: z.boolean().optional().describe('Whether this member may be omitted from the saved Profile; when false, retain it in the Profile tree even if unused (missing protected members are restored on save).'),
+    removable: z.boolean().optional().describe('Whether this member may be omitted from the saved Profile; when false, retain it in the Profile tree even if unused (omitting protected members throws).'),
     disableable: z.boolean().optional().describe('Whether this member may have disabled: true in the saved Profile; when false, keep it enabled.'),
     acceptsChildren: z.boolean().optional().describe('Whether new members may be added to this namespace in the saved Profile; when false, preserve its existing membership.'),
     availableFixLevels: z.array(z.union([z.literal(0), z.literal(1), z.literal(2)])).optional().describe('Allowed fixedLevel values in the saved Profile; an empty list means preserve the existing level.'),
@@ -75,9 +76,21 @@ const nodeProperties = {
     disabled: z.boolean().optional().describe('Default false (omitted). Disabled nodes and descendants are excluded from discovery, runtime bindings, native tools, preloaded values and pinned prompts; configuration is retained for re-enabling. Disabling tools also removes tools.inspect guidance.'),
 };
 
+/** @brief Reject empty, invalid and JavaScript convention member keys before record parsing. */
+const memberNameSchema = z.string().regex(/^[A-Za-z_][\w$]*$/, 'Invalid namespace member name').refine(
+    name => !Object.hasOwn(Object.prototype, name) && !['prototype', 'then'].includes(name) && !name.startsWith('__'),
+    'Reserved JavaScript member name');
+
 /** @brief Recursive namespace transport with directly nested command or namespace members. */
 const namespaceSchema: z.ZodType<NamespaceTreeNode> = z.lazy(() => z.strictObject({
-    ...nodeProperties, type: z.literal('namespace'), fixedLevel: z.union([z.literal(0), z.literal(1)]).optional().describe('Namespace pin level (default 0, omitted): 0 none, 1 visible; allowed values come from permissions.availableFixLevels.'), children: z.record(z.string(), nodeSchema).optional(),
+    ...nodeProperties, type: z.literal('namespace'), fixedLevel: z.union([z.literal(0), z.literal(1)]).optional().describe('Namespace pin level (default 0, omitted): 0 none, 1 visible; allowed values come from permissions.availableFixLevels.'), children: z.preprocess((value, context) => {
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+            for (const name of Object.keys(value)) {
+                if (!memberNameSchema.safeParse(name).success) context.addIssue({ code: 'custom', path: [name], message: `Invalid or reserved namespace member name: ${name}` });
+            }
+        }
+        return value;
+    }, z.record(memberNameSchema, nodeSchema)).optional(),
     description: z.string().optional().describe('Editable namespace description.'),
 }));
 
@@ -127,16 +140,23 @@ export function profileTree(name: string, configuration: RegistryConfigurationDa
     return new Profile({ name, brief: configuration.brief, root: snapshot });
 }
 
-/**
- * @brief Restore missing protected descendants, then apply edits under server-owned permissions without mutating input.
- * @param onComplete Optional observer called with each protected path restored into the input tree copy.
- */
-export function profileConfiguration(profile: ProfileData, current: RegistryConfigurationData, commands: readonly CommandBrief[], onComplete?: (path: string) => void): RegistryConfiguration {
+/** @brief Validate all writes under server-owned permissions, then build independent configuration data. */
+export function profileConfiguration(profile: ProfileData, current: RegistryConfigurationData, commands: readonly CommandBrief[]): RegistryConfiguration {
+    profile = ProfileSchema.parse(profile);
     const protectedRoot = createNamespace({ tools: [], includeUnavailable: true });
     const configuration = new RegistryConfiguration({ ...current, brief: profile.brief, mappings: [], namespaces: [], order: [], toolComments: {}, builtinVisible: {}, builtinDisabled: [], namespaceVisible: {} });
     const submitted: { node: ProfileTreeNode; path: string }[] = [];
     const root = structuredClone(profile.root);
     const baseline = profileTree(profile.name, current).root;
+    const protectedNames = new Set<string>();
+    /** @brief Reserve server-owned member names against ordinary namespace shadowing. */
+    const reserve = (node: NamespaceNode): void => {
+        for (const child of node.children.values()) {
+            protectedNames.add(child.name);
+            if (child instanceof NamespaceNode) reserve(child);
+        }
+    };
+    reserve(protectedRoot);
     /** @brief Index submitted nodes by paths derived from member keys. */
     const collect = (node: ProfileTreeNode, path: string): void => {
         submitted.push({ node, path });
@@ -150,6 +170,17 @@ export function profileConfiguration(profile: ProfileData, current: RegistryConf
     };
     collect(root, '');
     const visit = (node: ProfileTreeNode, path: string, expected?: NamespaceNode | CommandNode, original?: ProfileTreeNode): void => {
+        if (path && !expected) {
+            validatePath(path);
+            if (node.type === 'namespace' && protectedNames.has(path.split('.').at(-1)!)) throw new Error(`Namespace name is reserved for a protected member: ${path}`);
+        }
+        if (expected && (node.type === 'command') !== (expected instanceof CommandNode)) throw new Error(`Protected node cannot be replaced: ${path}`);
+        if (expected) {
+            const level = node.fixedLevel ?? 0;
+            const levels = expected.permissions.availableFixLevels;
+            if (levels.length ? !levels.includes(level) : level !== (original?.fixedLevel ?? 0)) throw new Error(`Node fixed level cannot be changed: ${path} (permissions.availableFixLevels)`);
+            if (!expected.permissions.commentable && (node.type === 'command' ? node.command?.doc !== original?.command?.doc : node.description !== original?.description)) throw new Error(`Node documentation cannot be changed: ${path} (permissions.commentable=false)`);
+        }
         if (node.disabled && expected && !expected.permissions.disableable) throw new Error(`Node cannot be disabled: ${path}`);
         if (node.type === 'command') {
             if (!node.command || expected instanceof NamespaceNode) throw new Error(`Invalid command node: ${path}`);
@@ -174,8 +205,7 @@ export function profileConfiguration(profile: ProfileData, current: RegistryConf
                     if (relocated.path.split('.').at(-1) !== child.name && !child.permissions.renamable) throw new Error(`Node cannot be renamed: ${child.path} -> ${relocated.path} (root.${child.path} -> root.${relocated.path}; permissions.renamable=false; protected builtin node)`);
                     if (!child.permissions.movable) throw new Error(`Node cannot be moved: ${child.path} -> ${relocated.path} (root.${child.path} -> root.${relocated.path}; permissions.movable=false; preserve the protected builtin path)`);
                 }
-                onComplete?.(child.path);
-                children[child.name] = structuredClone(original?.children && Object.hasOwn(original.children, child.name) ? original.children[child.name]! : profileNode(child.serialize()));
+                throw new Error(`Node cannot be removed: ${child.path} (permissions.removable=false)`);
             }
             if (path) {
                 configuration.namespaceVisible![path] = !!fixLevel(expected.permissions, node.fixedLevel);
@@ -202,7 +232,7 @@ interface CommandBrief { name: string; brief: string; paths: string[]; totalCall
 interface Profiles { profiles: string[]; selected: string; }
 /** @brief Server-owned constraints on edits to the saved Profile tree. Submitted permissions cannot override server restrictions. */
 interface Permission {
-    /** @brief When false, preserve the original Profile description/command.doc; submitted changes are ignored. */
+    /** @brief When false, preserve the original Profile description/command.doc; forbidden changes throw. */
     /** @default true */
     commentable?: boolean;
     /** @brief When false, retain this member under its original name in the saved Profile. */
@@ -211,7 +241,7 @@ interface Permission {
     /** @brief When false, retain this member under its original parent and path in the saved Profile. */
     /** @default true */
     movable?: boolean;
-    /** @brief When false, retain this member in the saved Profile even if unused; missing protected members are restored on save. */
+    /** @brief When false, retain this member in the saved Profile even if unused; omitting protected members throws. */
     /** @default true */
     removable?: boolean;
     /** @brief When false, keep this member enabled in the saved Profile. */

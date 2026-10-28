@@ -291,7 +291,11 @@ test('Profile save defaults protected tools to disabled and honors explicit enab
     for (const state of ['missing', 'omitted', true, false] as const) {
         const profile = await load();
         const tools = profile.root.children!['tools'];
-        if (state === 'missing') delete profile.root.children!['tools'];
+        if (state === 'missing') {
+            delete profile.root.children!['tools'];
+            await assert.rejects(call('tools_profile_save', { name: 'Copy', profile }), /Node cannot be removed: tools/);
+            continue;
+        }
         else if (state === 'omitted') delete tools.disabled;
         else tools.disabled = state;
         const input = structuredClone(profile);
@@ -322,9 +326,8 @@ test('Profile annotation keeps field semantics without repeating Profile command
     assert(profileAnnotation.includes('children.cwd'));
 });
 
-test('Profile save reports completion and advisory discovery issues without changing pins or blocking persistence', async () => {
+test('Profile save rejects protected omissions and reports advisory discovery issues without changing pins or blocking persistence', async () => {
     const { call, load, catalog, registry, definitions } = await fixture();
-    const completed = 'info: `tools` namespace is completed.';
     const advisory = 'warning: `inspect` is disabled when there are some commands not fixed with level 2.';
     const profile = await load();
     profile.root.children!['files'] = { type: 'namespace', children: {
@@ -335,14 +338,15 @@ test('Profile save reports completion and advisory discovery issues without chan
     assert.equal(catalog.configuration('Info').mappings[0]!.alwaysVisible, 1);
     assert.deepEqual(registry.snapshot(), before);
     delete profile.root.children!['tools'];
-    assert.equal(await call('tools_profile_save', { name: 'Info', profile }), `${completed}\n${advisory}`);
+    await assert.rejects(call('tools_profile_save', { name: 'Info', profile }), /Node cannot be removed: tools/);
+    profile.root.children!['tools'] = (await load()).root.children!['tools'];
     profile.root.children!['files']!.children!['read']!.fixedLevel = 2;
-    assert.equal(await call('tools_profile_save', { name: 'Info', profile }), completed);
+    await call('tools_profile_save', { name: 'Info', profile });
     const complete = await load({ name: 'Info' });
     assert.equal(await call('tools_profile_save', { name: 'Info', profile: complete }), null);
     const partial = await load({ name: 'Info' });
     partial.root.children!['tools'].children!['profile'].children = {};
-    assert.equal(await call('tools_profile_save', { name: 'Info', profile: partial }), completed);
+    await assert.rejects(call('tools_profile_save', { name: 'Info', profile: partial }), /Node cannot be removed: tools.profile/);
     const schema = definitions.get('tools_profile_save')!.output.schema;
     assert.deepEqual(schema, { oneOf: [{ type: 'string' }, { type: 'null' }] });
 });
@@ -374,7 +378,7 @@ test('Profile apply recursively patches a named catalog tree and deletes null fi
     const { call, load, registry, changed } = await fixture();
     const profile = await load();
     profile.brief = 'Original';
-    profile.root.fixedLevel = 1;
+
     profile.root.children!['files'] = { type: 'namespace', description: 'Files', children: {
         read: { type: 'command', command: { tool: 'read_file' }, fixedLevel: 2 },
     } };
@@ -433,7 +437,7 @@ test('Profile apply preserves tools subtree states for catalog and draft patches
 
 test('Profile apply without a name reads the conversation draft before saving', async () => {
     const { call, load, registry, changed } = await fixture();
-    await call('tools_profile_apply', { value: { brief: 'Catalog edit', root: { fixedLevel: 1 } } });
+    await call('tools_profile_apply', { value: { brief: 'Catalog edit' } });
     assert.equal((await load({ name: 'Default' })).brief, 'Catalog edit');
     assert.equal((await load()).brief, undefined);
     await call('tools_profile_apply', { value: { brief: 'Draft edit' } });
@@ -452,4 +456,50 @@ test('Profile apply rejects invalid patches and unknown targets without saving',
         await assert.rejects(call('tools_profile_apply', args));
     }
     assert.deepEqual(await load({ name: 'Default' }), before);
+});
+
+
+test('Profile save and apply reject forbidden writes atomically, including raw JSON prototype keys', async () => {
+    const { call, load, registry, catalog } = await fixture();
+    const original = await load();
+    const before = catalog.snapshot();
+    const draft = registry.snapshot();
+    const patches = [
+        { root: { children: { tools: null } } },
+        { root: { children: { tools: { description: 'Forged' } } } },
+        { root: { children: { tools: { children: { inspect: null } } } } },
+        { root: { children: { tools: { children: { inspect: { type: 'namespace', command: null } } } } } },
+        { root: { children: { tools: { children: { inspect: { command: { doc: 'Forged' } } } } } } },
+        ...['', '$evil', '__proto__', 'constructor', 'prototype', 'then', 'toString', 'inspect', 'save'].map(name =>
+            JSON.parse(JSON.stringify({ root: { children: { [name]: { type: 'namespace' } } } }))),
+    ];
+    for (const value of patches) {
+        await assert.rejects(call('tools_profile_apply', { value }));
+        assert.deepEqual(catalog.snapshot(), before);
+        assert.deepEqual(registry.snapshot(), draft);
+    }
+    for (const name of ['', '$evil', '__proto__', 'constructor', 'prototype', 'then', 'toString', 'inspect', 'save']) {
+        const profile = structuredClone(original);
+        Object.defineProperty(profile.root.children!, name, { value: { type: 'namespace' }, enumerable: true, configurable: true });
+        await assert.rejects(call('tools_profile_save', { profile: JSON.parse(JSON.stringify(profile)) }));
+        assert.deepEqual(catalog.snapshot(), before);
+    }
+});
+
+
+test('Profile apply renames ordinary mounts only when the original key is explicitly deleted', async () => {
+    const { call, load } = await fixture();
+    await call('tools_profile_apply', { name: 'Default', value: { root: { children: {
+        bash: { type: 'command', command: { tool: 'read_file' } },
+    } } } });
+    await call('tools_profile_apply', { name: 'Default', value: { root: { children: {
+        bash2: { type: 'command', command: { tool: 'read_file' } },
+    } } } });
+    let profile = await load({ name: 'Default' });
+    assert(profile.root.children!['bash']);
+    assert(profile.root.children!['bash2']);
+    await call('tools_profile_apply', { name: 'Default', value: { root: { children: { bash: null } } } });
+    profile = await load({ name: 'Default' });
+    assert(!Object.hasOwn(profile.root.children!, 'bash'));
+    assert(profile.root.children!['bash2']);
 });

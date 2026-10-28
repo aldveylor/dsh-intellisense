@@ -4,7 +4,7 @@
 
 命令固定等级统一为 0（不固定）、1（固定但简略）、2（固定且详细）。Mapping.alwaysVisible 保存等级；builtinVisible、unmountedVisible 为路径或物理 ID 到等级的映射，随 Profile 保存，挂载和移除映射时保留等级。命名空间 alwaysVisible 仍为布尔值。
 
-`profile_node.ts` 定义 load/save/annotation 共用的 Profile 节点模型：ProfileNode 包含 type: string、permissions、fixedLevel?: number 与 disabled；CommandNode 和 NamespaceTreeNode 继承该接口，type 分别为 command/namespace。命令 fixedLevel 限制为 0/1/2，命名空间限制为 0/1，实际可用等级由服务端 permissions.availableFixLevels 决定。Profile.root 为 NamespaceTreeNode，children 为 Record<string, CommandNode | NamespaceTreeNode>，成员名称由键承载，节点自身不保存 name；command 只保存 tool、可选 doc，description 为命名空间描述。disabled 表示节点自身显式禁用。`profile_tree.ts` 在运行时节点与 Profile 数据之间投影。创建 Profile 时先构建带上下文的普通匿名 NamespaceNode 及 tools 受保护子树，再添加配置映射；没有专门的根节点类型。导入先递归补齐缺少的受保护子对象，再由父节点对应的服务端策略拒绝替换、改名、移动及向受限命名空间添加成员；客户端提交的 permissions 不作为权限依据。每个挂载路径保存一条 Mapping，同一物理 ID 可重复挂载，各路径独立保存 fixedLevel、disabled 与 command.doc 描述偏好；不存在主路径或别名之分。
+`profile_node.ts` 定义 load/save/annotation 共用的 Profile 节点模型：ProfileNode 包含 type: string、permissions、fixedLevel?: number 与 disabled；CommandNode 和 NamespaceTreeNode 继承该接口，type 分别为 command/namespace。命令 fixedLevel 限制为 0/1/2，命名空间限制为 0/1，实际可用等级由服务端 permissions.availableFixLevels 决定。Profile.root 为 NamespaceTreeNode，children 为 Record<string, CommandNode | NamespaceTreeNode>，成员名称由键承载，节点自身不保存 name；command 只保存 tool、可选 doc，description 为命名空间描述。disabled 表示节点自身显式禁用。`profile_tree.ts` 在运行时节点与 Profile 数据之间投影。创建 Profile 时先构建带上下文的普通匿名 NamespaceNode 及 tools 受保护子树，再添加配置映射；没有专门的根节点类型。导入由服务端策略拒绝移除、替换、改名、移动、修改受保护文档及向受限命名空间添加成员；客户端提交的 permissions 不作为权限依据。每个挂载路径保存一条 Mapping，同一物理 ID 可重复挂载，各路径独立保存 fixedLevel、disabled 与 command.doc 描述偏好；不存在主路径或别名之分。
 
 namespaceVisible 为随 Profile 保存的命名空间路径 → 固定提示布尔值映射，默认空对象；命令各自保留独立的提示等级。所有模式均不提供 console 命名空间及其命令、查询声明或管理节点；PTC 运行时原生 console 输出对象仍独立可用。
 
@@ -29,11 +29,11 @@ CommandBrief 与 profileAnnotation 中共享同一数据定义：name 为原始�
 
 Profile 仅包含 name 与 root；permissions 是唯一节点编辑限制说明，由服务端节点权限生成，输入不能覆盖服务端权限。annotation 与 JSON Schema 按字段独立说明节点权限：removable 控制移除，disableable 控制禁用，availableFixLevels 控制固定等级；不额外引入 tools 特殊限制。
 
-Profile 的 children 使用名称键唯一标识直接成员，不再包含同级重名数组及重复成员诊断。受保护节点按保留的相对子路径及物理命令身份识别改名和移动，分别报告 renamable/movable；省略受保护成员时递归恢复，恢复值取自保存目标原有目录配置；新名称取自当前会话配置，已提交成员的 fixedLevel/disabled 等设置优先。
+Profile 的 children 使用名称键唯一标识直接成员，不再包含同级重名数组及重复成员诊断。受保护节点按保留的相对子路径及物理命令身份识别改名和移动，分别报告 renamable/movable；省略受保护成员时抛错；目标目录原配置提供文档及锁定等级的校验基线，新名称使用当前会话配置作为基线。
 
-Profile annotation 说明可使用 load 返回的树作为编辑起点，缺少的受保护节点会自动补齐；新增命令节点使用 commands 中的精确物理名称、普通命令权限和自定义 command.doc，无需从已挂载节点复制。详细调用声明由运行时原生契约生成。command.doc 用一句话描述命令功能，不能修改命令原始注释或 schema；命名空间描述编辑 description。
+Profile annotation 说明可使用 load 返回的树作为编辑起点，受保护节点必须完整保留；新增命令节点使用 commands 中的精确物理名称、普通命令权限和自定义 command.doc，无需从已挂载节点复制。详细调用声明由运行时原生契约生成。command.doc 用一句话描述命令功能，不能修改命令原始注释或 schema；命名空间描述编辑 description。
 
-Permission.commentable 控制简化注释编辑：普通节点默认为 true，受保护命名空间及命令为 false。服务端不信任提交的 permissions；禁止修改的 description/command.doc 被忽略。CommandNode 的 command.doc 为可选输入，缺省不创建描述覆盖，实际展示回退原始注释首行。输入树及原配置均不被修改。
+Permission.commentable 控制简化注释编辑：普通节点默认为 true，受保护命名空间及命令为 false。服务端不信任提交的 permissions；修改或删除受保护的 description/command.doc 会抛错。普通 CommandNode 的 command.doc 为可选输入，缺省不创建描述覆盖，实际展示回退原始注释首行。输入树及原配置均不被修改。
 
 SemanticRegistry.generation 由配置 revision 和物理目录内容版本组成；目录内容相同时不重新克隆。profileSelection 仅读取名称列表和当前选择，不复制完整配置，供每次工具回复的 Profile 元数据刷新使用。执行、搜索与发现的单次操作共享同一 registry 快照。
 
@@ -43,15 +43,15 @@ SemanticRegistry.generation 由配置 revision 和物理目录内容版本组成
 
 Profile 为保留 name/root 结构的类，实现 Saveable<ProfileData>，通过 constructor(data?) 恢复或创建默认受保护树。Profile 树节点继续使用原有数据接口；树投影返回 Profile，导入配置返回 RegistryConfiguration，JSON Schema、PTC annotation 与权限校验规则保持原有数据结构和行为。
 
-Profile 节点 permissions 为可选的普通权限差异项：commentable/renamable/movable/removable/disableable 默认 true，acceptsChildren 在命令为 false、命名空间为 true，availableFixLevels 在命令为 [0,1,2]、命名空间为 [0,1]。省略对象或字段均使用默认权限，受保护节点权限仍由服务端校验。Profile 构造及 save() 递归省略默认权限字段、空 permissions、fixedLevel=0 和 disabled=false；load 与 annotation/JSON Schema 同步说明默认值；annotation 使用字段级 `/** @default ... */` 注释。提交节点省略 fixedLevel/disabled 时通常使用 0/false；tools.profile.save 对 tools 命名空间缺省使用 disabled=true。缺失受保护节点仍从原配置恢复。
+Profile 节点 permissions 为可选的普通权限差异项：commentable/renamable/movable/removable/disableable 默认 true，acceptsChildren 在命令为 false、命名空间为 true，availableFixLevels 在命令为 [0,1,2]、命名空间为 [0,1]。省略对象或字段均使用默认权限，受保护节点权限仍由服务端校验。Profile 构造及 save() 递归省略默认权限字段、空 permissions、fixedLevel=0 和 disabled=false；load 与 annotation/JSON Schema 同步说明默认值；annotation 使用字段级 `/** @default ... */` 注释。提交节点省略 fixedLevel/disabled 时通常使用 0/false；tools.profile.save 对 tools 命名空间缺省使用 disabled=true。缺失受保护节点会抛错。
 
 Profile 与配置快照共享可选 brief 字符串，描述配置用途；保存、恢复、会话继承和树转换均保留该字段。profileBriefs() 提供目录名称对应简介，不复制工具树。
 
 ProfileSessions.forSession 可传入固定 profile 名称，首次创建快照时优先于父会话继承与全局默认，持久化会话快照仍优先读取。
 
-Profile save 覆盖目录树时，tools 仍为受保护命名空间，但默认禁用：省略 tools 节点或其 disabled 字段时写入 builtinDisabled，显式 disabled: false 时启用；不切换或修改当前会话。其它已提交设置保留，缺失保护节点继续递归补齐。save 的原生说明与 PTC 声明同步描述该规则。annotation 与 JSON Schema 说明禁用节点及后代从发现、运行时绑定、原生工具、预加载值和固定提示中排除，保留配置以供重新启用；禁用 tools 时移除 tools.inspect 指引。
+Profile save 覆盖目录树时，tools 仍为受保护命名空间，但默认禁用：省略 tools 的 disabled 字段时写入 builtinDisabled，显式 disabled: false 时启用；不切换或修改当前会话。其它合法设置保留，缺失保护节点会抛错。save 的原生说明与 PTC 声明同步描述该规则。annotation 与 JSON Schema 说明禁用节点及后代从发现、运行时绑定、原生工具、预加载值和固定提示中排除，保留配置以供重新启用；禁用 tools 时移除 tools.inspect 指引。
 
-profileConfiguration 可选接收 onComplete(path) 回调，仅在实际补齐缺失受保护节点时调用，供工具 save 汇总补全信息；不改变普通调用的返回类型、导入规则及输入树。
+profileConfiguration 不补齐缺失节点，不提供补全回调；失败时抛出错误，不修改输入树或原配置。
 
 permissions 描述明确约束待保存的 Profile 树：受保护成员即使不使用也须保留原名称、父路径及物理命令身份，不能仅理解为运行时操作限制；各字段分别说明保存时应保留的内容。仅 PTC annotation 强调运行时命名空间树不应直接赋值、增删、改名或移动成员，native JSON Schema 不附加此说明，不受 Profile 编辑权限放宽；配置调整应编辑 load 返回的数据并 save，再 switch 应用。
 
@@ -59,4 +59,8 @@ permissions 描述明确约束待保存的 Profile 树：受保护成员即使�
 
 profile.apply 增量保存时不应用 tools.profile.save 的 tools 缺省禁用规则，省略的 tools 及后代 disabled 字段保留原状态；删除 disabled 字段后按普通默认值 false 处理。
 
-Profile annotation 专注数据结构、字段语义、权限和运行时树不可直接修改的约束；保存默认禁用、补齐保护子树、显式 switch 及发现不可用时的建议等命令说明仅由 tools.profile.* 契约提供，不在 annotation 重复。native JSON Schema 同样省略根节点和 disabled 字段中的命令流程强调。
+Profile annotation 专注数据结构、字段语义、权限和运行时树不可直接修改的约束；保存默认禁用、拒绝受保护树违规修改、显式 switch 及发现不可用时的建议等命令说明仅由 tools.profile.* 契约提供，不在 annotation 重复。native JSON Schema 同样省略根节点和 disabled 字段中的命令流程强调。
+
+Profile 成员键必须为非空标识符，不能以 $ 或 __ 开头；禁止 Object.prototype 自有名称、prototype、then 等 JS 约定键。children 在 record 解析前校验，显式拒绝 JSON __proto__；apply 在合并前校验所有 patch 键，包括 null 删除项。普通路径继续使用 validatePath 校验运行时全局和语言保留名。普通命名空间的名称不得占用保护树中的任何成员名（如 inspect、profile、save），即使位于其它父路径；原位置的受保护命令也不能替换为命名空间。
+
+apply 的命令说明明确改名或移动普通挂载时，需要将原 children 键设为 null 并新增目标键；仅新增键会保留两个挂载。save 和 apply 共用校验，失败不写入目录或改变会话草稿。
