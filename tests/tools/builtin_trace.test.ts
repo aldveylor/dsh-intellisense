@@ -7,7 +7,8 @@ import type { NamespaceComponent } from '../../src/namespace/component.js';
 import { registerToolCommands } from '../../src/tools/tool_commands.js';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { ProfileSessions } from '../../src/registry/profiles.js';
-import { ProfileSchema, profileAnnotation } from '../../src/registry/profile_tree.js';
+import { profileAnnotation } from '../../src/registry/profile_tree.js';
+import { ProfileWriteSchema } from '../../src/registry/profile_write.js';
 import { MemoryStore } from '../../src/storage/store.js';
 import { registerBuiltin } from '../../src/tools/builtin_trace.js';
 
@@ -60,7 +61,7 @@ for (const ptc of [false, true]) test(`builtin discovery and Profile annotation 
         assert.throws(() => caller.commandNamespaces, /without inject/);
         const execution = { callId: 'call-1', agent: { ctx: caller!, session }, signal: new AbortController().signal } as unknown as ToolRunContext;
         assert.equal(await definitions.get('tools_inspect')!.execute({}, execution), 'discovered commands');
-        assert.equal(await definitions.get('tools_profile_annotation')!.execute({}, execution), ptc ? profileAnnotation : JSON.stringify(ProfileSchema.toJSONSchema()));
+        assert.equal(await definitions.get('tools_profile_annotation')!.execute({}, execution), ptc ? profileAnnotation : JSON.stringify(ProfileWriteSchema.toJSONSchema()));
         const records = session.snapshotEvents() as unknown as { type: string; data: Record<string, unknown> }[];
         assert.equal(records.length, 2);
         for (const record of records) {

@@ -21,7 +21,7 @@ test('optional Profile names are omitted and both save overloads retain the Prof
     assert.deepEqual(await positionalArguments(entry, [profile]), { profile });
     assert.deepEqual(await positionalArguments(entry, ['Copy', profile]), { name: 'Copy', profile });
     await assert.rejects(positionalArguments(entry, [3, profile]), /Invalid arguments/);
-    assert.match(declaration(namespace([entry]).commands().find(node => node.path === entry.path)!), /function save\(profile: Profile\)/);
+    assert.match(declaration(namespace([entry]).commands().find(node => node.path === entry.path)!), /function save\(profile: ProfileWrite\)/);
 });
 
 test('session edits overwrite one working record and release removes it without changing other sessions', async () => {
