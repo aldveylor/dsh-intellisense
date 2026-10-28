@@ -2,8 +2,6 @@
 
 `management_panel.tsx` 管理草稿、保存、命名空间编辑动作和整理会话草稿入口。`tree_view/` 按组件拆分递归树视图、命名空间块、命令行、展开容器和共享编辑控件，详见其 model.md。`namespace_section/` 组合命名空间区域标题、Profile 操作、统计、树及提示。`namespace_tree.ts` 处理路径及树变换，`tree_drag.ts` 处理指针拖动，`tree_provider.ts` 投影服务端序列化节点并筛选未挂载工具。样式保存在同目录的 `management_panel.css`。
 
-命令和命名空间拖入命名空间块时，仅块高度的 40%–60% 区域判定为移入，上下区域用于同级排序；指针与原生拖动的反馈及最终落点共用此判定，空位仍直接接受移入。
-
 命名空间树下方显示中英文操作提示，说明展开、编辑、拖动排序、跨命名空间移动及添加工具。
 
 `tools.inspect` 固定映射内置 tools_inspect，启用时始终提示且不可取消固定、改名、拖动或删除，其图钉锁定详细等级 2；tools.profile 子树仅显示 annotation、commands、profiles、load、save、delete、switch、setdefault，均可按 0/1/2 切换提示等级。
