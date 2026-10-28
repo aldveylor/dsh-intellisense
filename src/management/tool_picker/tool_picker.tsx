@@ -6,13 +6,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { TooltipProvider, useTooltip } from '../tooltip/tooltip.js';
 import { NativeProfileSelect } from '../profile_picker/native_profile_select.js';
 import { ToolFilter, toolCategories, type ToolCategory } from './tool_filter/tool_filter.js';
+import { ToolLayout } from './tool_layout/tool_layout.js';
 import { ToolDetails } from './tool_details.js';
 import type { Mapping, PhysicalTool } from '../../registry/registry.js';
 import { reservedToolIds } from '../../runtime/builtins.js';
 
 /** @brief One tool card with its binding path and shared pointer-following details. */
-function ToolCard({ tool, mappings, builtinPath, calls, queries, busy, select }: {
-    tool: PhysicalTool; mappings: Mapping[]; builtinPath?: string; calls: number; queries: number; busy: boolean; select: (tool: PhysicalTool) => void;
+function ToolCard({ tool, mappings, builtinPath, calls, queries, busy, select, detailed = false }: {
+    detailed?: boolean; tool: PhysicalTool; mappings: Mapping[]; builtinPath?: string; calls: number; queries: number; busy: boolean; select: (tool: PhysicalTool) => void;
 }) {
     const t = useTranslation();
     const tooltip = useTooltip();
@@ -25,7 +26,9 @@ function ToolCard({ tool, mappings, builtinPath, calls, queries, busy, select }:
             tooltip.show(<><ActionHint action={t('add_tools')} description={t(builtinPath ? 'builtin_tool_card_hint' : 'add_tool_card_hint')} /><ToolDetails tool={tool} calls={calls} queries={queries} /></>, rect.left, rect.bottom);
         }} onBlur={tooltip.leave} onClick={() => { if (!builtinPath && !busy) { tooltip.hide(); select(tool); } }}>
         <strong>{tool.id}</strong>
+        {detailed && <><span className="ts-tool-list-source">{tool.source?.trim() || t('tool_source_unknown')}</span><span className="ts-tool-list-description">{tool.description || t('tool_no_description')}</span></>}
         <code className="ts-tool-footer">{builtinPath || mappings.map(mapping => mapping.path).join(', ') || t('unmounted')}</code>
+        {detailed && <><span className="ts-tool-list-count">{calls}</span><span className="ts-tool-list-count">{queries}</span></>}
     </button>;
 }
 
@@ -41,6 +44,8 @@ export function ToolPicker({ parent, tools, mappings, unmountedOnly = false, pro
     const [search, setSearch] = useState('');
     const [sort, setSort] = useState('default');
     const [descending, setDescending] = useState(false);
+    const [grouping, setGrouping] = useState('none');
+    const [view, setView] = useState('cards');
     const [categories, setCategories] = useState<ToolCategory[]>(unmountedOnly ? ['unmounted'] : toolCategories);
     const totalCalls = Object.values(callsByTool).reduce((total, count) => total + count, 0);
     const filter = search.trim().toLowerCase();
@@ -70,6 +75,17 @@ export function ToolPicker({ parent, tools, mappings, unmountedOnly = false, pro
         return (descending ? -difference : difference) || byName;
     });
 
+    const groups = new Map<string, PhysicalTool[]>();
+    for (const tool of matches) {
+        const key = grouping === 'type' ? (protectedPaths.has(tool.id) ? 'fixed' : mappingsByTool.has(tool.id) ? 'mounted' : 'unmounted')
+            : grouping === 'source' ? tool.source?.trim() || '' : '';
+        const group = groups.get(key);
+        if (group) group.push(tool);
+        else groups.set(key, [tool]);
+    }
+    const orderedGroups = grouping === 'type' ? toolCategories.filter(key => groups.has(key)).map(key => [key, groups.get(key)!] as const)
+        : grouping === 'source' ? [...groups].sort(([a], [b]) => a ? b ? a.localeCompare(b) : -1 : 1) : [...groups];
+
     useEffect(() => { dialog.current?.showModal(); }, []);
 
     return <dialog ref={dialog} className="ts-tool-picker" aria-labelledby="ts-tool-picker-title" onClose={close}
@@ -95,9 +111,19 @@ export function ToolPicker({ parent, tools, mappings, unmountedOnly = false, pro
                 </svg>
             </ActionButton>
             <ToolFilter value={categories} disabled={busy} onChange={setCategories} />
+            <ToolLayout kind="group" value={grouping} options={['none', 'type', 'source']} disabled={busy} onChange={setGrouping} />
+            <ToolLayout kind="view" value={view} options={['cards', 'list']} disabled={busy} onChange={setView} />
         </div>
-        <div className="ts-blocks">{matches.map(tool => <ToolCard key={tool.id} tool={tool}
-            mappings={mappingsByTool.get(tool.id) ?? []} builtinPath={protectedPaths.get(tool.id)} calls={callsByTool[tool.id] ?? 0} queries={queriesByTool[tool.id] ?? 0} busy={busy} select={select} />)}</div>
+        <div className="ts-tool-results" data-view={view}>
+            {view === 'list' && <div className="ts-tool-list-heading" aria-hidden="true">
+                {['tool_name', 'tool_source', 'tool_description', 'tool_mount_paths', 'tool_total_calls', 'tool_total_queries'].map(key => <span key={key}>{t(key)}</span>)}
+            </div>}
+            {orderedGroups.map(([key, group]) => <section key={key} className="ts-tool-group-section" aria-label={grouping === 'none' ? undefined : grouping === 'type' ? t(`tool_filter_${key}`) : key || t('tool_source_unknown')}>
+                {grouping !== 'none' && <h3 className="ts-tool-group-heading">{grouping === 'type' ? t(`tool_filter_${key}`) : key || t('tool_source_unknown')} <small>({group.length})</small></h3>}
+                <div className={view === 'list' ? 'ts-tool-list' : 'ts-blocks'}>{group.map(tool => <ToolCard key={tool.id} tool={tool} detailed={view === 'list'}
+                    mappings={mappingsByTool.get(tool.id) ?? []} builtinPath={protectedPaths.get(tool.id)} calls={callsByTool[tool.id] ?? 0} queries={queriesByTool[tool.id] ?? 0} busy={busy} select={select} />)}</div>
+            </section>)}
+        </div>
         {!matches.length && <p>{filter || categories.length !== toolCategories.length ? t('no_matches') : t('no_tools')}</p>}
         <footer className="ts-tool-picker-footer">
             <small>{t('tool_count', { count: matches.length })}</small>
