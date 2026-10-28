@@ -4,6 +4,15 @@ import type { InlineEditor } from '@deepseek-ai/dsh-client-ui-primitives';
 /** @brief Host DSH multiline editor renderer, optional for standalone pages. */
 export const InlineEditorContext = createContext<ComponentType<ComponentProps<typeof InlineEditor>> | undefined>(undefined);
 
+/** @brief Geometry and font-aware text measurement for editor content widths in pixels. */
+export interface EditableTextWidthContext {
+    element: HTMLElement;
+    textElement: HTMLElement;
+    textLeft: number;
+    textWidth: number;
+    measureText: (text: string) => number;
+}
+
 /** @brief Shared inline editor with optional custom display and local draft validation. */
 export interface EditableTextProps {
     value: string;
@@ -16,8 +25,8 @@ export interface EditableTextProps {
     maxLength?: number;
     multiline?: boolean;
     autoWidth?: boolean;
-    /** @brief Minimum editor content width in pixels. */
-    minWidth?: number;
+    /** @brief Override the default content width using current anchor geometry and original text metrics. */
+    calculateWidth?: (context: EditableTextWidthContext) => number;
     selectOnFocus?: boolean;
     renderDisplay?: (beginEdit: (element: HTMLElement, textElement?: HTMLElement) => void) => ReactNode;
     commit: (value: string) => boolean | void;
@@ -48,7 +57,7 @@ function textStart(element: HTMLElement): { left: number; top: number } {
 
 /** @brief Display text until double-click or Enter, commit on Enter/blur and cancel on Escape. */
 export function EditableText({ value, label, className, busy = false, readOnly = false, empty = false, placeholder,
-    maxLength, multiline = false, autoWidth = false, minWidth = 0, selectOnFocus = false, renderDisplay, commit }: EditableTextProps) {
+    maxLength, multiline = false, autoWidth = false, calculateWidth, selectOnFocus = false, renderDisplay, commit }: EditableTextProps) {
     const NativeEditor = useContext(InlineEditorContext);
     const [draft, setDraft] = useState<{ value: string; element: HTMLElement; textElement: HTMLElement; style: CSSProperties }>();
     const overlay = useRef<HTMLSpanElement>(null);
@@ -83,12 +92,20 @@ export function EditableText({ value, label, className, busy = false, readOnly =
             const verticalInset = border + (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
             const measure = anchor!.ownerDocument.createElement('span');
             Object.assign(measure.style, { position: 'absolute', visibility: 'hidden', whiteSpace: 'pre', width: 'max-content', ...draft!.style });
-            measure.textContent = value || placeholder || '';
             node.append(measure);
-            const textWidth = measure.getBoundingClientRect().width || textAnchor!.getBoundingClientRect().width;
+            /** @brief Measure text with the original display font, independent of draft changes. */
+            function measureText(text: string): number {
+                measure.textContent = text;
+                return measure.getBoundingClientRect().width;
+            }
+            const start = textStart(textAnchor!);
+            const textWidth = measureText(value || placeholder || '') || textAnchor!.getBoundingClientRect().width;
+            const defaultWidth = autoWidth ? bounds.width - insetLeft - insetRight : textWidth;
+            const contentWidth = calculateWidth ? calculateWidth({
+                element: anchor!, textElement: textAnchor!, textLeft: start.left, textWidth, measureText,
+            }) : defaultWidth;
             measure.remove();
-            const contentWidth = autoWidth ? bounds.width - insetLeft - insetRight : textWidth;
-            const width = Math.min(Math.max(0, minWidth, contentWidth) + marginX + horizontalInset, Math.max(0, view.innerWidth - 8));
+            const width = Math.min(Math.max(0, contentWidth) + marginX + horizontalInset, Math.max(0, view.innerWidth - 8));
             const availableHeight = Math.max(0, view.innerHeight - 8 - marginY);
             const sourceHeight = multiline ? rect.height : parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.2 || 18;
             const minimumHeight = Math.min(Math.max(sourceHeight + verticalInset, 32), availableHeight);
@@ -99,7 +116,6 @@ export function EditableText({ value, label, className, busy = false, readOnly =
             const height = Math.min(Math.max(minimumHeight, (multiline ? editor.scrollHeight + border : minimumHeight)), availableHeight);
             editor.style.height = `${height}px`;
             node.style.height = `${height + marginY}px`;
-            const start = textStart(textAnchor!);
             const editorBounds = editor.getBoundingClientRect();
             const overlayBounds = node.getBoundingClientRect();
             const offsetLeft = editorBounds.left - overlayBounds.left + (parseFloat(style.borderLeftWidth) || 0) + (parseFloat(style.paddingLeft) || 0);
@@ -126,7 +142,7 @@ export function EditableText({ value, label, className, busy = false, readOnly =
             view.removeEventListener('scroll', position, true);
             node.hidePopover?.();
         };
-    }, [anchor, textAnchor, multiline, autoWidth, minWidth, value, placeholder]);
+    }, [anchor, textAnchor, multiline, autoWidth, calculateWidth, value, placeholder]);
 
     useLayoutEffect(() => {
         const editor = input.current;

@@ -116,7 +116,7 @@ test('inline editors retain their anchors and use a top-layer editor that follow
     } finally { window.close(); }
 });
 
-/** @brief Verify original text sizing, minimum widths and single-line behavior in both renderers. */
+/** @brief Verify original text sizing, width callbacks and single-line behavior in both renderers. */
 test('inline editors default to a single line and the original text width', async () => {
     const bundle = await build({
         stdin: { resolveDir: process.cwd(), loader: 'tsx', contents: `
@@ -130,7 +130,9 @@ test('inline editors default to a single line and the original text width', asyn
             window.commits = [];
             flushSync(() => createRoot(document.getElementById('root')).render(<>
                 <EditableText value='Name' label='Default' commit={value => window.commits.push(value)} />
-                <EditableText value='Name' label='Minimum' minWidth={100} commit={value => window.commits.push(value)} />
+                <EditableText value='Name' label='Minimum' calculateWidth={({ textWidth, measureText }) => Math.max(textWidth, measureText('0'.repeat(20)))} commit={value => window.commits.push(value)} />
+                <EditableText value={'x'.repeat(25)} label='Long' calculateWidth={({ textWidth, measureText }) => Math.max(textWidth, measureText('0'.repeat(20)))} commit={value => window.commits.push(value)} />
+                <div><EditableText value='Note' label='Boundary' calculateWidth={({ element, textLeft }) => element.parentElement.querySelector('[data-actions]').getBoundingClientRect().left - textLeft - 10} commit={value => window.commits.push(value)} /><button data-actions /></div>
                 <InlineEditorContext.Provider value={NativeEditor}>
                     <EditableText value='Name' label='Native' commit={value => window.commits.push(value)} />
                 </InlineEditorContext.Provider>
@@ -140,18 +142,21 @@ test('inline editors default to a single line and the original text width', asyn
     const dom = new JSDOM('<style>textarea{margin:0;padding:6px 8px;border:1px solid}</style><div id="root"></div>', { runScripts: 'outside-only', pretendToBeVisual: true });
     const window = dom.window;
     const document = window.document;
+    let buttonLeft = 320;
     window.HTMLElement.prototype.getBoundingClientRect = function () {
+        if (this.hasAttribute('data-actions')) return { left: buttonLeft } as DOMRect;
         return { left: 20, top: 40, width: this.style.visibility === 'hidden' ? this.textContent!.length * 10 : 400, height: 18 } as DOMRect;
     };
     try {
         window.eval(bundle.outputFiles[0]!.text);
-        for (const label of ['Default', 'Minimum', 'Native']) {
+        for (const label of ['Default', 'Minimum', 'Long', 'Boundary', 'Native']) {
             const display = document.querySelector<HTMLElement>(`[aria-label="${label}"]`)!;
             display.style.lineHeight = '18px';
             window.flush(() => display.dispatchEvent(new window.MouseEvent('dblclick', { bubbles: true })));
             const input = document.querySelector<HTMLTextAreaElement>('textarea')!;
             const overlay = input.closest<HTMLElement>('.ts-inline-editor-overlay')!;
-            assert.equal(overlay.style.width, label === 'Minimum' ? '118px' : '58px');
+            const expectedWidth = label === 'Minimum' ? '218px' : label === 'Long' ? '268px' : label === 'Boundary' ? '308px' : '58px';
+            assert.equal(overlay.style.width, expectedWidth);
             assert.equal(input.wrap, 'off');
             assert.equal(input.style.whiteSpace, 'pre');
             assert.equal(overlay.style.height, '32px');
@@ -160,13 +165,15 @@ test('inline editors default to a single line and the original text width', asyn
             setValue.call(input, 'Long pasted\nname');
             window.flush(() => input.dispatchEvent(new window.Event('input', { bubbles: true })));
             assert.equal(input.value, 'Long pasted name', 'Single-line paste must replace line breaks');
-            assert.equal(overlay.style.width, label === 'Minimum' ? '118px' : '58px', 'Draft changes must retain original width');
+            assert.equal(overlay.style.width, expectedWidth, 'Draft changes must retain original width');
             assert.equal(overlay.style.height, '32px', 'Single-line editors must not grow with scrollHeight');
+            buttonLeft = 240;
             window.dispatchEvent(new window.Event('resize'));
-            assert.equal(overlay.style.width, label === 'Minimum' ? '118px' : '58px');
+            assert.equal(overlay.style.width, label === 'Boundary' ? '228px' : expectedWidth);
+            buttonLeft = 320;
             window.flush(() => input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, bubbles: true })));
             assert.equal(document.querySelector('textarea'), null, 'Shift+Enter must submit single-line editors');
         }
-        assert.deepEqual(Array.from(window.commits), ['Long pasted name', 'Long pasted name', 'Long pasted name']);
+        assert.deepEqual(Array.from(window.commits), Array(5).fill('Long pasted name'));
     } finally { window.close(); }
 });
