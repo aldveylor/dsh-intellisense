@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import type { TreeNode } from '../tree_node.js';
 import type { TreeProps } from './tree_props.js';
-import { TooltipProvider } from '../../tooltip/tooltip.js';
+import { TooltipProvider } from '../../ui/tooltip/tooltip.js';
 import { CommandNode } from './command_node.js';
 import { NamespaceNode } from './namespace_node.js';
 import { NamespacePlaceholder } from './namespace_placeholder.js';

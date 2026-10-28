@@ -1,6 +1,6 @@
-import { AddIcon } from '../../controls/icons.js';
+import { AddIcon } from '../../ui/icons/icons.js';
 import { useState, type DragEvent } from 'react';
-import { HintButton } from '../../tooltip/action_hint.js';
+import { HintButton } from '../../ui/tooltip/action_hint.js';
 import { useTranslation } from '../../locale/locale.js';
 
 /** @brief Name a child namespace inline; empty names and Escape discard the pending entry. */

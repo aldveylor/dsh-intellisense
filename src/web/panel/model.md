@@ -48,7 +48,7 @@ namespaceVisible 为随 Profile 保存的命名空间路径 → 固定提示布�
 
 默认配置与编辑配置的名称和选项均来自服务端快照；加载完成前选择器为空且禁用，不假定目录中存在名为 Default 的配置。
 
-配置工具栏 SVG 动画由 `animation/action_animation.ts` 跟随实际异步操作：刷新每周期旋转一圈，下载/上传箭头分别向下/向上运动，保存纸张进入档案盒并封口，另存为移动笔；成功或失败后均等到当前完整周期结束。另存为确认名称后、上传选择文件后才开始动画。启用/禁用图标通过 45° 旋转及十字线淡出切换；树展开/收起保留子树至动画完成。删除与拖动排序通过 `animation/layout_motion.ts` 按行位置进行 transform 移动，跨命名空间移动保留来源位置。减少动态效果偏好下缩短开合及操作周期，停用位移。
+配置工具栏 SVG 动画由 `ui/animation/action_animation.ts` 跟随实际异步操作：刷新每周期旋转一圈，下载/上传箭头分别向下/向上运动，保存纸张进入档案盒并封口，另存为移动笔；成功或失败后均等到当前完整周期结束。另存为确认名称后、上传选择文件后才开始动画。启用/禁用图标通过 45° 旋转及十字线淡出切换；树展开/收起保留子树至动画完成。删除与拖动排序通过 `ui/animation/layout_motion.ts` 按行位置进行 transform 移动，跨命名空间移动保留来源位置。减少动态效果偏好下缩短开合及操作周期，停用位移。
 
 树详情接收全局 queriesByTool 和 namespaceQueriesByPath；刷新管理快照时同步更新查询次数，命令按物理工具 ID、命名空间按完整路径展示。
 
@@ -67,7 +67,7 @@ Profile 草稿包含可选 brief；树上方以浅色显示配置描述，空白
 命名空间块仅保留顶部 10px 外边距，子树末项不保留底部外边距，避免动画容器阻止外边距折叠后叠加留白；命名空间与子节点、后续同级条目之间保持 10px 间距。
 
 
-管理前端优先使用 DSH 样式：NativePanel 注入原生 Button，由 controls/ActionButton 应用于文字操作与弹窗按钮；独立页面使用对应 token 的备用控件。弹窗使用 bg-layer-2、mask、elevation-prominent 与 panel 圆角，输入/菜单/Tooltip 复用主题颜色和字体，键盘焦点使用 DSH focus ring。卡片外框、顶部凸耳及尺寸布局保持不变，仅修改主题样式，保留未挂载工具的错误色及内置卡片的次要文字。无宿主时 light-dark 跟随独立页面 color-scheme。
+管理前端优先使用 DSH 样式：NativePanel 注入原生 Button，由 ui/controls/ActionButton 应用于文字操作与弹窗按钮；独立页面使用对应 token 的备用控件。弹窗使用 bg-layer-2、mask、elevation-prominent 与 panel 圆角，输入/菜单/Tooltip 复用主题颜色和字体，键盘焦点使用 DSH focus ring。卡片外框、顶部凸耳及尺寸布局保持不变，仅修改主题样式，保留未挂载工具的错误色及内置卡片的次要文字。无宿主时 light-dark 跟随独立页面 color-scheme。
 
 
 页面标题后紧邻的问号 SVG 图标按钮打开 documentation/UsageDialog，按界面语言显示构建时打包的 docs 使用文档及 README 共用的浅色截图；首次使用显示黄色提示点，点击后清除并在浏览器记住已查看状态。
@@ -75,3 +75,5 @@ Profile 草稿包含可选 brief；树上方以浅色显示配置描述，空白
 管理按钮的 Tooltip 解释实际操作效果：默认选择与编辑选择分离，刷新替换未保存草稿、保存不更新已有会话、整理入口仅打开待发送草稿；固定等级提示当前状态及下一次点击效果，锁定的发现工具仅显示锁定说明。禁用说明包含后代影响，移除说明区分挂载与卸载。
 
 tree_state.ts 通过单次树遍历建立有效禁用状态及祖先禁用状态索引，仅配置或树变化时重建，渲染时按路径读取；权限仍由节点决定，子项自身禁用偏好不丢失。
+
+`native_panel.tsx` 将宿主语言订阅、Button、InlineEditor 和 CodeBlock 上下文桥接到管理面板。

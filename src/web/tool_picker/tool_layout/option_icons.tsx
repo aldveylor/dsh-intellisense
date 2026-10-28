@@ -1,4 +1,4 @@
-import { Icon, useIconStyles, type IconProps } from '../../controls/icon.js';
+import { Icon, useIconStyles, type IconProps } from '../../ui/icons/icon.js';
 import type { ReactNode } from 'react';
 import styles from './option_icons.css';
 

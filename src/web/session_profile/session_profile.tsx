@@ -1,6 +1,6 @@
 import { SessionProfileIcon, SessionChevronIcon } from './profile_icons.js';
-import { HintButton } from '../tooltip/action_hint.js';
-import { TooltipProvider } from '../tooltip/tooltip.js';
+import { HintButton } from '../ui/tooltip/action_hint.js';
+import { TooltipProvider } from '../ui/tooltip/tooltip.js';
 import { useEffect, useRef, useState } from 'react';
 import { IconWarningOutlineRegular, Menu, Toast } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots';

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Icon, useIconStyles, type IconProps } from '../controls/icon.js';
+import { Icon, useIconStyles, type IconProps } from '../ui/icons/icon.js';
 import styles from './action_icons.css';
 
 /** @brief Explicit asynchronous animation state and complete-cycle notification. */

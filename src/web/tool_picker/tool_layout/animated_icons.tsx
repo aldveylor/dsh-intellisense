@@ -1,5 +1,5 @@
-import { Icon, useIconStyles, type IconProps } from '../../controls/icon.js';
-import { ChevronIcon } from '../../controls/icons.js';
+import { Icon, useIconStyles, type IconProps } from '../../ui/icons/icon.js';
+import { ChevronIcon } from '../../ui/icons/icons.js';
 import type { ReactNode } from 'react';
 import styles from './animated_icons.css';
 

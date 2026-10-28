@@ -1,13 +1,13 @@
-import { ChevronIcon } from '../../controls/icons.js';
+import { ChevronIcon } from '../../ui/icons/icons.js';
 import { useTranslation } from '../../locale/locale.js';
 import type { TreeProps } from './tree_props.js';
-import { EditableText, type EditableTextWidthContext } from '../../controls/editable_text.js';
+import { EditableText, type EditableTextWidthContext } from '../../ui/controls/editable_text.js';
 import { PinButton, RemoveButton, DisableButton } from './tree_controls.js';
 import { acceptTreeDrag, leaveTreeDrag } from './native_drag.js';
 import type { ReactNode } from 'react';
 import type { NamespaceTreeNode } from '../tree_node.js';
-import { HintButton } from '../../tooltip/action_hint.js';
-import { NamespaceDetails, useTreeTooltip } from '../../tooltip/tree_details.js';
+import { HintButton } from '../../ui/tooltip/action_hint.js';
+import { NamespaceDetails, useTreeTooltip } from './tree_details.js';
 import { TreeChildren } from './tree_children.js';
 import { nameWidth } from './name_width.js';
 

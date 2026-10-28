@@ -1,7 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis';
 import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
-import { profileConfiguration } from '../profile_picker/profile_json.js';
+import { profileConfiguration } from '../profile/profile_json.js';
 import { returnTypeDeclaration } from './return_type.js';
 import type { PhysicalTool, SemanticRegistry } from '../../registry/registry.js';
 import { createNamespace } from '../../namespace/namespace.js';

@@ -1,14 +1,14 @@
 import { useContext, useMemo, useSyncExternalStore, type ComponentType } from 'react';
-import { InlineEditorContext } from '../controls/editable_text.js';
-import { ButtonContext } from '../controls/action_button.js';
+import { InlineEditorContext } from '../ui/controls/editable_text.js';
+import { ButtonContext } from '../ui/controls/action_button.js';
 import type { Button as DshButton, InlineEditor as DshInlineEditor } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { ComponentProps } from 'react';
 import type { CodeBlockProps } from '@deepseek-ai/dsh-client-ui-primitives';
-import { CodeBlockContext } from '../code_block/code_block.js';
+import { CodeBlockContext } from '../ui/code_block/code_block.js';
 import type { Context } from '@deepseek-ai/cordis';
 import type {} from '@deepseek-ai/dsh-client-locale/client';
-import { ManagementPanel, type ManagementPanelProps } from '../panel/management_panel.js';
-import { TranslationContext, messageKey, type LocaleKey } from './locale.js';
+import { ManagementPanel, type ManagementPanelProps } from './management_panel.js';
+import { TranslationContext, messageKey, type LocaleKey } from '../locale/locale.js';
 
 /** @brief Bridge host locale revisions into the editor without remounting or losing drafts. */
 export function NativePanel({ locale, CodeBlock, Button, InlineEditor, ...props }: ManagementPanelProps & { locale: Context['locale']; CodeBlock?: ComponentType<CodeBlockProps>; Button?: ComponentType<ComponentProps<typeof DshButton>>; InlineEditor?: ComponentType<ComponentProps<typeof DshInlineEditor>> }) {

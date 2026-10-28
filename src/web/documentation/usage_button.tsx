@@ -1,6 +1,6 @@
-import { HelpIcon } from '../controls/icons.js';
+import { HelpIcon } from '../ui/icons/icons.js';
 import { useState } from 'react';
-import { HintButton } from '../tooltip/action_hint.js';
+import { HintButton } from '../ui/tooltip/action_hint.js';
 import { useTranslation } from '../locale/locale.js';
 
 const viewedKey = 'ts-intellisense:usage-guide-viewed';

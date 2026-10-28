@@ -1,6 +1,6 @@
 import { outputSchema } from '../../output_schema.js';
-import { TooltipProvider, useTooltip } from '../tooltip/tooltip.js';
-import { TypeScriptBlock } from '../code_block/code_block.js';
+import { TooltipProvider, useTooltip } from '../ui/tooltip/tooltip.js';
+import { TypeScriptBlock } from '../ui/code_block/code_block.js';
 import type { PhysicalTool } from '../../registry/registry.js';
 import { useTranslation } from '../locale/locale.js';
 

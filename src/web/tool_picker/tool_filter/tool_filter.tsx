@@ -1,6 +1,6 @@
 import { FilterIcon, FilterCheckIcon } from './filter_icons.js';
 import { useEffect, useId, useRef, useState } from 'react';
-import { ActionButton } from '../../controls/action_button.js';
+import { ActionButton } from '../../ui/controls/action_button.js';
 import { useTranslation } from '../../locale/locale.js';
 
 /** @brief Mutually exclusive categories of physical tool cards. */

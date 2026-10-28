@@ -1,12 +1,12 @@
-import { CloseIcon, ChevronIcon, CheckIcon } from '../controls/icons.js';
-import { EditableText } from '../controls/editable_text.js';
-import { HintButton } from '../tooltip/action_hint.js';
+import { CloseIcon, ChevronIcon, CheckIcon } from '../ui/icons/icons.js';
+import { EditableText } from '../ui/controls/editable_text.js';
+import { HintButton } from '../ui/tooltip/action_hint.js';
 import { ProfileLabel } from './profile_label.js';
 import styles from './profile_label.css';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from '../locale/locale.js';
 import type { ProfileSelectProps } from './profile_picker.js';
-import { useLayoutMotion } from '../animation/layout_motion.js';
+import { useLayoutMotion } from '../ui/animation/layout_motion.js';
 
 /** @brief One profile row with inline renaming and an independent borderless delete action. */
 function NativeProfileItem({ value, label, brief, selected, disabled, removable, readOnly, hint, onChange, onRename, onRemove }: {

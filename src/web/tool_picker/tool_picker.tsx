@@ -1,10 +1,10 @@
 import { SortDirectionIcon } from './sort_direction_icon.js';
-import { ActionHint } from '../tooltip/action_hint.js';
-import { ActionButton } from '../controls/action_button.js';
-import { CloseButton } from '../controls/close_button.js';
+import { ActionHint } from '../ui/tooltip/action_hint.js';
+import { ActionButton } from '../ui/controls/action_button.js';
+import { CloseButton } from '../ui/controls/close_button.js';
 import { useTranslation } from '../locale/locale.js';
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
-import { TooltipProvider, useTooltip } from '../tooltip/tooltip.js';
+import { TooltipProvider, useTooltip } from '../ui/tooltip/tooltip.js';
 import { ToolFilter, toolCategories } from './tool_filter/tool_filter.js';
 import { usePickerPreferences } from './session_preferences.js';
 import { ToolLayout } from './tool_layout/tool_layout.js';

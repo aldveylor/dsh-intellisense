@@ -7,7 +7,7 @@ import { HostProfileSelect } from './profile_picker/host_profile_select.js';
 import type {} from '@deepseek-ai/dsh-client-locale/client';
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client';
 import type { ISessions, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client';
-import { NativePanel } from './locale/native_panel.js';
+import { NativePanel } from './panel/native_panel.js';
 import { zh } from './locale/zh.js';
 import { en } from './locale/en.js';
 import type { LocaleKey } from './locale/locale.js';

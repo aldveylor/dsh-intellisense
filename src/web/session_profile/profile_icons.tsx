@@ -1,6 +1,6 @@
 import { IconDatabaseOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
-import { useIconStyles, type IconProps } from '../controls/icon.js';
-import { ChevronIcon } from '../controls/icons.js';
+import { useIconStyles, type IconProps } from '../ui/icons/icon.js';
+import { ChevronIcon } from '../ui/icons/icons.js';
 import styles from './profile_icons.css';
 
 /** @brief Preserve the host's Profile glyph behind the shared icon interface. */

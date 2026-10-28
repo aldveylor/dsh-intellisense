@@ -1,4 +1,4 @@
-import { HintButton } from '../tooltip/action_hint.js';
+import { HintButton } from '../ui/tooltip/action_hint.js';
 import { useState } from 'react';
 import { IconChevronDownOutlineRegular, Menu } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { ProfileSelectProps } from './profile_picker.js';

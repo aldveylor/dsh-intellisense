@@ -1,6 +1,6 @@
-import type { IconProps } from '../../controls/icon.js';
+import type { IconProps } from '../../ui/icons/icon.js';
 import { useEffect, useId, useRef, useState, type ComponentType } from 'react';
-import { ActionButton } from '../../controls/action_button.js';
+import { ActionButton } from '../../ui/controls/action_button.js';
 import { useTranslation } from '../../locale/locale.js';
 import { NameOptionIcon, CallsOptionIcon, QueriesOptionIcon, DefaultOptionIcon, CardsOptionIcon, ListOptionIcon, TypeOptionIcon, SourceOptionIcon, NoneOptionIcon } from './option_icons.js';
 

@@ -1,4 +1,4 @@
-import { Icon, useIconStyles, type IconProps } from '../../controls/icon.js';
+import { Icon, useIconStyles, type IconProps } from '../../ui/icons/icon.js';
 import styles from './filter_icons.css';
 
 /** @brief Filter funnel owns hover animation and receives open/active state explicitly. */

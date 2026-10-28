@@ -1,6 +1,6 @@
-import { CloseIcon } from './icons.js';
+import { CloseIcon } from '../icons/icons.js';
 import { ActionButton } from './action_button.js';
-import { useTranslation } from '../locale/locale.js';
+import { useTranslation } from '../../locale/locale.js';
 
 /** @brief Close a dialog with a shared SVG cross and localized accessible hint. */
 export function CloseButton({ close, label, hint }: { close: () => void; label?: string; hint?: string }) {

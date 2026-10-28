@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import english from '../../../docs/en/usage.md';
 import chinese from '../../../docs/zh-cn/usage.md';
-import { CloseButton } from '../controls/close_button.js';
+import { CloseButton } from '../ui/controls/close_button.js';
 import { useTranslation } from '../locale/locale.js';
 
 /** @brief Render inline code in the bundled usage documents without interpreting HTML. */

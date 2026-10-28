@@ -1,11 +1,11 @@
 import { RefreshIcon, SaveIcon, SaveAsIcon, DownloadIcon, UploadIcon } from './action_icons.js';
 import { ProfileActionButton } from './action_button.js';
-import { TooltipProvider } from '../tooltip/tooltip.js';
+import { TooltipProvider } from '../ui/tooltip/tooltip.js';
 import { SaveAsDialog } from './save_as_dialog.js';
 import { useTranslation } from '../locale/locale.js';
 import { useRef, useState, type ComponentType } from 'react';
 import { NativeProfileSelect } from './native_profile_select.js';
-import { useActionAnimation } from '../animation/action_animation.js';
+import { useActionAnimation } from '../ui/animation/action_animation.js';
 
 /** @brief A host may supply its own dropdown without imposing host dependencies on standalone pages. */
 export interface ProfileSelectProps {

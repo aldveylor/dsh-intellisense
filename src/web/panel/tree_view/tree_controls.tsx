@@ -1,5 +1,5 @@
-import { PinIcon, CloseIcon, DisableIcon } from '../../controls/icons.js';
-import { HintButton } from '../../tooltip/action_hint.js';
+import { PinIcon, CloseIcon, DisableIcon } from '../../ui/icons/icons.js';
+import { HintButton } from '../../ui/tooltip/action_hint.js';
 import { useTranslation } from '../../locale/locale.js';
 import type { PinLevel } from '../../../registry/registry.js';
 

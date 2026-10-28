@@ -8,7 +8,7 @@
 
 Select props also accept an optional accessible label; management callbacks are optional for read-only reuse. NativeProfileSelect supports closeOnSelect (default false), used by the tool sort selector to close after selection and restore trigger focus.
 
-`profile_json.ts` shares the complete JSON configuration schema with the management API. Download and Upload icon buttons follow Save as. Download exports the selected editor draft (including unsaved changes) as a formatted `<Profile>.json` configuration without catalog or revision metadata. Upload validates the entire JSON before replacing the selected editor draft; it preserves the selected name and default Profile and requires Save to persist. Invalid files leave the draft intact and use the existing error dialog. File selection resets after each attempt so the same file can be uploaded again.
+`../profile/profile_json.ts` shares the complete JSON configuration schema with the management API. Download and Upload icon buttons follow Save as. Download exports the selected editor draft (including unsaved changes) as a formatted `<Profile>.json` configuration without catalog or revision metadata. Upload validates the entire JSON before replacing the selected editor draft; it preserves the selected name and default Profile and requires Save to persist. Invalid files leave the draft intact and use the existing error dialog. File selection resets after each attempt so the same file can be uploaded again.
 
 Refresh, Save, Save as, Download and Upload return promises to the shared action animation hook. SVG master cycles repeat during the operation and finish at the next complete cycle boundary after success or failure; child animation events do not stop the master cycle. Save as begins on name confirmation, Upload begins after file selection, and cancelling either picker starts no operation animation. Profile deletion shifts surviving dropdown items with transform animations. Reduced-motion preferences shorten cycles and suppress movement while retaining completion events.
 
@@ -18,7 +18,7 @@ Profile 下拉选项支持可选 brief，存在时在名称下显示灰色简介
 
 按钮提示统一使用第一行动作、第二行浅色说明的 ActionHint；菜单按钮由 HintButton 提供相同的鼠标和键盘提示，不再生成浏览器 title 浮层。
 
-Profile 菜单行通过 controls/editable_text 的 EditableText 共用草稿、提交、取消及输入法保护，renderDisplay 保留 HintButton 选择与简介布局，输入限制 80 字符并聚焦全选。
+Profile 菜单行通过 ui/controls/editable_text 的 EditableText 共用草稿、提交、取消及输入法保护，renderDisplay 保留 HintButton 选择与简介布局，输入限制 80 字符并聚焦全选。
 
 配置校验按需导入 Zod API，浏览器与管理服务继续共用 profileConfiguration；DSH 客户端复用宿主 Zod，独立页面构建仅保留所需校验实现。
 

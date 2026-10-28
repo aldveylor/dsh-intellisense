@@ -1,6 +1,6 @@
 import { createContext, useContext, type ComponentType } from 'react';
 import type { CodeBlockProps } from '@deepseek-ai/dsh-client-ui-primitives';
-import { useTranslation } from '../locale/locale.js';
+import { useTranslation } from '../../locale/locale.js';
 
 /** @brief Portable code display when the native DSH renderer is unavailable. */
 function PortableCodeBlock({ code, lang, className }: CodeBlockProps) {

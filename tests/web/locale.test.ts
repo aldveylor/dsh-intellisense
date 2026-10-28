@@ -69,7 +69,7 @@ test('host language switches update an open editor while preserving its unsaved 
     const result = await build({
         stdin: { resolveDir: process.cwd(), sourcefile: 'locale_harness.tsx', loader: 'tsx', contents: `
             import { createRoot } from 'react-dom/client';
-            import { NativePanel } from './src/web/locale/native_panel.js';
+            import { NativePanel } from './src/web/panel/native_panel.js';
             import { translate } from './src/web/locale/locale.js';
             let snapshot = { active: 'zh', revision: 1, locales: [] };
             const listeners = new Set();

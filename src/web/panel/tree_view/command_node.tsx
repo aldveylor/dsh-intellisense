@@ -1,11 +1,11 @@
 import { useTranslation } from '../../locale/locale.js';
 import type { TreeProps } from './tree_props.js';
-import { EditableText } from '../../controls/editable_text.js';
+import { EditableText } from '../../ui/controls/editable_text.js';
 import { PinButton, RemoveButton, DisableButton } from './tree_controls.js';
 import { acceptTreeDrag, leaveTreeDrag } from './native_drag.js';
 import { nameWidth } from './name_width.js';
 import type { CommandTreeNode } from '../tree_node.js';
-import { CommandDetails, useTreeTooltip } from '../../tooltip/tree_details.js';
+import { CommandDetails, useTreeTooltip } from './tree_details.js';
 
 /** @brief Render commands with shared fixed, read-only and movement policies supplied by their data source. */
 export function CommandNode({ node, tree }: { node: CommandTreeNode; tree: TreeProps }) {

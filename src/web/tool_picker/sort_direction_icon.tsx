@@ -1,4 +1,4 @@
-import { Icon, useIconStyles, type IconProps } from '../controls/icon.js';
+import { Icon, useIconStyles, type IconProps } from '../ui/icons/icon.js';
 import styles from './sort_direction_icon.css';
 
 /** @brief Explicit sort direction with self-contained arrow and bar transitions. */

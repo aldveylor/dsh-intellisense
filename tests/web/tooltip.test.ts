@@ -8,7 +8,7 @@ test('tooltips share the same fixed state for pointer rest and Ctrl', async () =
         stdin: { resolveDir: process.cwd(), loader: 'tsx', contents: `
             import { createRoot } from 'react-dom/client';
             import { flushSync } from 'react-dom';
-            import { TooltipProvider, useTooltip } from './src/web/tooltip/tooltip.js';
+            import { TooltipProvider, useTooltip } from './src/web/ui/tooltip/tooltip.js';
             function Controls() { window.controls = useTooltip(); return null; }
             const root = createRoot(document.getElementById('root'));
             window.run = callback => flushSync(callback);

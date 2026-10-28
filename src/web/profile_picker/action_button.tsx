@@ -1,6 +1,6 @@
-import { ActionHint } from '../tooltip/action_hint.js';
+import { ActionHint } from '../ui/tooltip/action_hint.js';
 import type { ButtonHTMLAttributes } from 'react';
-import { useTooltip } from '../tooltip/tooltip.js';
+import { useTooltip } from '../ui/tooltip/tooltip.js';
 
 /** @brief A configuration action with shared pointer and keyboard function hints. */
 export function ProfileActionButton({ label, hint = label, children, onClick, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; hint?: string }) {

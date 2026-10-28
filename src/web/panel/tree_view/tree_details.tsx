@@ -1,8 +1,8 @@
 import { useRef, type ReactNode } from 'react';
-import type { PhysicalTool } from '../../registry/registry.js';
-import { useTranslation } from '../locale/locale.js';
-import { ToolDetails, ToolStatistics } from '../tool_picker/tool_details.js';
-import { TooltipProvider, useTooltip } from './tooltip.js';
+import type { PhysicalTool } from '../../../registry/registry.js';
+import { useTranslation } from '../../locale/locale.js';
+import { ToolDetails, ToolStatistics } from '../../tool_picker/tool_details.js';
+import { TooltipProvider, useTooltip } from '../../ui/tooltip/tooltip.js';
 
 /** @brief Bind pointer and keyboard access to one shared tree tooltip. */
 export function useTreeTooltip(content: ReactNode) {
