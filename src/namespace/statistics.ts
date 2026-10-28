@@ -72,7 +72,7 @@ export class CommandStatistics {
 
     constructor(private store: Store, private options: { flushDelayMs?: number; onError?: (error: unknown) => void } = {}) {
         this.storage = new JournalStore(store, key);
-        const delay = options.flushDelayMs ?? 1000;
+        const delay = options.flushDelayMs ?? 30_000;
         if (!Number.isSafeInteger(delay) || delay < 0 || delay > 2_147_483_647) throw new Error('Invalid statistics flush delay');
     }
 
@@ -208,7 +208,7 @@ export class CommandStatistics {
                 if (this.options.onError) this.options.onError(error);
                 else console.error('Statistics persistence failed; dirty data will be retried.', error);
             });
-        }, this.options.flushDelayMs ?? 1000);
+        }, this.options.flushDelayMs ?? 30_000);
         this.timer.unref();
     }
 

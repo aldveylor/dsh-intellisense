@@ -210,7 +210,7 @@ test('current statistics stay strict until explicit recovery and failed recovery
     assert.deepEqual((await statistics.snapshot()).queriesByTool, { read: 4 });
 });
 
-test('dirty timers merge updates, preserve their deadline, and stop writing when clean', async t => {
+test('dirty timers merge updates over thirty seconds, preserve their deadline, and stop writing when clean', async t => {
     t.mock.timers.enable({ apis: ['setTimeout'] });
     const store = new MemoryStore();
     const statistics = new CommandStatistics(store);
@@ -218,17 +218,17 @@ test('dirty timers merge updates, preserve their deadline, and stop writing when
     const save = store.save.bind(store);
     store.save = async (key, value) => { writes.push(key); await save(key, value); };
     await statistics.recordCall('first', 'read');
-    t.mock.timers.tick(500);
+    t.mock.timers.tick(15_000);
     await statistics.recordCall('first', 'read');
     assert.equal(writes.length, 0);
     assert.equal((await statistics.snapshot()).calls, 2);
-    t.mock.timers.tick(500);
+    t.mock.timers.tick(15_000);
     // The expired timer's write precedes this explicitly queued drain.
     await statistics.flush();
     assert.equal(writes.filter(key => key === 'command_statistics_journal').length, 1);
     assert.equal(writes.length, 3);
     assert.equal((await store.loadEntries('command_statistics')).length, 2);
-    t.mock.timers.tick(10_000);
+    t.mock.timers.tick(60_000);
     await statistics.flush();
     assert.equal(writes.length, 3);
     await statistics.dispose();
@@ -298,7 +298,7 @@ test('dispose flushes dirty data and cancels its scheduled timer', async t => {
     assert.equal((await restored.snapshot()).calls, 1);
     const save = store.save.bind(store);
     store.save = async () => { throw new Error('disposed timer must not run'); };
-    t.mock.timers.tick(10_000);
+    t.mock.timers.tick(60_000);
     await statistics.dispose();
     store.save = save;
 });
