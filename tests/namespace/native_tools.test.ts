@@ -114,3 +114,57 @@ test('native discovery stays detailed when enabled and is revoked by command or 
         assert.equal(definitions.has('ns_tools__inspect'), !disabled.length);
     }
 });
+
+
+test('native brief pins publish JSON hints and become callable only after exact discovery', async () => {
+    const definitions = new Map<string, ToolDefinition>();
+    const ctx = { effect: () => {}, on: () => {}, emit: () => {}, agents: { list: () => [] }, tools: {
+        register: (tool: ToolDefinition) => { definitions.set(tool.name, tool); return () => { definitions.delete(tool.name); }; },
+    } } as unknown as Context;
+    const store = new MemoryStore(), registry = new SemanticRegistry(store);
+    registry.refresh([
+        { id: 'read_file', description: 'Read file', parameters: { type: 'object', properties: { file: { type: 'string' } } }, output: {} },
+        { id: 'tools_profile_load', description: 'Load profile', parameters: {}, output: {} },
+    ]);
+    const component = new NamespaceComponent(ctx, registry, new ProfileSessions(registry, store), []);
+    component.registryFor = async () => registry;
+    component.isPtc = () => false;
+    const agent = { id: 'native-pins', ctx } as Agent;
+    for (const level of [0, 1, 2] as const) {
+        await registry.replaceConfiguration({ ...registry.configuration(),
+            mappings: [{ id: 'read_file', path: 'files.library.read', pinned: false, alwaysVisible: level, description: 'Custom brief' }],
+            namespaces: [{ path: 'files', description: 'File operations', alwaysVisible: false }],
+            builtinVisible: { 'tools.profile.load': level },
+        }, 'Default');
+        const names = await component.syncNative(agent);
+        assert.equal(names.includes('ns_files__library__read'), level === 2);
+        assert.equal(names.includes('ns_tools__profile__load'), level === 2);
+        const prompt = await component.prompt(agent);
+        if (level !== 1) { assert.equal(prompt, ''); continue; }
+        assert(!prompt.includes('```ts'));
+        assert(!prompt.includes('Function'));
+        const directory = JSON.parse(prompt.slice(prompt.indexOf('{')));
+        assert.deepEqual(directory.members.find((member: { path: string }) => member.path === 'files.library.read'),
+            { path: 'files.library.read', brief: 'Custom brief' });
+        assert.deepEqual(directory.members.find((member: { path: string }) => member.path === 'files'),
+            { path: 'files', brief: 'File operations', namespace: true });
+        assert(directory.members.some((member: { path: string }) => member.path === 'tools.profile.load'));
+        assert(!prompt.includes('parameters'));
+    }
+    await registry.replaceConfiguration({ ...registry.configuration(),
+        mappings: registry.configuration().mappings.map(mapping => ({ ...mapping, alwaysVisible: 1 })),
+        builtinVisible: {},
+    }, 'Default');
+    await component.discover(agent, ['files.library.']);
+    assert(!definitions.has('ns_files__library__read'));
+    await component.discover(agent, ['files.library.read']);
+    assert(definitions.has('ns_files__library__read'));
+    assert.deepEqual(definitions.get('ns_files__library__read')!.parameters,
+        { type: 'object', properties: { file: { type: 'string' } } });
+    await registry.replaceConfiguration({ ...registry.configuration(),
+        namespaces: [{ path: 'files', description: 'File operations', alwaysVisible: false, disabled: true }],
+    }, 'Default');
+    assert.deepEqual(await component.syncNative(agent), []);
+    assert.equal(await component.prompt(agent), '');
+    await component.release(agent.id);
+});

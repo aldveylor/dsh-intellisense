@@ -136,6 +136,19 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
                 await namespaces.configurationChanged(agent);
                 await send();
                 assert(systemOf(model.requests.at(-1)!).includes('Use tools.inspect'));
+                await registry.replaceConfiguration({ ...configuration,
+                    mappings: configuration.mappings.map(mapping => ({ ...mapping, alwaysVisible: 1 })),
+                    builtinVisible: { ...configuration.builtinVisible, 'tools.profile.load': 1 },
+                }, registry.snapshot().profile!);
+                await namespaces.configurationChanged(agent);
+                await send();
+                const briefRequest = model.requests.at(-1)!;
+                const briefPrompt = systemOf(briefRequest);
+                assert(briefPrompt.includes('"path": "std.fs.read"'), briefPrompt);
+                assert(briefPrompt.includes('"path": "tools.profile.load"'), briefPrompt);
+                assert(!briefPrompt.includes('```ts:namespace'), briefPrompt);
+                assert(!briefRequest.tools?.some(tool => tool.name === 'ns_tools__profile__load'));
+
 
             }
             assert(!agent.session.snapshotEvents().some(event => String(event.type) === 'plugin:ts_intellisense/rewrite'));

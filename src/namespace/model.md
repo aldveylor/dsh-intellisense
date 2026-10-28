@@ -8,9 +8,9 @@
 
 `runtime.ts` 注册插件自有的 tools_run_code，使用已有受限 RuntimeHost 执行完整 TS/JS 函数体，不依赖或替换部署的全局 ptcRuntime。只在 Intellisense PTC presentation 作用域挂载，模型仅见 tools_run_code；物理目录和 manifest 排除此入口，禁止递归调用。轨迹调用卡片使用 description 作为标题，以 TypeScript 代码块展示 code。初始化时将 CommandNode 编译为 CommandBinding，VM 内 NamespaceCommand 代理类把函数绑定到物理 tool 与参数/结果适配器；IPC 直接传物理 tool 和底层命名参数，宿主通过 NamespaceComponent.dispatchTool 调用 DSH tools.execute，不逐次重建或解析 manifest，不增加插件权限校验。保留父子审计和附加上下文转发，返回值仅由 VM 命令适配器投影一次并保留 undefined。显式超时限制在部署上限内，按实际 Agent owner 释放状态。取消先解除 IPC 回调等待，再取消并等待所有真实子调用；程序结束时也取消并等待未完成子调用，避免循环等待和后台遗留执行。执行失败保留原始错误和已捕获输出，以 CodeRunFailedError 返回。插件不解析模型流或代码围栏。
 
-`component.ts` 在 native 模式下按会话注册命名空间代理。代理使用物理工具原始命名参数，不转换参数字段；代理闭包持有已解析的 CommandNode，将参数转换后通过 DSH 原生执行流水线派发；权限交给 DSH，不再在调用时重建和查找 manifest。生成代理不进入物理工具目录，仅挂载 tools.inspect、固定命令和会话已精确查询的函数，变更 manifest 后替换，释放会话或卸载时清理；不为无显式配置的会话创建默认呈现。PTC 模式仅向模型暴露 tools_run_code，native 模式仅暴露当前渐进发现集合中的命名空间工具。
+`component.ts` 在 native 模式下按会话注册命名空间代理。代理使用物理工具原始命名参数，不转换参数字段；代理闭包持有已解析的 CommandNode，将参数转换后通过 DSH 原生执行流水线派发；权限交给 DSH，不再在调用时重建和查找 manifest。生成代理不进入物理工具目录，仅挂载 tools.inspect、固定等级 2 的命令和会话已精确查询的函数，变更 manifest 后替换，释放会话或卸载时清理；不为无显式配置的会话创建默认呈现。PTC 模式仅向模型暴露 tools_run_code，native 模式仅暴露当前渐进发现集合中的命名空间工具。
 
-`native_tools.ts` 为 native 代理生成符合 API 字符及 64 字符长度限制的名称，例如 tools.inspect 对应 ns_tools__inspect，std.cwd 对应 ns_std__cwd。挂载命令统一添加 ns_ 前缀，点号替换为双下划线；美元符号编码，长路径使用 ns_ 加 61 字符十六进制摘要，短名称碰撞添加数字后缀，超过长度限制时从完整路径和计数重新计算摘要，保留 ns_ 前缀并满足长度限制；每个基名独立保存冲突计数。内置管理代理派发到原始物理工具；代理名称避让物理工具名称。原生模式不额外生成 namespaces/tools JSON 目录，当前可调用名称由工具 schema 提供。Profile、Inspect 查询与 PTC 继续使用原路径。
+`native_tools.ts` 为 native 代理生成符合 API 字符及 64 字符长度限制的名称，例如 tools.inspect 对应 ns_tools__inspect，std.cwd 对应 ns_std__cwd。挂载命令统一添加 ns_ 前缀，点号替换为双下划线；美元符号编码，长路径使用 ns_ 加 61 字符十六进制摘要，短名称碰撞添加数字后缀，超过长度限制时从完整路径和计数重新计算摘要，保留 ns_ 前缀并满足长度限制；每个基名独立保存冲突计数。内置管理代理派发到原始物理工具；代理名称避让物理工具名称。原生模式为固定等级 1 的命令及固定命名空间生成 JSON 提示目录，包含 path、可选 brief 与命名空间的 namespace: true，不包含参数 schema；保留所展示命令的父命名空间与描述。等级 1 不直接注册工具，精确查询后可进入会话发现集合；等级 2 直接注册工具，当前可调用名称由工具 schema 提供。Profile、Inspect 查询与 PTC 继续使用原路径。
 
 管理目录异步汇总全局、可用预设的 standing scope 及活动会话工具，以物理名称去重；读取预设使用 acquireScope 并始终释放 lease，无需创建会话。损坏的预设不参与目录，会话运行时仍只读取实际调用者作用域的物理工具，不能从管理目录继承其他预设权限。
 
@@ -24,9 +24,9 @@ tools.* 使用服务端 InnerCommandNode 和专用命令节点，绑定重载、
 
 管理 API 将同一初始化树的 SerializedNode 传给客户端，客户端不导入内置命令表、不按 tools 等名称生成权限或节点。Profile.root 同样使用 SerializedNode 描述，保存时由服务端权威节点拒绝移除、替换、改名、移动、修改受保护文档或外部插入；不能通过伪造 permissions 改写这些规则。实际工具执行权限仍由 DSH 原生 guard 处理。
 
-`prompt.ts` 根据 native/ptc 配置生成初始说明，PTC 渲染 Profile 选中的部分命名空间树。初始说明仅保留命令发现入口、模式调用约定和通用运行时语义，不重复列举具体函数调用示例或 Profile API 的读取、切换、保存、删除及预加载字段用法；未知命令先直接查询 tools.inspect；PTC 通过 tools_run_code 调用命名空间，native 直接使用 DSML 命名空间工具。tools.inspect 的参数规则（queries 字符串数组参数、末尾点号、精确路径、global. 前缀与空字符串查询根命名空间）仅在 @param 中说明，函数摘要、执行入口描述与初始提示不重复强调，初始提示不附加查询结果为参考数据的宣示；初始提示强调当前工具基于命名空间，ns_ 标记挂载命令，双下划线 __ 是调用名称中的命名空间分隔符，对应查询路径中的点号；不再附加根命名空间摘要和工具映射 JSON，描述只保留在工具 schema 中，不生成 TS/JS 声明或执行说明。
+`prompt.ts` 根据 native/ptc 配置生成初始说明，PTC 渲染 Profile 选中的部分命名空间树，native 渲染简略固定项的 JSON 目录。初始说明仅保留命令发现入口、模式调用约定和通用运行时语义，不重复列举具体函数调用示例或 Profile API 的读取、切换、保存、删除及预加载字段用法；未知命令先直接查询 tools.inspect；PTC 通过 tools_run_code 调用命名空间，native 直接使用 DSML 命名空间工具。tools.inspect 的参数规则（queries 字符串数组参数、末尾点号、精确路径、global. 前缀与空字符串查询根命名空间）仅在 @param 中说明，函数摘要、执行入口描述与初始提示不重复强调，初始提示不附加查询结果为参考数据的宣示；初始提示强调当前工具基于命名空间，ns_ 标记挂载命令，双下划线 __ 是调用名称中的命名空间分隔符，对应查询路径中的点号；native 不附加完整根目录或工具映射，简略固定项使用 JSON，不生成 TS/JS 声明。
 
-固定提示按命令等级生成：0 不输出，1 输出 Function 占位和 Profile 简略注释，2 输出完整签名与 @brief、@param 文档，不生成返回值文字注解；输出 schema 及返回类型中的 description 均移除，保留返回类型与字段名。详细工具文档沿用 Inspect 声明投影，参数别名与返回值解包规则相同；无参数命令不生成虚构 @param。tools.inspect 强制固定等级 2，移除 setFixed 操作。
+PTC 固定提示按命令等级生成：0 不输出，1 输出 Function 占位和 Profile 简略注释，2 输出完整签名与 @brief、@param 文档，不生成返回值文字注解；输出 schema 及返回类型中的 description 均移除，保留返回类型与字段名。详细工具文档沿用 Inspect 声明投影，参数别名与返回值解包规则相同；无参数命令不生成虚构 @param。tools.inspect 强制固定等级 2，移除 setFixed 操作。
 
 固定 Profile 命令时不自动附加 Profile 数据模型声明；完整模型通过 tools.profile.annotation 按需读取。
 

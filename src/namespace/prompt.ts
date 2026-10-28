@@ -14,6 +14,17 @@ Use await for asynchronous calls and return to provide a result. You may attach 
 /** @brief One prompt-visible namespace or command with a Profile-owned brief. */
 export type NamespaceHint = NamespaceDeclaration;
 
+/** @brief Describe native brief pins and their namespaces without publishing callable schemas. */
+export function nativeDirectory(hints: readonly NamespaceHint[], discoveryAvailable = true): string {
+    if (!hints.length) return '';
+    const members = [...hints].sort((a, b) => a.path.localeCompare(b.path)).map(hint => ({
+        path: hint.path,
+        ...(hint.description?.trim() ? { brief: hint.description } : {}),
+        ...(hint.namespace ? { namespace: true } : {}),
+    }));
+    return `Current partial namespace structure:\n\n${discoveryAvailable ? 'Query tools.inspect with an exact command path to add it to the available tools.\n\n' : ''}${JSON.stringify({ members }, null, 2)}`;
+}
+
 /** @brief Render the partial Profile selection including full declarations only for detailed pins. */
 export function namespaceDirectory(hints: readonly (string | NamespaceHint)[], discoveryAvailable = true): string {
     const tree = namespaceDeclaration(hints.map(hint => typeof hint === 'string' ? { path: hint } : hint));

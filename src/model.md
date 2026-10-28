@@ -8,7 +8,7 @@
 
 `integration/presentation.ts` 通过 config.mode 选择 native/ptc 工具呈现与初始提示词，按作用域继承 preset 配置。仅显式挂载 presentation 的 Intellisense / Intellisense PTC 模式启用命名空间；标准模式及其它模式保持原生工具与提示词。执行模式仅由 presentation 配置选择，主插件和独立入口不声明默认模式，也不自动为会话挂载模式。
 
-`namespace/component.ts` 管理 Profile、工具目录与共享 manifest。Intellisense 模式按会话渐进注册原生工具，初始仅提供 tools.inspect 和固定命令，仅精确查询函数路径后添加对应命令；挂载命令名称添加 ns_ 前缀，并以双下划线 __ 替换点号。命名空间通过普通匿名 NamespaceNode 及直接子节点引用表达，NodeType 仅为 leaf/tree。服务端 ToolsNamespaceNode 等节点管理受保护子树，Permission 描述编辑和固定等级限制，父节点删除成员前检查 removable；命令路径从父节点链派生，序列化不带父引用。命令通过 CommandNode 对象表达，调用时使用已绑定的物理 tool 与命名参数，经 DSH 原生执行流水线派发，权限由 DSH 处理。代理不进入物理工具目录，卸载时清理。
+`namespace/component.ts` 管理 Profile、工具目录与共享 manifest。Intellisense 模式按会话渐进注册原生工具，初始仅提供 tools.inspect 和固定等级 2 的命令；等级 1 仅在 JSON 提示目录中显示路径和摘要，并保留父命名空间描述，仅精确查询函数路径后添加对应命令；挂载命令名称添加 ns_ 前缀，并以双下划线 __ 替换点号。命名空间通过普通匿名 NamespaceNode 及直接子节点引用表达，NodeType 仅为 leaf/tree。服务端 ToolsNamespaceNode 等节点管理受保护子树，Permission 描述编辑和固定等级限制，父节点删除成员前检查 removable；命令路径从父节点链派生，序列化不带父引用。命令通过 CommandNode 对象表达，调用时使用已绑定的物理 tool 与命名参数，经 DSH 原生执行流水线派发，权限由 DSH 处理。代理不进入物理工具目录，卸载时清理。
 
 Intellisense PTC 模式仅向模型提供插件自有 tools_run_code 工具。`namespace/runtime.ts` 将已有受限 RuntimeHost 和 manifest 命名空间接入作用域执行入口，避免原生共享 run_code 选择部署的全局后端。两个模式在原生工具层均呈现 native，由插件组装器选择模型工具集合。PTC 初始化时将命令编译为 VM 函数绑定，VM 直接转换参数并通过 IPC 发送物理 tool 名称和底层参数；宿主不重复解析命名空间，不自行判定权限。子调用通过 DSH 原生执行流水线派发，保留父子审计、附加上下文和普通工具结果历史。本插件不拦截模型流，不解析代码围栏或提供源码续写。
 
@@ -50,7 +50,7 @@ package.json 的 build 命令依次调用 build:server 和 build:client；build:
 
 构建检查生产源码；已移除引用已删除模块的旧标记协议测试及独立脚本配置。双模式流程可使用 fake adapter 定向检查，无需真实模型请求。
 
-命令固定等级统一为 0（不固定）、1（固定但简略）、2（固定且详细）。Mapping.alwaysVisible 保存等级；builtinVisible、unmountedVisible 为路径或物理 ID 到等级的映射，随 Profile 保存，挂载和移除映射时保留等级。命名空间 alwaysVisible 仍为布尔值。
+命令固定等级统一为 0（不固定）、1（固定但简略）、2（固定且详细）。native 等级 1 仅生成 JSON 提示目录，不直接注册工具；等级 2 直接注册工具，精确查询的命令也会进入可调用工具列表。Mapping.alwaysVisible 保存等级；builtinVisible、unmountedVisible 为路径或物理 ID 到等级的映射，随 Profile 保存，挂载和移除映射时保留等级。命名空间 alwaysVisible 仍为布尔值。
 
 namespaceVisible 为随 Profile 保存的命名空间路径 → 固定提示布尔值映射，默认空对象；命令各自保留独立的提示等级。所有模式均不提供 console 命名空间及其命令、查询声明或管理节点；PTC 运行时原生 console 输出对象仍独立可用。
 

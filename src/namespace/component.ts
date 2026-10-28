@@ -10,7 +10,7 @@ import '@deepseek-ai/dsh-agent-preset-registry';
 import type { PhysicalTool, SemanticRegistry } from '../registry/registry.js';
 import type { ProfileSessions } from '../registry/profiles.js';
 import { declaration, manifest, type Aliases, NamespaceNode, type CommandNode } from './namespace.js';
-import { namespaceDirectory, type NamespaceHint } from './prompt.js';
+import { namespaceDirectory, nativeDirectory, type NamespaceHint } from './prompt.js';
 import { pluginCommands, reservedToolIds } from '../runtime/builtins.js';
 import { type CommandBrief, type Profiles, profileAnnotation } from '../registry/profile_tree.js';
 import type { z } from 'zod';
@@ -180,7 +180,7 @@ export class NamespaceComponent {
 
     /** @brief Publish only explicitly pinned commands and namespaces with their Profile briefs. */
     async prompt(agent: Agent): Promise<string> {
-        if (!this.isPtc(agent)) return '';
+        const ptc = this.isPtc(agent);
         const registry = await this.registryFor(agent);
         const state = registry.snapshot();
         const root = manifest(registry, this.aliases, this.isPtc(agent) ? 'ptc' : 'native');
@@ -190,14 +190,14 @@ export class NamespaceComponent {
             if (entry.disabled) continue;
             if (!entry.permissions.renamable) {
                 const level = entry.fixLevel((state.builtinVisible ?? pluginCommands.defaultBuiltinVisible)[entry.path] ?? 0);
-                if (level) hints.push({ path: entry.path, description: entry.doc,
+                if (level && (ptc || level === 1)) hints.push({ path: entry.path, description: entry.doc,
                     ...(level === 2 ? { declaration: entry.preload ? `/** @brief ${entry.doc} */\nconst ${entry.name}: ${entry.signature};` : entry.declaration(false) } : {}) });
                 continue;
             }
             const mapping = mappings.get(entry.path);
             const level = entry.fixLevel(mapping?.alwaysVisible);
             const description = mapping?.description ?? entry.doc.trim().split(/\r?\n/, 1)[0]!;
-            if (level) hints.push({ path: entry.path, description,
+            if (level && (ptc || level === 1)) hints.push({ path: entry.path, description,
                 ...(level === 2 ? { declaration: declaration({ ...entry, path: entry.path, doc: description }, false) } : {}) });
         }
         for (const item of state.namespaces ?? []) {
@@ -219,19 +219,20 @@ export class NamespaceComponent {
                 parent = parent.parent;
             }
         }
-        return namespaceDirectory(hints, !!root.resolve(['tools', 'inspect']) && !registry.disabled('tools.inspect'));
+        const discoveryAvailable = !!root.resolve(['tools', 'inspect']) && !registry.disabled('tools.inspect');
+        return ptc ? namespaceDirectory(hints, discoveryAvailable) : nativeDirectory(hints, discoveryAvailable);
     }
 
-    /** @brief Keep native exposure limited to discovery, pinned commands and explicitly queried functions. */
+    /** @brief Expose detailed pins and explicitly queried commands as native tools. */
     private nativeEntries(agent: Agent, registry: SemanticRegistry, entries: CommandNode[]): CommandNode[] {
         const state = registry.snapshot();
         const discovered = this.discovered.get(agent.id);
-        const pinned = new Set(registry.effective().filter(mapping => mapping.alwaysVisible).map(mapping => mapping.path));
+        const pinned = new Set(registry.effective().filter(mapping => mapping.alwaysVisible === 2).map(mapping => mapping.path));
         const available = new Set(entries.map(entry => entry.path));
         for (const path of discovered ?? []) if (!available.has(path)) discovered!.delete(path);
-        return entries.filter(entry => entry.fixLevel(state.builtinVisible?.[entry.path] ?? 0) > 0 || discovered?.has(entry.path)
+        return entries.filter(entry => entry.fixLevel(state.builtinVisible?.[entry.path] ?? 0) === 2 || discovered?.has(entry.path)
             || pinned.has(entry.path)
-            || state.builtinVisible?.[entry.path]);
+        );
     }
 
     /** @brief Expand native tools for this conversation and invalidate the assembled system prompt. */

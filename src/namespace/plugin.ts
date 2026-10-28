@@ -58,7 +58,8 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
                 const assembled = await next();
                 const agent = context.agent;
                 if (agent && component.enabled(agent)) {
-                    if (component.isPtc(agent)) assembled.sections.push({ name: 'namespaces:directory', text: await component.prompt(agent), interpolate: false });
+                    const directory = await component.prompt(agent);
+                    if (directory) assembled.sections.push({ name: 'namespaces:directory', text: directory, interpolate: false });
                     if (!component.isPtc(agent)) {
                         const names = new Set(await component.syncNative(agent));
                         assembled.sections = assembled.sections.filter(section => !section.name.startsWith('tool:') && !section.name.startsWith('tools:'));
