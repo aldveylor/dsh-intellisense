@@ -70,25 +70,30 @@ export function EditableText({ value, label, className, busy = false, readOnly =
             const containerStyle = view.getComputedStyle(container);
             const insetLeft = (parseFloat(containerStyle.borderLeftWidth) || 0) + (parseFloat(containerStyle.paddingLeft) || 0);
             const insetRight = (parseFloat(containerStyle.borderRightWidth) || 0) + (parseFloat(containerStyle.paddingRight) || 0);
-            const width = Math.min(Math.max(0, bounds.width - insetLeft - insetRight), Math.max(0, view.innerWidth - 8));
-            const availableHeight = Math.max(0, view.innerHeight - 8);
-            const minimumHeight = Math.min(Math.max(rect.height, 32), availableHeight);
+            const style = view.getComputedStyle(editor);
+            const marginX = (parseFloat(style.marginLeft) || 0) + (parseFloat(style.marginRight) || 0);
+            const marginY = (parseFloat(style.marginTop) || 0) + (parseFloat(style.marginBottom) || 0);
+            const border = (parseFloat(style.borderTopWidth) || 0) + (parseFloat(style.borderBottomWidth) || 0);
+            const horizontalInset = (parseFloat(style.borderLeftWidth) || 0) + (parseFloat(style.borderRightWidth) || 0)
+                + (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
+            const verticalInset = border + (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
+            const width = Math.min(Math.max(0, bounds.width - insetLeft - insetRight + marginX + horizontalInset), Math.max(0, view.innerWidth - 8));
+            const availableHeight = Math.max(0, view.innerHeight - 8 - marginY);
+            const minimumHeight = Math.min(Math.max(rect.height + verticalInset, 32), availableHeight);
             node.style.width = `${width}px`;
             editor.style.minHeight = `${minimumHeight}px`;
             editor.style.maxHeight = `${availableHeight}px`;
             editor.style.height = '0px';
-            const style = view.getComputedStyle(editor);
-            const border = (parseFloat(style.borderTopWidth) || 0) + (parseFloat(style.borderBottomWidth) || 0);
             const height = Math.min(Math.max(minimumHeight, editor.scrollHeight + border), availableHeight);
             editor.style.height = `${height}px`;
-            node.style.height = `${height}px`;
+            node.style.height = `${height + marginY}px`;
             const start = textStart(textAnchor!);
             const editorBounds = editor.getBoundingClientRect();
             const overlayBounds = node.getBoundingClientRect();
             const offsetLeft = editorBounds.left - overlayBounds.left + (parseFloat(style.borderLeftWidth) || 0) + (parseFloat(style.paddingLeft) || 0);
             const offsetTop = editorBounds.top - overlayBounds.top + (parseFloat(style.borderTopWidth) || 0) + (parseFloat(style.paddingTop) || 0);
             node.style.left = `${Math.max(4, Math.min(start.left - offsetLeft, view.innerWidth - width - 4))}px`;
-            node.style.top = `${Math.max(4, Math.min(start.top - offsetTop, view.innerHeight - height - 4))}px`;
+            node.style.top = `${Math.max(4, Math.min(start.top - offsetTop, view.innerHeight - height - marginY - 4))}px`;
         }
 
         fit.current = position;
