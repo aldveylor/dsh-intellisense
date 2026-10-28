@@ -80,8 +80,8 @@ export class NamespaceRuntime extends Service {
                 return bindingResult(work, signal);
             }, controller.signal, await namespaces.values(agent, registry), async () => {
                 const currentRevision = registry.revision;
-                const values = { 'tools.profile.profiles': { ...await namespaces.profileNames(agent) },
-                    ...(currentRevision === revision ? {} : { 'tools.profile.commands': (await namespaces.commandBriefs(agent, registry)).map(command => ({ ...command })) }) };
+                const values = await namespaces.values(agent, registry, currentRevision === revision
+                    ? ['tools.profile.profiles'] : ['tools.profile.profiles', 'tools.profile.commands']);
                 revision = currentRevision;
                 return values;
             });

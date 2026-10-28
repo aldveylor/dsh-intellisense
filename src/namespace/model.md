@@ -70,3 +70,5 @@ native 模式在 tools.inspect 不可用（自身禁用、tools 祖先禁用或�
 会话 registryFor 按 Agent 对象弱引用缓存已同步的物理目录来源；工具服务、tools/change/会话生命周期版本、registry 实例或 scopeChainOf 祖先链变化时才重新投影并刷新目录，未变时跳过 schemas 的深复制及 registry.refresh 的全量序列化。作用域重新绑定不要求额外工具事件也能失效；不同 Agent 不共享来源缓存。固定 Profile 名称比较通过 profileSelection 读取，不复制配置树。
 
 NamespaceComponent 的作用域释放会 dispose 统计服务，确保独立挂载组件（不通过主插件）也在释放时取消计时器并刷新脏计数；主插件仍在关闭 KV unit 前执行最后刷新。重复 dispose 为无脏状态操作。
+
+PTC 预加载和子调用回复刷新共用 values：先按当前 Profile 的禁用规则过滤，再按请求字段计算；回复仅在 revision 变化时计算 commands，始终按需刷新启用的 profiles。
