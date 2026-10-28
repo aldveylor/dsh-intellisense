@@ -1,3 +1,4 @@
+import { pluginCommands } from '../runtime/builtins.js';
 import { profileSaveInformation } from './profile_save.js';
 import { presentationConfigFor } from '../integration/presentation.js';
 import { registerBuiltin } from './builtin_trace.js';
@@ -27,8 +28,8 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
     });
     const output = { schema: { type: 'object', additionalProperties: true } as const, render: (_args: unknown, value: unknown) => [{ type: 'text' as const, text: typeof value === 'string' ? value : JSON.stringify(value) }] };
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_load', description: 'Read a named catalog Profile as JSON data without changing this conversation. With no name, return the current draft. Omitted permissions use ordinary node defaults: commentable/renamable/movable/removable/disableable true; acceptsChildren true for namespaces, false for commands; availableFixLevels [0,1] for namespaces, [0,1,2] for commands. Only nondefault permission fields are returned; fixedLevel defaults to 0 and disabled to false, both omitted at defaults.',
-        parameters: { name: { type: 'string' } }, output,
+        name: 'tools_profile_load', description: pluginCommands.find('tools_profile_load')!.description,
+        parameters: { name: { type: 'string', description: pluginCommands.find('tools_profile_load')!.parameterDocs!.name } }, output,
         execute: async ({ name }, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
             const registry = name === undefined ? await registryFor(execution.agent) : catalog;
@@ -36,8 +37,8 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         },
     })));
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_switch', description: 'Switch this conversation to a named catalog Profile.',
-        parameters: { name: { type: 'string', required: true, description: 'Existing catalog Profile to select for this conversation.' } },
+        name: 'tools_profile_switch', description: pluginCommands.find('tools_profile_switch')!.description,
+        parameters: { name: { type: 'string', required: true, description: pluginCommands.find('tools_profile_switch')!.parameterDocs!.name } },
         output: { ...output, schema: { type: 'null' } },
         execute: async (args, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
@@ -51,8 +52,8 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         },
     })));
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_setdefault', description: 'Set an existing catalog Profile as the global default for new conversations. Existing conversations keep their working configurations.',
-        parameters: { name: { type: 'string', required: true, description: 'Existing catalog Profile to use by default for new conversations.' } },
+        name: 'tools_profile_setdefault', description: pluginCommands.find('tools_profile_setdefault')!.description,
+        parameters: { name: { type: 'string', required: true, description: pluginCommands.find('tools_profile_setdefault')!.parameterDocs!.name } },
         output: { ...output, schema: { type: 'null' } },
         execute: async (args, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
@@ -62,8 +63,8 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         },
     })));
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_save', description: 'Replace the catalog Profile tree, recursively restoring missing members only in the plugin-owned tools subtree while preserving supplied settings. Ordinary mounted commands such as file.* and bash are removable and are not restored when omitted; omitted permissions use ordinary defaults, including removable: true. The tools namespace is protected and defaults to disabled on save; explicitly set its disabled field to false to enable it. Omitted or undefined name uses the current conversation Profile name, ignoring profile.name. Call tools.profile.switch(name) to apply the saved Profile. When inspect is unavailable, including when tools is disabled, namespace members cannot be discovered; all other commands should be fixed at level 2 or disabled. This is advisory and does not block saving or change pin levels. Returns null on success without information, otherwise an informational string.',
-        parameters: { name: { type: 'string', description: 'Target catalog name; defaults to the current conversation Profile name.' }, profile: { type: 'object', additionalProperties: true, required: true, description: 'Editable Profile tree. Only missing members of the plugin-owned tools subtree are restored recursively; omitted ordinary mounts such as file.* and bash are removed; tools defaults to disabled unless its node explicitly sets disabled: false. Other supplied settings are preserved.' } }, output: { ...output, schema: { oneOf: [{ type: 'string' }, { type: 'null' }] }, render: (_args, value) => [{ type: 'text', text: value ?? '' }] },
+        name: 'tools_profile_save', description: pluginCommands.find('tools_profile_save')!.description,
+        parameters: { name: { type: 'string', description: pluginCommands.find('tools_profile_save')!.parameterDocs!.name }, profile: { type: 'object', additionalProperties: true, required: true, description: pluginCommands.find('tools_profile_save')!.parameterDocs!.profile } }, output: { ...output, schema: { oneOf: [{ type: 'string' }, { type: 'null' }] }, render: (_args, value) => [{ type: 'text', text: value ?? '' }] },
         execute: async (args, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
             const { name, profile } = z.strictObject({ name: z.string().optional(), profile: ProfileSchema }).parse(args);
@@ -80,8 +81,8 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         },
     })));
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_delete', description: 'Delete a named catalog Profile. The current conversation Profile cannot be deleted.',
-        parameters: { name: { type: 'string', required: true, description: 'Catalog Profile to delete.' } },
+        name: 'tools_profile_delete', description: pluginCommands.find('tools_profile_delete')!.description,
+        parameters: { name: { type: 'string', required: true, description: pluginCommands.find('tools_profile_delete')!.parameterDocs!.name } },
         output: { ...output, schema: { type: 'null' } },
         execute: async (args, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
@@ -94,7 +95,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         },
     })));
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_profiles', description: 'Return available Profile names and the currently selected conversation Profile.', parameters: {},
+        name: 'tools_profile_profiles', description: pluginCommands.find('tools_profile_profiles')!.description, parameters: {},
         output: { ...output, schema: { type: 'object', properties: { profiles: { type: 'array', items: { type: 'string' }, required: true }, selected: { type: 'string', required: true } }, additionalProperties: false } },
         execute: async (_args, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
@@ -103,13 +104,13 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         },
     })));
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_annotation', description: 'Return the editable Profile data model documentation.', parameters: {},
+        name: 'tools_profile_annotation', description: pluginCommands.find('tools_profile_annotation')!.description, parameters: {},
         output: { ...output, schema: { type: 'string' } },
         execute: async (_args, execution) => execution.agent && !execution.agent.ctx.get('commandNamespaces')!.isPtc(execution.agent)
             ? JSON.stringify(ProfileSchema.toJSONSchema()) : profileAnnotation,
     })));
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_commands', description: 'All catalog commands excluding plugin builtins, with physical names, summaries, mount paths in this conversation Profile (including disabled paths; empty when unmounted), and total calls across all sessions. tools.inspect cannot retrieve information by physical command name; query an enabled mount path available in the current conversation instead.', parameters: {},
+        name: 'tools_profile_commands', description: pluginCommands.find('tools_profile_commands')!.description, parameters: {},
         output: { ...output, schema: { type: 'array', items: { type: 'object', additionalProperties: true } } },
         execute: async (_args, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');

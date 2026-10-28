@@ -31,3 +31,5 @@ tools.profile.commands 中各项 totalCalls 使用 VM 内只读 getter，从预�
 PTC 初始化先建立运行时环境（包括 console 输出对象），再安装生成的命令与预加载数据。每次初始化移除上次生成的命名空间根，再部署当前命令和值；生成的根属性可配置但不可赋值，子树冻结。部署只写入环境中不存在的根属性，不覆盖已有 console、标准对象或其它运行时全局。生成树内重复命令或命令/值冲突会明确拒绝，不以后写覆盖先写。运行时全局对象不作为命名空间节点参与 Inspect 查询。
 
 `tools.profile.profiles` 为 VM 内冻结的只读对象，通过 getter 提供目录名称列表与会话当前选择。宿主在成功工具回复中携带最新 profiles 数据；VM 在兑现调用 Promise 前更新闭包快照并冻结名称数组，保持对象引用稳定，不开放写入。
+
+内置命令的功能说明与参数注释统一定义于 `runtime/builtins.ts`（源码根目录下）的 `PluginCommands` 契约表；原生注册、Inspect、固定提示及管理 UI 引用同一来源。native/PTC 的返回形式差异在共享说明中明确，依赖 inspect 的可选指引由契约的 discoveryHint 标记，禁用发现时按该标记移除。

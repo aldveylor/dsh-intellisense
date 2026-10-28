@@ -45,3 +45,5 @@ Inspect 声明渲染仅接收查询、命名空间树、运行时模式与简略
 Profile save 覆盖目录树时，tools 仍为受保护命名空间，但默认禁用：省略 tools 节点或其 disabled 字段时写入 builtinDisabled，显式 disabled: false 时启用；不切换或修改当前会话。其它已提交设置保留，缺失保护节点继续递归补齐。save 的原生说明与 PTC 声明同步描述该规则。annotation 与 JSON Schema 说明禁用节点及后代从发现、运行时绑定、原生工具、预加载值和固定提示中排除，保留配置以供重新启用；禁用 tools 时移除 tools.inspect 指引。
 
 `profile_save.ts` 根据保存后 Profile 生成非阻断信息。save 返回 string | null，不转换原生结果；null 表示成功且无信息，字符串表示保存成功后的补全及建议。递归补齐 tools 或其后代时返回 “info: `tools` namespace is completed.”；inspect 禁用或缺失（含 tools 祖先禁用）且存在启用的其它命令未固定等级 2 时返回 “warning: `inspect` is disabled when there are some commands not fixed with level 2.”，两条信息同时出现时用换行连接。禁用节点及后代不参与固定等级检查。建议不阻止保存、不更改固定等级，save 说明强调inspect 无法调用时无法查询命名空间成员，应将其它命令固定等级 2 或者禁用。
+
+内置命令的功能说明与参数注释统一定义于 `runtime/builtins.ts`（源码根目录下）的 `PluginCommands` 契约表；原生注册、Inspect、固定提示及管理 UI 引用同一来源。native/PTC 的返回形式差异在共享说明中明确，依赖 inspect 的可选指引由契约的 discoveryHint 标记，禁用发现时按该标记移除。

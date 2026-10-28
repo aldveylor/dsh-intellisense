@@ -13,7 +13,7 @@ export class InnerCommandNode extends CommandNode {
         while (root.parent) root = root.parent;
         const discovery = root.resolve(['tools', 'inspect']);
         if (builtin !== pluginCommands.discoveryCommand && (!discovery || discovery.disabled)) {
-            const description = builtin.description.replace(' Use tools.inspect for complete command details.', '').replace(' tools.inspect cannot retrieve information by physical command name; query an enabled mount path available in the current conversation instead.', '');
+            const description = builtin.description.replace(builtin.discoveryHint ?? '', '');
             builtin = { ...builtin, description };
             entry = { ...entry, doc: description };
         }

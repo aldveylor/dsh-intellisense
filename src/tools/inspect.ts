@@ -1,4 +1,5 @@
 import { namespaceDeclaration, type NamespaceDeclaration } from '../namespace/declaration.js';
+import { pluginCommands } from '../runtime/builtins.js';
 import { registerBuiltin } from './builtin_trace.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools';
@@ -55,8 +56,8 @@ export function inspect(queries: readonly string[], root: NamespaceNode, runtime
 export function registerInspect(ctx: Context, namespaces: NamespaceComponent): void {
     const definition: ToolDefinition = defineTool({
         name: 'tools_inspect',
-        description: 'Query namespace members with a trailing dot, or complete tool signatures by exact path. An empty string ("") in queries lists root namespace members, e.g. {"queries":[""]}. Discovers commands progressively. Call through tools.inspect.',
-        parameters: { queries: { type: 'array', items: { type: 'string' }, description: 'Array of namespace member paths or exact command paths. A trailing dot lists immediate members; an exact path returns the complete command contract. An optional global. prefix is ignored. Include an empty string ("") to list root namespace members, e.g. [""].', required: true } },
+        description: pluginCommands.discoveryCommand.description,
+        parameters: { queries: { type: 'array', items: { type: 'string' }, description: pluginCommands.discoveryCommand.parameterDocs!.queries, required: true } },
         output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
         presentCall: ({ queries }) => ({ card: 'generic', title: 'tools.inspect', kind: 'read', rawInput: queries }),
         presentResult: (_args, result) => {
