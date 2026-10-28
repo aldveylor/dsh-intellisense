@@ -67,7 +67,7 @@ test('cwd and other single-field results expose scalar contracts and repack posi
     assert.deepEqual(await positionalArguments(entry, ['child']), { cd: 'child' });
     assert.equal(resultFor(entry, { cwd: '/work' }), '/work');
     await assert.rejects(positionalArguments(entry, [{ cd: 'child' }]), /Invalid arguments/);
-    await assert.rejects(positionalArguments(entry, ['a', 'b']), /Too many/);
+    await assert.rejects(positionalArguments(entry, ['a', 'b']), /Invalid positional argument count/);
 });
 
 test('positional contracts handle required-first order, optional holes, nulls and structured fields', async () => {

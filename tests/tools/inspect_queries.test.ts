@@ -49,7 +49,7 @@ test('native and PTC discovery preserve a single query array', async () => {
     assert.deepEqual(await positionalArguments(entry, [queries]), { queries });
     assert.deepEqual(await positionalArguments(entry, [[]]), { queries: [] });
     assert.deepEqual(await positionalArguments(entry, [['']]), { queries: [''] });
-    await assert.rejects(positionalArguments(entry, queries), /too many arguments/i);
+    await assert.rejects(positionalArguments(entry, queries), /Invalid positional argument count/);
     await assert.rejects(positionalArguments(entry, []), /invalid arguments/i);
     await assert.rejects(positionalArguments(entry, ["std."]), /invalid arguments/i);
     assert.throws(() => nativeArgumentsFor(entry, queries), /invalid arguments/i);
