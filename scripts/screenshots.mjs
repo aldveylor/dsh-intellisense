@@ -87,6 +87,13 @@ try {
             const directory = new URL(`../assets/${language}/`, import.meta.url);
             await mkdir(directory, { recursive: true });
             await page.screenshot({ path: fileURLToPath(new URL('namespace_table.png', directory)) });
+            const toolbar = await page.locator('.ts-toolbar').boundingBox();
+            const summary = await page.locator('.ts-profile-summary').boundingBox();
+            await page.screenshot({ path: fileURLToPath(new URL('profile_editor.png', directory)), clip: {
+                x: Math.max(0, toolbar.x - 12), y: Math.max(0, toolbar.y - 12), width: toolbar.width + 24,
+                height: summary.y + summary.height - toolbar.y + 24,
+            } });
+            await page.locator('.ts-tree').screenshot({ path: fileURLToPath(new URL('namespace_tree.png', directory)) });
 
             // Exercise tree documentation and its nested physical-command details before capturing the picker.
             await page.locator('[data-namespace-path="std.shell"] .ts-node-name').hover();
@@ -95,9 +102,9 @@ try {
             await page.locator('[data-tree-path="std.shell.bash"] .ts-node-name').hover();
             await page.locator('.ts-command-details').waitFor();
             assert((await page.locator('.ts-command-details').innerText()).includes('128'));
-            await page.keyboard.down('Alt');
+            await page.keyboard.down('Control');
             await page.locator('.ts-original-command').hover();
-            await page.keyboard.up('Alt');
+            await page.keyboard.up('Control');
             await page.locator('.ts-tool-details:not(.ts-command-details)').waitFor();
             assert.equal(await page.locator('[role="tooltip"]').count(), 2);
             await page.keyboard.press('Escape');
@@ -116,21 +123,21 @@ try {
             assert.equal(colors.color, 'rgb(32, 33, 36)');
             assert.equal(await page.locator('.ts-tool-picker [data-tool-id="bash"]').evaluate(node => getComputedStyle(node, '::before').display), 'block');
             await page.mouse.move(1400, 960);
-            await page.screenshot({ path: fileURLToPath(new URL('tools.png', directory)) });
+            await page.locator('.ts-tool-picker').screenshot({ path: fileURLToPath(new URL('tools.png', directory)) });
             await page.locator('.ts-tool-picker [data-tool-id="bash"]').hover();
             const details = page.locator('[role="tooltip"] .ts-tool-details');
             await details.waitFor();
             assert(!(await details.innerText()).includes('type Result ='));
             assert.equal(await details.locator('caption').count(), 0);
-            await page.keyboard.down('Alt');
+            await page.keyboard.down('Control');
             await details.locator('.ts-parameter-type').first().hover();
-            await page.keyboard.up('Alt');
+            await page.keyboard.up('Control');
             await page.locator('.ts-parameter-type-code').waitFor();
             assert.equal((await page.locator('.ts-parameter-type-code').innerText()).trim(), 'string');
             await page.keyboard.press('Escape');
             await page.locator('.ts-tool-picker [data-tool-id="bash"]').hover();
             await details.waitFor();
-            await page.screenshot({ path: fileURLToPath(new URL('tooltip.png', directory)) });
+            await page.locator('[role="tooltip"]').screenshot({ path: fileURLToPath(new URL('tooltip.png', directory)) });
             await page.mouse.move(1400, 960);
             await page.waitForFunction(() => !document.querySelector('[role="tooltip"]'));
             await page.emulateMedia({ colorScheme: 'dark' });
@@ -143,7 +150,7 @@ try {
             await hostTheme.evaluate(node => node.remove());
             assert.deepEqual(errors, []);
             await rm(new URL('unmounted_tools.png', directory), { force: true });
-            console.log(`Updated assets/${language}/{namespace_table,tools,tooltip}.png`);
+            console.log(`Updated assets/${language}/{namespace_table,profile_editor,namespace_tree,tools,tooltip}.png`);
         } finally { await context.close(); }
     }
 } finally {

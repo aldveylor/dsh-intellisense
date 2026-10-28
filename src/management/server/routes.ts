@@ -33,7 +33,7 @@ export function registerManagement(ctx: Context, globalRegistry: SemanticRegistr
     ctx.connection.fetch.register({ path: '/api/ts-intellisense-client', methods: ['GET'], requestBody: 'buffered', fetch: async () => new Response(await readFile(new URL('../standalone.js', import.meta.url), 'utf8'), { headers: { ...headers, 'Content-Type': 'text/javascript; charset=utf-8' } }) });
     ctx.connection.fetch.register({ path: '/api/ts-intellisense-docs-image', methods: ['GET'], requestBody: 'buffered', fetch: async request => {
         const query = new URL(request.url).searchParams;
-        const result = z.strictObject({ language: z.enum(['en', 'zh']), name: z.enum(['namespace_table', 'tools', 'tooltip']) }).safeParse(Object.fromEntries(query));
+        const result = z.strictObject({ language: z.enum(['en', 'zh']), name: z.enum(['namespace_table', 'profile_editor', 'namespace_tree', 'tools', 'tooltip', 'new_conversation']) }).safeParse(Object.fromEntries(query));
         if (!result.success) return new Response(null, { status: 404, headers });
         const { language, name } = result.data;
         try {

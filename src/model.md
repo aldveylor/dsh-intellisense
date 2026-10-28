@@ -94,3 +94,5 @@ Profile 写入模型使用 `registry/profile_write.ts` 的 ProfileWrite（从 Pr
 
 
 ProfileRootWrite 的匿名根只允许 type/children，拒绝没有持久化表示的根级 disabled、fixedLevel、description（包括 apply 的 null 删除）；普通成员仍使用 NamespaceWrite/CommandWrite。ConversationRequiredError、ProfileLockedError、CurrentProfileDeletionError 与 UnknownCommandError 在 src/error.ts 定义，不再用普通 Error 或权限错误表达这些 Profile 失败；非法 patch 键使用 ValidationError。
+
+文档截图脚本额外生成配置工具栏 profile_editor.png 与局部命名空间树 namespace_tree.png。new_conversation.png 截取真实 DSH 新对话的模式、配置菜单和输入区，使用浏览器预览示例，不含侧边栏或历史会话。使用文档按操作章节插入局部截图，文档路由继续使用固定名称枚举。

@@ -30,6 +30,13 @@ test('documentation images accept only supported languages and screenshot names'
     assert.equal(image.headers.get('content-type'), 'image/png');
     assert.equal(image.headers.get('x-content-type-options'), 'nosniff');
     assert.deepEqual([...new Uint8Array(await image.arrayBuffer()).slice(0, 4)], [137, 80, 78, 71]);
+    for (const language of ['en', 'zh']) {
+        for (const name of ['profile_editor', 'namespace_tree', 'new_conversation']) {
+            const screenshot = await route(new Request(`http://localhost/api/ts-intellisense-docs-image?language=${language}&name=${name}`));
+            assert.equal(screenshot.status, 200);
+            assert.equal(screenshot.headers.get('content-type'), 'image/png');
+        }
+    }
     for (const query of ['language=en&name=../../package', 'language=../&name=tools', 'language=en&name=tools&path=package.json', 'name=tools']) {
         assert.equal((await route(new Request(`http://localhost/api/ts-intellisense-docs-image?${query}`))).status, 404);
     }
@@ -69,7 +76,12 @@ test('the configuration page opens localized bundled usage documentation and scr
             assert(guide.textContent!.includes(language === 'zh' ? 'Agent 能看到什么' : 'What the agent can see'));
             assert(!guide.textContent!.includes('commands.paths'));
             assert(!guide.textContent!.includes('ProfileWrite'));
-            assert.equal(guide.querySelectorAll('img').length, 3);
+            assert.deepEqual(Array.from(guide.querySelectorAll('img'), image => new URL(image.src).searchParams.get('name')),
+                ['profile_editor', 'tools', 'namespace_tree', 'tooltip', 'new_conversation']);
+            const conversation = guide.querySelector<HTMLImageElement>('img[src*="name=new_conversation"]')!;
+            let heading: Element | null = conversation.previousElementSibling;
+            while (heading && heading.tagName !== 'H3') heading = heading.previousElementSibling;
+            assert.equal(heading?.textContent, language === 'zh' ? '在对话中使用配置' : 'Use a Profile in a conversation');
             assert(guide.querySelector('img')!.src.includes(`language=${language}`));
             guide.querySelector<HTMLButtonElement>('button')!.click();
             await until(() => !window.document.querySelector('.ts-usage-dialog'));

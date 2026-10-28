@@ -28,15 +28,15 @@ Keep the built-in discovery entry enabled so the agent can find tools without de
 
 ## Find your way around the page
 
-The default Profile selector at the top chooses the configuration for new conversations. Generate organization proposal, to its right, asks an agent to help organize tools. The namespace tree occupies the main area. Its own Profile selector chooses what you are editing, followed by Refresh, Save, Save as, Download and Upload. Hover a button for its action on the first line and a subdued explanation of its effect on the second.
+There are two places to use: organize and save Profiles in management, then choose one for a conversation on its home screen. The default selector at the top of management sets the choice for new conversations; the menu beside the namespace tree chooses what you are editing. These can be different.
 
-The tool icon beside the tree heading opens the full tool picker. The unmounted-tools entry below the heading lists tools not yet added to this Profile; Edit Profile description changes its purpose summary. Each row has the permitted pin, enable/disable and removal controls. Protected built-in entries offer only allowed actions.
-
-![Namespace tree, default Profile and editing toolbar](../../assets/en/namespace_table.png)
+The following sections follow the workflow, with focused screenshots beside the relevant controls. Button hints show an action first and its effect in subdued text below.
 
 ## Create, select and save a Profile
 
 Open the selector beside the namespace tree and choose a Profile to edit. For an empty configuration, enter a name at the bottom of the menu and press Enter. To start from the current arrangement, click Save as and enter a new name. Double-click an existing name in the menu to rename it, or use its delete button to remove an unwanted Profile. The last saved Profile cannot be deleted.
+
+![Default Profile, editor selection and save controls](../../assets/en/profile_editor.png)
 
 A star beside the name marks unsaved edits. Save writes your arrangement to that Profile; Save as stores it under a different name. To describe its purpose, click Edit Profile description, enter a summary, click Apply, then save the Profile.
 
@@ -50,13 +50,15 @@ Use the sort menu to choose name, call count or query count, then its direction 
 
 The unmounted-tools entry shows only tools not yet added to the current Profile. Card footers show existing placements; adding a tool again creates another placement. Gray built-in cards cannot be added again.
 
-At the outermost level or inside a group, double-click the placeholder text offering to create a namespace. Enter a group name, then press Enter or move focus away to confirm; Escape cancels. Use the plus button to add tools, or drag existing tools into the group.
-
 ![Search, sort and select tools](../../assets/en/tools.png)
+
+At the outermost level or inside a group, double-click the placeholder text offering to create a namespace. Enter a group name, then press Enter or move focus away to confirm; Escape cancels. Use the plus button to add tools, or drag existing tools into the group.
 
 ## Rename, describe and move entries
 
 Click a group's arrow to expand or collapse it. Double-click an ordinary group or tool name to rename it, or its comment to edit its purpose. In the tool comment dialog, Apply updates the draft, Reset restores the original tool description, and Cancel discards the current input. Save the Profile afterward.
+
+![Names, comments and row controls in the namespace tree](../../assets/en/namespace_tree.png)
 
 Drag tools or groups to reorder siblings or move them between groups. Drop in the middle of a group to move inside; drop in a gap before or after an entry to reorder. Built-in names and positions are protected, with unavailable actions locked.
 
@@ -83,6 +85,10 @@ Download saves the current draft as a JSON file, including unsaved changes, for 
 ## Use a Profile in a conversation
 
 Save your arrangement, open a blank conversation and select Intellisense or Intellisense PTC. Choose a Profile from the menu beside the mode on the conversation home screen, then start chatting. A grayed-out Profile button means the mode specifies a fixed configuration that cannot be changed there.
+
+![Mode and Profile selection in a new conversation](../../assets/en/new_conversation.png)
+
+The Profile button sits to the right of Intellisense PTC. Click its name to open the menu and choose a configuration for this task before sending your first message.
 
 New conversations without a specified configuration use the default Profile. Existing conversations retain their own working configurations, so saving a Profile with the same name or changing the default does not update them automatically. To apply saved edits, select another Profile on the conversation home screen, then switch back to the updated one. The home-screen menu disappears once chatting begins; you can then ask the agent to switch to a Profile by name.
 
