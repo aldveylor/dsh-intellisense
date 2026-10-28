@@ -28,6 +28,10 @@ test('inline editors preserve display dimensions across editing and reject inval
         window.eval(bundle.outputFiles[0]!.text);
         for (const label of ['Name', 'Profile']) {
             const display = label === 'Name' ? document.querySelector('span')! : document.querySelector('button')!;
+            Object.assign((display as HTMLElement).style, {
+                fontFamily: 'monospace', fontSize: '12px', fontWeight: '600', lineHeight: '18px',
+                letterSpacing: '0.5px', padding: '0px', border: '0px solid',
+            });
             display.getBoundingClientRect = () => ({ width: 144.5, height: 28.25 }) as DOMRect;
             window.flush(() => display.dispatchEvent(new window.MouseEvent('dblclick', { bubbles: true })));
             const input = document.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
@@ -35,6 +39,13 @@ test('inline editors preserve display dimensions across editing and reject inval
             assert.equal(input.style.height, '28.25px');
             assert.equal(input.style.boxSizing, 'border-box');
             assert.equal(input.style.minWidth, input.style.maxWidth);
+            assert.equal(input.style.fontFamily, 'monospace');
+            assert.equal(input.style.fontSize, '12px');
+            assert.equal(input.style.fontWeight, '600');
+            assert.equal(input.style.lineHeight, '18px');
+            assert.equal(input.style.letterSpacing, '0.5px');
+            assert.equal(input.style.paddingTop, '0px');
+            assert.equal(input.style.borderTopWidth, '0px');
             const setValue = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!;
             setValue.call(input, label === 'Name' ? 'invalid' : 'Renamed');
             window.flush(() => input.dispatchEvent(new window.Event('input', { bubbles: true })));

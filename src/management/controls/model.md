@@ -6,4 +6,4 @@ ActionButton 通过 HintButton 渲染带说明的操作提示，title 作为描�
 
 `close_button.tsx` 提供共用 CloseButton，以 18px SVG 叉号替代关闭文字，按钮为 28px 方形，复用 ActionButton 的宿主桥接、悬停、键盘焦点和 Tooltip，保留本地化无障碍名称并允许调用方指定关闭说明。
 
-`editable_text.tsx` 提供可复用的 EditableText：默认显示文本，双击或 Enter 进入编辑，Enter 或失焦提交，Escape 取消；编辑输入框沿用显示区域的宽高，草稿保留在组件内，commit 返回 false 时保留编辑。支持只读、忙碌、空值、占位文本、长度限制、聚焦全选及 renderDisplay 自定义显示；由调用方提供本地化文案，树节点、配置简介与 Profile 菜单共用。
+`editable_text.tsx` 提供可复用的 EditableText：默认显示文本，双击或 Enter 进入编辑，Enter 或失焦提交，Escape 取消；编辑输入框沿用显示区域的宽高、字体、字号、字重、行高、字距、颜色、内边距及边框宽度，防止 input 默认样式改变文字大小或挤压文字区域，草稿保留在组件内，commit 返回 false 时保留编辑。支持只读、忙碌、空值、占位文本、长度限制、聚焦全选及 renderDisplay 自定义显示；由调用方提供本地化文案，树节点、配置简介与 Profile 菜单共用。
