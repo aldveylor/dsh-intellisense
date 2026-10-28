@@ -33,7 +33,7 @@
 .ts-management-dialog{color:inherit;background:var(--dsw-alias-bg-layer-2,var(--dsw-alias-bg-base,light-dark(#ffffff,#202020)));box-shadow:var(--dsw-elevation-prominent,0 20px 72px #0003);border:1px solid var(--ts-border);border-radius:var(--dsw-radius-panel,12px);padding:24px;width:400px;max-width:85vw}.ts-management-dialog::backdrop{background:var(--dsw-alias-bg-mask-1,#0006);backdrop-filter:var(--dsw-mask-blur,blur(3px))}.ts-management-dialog h2{margin:0 0 20px}.ts-management-dialog label{display:flex;flex-direction:column;gap:8px}.ts-management-dialog input{width:100%;min-width:0}.ts-dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:24px}
 .ts-error-message{white-space:pre-wrap;overflow-wrap:anywhere}
 
-.ts-default-profile,.ts-namespace-heading{display:flex;align-items:center;gap:8px}.ts-namespace-heading{justify-content:space-between;gap:24px}.ts-namespace-profile{min-width:0}.ts-default-profile>span{white-space:nowrap}
+.ts-default-profile,.ts-namespace-heading{display:flex;align-items:center;gap:8px}.ts-namespace-heading{justify-content:space-between;gap:24px}.ts-intellisense .ts-namespace-heading h2{flex:0 0 auto;font-size:19px}.ts-namespace-profile{margin-left:auto;min-width:0}.ts-default-profile>span{white-space:nowrap}
 
 .ts-remove svg,.ts-pin svg{display:block;flex-shrink:0}
 
@@ -49,7 +49,7 @@
 
 .ts-tool-details table{border:1px solid var(--ts-border,var(--dsw-alias-border-l2,#80808047))}.ts-tool-detail-header p{margin-top:8px}.ts-tool-details .ts-tool-schema>h4,.ts-tool-details .ts-tool-statistics>h4{font-size:15px;margin-bottom:6px}
 
-.ts-intellisense .ts-open-tools:not([data-dsh-control]){border:0;margin-left:auto}.ts-intellisense .ts-tool.ts-builtin-tool{color:var(--dsw-alias-label-tertiary,light-dark(#626b78,#a5a5a5))}
+.ts-intellisense .ts-open-tools:not([data-dsh-control]){border:0;margin-left:-16px}.ts-intellisense .ts-tool.ts-builtin-tool{color:var(--dsw-alias-label-tertiary,light-dark(#626b78,#a5a5a5))}
 .ts-tree-details{max-width:480px;font:var(--dsw-font-xxs-12,12px/1.6 var(--dsw-font-family,system-ui,sans-serif));overflow-wrap:anywhere}.ts-tree-details h3{margin:0;font-size:16px}.ts-tree-details p{white-space:pre-wrap;margin:8px 0 0}.ts-detail-path,.ts-command-namespace{color:var(--dsw-alias-label-tertiary,light-dark(#626b78,#a5a5a5))}.ts-command-namespace{margin-left:10px;font-size:11px;font-weight:400}.ts-original-command{cursor:help;text-decoration:underline dotted;text-underline-offset:3px}
 
 .ts-tool-schema tr>:nth-child(-n+2):not([colspan]){width:1%;white-space:nowrap;overflow-wrap:normal}
