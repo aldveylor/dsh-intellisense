@@ -1,3 +1,5 @@
+import { NamespaceTreeView } from './tree_view/namespace_tree_view.js';
+import type { TreeProps } from './tree_view/tree_props.js';
 import { HintButton } from '../tooltip/action_hint.js';
 import { UsageDialog } from '../documentation/usage_dialog.js';
 import { UsageButton } from '../documentation/usage_button.js';
@@ -6,8 +8,8 @@ import { useTranslation } from '../locale/locale.js';
 import styles from './management_panel.css';
 import { ErrorDialog } from './error_dialog.js';
 import { useLayoutMotion } from '../animation/layout_motion.js';
-import { NamespaceTree, type TreeNode, type CommandTreeNode, type NamespaceTreeNode } from './tree_node.js';
-import { memo, useEffect, useMemo, useRef, useState, type ComponentType, type DragEvent, type ReactNode } from 'react';
+import { NamespaceTree, type TreeNode } from './tree_node.js';
+import { useEffect, useMemo, useRef, useState, type ComponentType, type DragEvent } from 'react';
 import type { Namespace, Mapping, PhysicalTool, RegistryStateData as RegistryState, PinLevel, CommandVisibility, RegistryConfigurationData as RegistryConfiguration } from '../../registry/registry.js';
 import { nextFixLevel, type SerializedNode } from '../../namespace/node.js';
 import { validateNodePath as validatePath } from '../../namespace/node.js';
@@ -15,9 +17,8 @@ import { TreeProvider, unmountedTools, providedNamespace, providedTools } from '
 import { ProfilePicker, ProfileSelect as PortableProfileSelect, type ProfileSelectProps } from '../profile_picker/profile_picker.js';
 import { parseProfileJson } from '../profile_picker/profile_json.js';
 import { TooltipProvider } from '../tooltip/tooltip.js';
-import { CommandDetails, NamespaceDetails, useTreeTooltip } from '../tooltip/tree_details.js';
 import { ToolPicker } from '../tool_picker/tool_picker.js';
-import { useTreeDrag, treeDropTarget, showTreeDropFeedback, clearTreeDropFeedback } from './tree_drag.js';
+import { useTreeDrag, treeDropTarget, clearTreeDropFeedback } from './tree_drag.js';
 import { isFixedNamespace, namespacePaths, orderedPaths, inNamespace, renameNamespace, deleteNamespace, dropTree, type TreeDragSource, type TreeDropTarget } from './namespace_tree.js';
 
 /** @brief Authenticated management metadata, shared by embedded and standalone React views. */
@@ -61,240 +62,11 @@ function profileDraft(state: Pick<RegistryState, keyof RegistryConfiguration>, p
     };
 }
 
-/** @brief A double-click text editor that keeps its draft local until explicit commit or blur. */
-function EditableText({ value, label, className, busy, empty = false, commit }: {
-    value: string; label: string; className: string; busy: boolean; empty?: boolean; commit: (value: string) => boolean;
-}) {
-    const t = useTranslation();
-    const [draft, setDraft] = useState<string>();
-    return draft === undefined ? <span className={className} aria-label={label} role="button" tabIndex={busy ? -1 : 0}
-        onDoubleClick={() => { if (!busy) setDraft(value); }} onKeyDown={event => {
-            if (!busy && event.key === 'Enter') { event.preventDefault(); setDraft(value); }
-        }}>{value || t('add_comment')}</span> : <input className={className} aria-label={label} autoFocus value={draft} disabled={busy}
-            onChange={event => setDraft(event.target.value)} onBlur={() => {
-                const next = draft.trim();
-                if ((!empty && !next) || next === value || commit(next)) setDraft(undefined);
-            }} onKeyDown={event => {
-                if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
-                if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); }
-                if (event.key === 'Escape') { event.preventDefault(); setDraft(undefined); }
-            }} />;
-}
-
 /** @brief Cycle command prompt exposure from hidden to brief to detailed. */
 function nextPinLevel(level: PinLevel): PinLevel { return ((level + 1) % 3) as PinLevel; }
 
-/** @brief Shared always-visible pin control for namespace and command prompt exposure. */
-function PinButton({ label, active, busy, locked = false, level, tooltip, toggle }: { tooltip?: string; label: string; active: boolean; busy: boolean; locked?: boolean; level?: PinLevel; toggle: () => void }) {
-    const t = useTranslation();
-    return <HintButton className="ts-pin" type="button" aria-label={label} action={t(locked ? 'pin_action' : level === 0 ? 'pin_brief_action' : level === 1 ? 'pin_detailed_action' : active ? 'unpin_action' : 'pin_namespace_action')} aria-pressed={active} data-filled={active} data-level={level}
-        title={tooltip ?? (locked ? t('builtin_pinned') : level !== undefined ? t(`pin_level_${level}`) : active ? t('unpin') : t('pin'))} disabled={busy || locked} onClick={toggle}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" aria-hidden="true">
-            <path d="m16 9 3-3-5-5-3 3v4l-5 5 5 5 5-5zM9 15l-5 5" />
-        </svg>
-    </HintButton>;
-}
-
-/** @brief Shared deletion control placed after the pin at the right edge of tree blocks. */
-function RemoveButton({ label, hint, busy, remove }: { label: string; hint: string; busy: boolean; remove: () => void }) {
-    return <HintButton className="ts-remove" type="button" aria-label={label} title={hint} disabled={busy} onClick={remove}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-            <path d="m6 6 12 12M18 6 6 18" />
-        </svg>
-    </HintButton>;
-}
-
-/** @brief Toggle command or namespace availability while retaining its editable tree node. */
-function DisableButton({ disabled, busy, toggle }: { disabled: boolean; busy: boolean; toggle: () => void }) {
-    const t = useTranslation();
-    const label = t(disabled ? 'enable_node' : 'disable_node');
-    return <HintButton className="ts-disable ts-remove" type="button" aria-label={label} title={t(disabled ? 'enable_node_hint' : 'disable_node_hint')} aria-pressed={disabled} disabled={busy} onClick={toggle}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><circle cx="12" cy="12" r="8" /><g className="ts-disable-mark"><path d="M6 12h12" /><path className="ts-disable-cross" d="M12 6v12" /></g></svg>
-    </HintButton>;
-}
-
-/** @brief Mark a node as a drag target without intercepting ordinary text editing. */
-function acceptTreeDrag(event: DragEvent<HTMLElement>, busy: boolean): void {
-    if (event.currentTarget.dataset.dropDisabled === 'true') { event.stopPropagation(); return; }
-    if (!busy && event.dataTransfer.types.some(type => ['application/x-ts-tool', 'application/x-ts-namespace'].includes(type))) {
-        event.preventDefault(); event.stopPropagation();
-        showTreeDropFeedback(event.currentTarget, event.clientY);
-    }
-}
-
-/** @brief Retain an insertion slot while a native drag enters another row or the slot itself. */
-function leaveTreeDrag(event: DragEvent<HTMLElement>): void {
-    if (event.relatedTarget instanceof Node && event.currentTarget.closest('.ts-tree')?.contains(event.relatedTarget)) return;
-    clearTreeDropFeedback();
-}
-
-/** @brief Render commands with shared fixed, read-only and movement policies supplied by their data source. */
-function CommandNode({ node, tree }: { node: CommandTreeNode; tree: TreeProps }) {
-    const t = useTranslation();
-    const { path, mapping, command, fixed, description } = node;
-    const id = mapping?.id ?? command?.id;
-    const contract = node.serialize().command;
-    const tool = (id ? tree.toolsById.get(id) : undefined) ?? {
-        id: id ?? contract?.tool ?? path, description: description ?? '', parameters: contract?.schema ?? {}, output: contract?.output,
-    };
-    const summary = mapping?.description ?? (id && Object.hasOwn(tree.toolComments, id) ? tree.toolComments[id] : undefined) ?? '';
-    const tooltip = useTreeTooltip(<CommandDetails path={path} tool={tool} summary={summary} calls={tree.callsByTool[tool.id] ?? 0} queries={tree.queriesByTool[tool.id] ?? 0} />);
-    const readOnly = !node.permissions.renamable;
-    const invalid = !!mapping && !(id && tree.toolsById.has(id));
-    const draggable = !tree.busy && node.draggable;
-    const disableButton = node.permissions.disableable ? <DisableButton disabled={tree.disabled(path)} busy={tree.busy || tree.disabledByAncestor(path)} toggle={() => tree.toggleDisabled(path)} /> : null;
-    const pinButton = <PinButton label={t('pin_command', { path })} active={!!node.level} level={node.level} busy={tree.busy || !!command?.disabled}
-        locked={node.permissions.availableFixLevels.length <= 1}
-        toggle={() => { if (command) tree.pinBuiltin(path); else if (mapping) tree.pinTool(mapping); else if (id) tree.pinUnmounted(id); }} />;
-    return <li className={`ts-tree-tool${fixed ? ' ts-fixed-node' : ''}${invalid ? ' ts-tool-invalid' : ''}`}
-        aria-disabled={tree.disabled(path) || undefined} data-tool-status={tree.disabled(path) ? 'disabled' : invalid ? 'invalid' : 'available'} data-tree-path={path} data-tool-id={id} data-drop-disabled={readOnly || undefined}
-        {...tooltip} draggable={draggable}
-        onDragStart={event => {
-            if (!draggable || (event.target as HTMLElement).tagName === 'INPUT') { event.preventDefault(); return; }
-            event.stopPropagation(); event.dataTransfer.setData('application/x-ts-tool', id!);
-            event.dataTransfer.setData('application/x-ts-mapping', path); event.dataTransfer.effectAllowed = 'move';
-        }} onDragOver={event => acceptTreeDrag(event, tree.busy || readOnly)}
-        onDragLeave={leaveTreeDrag}
-        onDrop={event => { if (readOnly) { event.preventDefault(); event.stopPropagation(); } else tree.dropNode(event, path, false); }}>
-        {readOnly ? <code>{path.split('.').at(-1)}</code> :
-            <EditableText className="ts-node-name" value={path.split('.').at(-1)!} label={t('mapping_name', { path })} busy={tree.busy || !!mapping?.pinned}
-                commit={name => tree.rename(path, name)} />}
-        {id && <span className="ts-mapping-source"><span aria-hidden="true">→ </span>{id}{invalid && <span role="status"> · {t('unavailable')}</span>}</span>}
-        <span className="ts-tool-preview" role={fixed ? undefined : 'button'} tabIndex={fixed ? undefined : tree.busy ? -1 : 0}
-            onDoubleClick={() => { if (!fixed && id) tree.editDescription(path); }} onKeyDown={event => {
-                if (!fixed && id && event.key === 'Enter') { event.preventDefault(); tree.editDescription(path); }
-            }}>{mapping?.description ?? (id && Object.hasOwn(tree.toolComments, id) ? tree.toolComments[id] : undefined) ?? description ?? t('edit_comment')}</span>
-        <span className="ts-node-actions">
-            {command && disableButton}
-            {pinButton}
-            {!command && disableButton}
-            {node.permissions.removable && <RemoveButton label={t('remove_mapping', { path })} hint={t('remove_mapping_hint', { path })} busy={tree.busy || !!mapping?.pinned} remove={() => tree.remove(path)} />}
-        </span>
-    </li>;
-}
-
-/** @brief Name a child namespace inline; empty names and Escape discard the pending entry. */
-function NamespacePlaceholder({ parent = '', busy, create, drop, pick }: {
-    parent?: string; busy: boolean; create: (path: string) => boolean; pick: (parent: string) => void;
-    drop?: (event: DragEvent<HTMLElement>, parent: string) => void;
-}) {
-    const t = useTranslation();
-    const [name, setName] = useState<string>();
-    const [over, setOver] = useState(false);
-
-    /** @brief Start naming without changing the persisted namespace draft. */
-    function begin(): void {
-        if (!busy) setName('');
-    }
-
-    return <li data-namespace-path={parent} className={`ts-empty ts-namespace-placeholder ${over ? 'ts-drop-over' : ''}`}
-        onDragOver={event => {
-            if (!busy && event.dataTransfer.types.some(type => ['application/x-ts-tool', 'application/x-ts-namespace'].includes(type))) {
-                event.preventDefault(); event.stopPropagation(); setOver(true);
-            }
-        }} onDragLeave={() => setOver(false)} onDrop={event => {
-            event.preventDefault(); event.stopPropagation(); setOver(false);
-            if (!busy) drop?.(event, parent);
-        }}>
-        {name === undefined ? <span role="button" tabIndex={busy ? -1 : 0} aria-disabled={busy}
-            title={t('add_namespace')} onDoubleClick={begin} onKeyDown={event => {
-                if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); begin(); }
-            }}>{parent ? t('add_tools_hint') : t('add_root_hint')}</span> : <input autoFocus aria-label={t('name_namespace', { path: parent || t('root') })}
-            placeholder={t('namespace_name')} value={name} disabled={busy} onChange={event => setName(event.target.value)}
-            onBlur={() => {
-                const value = name.trim();
-                if (!value || create(parent ? `${parent}.${value}` : value)) setName(undefined);
-            }} onKeyDown={event => {
-                if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
-                if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); }
-                if (event.key === 'Escape') { event.preventDefault(); setName(undefined); }
-            }} />}
-        <HintButton className="ts-add-tool" type="button" aria-label={t('add_tools_to', { path: parent || t('root') })} title={t('add_tools_to_hint', { path: parent || t('root') })} disabled={busy}
-            onClick={() => pick(parent)} onDoubleClick={event => event.stopPropagation()}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
-        </HintButton>
-    </li>;
-}
-
-/** @brief Shared namespace tree data and actions for recursively rendered mixed node types. */
-interface TreeProps {
-    disabledByAncestor: (path: string) => boolean; disabled: (path: string) => boolean; toggleDisabled: (path: string) => void;
-    toolsById: ReadonlyMap<string, PhysicalTool>; callsByTool: Record<string, number>; queriesByTool: Record<string, number>; namespaceQueriesByPath: Record<string, number>; busy: boolean;
-    expanded: Record<string, boolean>;
-    configure: (path: string, patch: Partial<Namespace>) => void;
-    drop: (event: DragEvent<HTMLElement>, parent: string) => void;
-    pick: (parent: string) => void; create: (path: string) => boolean; rename: (path: string, name: string) => boolean;
-    editDescription: (path: string) => void; remove: (path: string) => void; pinTool: (mapping: Mapping) => void;
-    renameNamespace: (path: string, name: string) => boolean; deleteNamespace: (path: string) => void;
-    toggle: (path: string) => void; dropNode: (event: DragEvent<HTMLElement>, path: string, namespace: boolean) => void;
-    namespaceVisible: Record<string, boolean>; toggleProvidedNamespace: (path: string) => void;
-    pinBuiltin: (path: string) => void; toolComments: Record<string, string>; unmountedVisible: CommandVisibility; pinUnmounted: (id: string) => void;
-}
-
-/** @brief Let CSS resize the child container and release its contents after closing. */
-function TreeChildren({ open, children }: { open: boolean; children: ReactNode }) {
-    const [present, setPresent] = useState(open);
-    useEffect(() => { if (open) setPresent(true); }, [open]);
-    return <div className="ts-tree-children" data-open={open} aria-hidden={!open}
-        ref={element => { if (element) element.inert = !open; }} onTransitionEnd={event => {
-            if (event.target === event.currentTarget && event.propertyName === 'grid-template-rows' && !open) setPresent(false);
-        }}><ul>{(open || present) && children}</ul></div>;
-}
-
-/** @brief Namespace row whose children toggle only through the leading disclosure button. */
-function NamespaceNode({ node, tree }: { node: NamespaceTreeNode; tree: TreeProps }) {
-    const t = useTranslation();
-    const { path, fixed, metadata: config, count } = node;
-    const open = tree.expanded[path] ?? false;
-    const tooltip = useTreeTooltip(<NamespaceDetails path={path} description={node.description} queries={tree.namespaceQueriesByPath[path] ?? 0} />);
-    return <li data-tree-path={path} data-disabled={tree.disabled(path) || undefined}>
-        <div {...tooltip} className={`ts-node-block${fixed ? ' ts-fixed-node' : ''}`} data-namespace-path={path} data-drop-disabled={!node.permissions.acceptsChildren || undefined} draggable={!tree.busy && node.permissions.movable} onDragStart={event => {
-            if (!node.permissions.movable) { event.preventDefault(); return; }
-            if ((event.target as HTMLElement).tagName === 'INPUT') { event.preventDefault(); return; }
-            event.stopPropagation(); event.dataTransfer.setData('application/x-ts-namespace', path); event.dataTransfer.effectAllowed = 'move';
-        }} onDragOver={event => acceptTreeDrag(event, tree.busy || !node.permissions.acceptsChildren)} onDragLeave={leaveTreeDrag} onDrop={event => tree.dropNode(event, path, true)}>
-            <HintButton className="ts-disclosure" type="button" aria-label={t('toggle_namespace', { path })} aria-expanded={open} title={t('toggle_namespace', { path })} disabled={tree.busy}
-                onClick={() => tree.toggle(path)}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
-            </HintButton>
-            {!node.permissions.renamable ? <span className="ts-node-name">{path.split('.').at(-1)}</span> : <EditableText className="ts-node-name" value={path.split('.').at(-1)!} label={t('namespace_path_name', { path })} busy={tree.busy}
-                commit={name => tree.renameNamespace(path, name)} />}
-            <small className="ts-node-count" aria-label={t('command_count', { path })}>{count}</small>
-            {fixed ? <span className="ts-node-preview">{node.description}</span> : <><EditableText className="ts-node-preview" value={config?.description ?? ''} label={t('namespace_comment', { path })} busy={tree.busy} empty
-                commit={description => { tree.configure(path, { description }); return true; }} />
-            <span className="ts-node-actions">
-                <PinButton label={t('pin_namespace', { path })} active={config?.alwaysVisible ?? false} busy={tree.busy}
-                    toggle={() => tree.configure(path, { alwaysVisible: !config?.alwaysVisible })} />
-                {node.permissions.disableable && <DisableButton disabled={tree.disabled(path)} busy={tree.busy || tree.disabledByAncestor(path)} toggle={() => tree.toggleDisabled(path)} />}
-                {node.permissions.removable && <RemoveButton label={t('delete_namespace', { path })} hint={t('delete_namespace_hint', { path })} busy={tree.busy} remove={() => tree.deleteNamespace(path)} />}
-            </span></>}
-            {node.pinMode === 'locked' && <span className="ts-node-actions">
-                {node.permissions.disableable && <DisableButton disabled={tree.disabled(path)} busy={tree.busy || tree.disabledByAncestor(path)} toggle={() => tree.toggleDisabled(path)} />}
-                <PinButton label={t('fixed_namespace')} tooltip={t('fixed_namespace')} active busy={tree.busy} locked toggle={() => {}} />
-            </span>}
-            {node.pinMode === 'provided' && <span className="ts-node-actions">
-                {node.permissions.disableable && <DisableButton disabled={tree.disabled(path)} busy={tree.busy || tree.disabledByAncestor(path)} toggle={() => tree.toggleDisabled(path)} />}
-                <PinButton label={t('pin_namespace', { path })} active={tree.namespaceVisible[path] ?? false} busy={tree.busy} toggle={() => tree.toggleProvidedNamespace(path)} />
-            </span>}
-        </div>
-        <TreeChildren open={open}>{node.children.map(child => <TreeNodeView key={child.path} node={child} tree={tree} />)}{node.permissions.acceptsChildren && <NamespacePlaceholder parent={path} busy={tree.busy} create={tree.create} drop={tree.drop} pick={tree.pick} />}</TreeChildren>
-    </li>;
-}
-
-/** @brief Render concrete node behavior through the tree renderer interface. */
-function TreeNodeView({ node, tree }: { node: TreeNode; tree: TreeProps }) {
-    return node.render({ command: command => <CommandNode node={command} tree={tree} />, namespace: namespace => <NamespaceNode node={namespace} tree={tree} /> });
-}
-
 /** @brief Retain unchanged snapshot fields so metadata updates do not rebuild the tree. */
 function retain<T>(current: T, next: T): T { return JSON.stringify(current) === JSON.stringify(next) ? current : next; }
-
-/** @brief Render tree rows independently from Profile requests and dialog state. */
-const NamespaceTreeView = memo(function NamespaceTreeView({ roots, tree }: { roots: TreeNode[]; tree: TreeProps }) {
-    return <TooltipProvider><ul className="ts-tree">{roots.map(node => <TreeNodeView key={node.path} node={node} tree={tree} />)}
-        <NamespacePlaceholder busy={tree.busy} create={tree.create} pick={tree.pick} drop={tree.drop} />
-    </ul></TooltipProvider>;
-});
 
 /** @brief React registry editor with versioned drafts and conversation-based organization. */
 export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, organize }: ManagementPanelProps) {

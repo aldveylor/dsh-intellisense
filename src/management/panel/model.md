@@ -1,6 +1,6 @@
 # 工具树管理面板
 
-`management_panel.tsx` 管理草稿、保存、命名空间编辑、内置提示图钉和整理会话草稿入口。`namespace_tree.ts` 处理路径及树变换，`tree_drag.ts` 处理指针拖动，`tree_provider.ts` 投影服务端序列化节点并筛选未挂载工具。样式保存在同目录的 `management_panel.css`。
+`management_panel.tsx` 管理草稿、保存、命名空间编辑动作和整理会话草稿入口。`tree_view/` 按组件拆分递归树视图、命名空间块、命令行、展开容器和共享编辑控件，详见其 model.md。`namespace_tree.ts` 处理路径及树变换，`tree_drag.ts` 处理指针拖动，`tree_provider.ts` 投影服务端序列化节点并筛选未挂载工具。样式保存在同目录的 `management_panel.css`。
 
 命名空间树下方显示中英文操作提示，说明展开、编辑、拖动排序、跨命名空间移动及添加工具。
 
