@@ -88,11 +88,11 @@
     "build:server": "node scripts/build.mjs server",
     "build:client": "node scripts/build.mjs client",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "npm run build && tsx --test tests/**/*.test.ts",
+    "test": "pnpm run build && tsx --test tests/**/*.test.ts",
     "lint": "eslint --config scripts/eslint_config.mjs src tests",
-    "prepare": "npm run build",
+    "prepare": "pnpm run build",
     "prepack": "node scripts/release/prepare_package.mjs",
-    "screenshots": "npm run build && node scripts/screenshots.mjs"
+    "screenshots": "pnpm run build && node scripts/screenshots.mjs"
   },
   "license": "Apache-2.0",
   "dependencies": {
@@ -151,5 +151,5 @@
     "type": "git",
     "url": "git+https://github.com/aldveylor/dsh-intellisense.git"
   },
-  "packageManager": "npm@11.19.0"
+  "packageManager": "pnpm@12.14.0"
 }

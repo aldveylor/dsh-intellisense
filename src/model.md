@@ -97,4 +97,4 @@ ProfileRootWrite 的匿名根只允许 type/children，拒绝没有持久化表�
 
 文档截图脚本额外生成配置工具栏 profile_editor.png 与局部命名空间树 namespace_tree.png。new_conversation.png 截取真实 DSH 新对话的模式、配置菜单和输入区，使用浏览器预览示例，不含侧边栏或历史会话。使用文档按操作章节插入局部截图，文档路由继续使用固定名称枚举。
 
-构建配置统一由 scripts/build.mjs 管理，支持 all/server/client；npm run build 按服务端、worker、插件客户端、独立页顺序构建，避免 tsc 覆盖最终浏览器产物。package.json 只保留构建脚本入口，脚本间调用统一使用 npm。依赖 external、压缩、loader 与宿主注册包装在构建脚本维护。
+构建配置统一由 scripts/build.mjs 管理，支持 all/server/client；pnpm run build 按服务端、worker、插件客户端、独立页顺序构建，避免 tsc 覆盖最终浏览器产物。package.json 只保留构建脚本入口，脚本间调用统一使用 pnpm。依赖 external、压缩、loader 与宿主注册包装在构建脚本维护。
