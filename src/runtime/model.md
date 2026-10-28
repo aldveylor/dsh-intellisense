@@ -38,3 +38,5 @@ worker 在创建 VM Context 时编译一次固定命名空间安装函数，后�
 
 
 Guest 位置参数个数错误使用 PositionalArgumentError（继承 ToolCallError），包含 toolName 与 invalid_argument_count 错误码；服务端已知错误通过 IPC errorCode 传递。src/error.ts 定义对应的宿主错误类型，VM 内使用同样的定义。会话配置 revision 变化后，成功调用的 IPC 回复刷新 commands 中原有条目的 paths getter，持有条目引用仍可读取 switch 后路径；save/apply 只写目录时不刷新路径。
+
+protocol.ts 按需导入 Zod 校验 API 和 infer 类型，使 worker bundle 裁剪未使用的 schema 与语言导出；宿主和 worker 共用同一协议定义。worker 仍为自包含 bundle，不 external 文件依赖，也不开放文件读取权限。
