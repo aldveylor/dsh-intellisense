@@ -38,7 +38,7 @@ export function NamespaceSection({ loaded, busy, editorPending, profile, roots, 
             </div>
         </div>
         {loaded && <div className="ts-profile-summary"><EditableText key={profile.name} className="ts-profile-brief" label={t('profile_brief')}
-            value={brief ?? ''} placeholder={t('add_profile_brief')} busy={busy} empty
+            value={brief ?? ''} placeholder={t('add_profile_brief')} busy={busy} empty multiline autoWidth
             commit={value => { editBrief(value); return true; }} /></div>}
         <div aria-busy={editorPending || undefined} ref={element => { if (element) element.inert = editorPending; }}>
             <NamespaceTreeView roots={roots} tree={tree} />
