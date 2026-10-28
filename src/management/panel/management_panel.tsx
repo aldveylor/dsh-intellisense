@@ -1,6 +1,5 @@
-import { NamespaceTreeView } from './tree_view/namespace_tree_view.js';
+import { NamespaceSection } from './namespace_section/namespace_section.js';
 import type { TreeProps } from './tree_view/tree_props.js';
-import { HintButton } from '../tooltip/action_hint.js';
 import { UsageDialog } from '../documentation/usage_dialog.js';
 import { UsageButton } from '../documentation/usage_button.js';
 import { ActionButton } from '../controls/action_button.js';
@@ -14,7 +13,7 @@ import type { Namespace, Mapping, PhysicalTool, RegistryStateData as RegistrySta
 import { nextFixLevel, type SerializedNode } from '../../namespace/node.js';
 import { validateNodePath as validatePath } from '../../namespace/node.js';
 import { TreeProvider, unmountedTools, providedNamespace, providedTools } from './tree_provider.js';
-import { ProfilePicker, ProfileSelect as PortableProfileSelect, type ProfileSelectProps } from '../profile_picker/profile_picker.js';
+import { ProfileSelect as PortableProfileSelect, type ProfileSelectProps } from '../profile_picker/profile_picker.js';
 import { parseProfileJson } from '../profile_picker/profile_json.js';
 import { TooltipProvider } from '../tooltip/tooltip.js';
 import { ToolPicker } from '../tool_picker/tool_picker.js';
@@ -418,38 +417,33 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
                     await organize!(t('organization_prompt')); setStatus('');
                 }, 'organize')}>{t('generate_proposal')}</ActionButton>
             </div></div>
-            <main><section className="ts-namespaces"><div className="ts-namespace-heading"><h2>{t('namespace_tree')}</h2>
-                <HintButton className="ts-add-tool ts-open-tools" type="button" aria-label={t('add_tools')} title={t('add_tools_hint_button')} disabled={!view}
-                    onClick={() => setToolPicker({ parent: '' })}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-                        <path d="M14 6a5 5 0 0 0-6-4l3 3-3 3-3-3a5 5 0 0 0 6 6l8 8a2 2 0 0 0 3-3z" />
-                    </svg>
-                </HintButton>
-                <div className="ts-namespace-profile" aria-busy={pending === 'editor' || undefined} ref={element => { if (element) element.inert = pending === 'editor'; }}>
-                    <ProfilePicker name={view?.state.profile ?? ''} profiles={[...(view?.state.profiles ?? []), ...(newProfile ? [view!.state.profile!] : [])]}
-                        download={downloadProfile} upload={uploadProfile} briefs={{ ...view?.profileBriefs, ...(view ? { [view.state.profile!]: brief ?? '' } : {}) }}
-                        dirty={dirty} busy={!view} Select={ProfileSelect} protectedProfile={view?.state.profiles?.length === 1 ? view.state.profiles[0] : undefined}
-                        refresh={() => action('', reload)} refreshDisabled={!view}
-                        select={name => manageProfile('select', name)} create={createProfile}
-                        rename={(name, newName) => manageProfile('rename', name, newName)} remove={name => manageProfile('delete', name)}
-                        save={profile => action('', async () => {
-                            const copyName = profile ?? (newProfile ? view!.state.profile : undefined);
-                            await request(api, { action: copyName === undefined ? 'configure' : 'save_as',
-                                ...(copyName === undefined ? {} : { profile: copyName }), activate: false,
-                                ...(newProfile ? {} : { editingProfile: view!.state.profile }), revision: view!.state.revision, ...draft });
-                            await reload(undefined, copyName ?? view!.state.profile);
-                        })} />
-                </div>
-            </div>
-                {view && <div className="ts-profile-summary"><HintButton className="ts-unmounted-count" type="button" data-unmounted-count={unmounted.length} aria-live="polite" title={t('unmounted_hint')} disabled={!unmounted.length}
-                    onClick={() => setToolPicker({ parent: '', unmountedOnly: true })}>{t('unmounted_count', { count: unmounted.length })}</HintButton>
-                    <ActionButton type="button" title={t('edit_profile_brief_hint')} disabled={busy} onClick={() => setBriefEditor(brief ?? '')}>{t('edit_profile_brief')}</ActionButton></div>}
-                <div aria-busy={pending === 'editor' || undefined} ref={element => { if (element) element.inert = pending === 'editor'; }}>
-                    <NamespaceTreeView roots={namespaceTree.roots} tree={tree} />
-                </div>
-                <small>{t('tree_hint')}</small>
-                {inspectWarning && <p className="ts-inspect-warning" role="status" aria-live="polite">{t('inspect_disabled_warning')}</p>}
-            </section></main>
+            <main><NamespaceSection loaded={!!view} busy={busy} editorPending={pending === 'editor'}
+                roots={namespaceTree.roots} tree={tree} inspectWarning={inspectWarning} unmountedCount={unmounted.length}
+                pickTools={unmountedOnly => setToolPicker({ parent: '', unmountedOnly })} editBrief={() => setBriefEditor(brief ?? '')}
+                profile={{
+                    name: view?.state.profile ?? '',
+                    profiles: [...(view?.state.profiles ?? []), ...(newProfile ? [view!.state.profile!] : [])],
+                    download: downloadProfile,
+                    upload: uploadProfile,
+                    briefs: { ...view?.profileBriefs, ...(view ? { [view.state.profile!]: brief ?? '' } : {}) },
+                    dirty,
+                    busy: !view,
+                    Select: ProfileSelect,
+                    protectedProfile: view?.state.profiles?.length === 1 ? view.state.profiles[0] : undefined,
+                    refresh: () => action('', reload),
+                    refreshDisabled: !view,
+                    select: name => manageProfile('select', name),
+                    create: createProfile,
+                    rename: (name, newName) => manageProfile('rename', name, newName),
+                    remove: name => manageProfile('delete', name),
+                    save: profile => action('', async () => {
+                        const copyName = profile ?? (newProfile ? view!.state.profile : undefined);
+                        await request(api, { action: copyName === undefined ? 'configure' : 'save_as',
+                            ...(copyName === undefined ? {} : { profile: copyName }), activate: false,
+                            ...(newProfile ? {} : { editingProfile: view!.state.profile }), revision: view!.state.revision, ...draft });
+                        await reload(undefined, copyName ?? view!.state.profile);
+                    }),
+                }} /></main>
         </div>
         {toolPicker !== undefined && view && <ToolPicker parent={toolPicker.parent} tools={view.tools} unmountedOnly={toolPicker.unmountedOnly} mappings={mappings} protectedTools={providedTools(provided, view.tools)} callsByTool={view.callsByTool} queriesByTool={view.queriesByTool} busy={busy}
             close={() => setToolPicker(undefined)} select={tool => {
