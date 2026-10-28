@@ -72,3 +72,5 @@ Profile 写入模型使用 `registry/profile_write.ts` 的 ProfileWrite（从 Pr
 
 
 ProfileRootWrite 的匿名根只允许 type/children，拒绝没有持久化表示的根级 disabled、fixedLevel、description（包括 apply 的 null 删除）；普通成员仍使用 NamespaceWrite/CommandWrite。ConversationRequiredError、ProfileLockedError、CurrentProfileDeletionError 与 UnknownCommandError 在 src/error.ts 定义，不再用普通 Error 或权限错误表达这些 Profile 失败；非法 patch 键使用 ValidationError。
+
+SemanticRegistry.revision 只读配置版本，不构造快照；generation 继续同时标识配置及物理契约版本。

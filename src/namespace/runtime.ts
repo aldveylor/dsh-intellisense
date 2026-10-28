@@ -70,7 +70,7 @@ export class NamespaceRuntime extends Service {
         let sequence = 0;
         try {
             const registry = await namespaces.registryFor(agent);
-            let revision = registry.snapshot().revision;
+            let revision = registry.revision;
             const entries = (await namespaces.entries(agent, registry)).filter(entry => !entry.preload);
             const result = await this.runtime.execute(agent.id, `run-code-${++this.sequence}`, code, entries.map(entry => entry.binding()), async (tool, input, signal) => {
                 signal.throwIfAborted();
@@ -79,7 +79,7 @@ export class NamespaceRuntime extends Service {
                 void work.finally(() => { pending.delete(work); }).catch(() => {});
                 return bindingResult(work, signal);
             }, controller.signal, await namespaces.values(agent, registry), async () => {
-                const currentRevision = registry.snapshot().revision;
+                const currentRevision = registry.revision;
                 const values = { 'tools.profile.profiles': { ...await namespaces.profileNames(agent) },
                     ...(currentRevision === revision ? {} : { 'tools.profile.commands': (await namespaces.commandBriefs(agent, registry)).map(command => ({ ...command })) }) };
                 revision = currentRevision;

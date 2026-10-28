@@ -179,6 +179,9 @@ export class SemanticRegistry {
         this.physical = next;
     }
 
+    /** @brief Read the configuration revision without copying Profile data. */
+    get revision(): number { return this.state.revision; }
+
     /** @brief Identify configuration and physical-contract changes without copying either snapshot. */
     get generation(): string { return `${this.state.revision}:${this.physicalRevision}`; }
 

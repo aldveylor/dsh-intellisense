@@ -87,7 +87,7 @@ export function registerInspect(ctx: Context, namespaces: NamespaceComponent): v
             const position = namespaces.position(agent);
             appendPluginRecord(agent.session, 'plugin:ts_intellisense/inspect', {
                 ...position, queries, info, elapsedMs: performance.now() - started,
-                profileRevision: registry.snapshot().revision,
+                profileRevision: registry.revision,
                 runtimeEpoch: namespaces.isPtc(agent) ? agent.ctx.get('codeRuntime')?.epoch(agent.id) ?? 0 : 0,
             });
             return info;

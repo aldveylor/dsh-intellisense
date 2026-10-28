@@ -73,7 +73,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         execute: async (args, execution) => {
             if (!execution.agent) throw new ConversationRequiredError();
             const { name } = z.strictObject({ name: z.string().min(1) }).parse(args);
-            await catalog.manageProfile('select', name, catalog.snapshot().revision);
+            await catalog.manageProfile('select', name, catalog.revision);
             return null;
         },
     })));
@@ -112,7 +112,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
             const selected = (await registryFor(execution.agent)).snapshot().profile!;
             const target = name;
             if (target === selected) throw new CurrentProfileDeletionError(target);
-            await catalog.manageProfile('delete', target, catalog.snapshot().revision);
+            await catalog.manageProfile('delete', target, catalog.revision);
             return null;
         },
     })));
