@@ -3,6 +3,7 @@ import { HintButton } from '../../tooltip/action_hint.js';
 import { useTranslation } from '../../locale/locale.js';
 import { ProfilePicker } from '../../profile_picker/profile_picker.js';
 import { NamespaceTreeView } from '../tree_view/namespace_tree_view.js';
+import { EditableText } from '../tree_view/editable_text/editable_text.js';
 import type { TreeProps } from '../tree_view/tree_props.js';
 import type { TreeNode } from '../tree_node.js';
 
@@ -18,7 +19,7 @@ interface NamespaceSectionProps {
     brief?: string;
     inspectWarning: boolean;
     pickTools: (unmountedOnly: boolean) => void;
-    editBrief: () => void;
+    editBrief: (value: string) => void;
 }
 
 /** @brief Compose the namespace region without owning drafts or issuing requests. */
@@ -36,10 +37,9 @@ export function NamespaceSection({ loaded, busy, editorPending, profile, roots, 
                 <ProfilePicker {...profile} />
             </div>
         </div>
-        {loaded && <div className="ts-profile-summary"><span className="ts-profile-brief" role="button" aria-label={t('profile_brief')} aria-disabled={busy} tabIndex={busy ? -1 : 0}
-            onDoubleClick={() => { if (!busy) editBrief(); }} onKeyDown={event => {
-                if (!busy && event.key === 'Enter') { event.preventDefault(); editBrief(); }
-            }}>{brief?.trim() ? brief : t('add_profile_brief')}</span></div>}
+        {loaded && <div className="ts-profile-summary"><EditableText key={profile.name} className="ts-profile-brief" label={t('profile_brief')}
+            value={brief ?? ''} placeholder={t('add_profile_brief')} busy={busy} empty
+            commit={value => { editBrief(value); return true; }} /></div>}
         <div aria-busy={editorPending || undefined} ref={element => { if (element) element.inert = editorPending; }}>
             <NamespaceTreeView roots={roots} tree={tree} />
         </div>

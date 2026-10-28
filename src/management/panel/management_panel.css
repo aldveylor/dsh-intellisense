@@ -165,3 +165,5 @@
 /* Shared SVG close controls for dialog headers. */
 .ts-intellisense button.ts-close-button{display:inline-flex;align-items:center;justify-content:center;flex:0 0 28px;width:28px;height:28px;min-height:28px;padding:4px;border:0}
 .ts-close-button svg{display:block;flex-shrink:0}
+
+.ts-intellisense input.ts-profile-brief{width:100%}

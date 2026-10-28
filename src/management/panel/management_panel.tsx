@@ -74,7 +74,6 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
     const Select = DefaultProfileSelect ?? PortableProfileSelect;
     const [view, setView] = useState<View>();
     const [brief, setBrief] = useState<string>();
-    const [briefEditor, setBriefEditor] = useState<string>();
     const [mappings, setMappings] = useState<Mapping[]>([]);
     const [namespaces, setNamespaces] = useState<Namespace[]>([]);
     const [order, setOrder] = useState<string[]>([]);
@@ -419,7 +418,7 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
             </div></div>
             <main><NamespaceSection loaded={!!view} busy={busy} editorPending={pending === 'editor'}
                 roots={namespaceTree.roots} tree={tree} inspectWarning={inspectWarning} unmountedCount={unmounted.length} brief={brief}
-                pickTools={unmountedOnly => setToolPicker({ parent: '', unmountedOnly })} editBrief={() => setBriefEditor(brief ?? '')}
+                pickTools={unmountedOnly => setToolPicker({ parent: '', unmountedOnly })} editBrief={value => setBrief(value || undefined)}
                 profile={{
                     name: view?.state.profile ?? '',
                     profiles: [...(view?.state.profiles ?? []), ...(newProfile ? [view!.state.profile!] : [])],
@@ -450,14 +449,6 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
                 applyDrop({ namespace: false, id: tool.id }, { path: toolPicker.parent, position: 'inside' });
                 setToolPicker(undefined);
             }} />}
-        {briefEditor !== undefined && <div className="ts-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="ts-brief-title">
-            <form onSubmit={event => { event.preventDefault(); setBrief(briefEditor.trim() || undefined); setBriefEditor(undefined); }}>
-                <h2 id="ts-brief-title">{t('edit_profile_brief')}</h2>
-                <textarea aria-label={t('profile_brief')} autoFocus rows={4} value={briefEditor} onChange={event => setBriefEditor(event.target.value)} />
-                <div className="ts-dialog-actions"><ActionButton variant="primary" type="submit" title={t('apply_draft_hint')}>{t('apply')}</ActionButton>
-                    <ActionButton type="button" title={t('cancel_hint')} onClick={() => setBriefEditor(undefined)}>{t('cancel')}</ActionButton></div>
-            </form>
-        </section></div>}
         {descriptionEditor && <div className="ts-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="ts-description-title">
             <form onSubmit={event => {
                 event.preventDefault();
