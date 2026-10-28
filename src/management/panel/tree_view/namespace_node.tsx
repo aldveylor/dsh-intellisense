@@ -1,6 +1,6 @@
 import { useTranslation } from '../../locale/locale.js';
 import type { TreeProps } from './tree_props.js';
-import { EditableText } from '../../controls/editable_text.js';
+import { EditableText, type EditableTextWidthContext } from '../../controls/editable_text.js';
 import { PinButton, RemoveButton, DisableButton } from './tree_controls.js';
 import { acceptTreeDrag, leaveTreeDrag } from './native_drag.js';
 import type { ReactNode } from 'react';
@@ -8,6 +8,14 @@ import type { NamespaceTreeNode } from '../tree_node.js';
 import { HintButton } from '../../tooltip/action_hint.js';
 import { NamespaceDetails, useTreeTooltip } from '../../tooltip/tree_details.js';
 import { TreeChildren } from './tree_children.js';
+
+/** @brief Fill the comment region up to the action buttons while preserving the row gap. */
+function namespaceCommentWidth({ element, textLeft }: EditableTextWidthContext): number {
+    const container = element.parentElement!;
+    const actions = container.querySelector<HTMLElement>('.ts-node-actions');
+    const gap = parseFloat(element.ownerDocument.defaultView!.getComputedStyle(container).columnGap) || 0;
+    return Math.max(0, (actions ? actions.getBoundingClientRect().left - gap : element.getBoundingClientRect().right) - textLeft);
+}
 
 /** @brief Namespace row whose children toggle only through the leading disclosure button. */
 export function NamespaceNode({ node, tree, children }: { node: NamespaceTreeNode; tree: TreeProps; children: ReactNode }) {
@@ -28,7 +36,7 @@ export function NamespaceNode({ node, tree, children }: { node: NamespaceTreeNod
             {!node.permissions.renamable ? <span className="ts-node-name">{path.split('.').at(-1)}</span> : <EditableText className="ts-node-name" value={path.split('.').at(-1)!} label={t('namespace_path_name', { path })} busy={tree.busy}
                 commit={name => tree.renameNamespace(path, name)} />}
             <small className="ts-node-count" aria-label={t('command_count', { path })}>{count}</small>
-            {fixed ? <span className="ts-node-preview">{node.description}</span> : <><EditableText className="ts-node-preview" value={config?.description ?? ''} label={t('namespace_comment', { path })} busy={tree.busy} placeholder={t('add_comment')} empty multiline autoWidth
+            {fixed ? <span className="ts-node-preview">{node.description}</span> : <><EditableText className="ts-node-preview" value={config?.description ?? ''} label={t('namespace_comment', { path })} busy={tree.busy} placeholder={t('add_comment')} empty multiline calculateWidth={namespaceCommentWidth}
                 commit={description => { tree.configure(path, { description }); return true; }} />
             <span className="ts-node-actions">
                 <PinButton label={t('pin_namespace', { path })} active={config?.alwaysVisible ?? false} busy={tree.busy}
