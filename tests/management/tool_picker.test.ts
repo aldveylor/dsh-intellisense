@@ -80,18 +80,34 @@ test('picker and namespace details show global call and query counts', async () 
         assert(document.querySelector('.ts-tool-picker-footer')!.textContent!.includes('3'));
         assert(document.querySelectorAll('dialog .ts-builtin-tool:disabled').length > 0);
         const sort = document.querySelector<HTMLButtonElement>('.ts-tool-picker-sort .ts-profile-select > button')!;
-        for (const [value, expected] of [
-            ['calls_desc', ['alpha', 'beta', 'zebra']], ['calls_asc', ['zebra', 'beta', 'alpha']],
-            ['queries_desc', ['alpha', 'beta', 'zebra']], ['queries_asc', ['zebra', 'alpha', 'beta']],
-            ['name_asc', ['alpha', 'beta', 'zebra']], ['name_desc', ['zebra', 'beta', 'alpha']],
-            ['default', ['zebra', 'alpha', 'beta']],
+        const direction = document.querySelector<HTMLButtonElement>('.ts-tool-sort-direction')!;
+        assert(direction.disabled);
+        for (const [value, ascending, descending] of [
+            ['calls', ['zebra', 'beta', 'alpha'], ['alpha', 'beta', 'zebra']],
+            ['queries', ['zebra', 'alpha', 'beta'], ['alpha', 'beta', 'zebra']],
+            ['name', ['alpha', 'beta', 'zebra'], ['zebra', 'beta', 'alpha']],
         ] as const) {
             sort.click();
             await until(() => sort.getAttribute('aria-expanded') === 'true');
             const options = document.querySelectorAll<HTMLButtonElement>('.ts-tool-picker-sort .ts-profile-option');
-            options[['default', 'name_asc', 'name_desc', 'calls_desc', 'calls_asc', 'queries_desc', 'queries_asc'].indexOf(value)]!.click();
-            await until(() => order().join() === expected.join());
+            assert.equal(options.length, 4);
+            options[['default', 'name', 'calls', 'queries'].indexOf(value)]!.click();
+            await until(() => order().join() === ascending.join());
+            assert(!direction.disabled);
+            assert.equal(direction.getAttribute('aria-pressed'), 'false');
+            direction.click();
+            await until(() => order().join() === descending.join());
+            assert.equal(direction.getAttribute('aria-pressed'), 'true');
+            direction.click();
+            await until(() => order().join() === ascending.join());
         }
+        direction.click();
+        sort.click();
+        await until(() => sort.getAttribute('aria-expanded') === 'true');
+        document.querySelector<HTMLButtonElement>('.ts-tool-picker-sort [data-profile-value="default"] .ts-profile-option')!.click();
+        await until(() => order().join() === ['zebra', 'alpha', 'beta'].join());
+        assert(direction.disabled);
+        assert.equal(direction.getAttribute('aria-pressed'), 'true');
         const card = document.querySelector<HTMLButtonElement>('[data-tool-id="alpha"]')!;
         card.dispatchEvent(new window.MouseEvent('pointerover', { bubbles: true, clientX: 100, clientY: 100 }));
         await until(() => !!document.querySelector('[role="tooltip"]'));

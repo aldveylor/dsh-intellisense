@@ -15,11 +15,11 @@ function ToolCard({ tool, mappings, builtinPath, calls, queries, busy, select }:
     const tooltip = useTooltip();
     return <button type="button" data-tool-id={tool.id} aria-describedby={tooltip.id}
         className={`ts-tool ${builtinPath ? 'ts-builtin-tool' : mappings.length ? '' : 'ts-unmounted'}`} disabled={busy || !!builtinPath}
-        onPointerEnter={event => tooltip.show(<ToolDetails tool={tool} calls={calls} queries={queries} />, event.clientX, event.clientY)}
+        onPointerEnter={event => tooltip.show(<><p>{t(builtinPath ? 'builtin_tool_card_hint' : 'add_tool_card_hint')}</p><ToolDetails tool={tool} calls={calls} queries={queries} /></>, event.clientX, event.clientY)}
         onPointerMove={event => tooltip.move(event.clientX, event.clientY, event.ctrlKey)} onPointerLeave={tooltip.leave}
         onFocus={event => {
             const rect = event.currentTarget.getBoundingClientRect();
-            tooltip.show(<ToolDetails tool={tool} calls={calls} queries={queries} />, rect.left, rect.bottom);
+            tooltip.show(<><p>{t(builtinPath ? 'builtin_tool_card_hint' : 'add_tool_card_hint')}</p><ToolDetails tool={tool} calls={calls} queries={queries} /></>, rect.left, rect.bottom);
         }} onBlur={tooltip.leave} onClick={() => { if (!builtinPath && !busy) { tooltip.hide(); select(tool); } }}>
         <strong>{tool.id}</strong>
         <code className="ts-tool-footer">{builtinPath || mappings.map(mapping => mapping.path).join(', ') || t('unmounted')}</code>
@@ -37,6 +37,7 @@ export function ToolPicker({ parent, tools, mappings, protectedTools = emptyProt
     const dialog = useRef<HTMLDialogElement>(null);
     const [search, setSearch] = useState('');
     const [sort, setSort] = useState('default');
+    const [descending, setDescending] = useState(false);
     const totalCalls = Object.values(callsByTool).reduce((total, count) => total + count, 0);
     const filter = search.trim().toLowerCase();
     const { cards, mappingsByTool, protectedPaths } = useMemo(() => {
@@ -56,11 +57,10 @@ export function ToolPicker({ parent, tools, mappings, protectedTools = emptyProt
     const matches = cards.filter(card => card.search.includes(filter)).map(card => card.tool);
     if (sort !== 'default') matches.sort((a, b) => {
         const byName = a.id.localeCompare(b.id);
-        if (sort === 'name_asc') return byName;
-        if (sort === 'name_desc') return -byName;
-        const counts = sort.startsWith('queries_') ? queriesByTool : callsByTool;
+        if (sort === 'name') return descending ? -byName : byName;
+        const counts = sort === 'queries' ? queriesByTool : callsByTool;
         const difference = (counts[a.id] ?? 0) - (counts[b.id] ?? 0);
-        return (sort.endsWith('_asc') ? difference : -difference) || byName;
+        return (descending ? -difference : difference) || byName;
     });
 
     useEffect(() => { dialog.current?.showModal(); }, []);
@@ -72,13 +72,20 @@ export function ToolPicker({ parent, tools, mappings, protectedTools = emptyProt
             if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) close();
         }}>
         <TooltipProvider><header><h2 id="ts-tool-picker-title">{t('add_tools')} · {parent || t('root')}</h2>
-            <ActionButton variant="ghost" type="button" aria-label={t('close_picker')} onClick={close}>{t('close')}</ActionButton>
+            <ActionButton variant="ghost" type="button" aria-label={t('close_picker')} title={t('close_picker_hint')} onClick={close}>{t('close')}</ActionButton>
         </header>
         <div className="ts-tool-picker-search">
             <input type="search" autoFocus aria-label={t('search_tools')} placeholder={t('search_hint')} value={search} onChange={event => setSearch(event.target.value)} />
-            <div className="ts-tool-picker-sort"><NativeProfileSelect label={t('tool_sort')} value={sort}
-                options={['default', 'name_asc', 'name_desc', 'calls_desc', 'calls_asc', 'queries_desc', 'queries_asc'].map(value => ({ value, label: t(`tool_sort_${value}`) }))}
+            <div className="ts-tool-picker-sort"><NativeProfileSelect label={t('tool_sort')} hint={t('sort_tools_hint')} value={sort}
+                options={['default', 'name', 'calls', 'queries'].map(value => ({ value, label: t(`tool_sort_${value}`) }))}
                 disabled={busy} readOnly closeOnSelect onChange={setSort} /></div>
+            <ActionButton className="ts-tool-sort-direction" type="button" aria-label={t('tool_sort_descending')}
+                aria-pressed={descending} title={t(descending ? 'tool_sort_descending' : 'tool_sort_ascending')}
+                disabled={busy || sort === 'default'} onClick={() => setDescending(value => !value)}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d={descending ? 'M7 4v16m-4-4 4 4 4-4M14 6h7m-7 6h5m-5 6h3' : 'M7 20V4m-4 4 4-4 4 4M14 6h3m-3 6h5m-5 6h7'} />
+                </svg>
+            </ActionButton>
         </div>
         <div className="ts-blocks">{matches.map(tool => <ToolCard key={tool.id} tool={tool}
             mappings={mappingsByTool.get(tool.id) ?? []} builtinPath={protectedPaths.get(tool.id)} calls={callsByTool[tool.id] ?? 0} queries={queriesByTool[tool.id] ?? 0} busy={busy} select={select} />)}</div>
