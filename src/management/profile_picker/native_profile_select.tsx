@@ -1,3 +1,4 @@
+import { CloseIcon, ChevronIcon } from '../controls/icons.js';
 import { EditableText } from '../controls/editable_text.js';
 import { HintButton } from '../tooltip/action_hint.js';
 import { ProfileLabel } from './profile_label.js';
@@ -21,9 +22,7 @@ function NativeProfileItem({ value, label, brief, selected, disabled, removable,
             </HintButton>} />
         {!readOnly && <HintButton type="button" className="ts-profile-delete" aria-label={`${t('delete_profile')} ${value}`} title={t('delete_profile_hint')}
             disabled={disabled || !removable} onClick={onRemove}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                <path d="m6 6 12 12M18 6 6 18" />
-            </svg>
+            <CloseIcon valid={!disabled && removable} size={20} />
         </HintButton>}
     </div>;
 }
@@ -64,9 +63,7 @@ export function NativeProfileSelect({ value, options, disabled, readOnly = false
         <HintButton type="button" ref={trigger} aria-label={label ?? t('profile')} aria-expanded={open} aria-controls={panelId} title={hint} disabled={disabled}
             onClick={() => setPhase(current => current === 'open' ? 'closing' : 'open')}>
             <span className="ts-profile-label">{options.find(option => option.value === value)?.label ?? value}</span>
-            <svg className="ts-profile-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="m6 9 6 6 6-6" />
-            </svg>
+            <ChevronIcon valid={!disabled} open={open} className="ts-profile-arrow" />
         </HintButton>
         {phase !== 'closed' && <div id={panelId} className="ts-profile-dropdown" data-phase={phase} role="group" aria-label={label ?? t('profile')}
             aria-hidden={!open} ref={element => { if (element) element.inert = !open; }} onAnimationEnd={event => {

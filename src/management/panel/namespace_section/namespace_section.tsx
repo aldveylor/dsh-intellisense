@@ -1,3 +1,4 @@
+import { ToolsIcon } from '../../controls/icons.js';
 import type { ComponentProps } from 'react';
 import { HintButton } from '../../tooltip/action_hint.js';
 import { useTranslation } from '../../locale/locale.js';
@@ -29,9 +30,7 @@ export function NamespaceSection({ loaded, busy, editorPending, profile, roots, 
         <div className="ts-namespace-heading"><h2>{t('namespace_tree')}</h2>
             <HintButton className="ts-add-tool ts-open-tools" type="button" aria-label={t('add_tools')} title={t('add_tools_hint_button')} disabled={!loaded}
                 onClick={() => pickTools(false)}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-                    <path d="M14 6a5 5 0 0 0-6-4l3 3-3 3-3-3a5 5 0 0 0 6 6l8 8a2 2 0 0 0 3-3z" />
-                </svg>
+                <ToolsIcon valid={loaded} />
             </HintButton>
             <div className="ts-namespace-profile" aria-busy={editorPending || undefined} ref={element => { if (element) element.inert = editorPending; }}>
                 <ProfilePicker {...profile} />

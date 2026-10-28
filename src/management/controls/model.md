@@ -13,3 +13,5 @@ EditableText 通过 InlineEditorContext 使用宿主原生 DSH InlineEditor，cl
 浮层定位以原文本首行的内容起点为准，扣除编辑器相对浮层的位置、边框及内边距；相对位置通过 DOM 矩形测量，包含 margin 偏差。自定义显示可向 beginEdit 传入独立 textElement，Profile 菜单使用名称元素定位，避免勾选图标与简介影响起点。视口边缘仍优先保证浮层可见。
 
 浮层宽度额外包含左右 margin、边框和内边距；浮层高度包含编辑器边框高度及上下 margin，保证扣除两侧 offset 后仍覆盖目标内容区域。左右、上下 offset 始终分别求和，视口边界仍限制最大尺寸。
+
+`icon.tsx` 定义统一 IconProps.valid：只控制动画是否可用，不抹除已选、固定、禁用等静态状态。`icons.tsx` 提供关闭、添加、工具、帮助、箭头、固定和禁用图标；动态状态通过 open/active/level/disabled 参数显式传入，图标动画样式由 icons.css 管理，外部按钮不通过 aria/data 属性控制 SVG 动画。

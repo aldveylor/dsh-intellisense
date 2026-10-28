@@ -1,3 +1,4 @@
+import { ChevronIcon } from '../../controls/icons.js';
 import { useTranslation } from '../../locale/locale.js';
 import type { TreeProps } from './tree_props.js';
 import { EditableText, type EditableTextWidthContext } from '../../controls/editable_text.js';
@@ -32,7 +33,7 @@ export function NamespaceNode({ node, tree, children }: { node: NamespaceTreeNod
         }} onDragOver={event => acceptTreeDrag(event, tree.busy || !node.permissions.acceptsChildren)} onDragLeave={leaveTreeDrag} onDrop={event => tree.dropNode(event, path, true)}>
             <HintButton className="ts-disclosure" type="button" aria-label={t('toggle_namespace', { path })} aria-expanded={open} title={t('toggle_namespace', { path })} disabled={tree.busy}
                 onClick={() => tree.toggle(path)}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
+                <ChevronIcon valid={!tree.busy} open={open} direction="right" size={18} />
             </HintButton>
             {!node.permissions.renamable ? <span className="ts-node-name">{path.split('.').at(-1)}</span> : <EditableText className="ts-node-name" value={path.split('.').at(-1)!} label={t('namespace_path_name', { path })} busy={tree.busy}
                 calculateWidth={nameWidth} commit={name => tree.renameNamespace(path, name)} />}

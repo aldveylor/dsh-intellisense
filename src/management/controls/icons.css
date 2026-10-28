@@ -1,0 +1,11 @@
+.ts-chevron-icon{transition:transform .2s ease}
+.ts-chevron-icon[data-open=true][data-direction=down]{transform:rotate(180deg)}
+.ts-chevron-icon[data-open=true][data-direction=right]{transform:rotate(90deg)}
+.ts-pin-icon{fill:transparent;transition:fill .24s ease,color .24s ease}
+.ts-pin-icon[data-active=true]{fill:currentColor}
+.ts-pin-icon[data-level="2"]{color:var(--dsw-alias-state-warn-primary,light-dark(#9b6500,#eab308))}
+.ts-disable-mark{transform-origin:12px 12px;transition:transform .24s ease}
+.ts-disable-icon[data-disabled=true] .ts-disable-mark{transform:rotate(45deg)}
+.ts-disable-cross{opacity:1;transition:opacity .24s ease}
+.ts-disable-icon[data-disabled=true] .ts-disable-cross{opacity:0}
+@media(prefers-reduced-motion:reduce){.ts-chevron-icon,.ts-pin-icon,.ts-disable-mark,.ts-disable-cross{transition:none}}

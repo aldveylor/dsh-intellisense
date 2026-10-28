@@ -1,3 +1,4 @@
+import { HelpIcon } from '../controls/icons.js';
 import { useState } from 'react';
 import { HintButton } from '../tooltip/action_hint.js';
 import { useTranslation } from '../locale/locale.js';
@@ -24,11 +25,7 @@ export function UsageButton({ open }: { open: () => void }) {
     }
 
     return <HintButton className="ts-usage-button" type="button" aria-label={t('usage_guide')} title={t('usage_guide_hint')} onClick={showGuide}>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="9" />
-            <path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.75-2.5 2-2.5 4" />
-            <circle cx="12" cy="16.5" r=".75" fill="currentColor" stroke="none" />
-        </svg>
+        <HelpIcon valid={true} />
         {!viewed && <span className="ts-usage-unread" aria-hidden="true" />}
     </HintButton>;
 }

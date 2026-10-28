@@ -1,3 +1,4 @@
+import { AddIcon } from '../../controls/icons.js';
 import { useState, type DragEvent } from 'react';
 import { HintButton } from '../../tooltip/action_hint.js';
 import { useTranslation } from '../../locale/locale.js';
@@ -40,7 +41,7 @@ export function NamespacePlaceholder({ parent = '', busy, create, drop, pick }: 
             }} />}
         <HintButton className="ts-add-tool" type="button" aria-label={t('add_tools_to', { path: parent || t('root') })} title={t('add_tools_to_hint', { path: parent || t('root') })} disabled={busy}
             onClick={() => pick(parent)} onDoubleClick={event => event.stopPropagation()}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+            <AddIcon valid={!busy} />
         </HintButton>
     </li>;
 }
