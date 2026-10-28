@@ -7,7 +7,7 @@ import { pluginCommands, projectBuiltin } from '../../runtime/builtins.js';
 /** @brief Profile management owns creation of its restricted children. */
 export class ProfileNamespaceNode extends InnerNamespaceNode {
     constructor(parent: NamespaceNode, context: NamespaceContext) {
-        super('profile', parent, 'Profile data and configuration', {}, context.disabled?.('tools.profile'));
+        super('profile', parent, 'Profile data and configuration', { availableFixLevels: [0, 1] }, context.disabled?.('tools.profile'));
         for (const source of [...pluginCommands.managementCommands, ...pluginCommands.profileValues]) {
             const builtin = projectBuiltin(source, context.mode ?? 'ptc');
             if (context.disabled?.(builtin.path)) continue;
