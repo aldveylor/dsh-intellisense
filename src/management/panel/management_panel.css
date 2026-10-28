@@ -18,7 +18,6 @@
 .ts-backdrop textarea{width:100%;resize:vertical;margin:8px 0 16px;min-height:140px}.ts-backdrop{position:fixed;inset:0;z-index:1000;background:var(--dsw-alias-bg-mask-1,#0006);display:grid;place-items:center}.ts-backdrop section,.ts-tool-picker{background:var(--dsw-alias-bg-layer-2,var(--dsw-alias-bg-base,light-dark(#ffffff,#202020)));border:1px solid var(--ts-border);border-radius:var(--dsw-radius-panel,12px);box-shadow:var(--dsw-elevation-prominent,0 20px 72px #0003);padding:24px;width:min(1000px,85vw);max-height:85vh;overflow:auto}
 .ts-tool-picker{color:inherit}.ts-tool-picker::backdrop{background:var(--dsw-alias-bg-mask-1,#0006);backdrop-filter:var(--dsw-mask-blur,blur(3px))}.ts-tool-picker header{justify-content:space-between}.ts-tool-picker-search{display:flex;align-items:center;gap:12px;margin:8px 0 16px}.ts-tool-picker-search input[type=search]{flex:1;min-width:0;width:0;margin:0}.ts-tool-picker .ts-tool{text-align:left}.ts-intellisense .ts-tool-sort-direction{display:inline-flex;align-items:center;justify-content:center;flex:0 0 38px;width:38px;height:38px;padding:8px}.ts-tool-sort-direction svg{display:block;flex-shrink:0}
 
-.ts-profile-picker,.ts-profile-name{display:flex;align-items:center;flex-wrap:wrap;gap:8px}.ts-actions>.ts-organize{margin-left:auto}.ts-intellisense .ts-profile-action:not([data-dsh-control]){display:inline-flex;align-items:center;justify-content:center;flex:0 0 36px;width:36px;height:36px;padding:8px;border:0}.ts-profile-action svg{display:block;flex-shrink:0}.ts-profile-picker select{flex:0 1 auto}.ts-profile-name input{min-width:120px}
 
 .ts-standalone{color-scheme:light dark;margin:0;background:var(--dsw-alias-bg-base,light-dark(#f7f8fa,#181818));color:var(--dsw-alias-label-primary,light-dark(#202124,#dce3ed))}
 .ts-profile-select{position:relative;min-width:160px}.ts-profile-select>button{display:flex;align-items:center;justify-content:space-between;gap:16px;width:100%;text-align:left}.ts-profile-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ts-profile-arrow{display:block;flex:0 0 16px;margin-left:auto;}.ts-profile-dropdown{position:absolute;top:calc(100% + 6px);left:0;z-index:100;min-width:100%;width:max-content;max-width:420px;padding:5px;border:1px solid var(--ts-border);border-radius:var(--dsw-radius-lg,10px);background:var(--dsw-menu-surface-fill,var(--dsw-alias-bg-base,light-dark(#ffffff,#202020)));backdrop-filter:var(--dsw-menu-backdrop-filter,blur(16px));box-shadow:var(--dsw-elevation-panel,0 8px 28px #0003)}.ts-profile-options{max-height:320px;overflow:auto}.ts-profile-item{display:flex;align-items:center;gap:0;padding:2px;border:1px solid var(--ts-border);border-radius:var(--dsw-radius-md,6px)}.ts-profile-item+.ts-profile-item{margin-top:4px}.ts-profile-item[data-selected=true]{background:var(--dsw-alias-interactive-bg-hover,light-dark(#edf0f4,#ffffff0d))}.ts-intellisense .ts-profile-option:not([data-dsh-control]){display:flex;align-items:center;gap:8px;flex:1;min-width:0;text-align:left;border:0;padding:7px 8px}.ts-profile-option>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ts-profile-check{width:16px;flex:0 0 16px}.ts-intellisense .ts-profile-delete:not([data-dsh-control]){display:inline-flex;align-items:center;justify-content:center;flex:0 0 34px;align-self:stretch;border:0;background:transparent;padding:7px;width:34px;min-height:34px;color:var(--dsw-alias-label-secondary,light-dark(#4b5563,#bdbdbd))}.ts-profile-delete svg{display:block;flex-shrink:0}.ts-profile-item>input{flex:1;min-width:0;width:180px}.ts-profile-create{border-top:1px solid var(--ts-border);margin-top:5px;padding:6px 2px 2px}.ts-profile-create input{width:100%;min-width:240px}
@@ -54,23 +53,6 @@
 
 .ts-tool-schema tr>:nth-child(-n+2):not([colspan]){width:1%;white-space:nowrap;overflow-wrap:normal}
 
-/* SVG master cycles stop at an iteration boundary after the corresponding operation settles. */
-.ts-profile-action svg{--ts-action-cycle:900ms;transform-origin:center}
-.ts-profile-action svg[data-running=true]{animation:ts-action-cycle var(--ts-action-cycle) linear infinite}
-.ts-profile-action svg[data-action=refresh][data-running=true]{animation-name:ts-action-refresh}
-.ts-profile-action svg[data-running=true] .ts-transfer-arrow{animation:ts-action-download var(--ts-action-cycle) ease-in-out infinite}
-.ts-profile-action svg[data-action=upload][data-running=true] .ts-transfer-arrow{animation-name:ts-action-upload}
-.ts-profile-action svg[data-running=true] .ts-archive-paper{animation:ts-action-archive var(--ts-action-cycle) ease-in-out infinite}
-.ts-profile-action svg[data-running=true] .ts-archive-seal{transform-origin:center;animation:ts-action-seal var(--ts-action-cycle) ease-in-out infinite}
-.ts-profile-action svg[data-running=true] .ts-action-pen{animation:ts-action-write var(--ts-action-cycle) ease-in-out infinite}
-@keyframes ts-action-cycle{from{opacity:1}to{opacity:1}}
-@keyframes ts-action-refresh{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-@keyframes ts-action-download{0%,100%{transform:translateY(0);opacity:1}40%{transform:translateY(5px);opacity:0}41%{transform:translateY(-5px);opacity:0}80%{transform:translateY(0);opacity:1}}
-@keyframes ts-action-upload{0%,100%{transform:translateY(0);opacity:1}40%{transform:translateY(-5px);opacity:0}41%{transform:translateY(5px);opacity:0}80%{transform:translateY(0);opacity:1}}
-@keyframes ts-action-archive{0%,100%{transform:translateY(0);opacity:1}45%,65%{transform:translateY(9px);opacity:0}66%{transform:translateY(-3px);opacity:0}90%{transform:translateY(0);opacity:1}}
-@keyframes ts-action-seal{0%,20%,90%,100%{transform:translateY(0) scaleX(1)}45%,65%{transform:translateY(2px) scaleX(.85)}}
-@keyframes ts-action-write{0%,100%{transform:translate(0,0)}20%{transform:translate(-3px,-1px)}40%{transform:translate(1px,-3px)}60%{transform:translate(-2px,1px)}80%{transform:translate(2px,-1px)}}
-
 .ts-intellisense .ts-pin:not([data-dsh-control]){transition:color .24s ease,background-color .24s ease}
 
 
@@ -84,9 +66,6 @@
 .ts-tree-children[data-open=true]{grid-template-rows:1fr;opacity:1}
 .ts-tree-children[data-open=false]{pointer-events:none}
 @media(prefers-reduced-motion:reduce){
-    .ts-profile-action svg{--ts-action-cycle:100ms}
-    .ts-profile-action svg[data-action][data-running=true]{animation-name:ts-action-cycle}
-    .ts-profile-action svg[data-running=true] :is(.ts-transfer-arrow,.ts-archive-paper,.ts-archive-seal,.ts-action-pen){animation:none}
     .ts-intellisense .ts-pin:not([data-dsh-control]){transition-duration:1ms}
     .ts-tree-children{transition-duration:1ms}
     .ts-profile-dropdown,.ts-profile-dropdown[data-phase=closing]{animation-duration:1ms}

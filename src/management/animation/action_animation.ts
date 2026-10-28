@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type AnimationEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /** @brief Loop SVG actions until their operation settles, then finish at the next full cycle. */
 export function useActionAnimation() {
@@ -20,9 +20,9 @@ export function useActionAnimation() {
         finally { if (mounted.current) operations.current.set(name, true); }
     }
 
-    /** @brief Ignore child animation events and stop only on the SVG's master cycle boundary. */
-    function finish(name: string, event: AnimationEvent<SVGSVGElement>): void {
-        if (event.target !== event.currentTarget || !operations.current.get(name)) return;
+    /** @brief Stop a settled operation when its icon reports a full animation cycle. */
+    function finish(name: string): void {
+        if (!operations.current.get(name)) return;
         operations.current.delete(name);
         setRunning(new Set(operations.current.keys()));
     }

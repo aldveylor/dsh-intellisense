@@ -1,0 +1,23 @@
+/* SVG master cycles stop at an iteration boundary after the corresponding operation settles. */
+.ts-action-icon{--ts-action-cycle:900ms;transform-origin:center}
+.ts-action-icon[data-running=true]{animation:ts-action-cycle var(--ts-action-cycle) linear infinite}
+.ts-action-icon[data-action=refresh][data-running=true]{animation-name:ts-action-refresh}
+.ts-action-icon[data-running=true] .ts-transfer-arrow{animation:ts-action-download var(--ts-action-cycle) ease-in-out infinite}
+.ts-action-icon[data-action=upload][data-running=true] .ts-transfer-arrow{animation-name:ts-action-upload}
+.ts-action-icon[data-running=true] .ts-archive-paper{animation:ts-action-archive var(--ts-action-cycle) ease-in-out infinite}
+.ts-action-icon[data-running=true] .ts-archive-seal{transform-origin:center;animation:ts-action-seal var(--ts-action-cycle) ease-in-out infinite}
+.ts-action-icon[data-running=true] .ts-action-pen{animation:ts-action-write var(--ts-action-cycle) ease-in-out infinite}
+@keyframes ts-action-cycle{from{opacity:1}to{opacity:1}}
+@keyframes ts-action-refresh{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes ts-action-download{0%,100%{transform:translateY(0);opacity:1}40%{transform:translateY(5px);opacity:0}41%{transform:translateY(-5px);opacity:0}80%{transform:translateY(0);opacity:1}}
+@keyframes ts-action-upload{0%,100%{transform:translateY(0);opacity:1}40%{transform:translateY(-5px);opacity:0}41%{transform:translateY(5px);opacity:0}80%{transform:translateY(0);opacity:1}}
+@keyframes ts-action-archive{0%,100%{transform:translateY(0);opacity:1}45%,65%{transform:translateY(9px);opacity:0}66%{transform:translateY(-3px);opacity:0}90%{transform:translateY(0);opacity:1}}
+@keyframes ts-action-seal{0%,20%,90%,100%{transform:translateY(0) scaleX(1)}45%,65%{transform:translateY(2px) scaleX(.85)}}
+@keyframes ts-action-write{0%,100%{transform:translate(0,0)}20%{transform:translate(-3px,-1px)}40%{transform:translate(1px,-3px)}60%{transform:translate(-2px,1px)}80%{transform:translate(2px,-1px)}}
+
+.ts-profile-picker,.ts-profile-name{display:flex;align-items:center;flex-wrap:wrap;gap:8px}.ts-actions>.ts-organize{margin-left:auto}.ts-intellisense .ts-profile-action:not([data-dsh-control]){display:inline-flex;align-items:center;justify-content:center;flex:0 0 36px;width:36px;height:36px;padding:8px;border:0}.ts-action-icon{display:block;flex-shrink:0}.ts-profile-picker select{flex:0 1 auto}.ts-profile-name input{min-width:120px}
+@media(prefers-reduced-motion:reduce){
+.ts-action-icon{--ts-action-cycle:100ms}
+.ts-action-icon[data-action][data-running=true]{animation-name:ts-action-cycle}
+.ts-action-icon[data-running=true] :is(.ts-transfer-arrow,.ts-archive-paper,.ts-archive-seal,.ts-action-pen){animation:none}
+}

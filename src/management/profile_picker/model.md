@@ -21,3 +21,5 @@ Profile 下拉选项支持可选 brief，存在时在名称下显示灰色简介
 Profile 菜单行通过 controls/editable_text 的 EditableText 共用草稿、提交、取消及输入法保护，renderDisplay 保留 HintButton 选择与简介布局，输入限制 80 字符并聚焦全选。
 
 配置校验按需导入 Zod API，浏览器与管理服务继续共用 profileConfiguration；DSH 客户端复用宿主 Zod，独立页面构建仅保留所需校验实现。
+
+`action_icons.tsx` 独立封装刷新、保存、另存为、导出和导入图标及其主周期回调，显式接收 valid/running/onCycle；图标自身忽略子动画事件。action_icons.css 持有动画及减少动态效果样式，操作 hook 只管理异步执行和已完成状态。操作仍在忙碌时保留当前图标 valid，确保完整周期结束回调可达。
