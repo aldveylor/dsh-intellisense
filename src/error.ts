@@ -36,9 +36,19 @@ export class PositionalArgumentError extends ToolCallError {
     constructor(toolName: string) { super('Invalid positional argument count', toolName, 'invalid_argument_count'); this.name = 'PositionalArgumentError'; }
 }
 
-/** @brief Normalize known schema failures to one compact JSON object. */
-export function normalizeError(error: unknown): unknown {
-    if (!(error instanceof z.ZodError)) return error;
+/** @brief Preserve the text of a non-Error thrown value in an Error instance. */
+export class UnknownError extends Error {
+    constructor(value: unknown) { super(typeof value === 'string' ? value : String(value)); this.name = 'UnknownError'; }
+}
+
+/** @brief Simplify messages longer than 1000 characters, preserving Error identity and type. */
+export function normalizeError(value: unknown): Error {
+    const error = value instanceof Error ? value : new UnknownError(value);
+    if (error.message.length <= 1000) return error;
+    if (!(error instanceof z.ZodError)) {
+        Object.defineProperty(error, 'message', { value: JSON.stringify({ type: error.name, message: `${error.message.slice(0, 900)}…` }), configurable: true, writable: true });
+        return error;
+    }
     const flatten = (issues: readonly z.core.$ZodIssue[], prefix: PropertyKey[] = []): { path: string; message: string }[] => issues.flatMap(issue => {
         const path = [...prefix, ...issue.path];
         if (issue.code === 'invalid_union') {
@@ -52,5 +62,6 @@ export function normalizeError(error: unknown): unknown {
         if (issue.code === 'unrecognized_keys') return issue.keys.map(key => ({ path: [...path, key].join('.'), message: 'Unknown or read-only field' }));
         return [{ path: path.join('.'), message: issue.message }];
     });
-    return new ValidationError(flatten(error.issues));
+    Object.defineProperty(error, 'message', { value: JSON.stringify({ type: error.name, issues: flatten(error.issues) }), configurable: true, writable: true });
+    return error;
 }

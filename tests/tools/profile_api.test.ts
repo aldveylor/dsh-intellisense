@@ -545,13 +545,13 @@ test('save and apply reject readonly name and permissions without changing catal
         { root: { children: { file: { type: 'command', command: { tool: 'read_file' }, permissions: { availableFixLevels: [] } } } } },
     ];
     for (const value of values) {
-        await assert.rejects(call('tools_profile_apply', { value }), /Unknown or read-only field/);
+        await assert.rejects(call('tools_profile_apply', { value }), /Unknown or read-only field|Unrecognized key/);
         assert.deepEqual(catalog.snapshot(), before);
         assert.deepEqual(registry.snapshot(), draft);
     }
     for (const profile of [original, { ...profileWrite(original), name: original.name },
         { ...profileWrite(original), root: { ...original.root, permissions: null } }]) {
-        await assert.rejects(call('tools_profile_save', { profile }), /Unknown or read-only field/);
+        await assert.rejects(call('tools_profile_save', { profile }), /Unknown or read-only field|Unrecognized key/);
         assert.deepEqual(catalog.snapshot(), before);
     }
 });
@@ -559,10 +559,11 @@ test('save and apply reject readonly name and permissions without changing catal
 test('apply reports null required fields explicitly and compact validation identifies exact node fields', async () => {
     const { call } = await fixture();
     await assert.rejects(call('tools_profile_apply', { value: { root: null } }), /root.*received null/);
-    await assert.rejects(call('tools_profile_apply', { value: { root: { children: { files: { type: 'command', command: { tool: 'read_file' }, fixedLevel: 9 } } } } }), error => {
+    await assert.rejects(call('tools_profile_apply', { value: { root: { children: { files: { type: 'command', command: { tool: 'read_file' }, fixedLevel: 9 }, files2: { type: 'command', command: { tool: 'read_file' }, fixedLevel: 9 } } } } }), error => {
         const text = (error as Error).message;
         const data = JSON.parse(text);
-        assert.equal(data.code, 'invalid_arguments');
+        assert.equal((error as Error).name, 'ZodError');
+        assert.equal(data.type, 'ZodError');
         assert(data.issues.some((issue: { path: string }) => issue.path === 'root.children.files.fixedLevel'));
         assert(text.length < 700, text);
         return true;
@@ -576,7 +577,7 @@ test('apply rejects additions to protected namespaces and command children', asy
         const tools = parent === 'tools' ? addition : { children: { profile: addition } };
         await assert.rejects(call('tools_profile_apply', { value: { root: { children: { tools } } } }), /Namespace does not accept children: tools/);
     }
-    await assert.rejects(call('tools_profile_apply', { value: { root: { children: { tools: { children: { search: { children: { child: { type: 'namespace' } } } } } } } } }), /children.*Unknown or read-only field/);
+    await assert.rejects(call('tools_profile_apply', { value: { root: { children: { tools: { children: { search: { children: { child: { type: 'namespace' } } } } } } } } }), /children.*Unknown or read-only field|Unrecognized key/);
 });
 
 test('nested rename and move persist in the catalog while session paths change only on switch', async () => {

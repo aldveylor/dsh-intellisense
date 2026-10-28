@@ -42,4 +42,4 @@ export type { CommandCounts, CommandStatisticsSnapshot, QueryTarget } from './na
 
 export { profileWrite } from './registry/profile_write.js';
 export type { ProfileWrite, ProfilePatch, CommandWrite, NamespaceWrite } from './registry/profile_write.js';
-export { ValidationError, ProfilePermissionError, ProfileNotFoundError, ToolCallError, PositionalArgumentError } from './error.js';
+export { UnknownError, normalizeError, ValidationError, ProfilePermissionError, ProfileNotFoundError, ToolCallError, PositionalArgumentError } from './error.js';

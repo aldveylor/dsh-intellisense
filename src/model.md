@@ -87,4 +87,4 @@ Profile save 保留原生 string | null 返回值：null 表示无提示的成�
 
 Profile 写入模型使用 `registry/profile_write.ts` 的 ProfileWrite（从 ProfileData 排除 name，递归排除 permissions），apply 使用递归 Partial 的 ProfilePatch。permissions 仅作为 load 的服务端只读规则返回；save/apply 对 name、permissions、未知字段（含 null 删除）强校验并抛错。调用方从 load 数据显式投影为写入树，宿主可使用 profileWrite；annotation 提供读取与写入两套类型，native annotation 返回写入 JSON Schema。null 仅删除可选字段或 children 成员，删除必填字段直接报告 null 输入。save/apply 仍只写目录，commands.paths 继续指向当前会话，验证保存结果用 load(name)，显式 switch 后才更新会话路径。
 
-`src/error.ts` 定义 ValidationError、ProfilePermissionError、ProfileNotFoundError、ToolCallError 和 PositionalArgumentError。Zod 错误转换为包含 code 及 path/message 列表的紧凑 JSON；guest 的位置参数错误为带 toolName/code 的 ToolCallError 子类，服务端错误码随 IPC 回复传递。
+`src/error.ts` 定义 ValidationError、ProfilePermissionError、ProfileNotFoundError、ToolCallError 和 PositionalArgumentError。仅长度超过 1000 字符的错误简化 message；ZodError 保持实例、类型及原始 issues，message 使用 type 与 path/message 列表的紧凑 JSON，短错误保持原样，非 Error 抛出值包装为 UnknownError；guest 的位置参数错误为带 toolName/code 的 ToolCallError 子类，服务端错误码随 IPC 回复传递。
