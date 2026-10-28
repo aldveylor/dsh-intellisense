@@ -1,0 +1,3 @@
+.ts-session-profile-icon{flex:none;color:var(--dsw-alias-label-primary)}
+.ts-session-profile-chevron{flex:none;color:var(--dsw-alias-label-caption)}
+.ts-session-profile-icon[data-valid=false],.ts-session-profile-chevron[data-valid=false]{color:inherit}

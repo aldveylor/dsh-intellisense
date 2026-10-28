@@ -53,15 +53,6 @@ div:has(> [data-slot="conversation.hero.options"] .ts-session-profile) {
     white-space: nowrap;
 }
 
-.ts-session-profile-icon {
-    flex: none;
-    color: var(--dsw-alias-label-primary);
-}
-
-.ts-session-profile-chevron {
-    flex: none;
-    color: var(--dsw-alias-label-caption);
-}
 
 .ts-session-profile-item {
     color: var(--dsw-alias-label-primary);
@@ -69,7 +60,3 @@ div:has(> [data-slot="conversation.hero.options"] .ts-session-profile) {
     line-height: 20px;
 }
 
-.ts-session-profile-trigger:disabled .ts-session-profile-icon,
-.ts-session-profile-trigger:disabled .ts-session-profile-chevron {
-    color: inherit;
-}

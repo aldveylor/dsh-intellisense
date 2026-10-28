@@ -1,4 +1,4 @@
-import { CloseIcon, ChevronIcon } from '../controls/icons.js';
+import { CloseIcon, ChevronIcon, CheckIcon } from '../controls/icons.js';
 import { EditableText } from '../controls/editable_text.js';
 import { HintButton } from '../tooltip/action_hint.js';
 import { ProfileLabel } from './profile_label.js';
@@ -18,7 +18,7 @@ function NativeProfileItem({ value, label, brief, selected, disabled, removable,
         <EditableText value={value} label={t('rename_profile')} busy={disabled} readOnly={readOnly} maxLength={80} selectOnFocus
             commit={onRename} renderDisplay={beginEdit => <HintButton type="button" className="ts-profile-option" action={label} aria-pressed={selected} aria-disabled={disabled} title={readOnly ? hint : t('edit_profile_hint')}
                 onClick={() => { if (!disabled) onChange(); }} onDoubleClick={event => beginEdit(event.currentTarget, event.currentTarget.querySelector<HTMLElement>('.ts-profile-text > span') ?? event.currentTarget)}>
-                <span className="ts-profile-check" aria-hidden="true">{selected ? '✓' : ''}</span><ProfileLabel label={label} brief={brief} />
+                <span className="ts-profile-check" aria-hidden="true"><CheckIcon valid={!disabled} checked={selected} /></span><ProfileLabel label={label} brief={brief} />
             </HintButton>} />
         {!readOnly && <HintButton type="button" className="ts-profile-delete" aria-label={`${t('delete_profile')} ${value}`} title={t('delete_profile_hint')}
             disabled={disabled || !removable} onClick={onRemove}>

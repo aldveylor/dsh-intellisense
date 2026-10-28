@@ -8,4 +8,6 @@
 .ts-disable-icon[data-disabled=true] .ts-disable-mark{transform:rotate(45deg)}
 .ts-disable-cross{opacity:1;transition:opacity .24s ease}
 .ts-disable-icon[data-disabled=true] .ts-disable-cross{opacity:0}
-@media(prefers-reduced-motion:reduce){.ts-chevron-icon,.ts-pin-icon,.ts-disable-mark,.ts-disable-cross{transition:none}}
+.ts-check-icon path{opacity:0;transition:opacity .15s ease}
+.ts-check-icon[data-checked=true] path{opacity:1}
+@media(prefers-reduced-motion:reduce){.ts-chevron-icon,.ts-pin-icon,.ts-disable-mark,.ts-disable-cross,.ts-check-icon path{transition:none}}

@@ -21,6 +21,11 @@ export function HelpIcon({ valid }: IconProps) {
     return <Icon valid={valid}><circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.75-2.5 2-2.5 4" /><circle cx="12" cy="16.5" r=".75" fill="currentColor" stroke="none" /></Icon>;
 }
 
+/** @brief Profile selection check with explicit selection state. */
+export function CheckIcon({ valid, checked }: IconProps & { checked: boolean }) {
+    return <><style>{styles}</style><Icon valid={valid} size={16} className="ts-check-icon" data-checked={checked}><path d="m5 12 4 4L19 6" /></Icon></>;
+}
+
 /** @brief Explicitly controlled disclosure or dropdown rotation. */
 export function ChevronIcon({ valid, open, direction = 'down', size = 16, className = '' }: IconProps & { open: boolean; direction?: 'right' | 'down'; size?: number; className?: string }) {
     return <><style>{styles}</style><Icon valid={valid} className={`ts-chevron-icon ${className}`} size={size} data-open={open} data-direction={direction}>

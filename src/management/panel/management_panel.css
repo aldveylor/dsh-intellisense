@@ -1,3 +1,4 @@
+.ts-profile-picker,.ts-profile-name{display:flex;align-items:center;flex-wrap:wrap;gap:8px}.ts-actions>.ts-organize{margin-left:auto}.ts-intellisense .ts-profile-action:not([data-dsh-control]){display:inline-flex;align-items:center;justify-content:center;flex:0 0 36px;width:36px;height:36px;padding:8px;border:0}.ts-profile-picker select{flex:0 1 auto}.ts-profile-name input{min-width:120px}
 .ts-intellisense .ts-fixed-node{color:var(--dsw-alias-label-tertiary,light-dark(#626b78,#a5a5a5))}.ts-fixed-node .ts-node-name,.ts-fixed-node code{cursor:default}.ts-fixed-node .ts-node-preview,.ts-fixed-node .ts-tool-preview{color:inherit}
 .ts-intellisense{--ts-border:var(--dsw-alias-border-l3,light-dark(#cdd2da,#555b65));--ts-border-focus:var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,light-dark(#2563eb,#8ab4ff)));position:relative;isolation:isolate;font:var(--dsw-font-s-14,14px/1.6 var(--dsw-font-family,system-ui,sans-serif));color:var(--dsw-alias-label-primary,light-dark(#202124,#dce3ed));padding:16px;width:100%;min-width:0;box-sizing:border-box;background:transparent}
 .ts-load-overlay{position:absolute;inset:0;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center;background:color-mix(in srgb,var(--dsw-alias-bg-base,light-dark(#ffffff,#202020)) 80%,transparent);backdrop-filter:blur(2px);border-radius:var(--dsw-radius-lg,10px)}
@@ -18,16 +19,12 @@
 .ts-backdrop textarea{width:100%;resize:vertical;margin:8px 0 16px;min-height:140px}.ts-backdrop{position:fixed;inset:0;z-index:1000;background:var(--dsw-alias-bg-mask-1,#0006);display:grid;place-items:center}.ts-backdrop section,.ts-tool-picker{background:var(--dsw-alias-bg-layer-2,var(--dsw-alias-bg-base,light-dark(#ffffff,#202020)));border:1px solid var(--ts-border);border-radius:var(--dsw-radius-panel,12px);box-shadow:var(--dsw-elevation-prominent,0 20px 72px #0003);padding:24px;width:min(1000px,85vw);max-height:85vh;overflow:auto}
 .ts-tool-picker{color:inherit}.ts-tool-picker::backdrop{background:var(--dsw-alias-bg-mask-1,#0006);backdrop-filter:var(--dsw-mask-blur,blur(3px))}.ts-tool-picker header{justify-content:space-between}.ts-tool-picker-search{display:flex;align-items:center;gap:12px;margin:8px 0 16px}.ts-tool-picker-search input[type=search]{flex:1;min-width:0;width:0;margin:0}.ts-tool-picker .ts-tool{text-align:left}.ts-intellisense .ts-tool-sort-direction{display:inline-flex;align-items:center;justify-content:center;flex:0 0 38px;width:38px;height:38px;padding:8px}.ts-tool-sort-direction svg{display:block;flex-shrink:0}
 
-
 .ts-standalone{color-scheme:light dark;margin:0;background:var(--dsw-alias-bg-base,light-dark(#f7f8fa,#181818));color:var(--dsw-alias-label-primary,light-dark(#202124,#dce3ed))}
 .ts-profile-select{position:relative;min-width:160px}.ts-profile-select>button{display:flex;align-items:center;justify-content:space-between;gap:16px;width:100%;text-align:left}.ts-profile-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ts-profile-arrow{display:block;flex:0 0 16px;margin-left:auto;}.ts-profile-dropdown{position:absolute;top:calc(100% + 6px);left:0;z-index:100;min-width:100%;width:max-content;max-width:420px;padding:5px;border:1px solid var(--ts-border);border-radius:var(--dsw-radius-lg,10px);background:var(--dsw-menu-surface-fill,var(--dsw-alias-bg-base,light-dark(#ffffff,#202020)));backdrop-filter:var(--dsw-menu-backdrop-filter,blur(16px));box-shadow:var(--dsw-elevation-panel,0 8px 28px #0003)}.ts-profile-options{max-height:320px;overflow:auto}.ts-profile-item{display:flex;align-items:center;gap:0;padding:2px;border:1px solid var(--ts-border);border-radius:var(--dsw-radius-md,6px)}.ts-profile-item+.ts-profile-item{margin-top:4px}.ts-profile-item[data-selected=true]{background:var(--dsw-alias-interactive-bg-hover,light-dark(#edf0f4,#ffffff0d))}.ts-intellisense .ts-profile-option:not([data-dsh-control]){display:flex;align-items:center;gap:8px;flex:1;min-width:0;text-align:left;border:0;padding:7px 8px}.ts-profile-option>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ts-profile-check{width:16px;flex:0 0 16px}.ts-intellisense .ts-profile-delete:not([data-dsh-control]){display:inline-flex;align-items:center;justify-content:center;flex:0 0 34px;align-self:stretch;border:0;background:transparent;padding:7px;width:34px;min-height:34px;color:var(--dsw-alias-label-secondary,light-dark(#4b5563,#bdbdbd))}.ts-profile-delete svg{display:block;flex-shrink:0}.ts-profile-item>input{flex:1;min-width:0;width:180px}.ts-profile-create{border-top:1px solid var(--ts-border);margin-top:5px;padding:6px 2px 2px}.ts-profile-create input{width:100%;min-width:240px}
 
 .ts-profile-dropdown{transform-origin:top center;animation:ts-profile-open .18s ease-out both}.ts-profile-dropdown[data-phase=closing]{pointer-events:none;animation:ts-profile-close .18s ease-in both}@keyframes ts-profile-open{from{opacity:0;transform:translateY(-6px) scaleY(.96)}to{opacity:1;transform:translateY(0) scaleY(1)}}@keyframes ts-profile-close{from{opacity:1;transform:translateY(0) scaleY(1)}to{opacity:0;transform:translateY(-6px) scaleY(.96)}}
 
-
 .ts-intellisense .ts-unmounted-count{flex-shrink:0;white-space:nowrap;color:var(--dsw-alias-label-secondary,light-dark(#4b5563,#bdbdbd))}
-
-
 
 .ts-management-dialog{color:inherit;background:var(--dsw-alias-bg-layer-2,var(--dsw-alias-bg-base,light-dark(#ffffff,#202020)));box-shadow:var(--dsw-elevation-prominent,0 20px 72px #0003);border:1px solid var(--ts-border);border-radius:var(--dsw-radius-panel,12px);padding:24px;width:400px;max-width:85vw}.ts-management-dialog::backdrop{background:var(--dsw-alias-bg-mask-1,#0006);backdrop-filter:var(--dsw-mask-blur,blur(3px))}.ts-management-dialog h2{margin:0 0 20px}.ts-management-dialog label{display:flex;flex-direction:column;gap:8px}.ts-management-dialog input{width:100%;min-width:0}.ts-dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:24px}
 .ts-error-message{white-space:pre-wrap;overflow-wrap:anywhere}
@@ -55,10 +52,6 @@
 
 .ts-intellisense .ts-pin:not([data-dsh-control]){transition:color .24s ease,background-color .24s ease}
 
-
-.ts-disable[aria-pressed=true] 
-
-.ts-disable[aria-pressed=true] 
 .ts-tree-tool,.ts-node-block{transition:border-color .2s ease,color .24s ease,background-color .24s ease}
 .ts-tree-children{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .22s ease,opacity .22s ease}
 .ts-tree-children>ul{min-height:0;overflow:hidden;margin-top:0;margin-bottom:0}
@@ -79,7 +72,6 @@
 @keyframes ts-inspect-warning-open{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
 @media(prefers-reduced-motion:reduce){.ts-intellisense .ts-inspect-warning{animation:none}}
 
-
 /* Opaque DSH dialog surfaces keep light-theme text distinct from the dimmed page. */
 .ts-tool-picker header{padding-bottom:16px;border-bottom:1px solid var(--ts-border)}
 .ts-tool-picker header h2{margin:0;font-size:18px;font-weight:600}
@@ -93,7 +85,6 @@
 .ts-tool-picker .ts-tool-footer{color:var(--dsw-alias-label-secondary,light-dark(#4b5563,#bdbdbd))}
 .ts-tool-picker-footer{border-top:1px solid var(--ts-border);padding-top:16px}
 
-
 /* Standalone controls mirror the native Button/Input families when no host renderer is present. */
 .ts-intellisense button[data-variant]{min-height:36px;padding:0 14px;border-radius:var(--dsw-radius-md,8px);line-height:22px}
 .ts-intellisense button[data-size=sm]{min-height:28px;padding:0 10px}
@@ -105,7 +96,6 @@
 .ts-intellisense .ts-dialog-actions button{min-width:76px}
 
 .ts-intellisense .ts-tool-picker .ts-tool.ts-unmounted{color:var(--dsw-alias-state-error-primary,light-dark(#b42318,#ed8b8b))}
-
 
 .ts-intellisense .ts-panel-header{justify-content:flex-start;gap:8px}
 .ts-intellisense .ts-usage-button{position:relative;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:28px;height:28px;padding:4px;border:0;background:transparent;color:var(--dsw-alias-label-secondary,light-dark(#4b5563,#bdbdbd))}
@@ -123,10 +113,6 @@
 .ts-intellisense .ts-tool-filter-trigger{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;padding:8px}
 .ts-tool-filter-trigger svg{display:block;overflow:visible}
 
-.ts-tool-filter-trigger:hover 
-.ts-tool-filter-trigger[aria-expanded=true] 
-
-.ts-tool-filter[data-active=true] 
 .ts-tool-filter[data-active=true] .ts-tool-filter-trigger{color:var(--ts-border-focus)}
 .ts-tool-filter-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:100;min-width:180px;padding:6px;border:1px solid var(--ts-border);border-radius:var(--dsw-radius-lg,10px);background:var(--dsw-alias-bg-base,light-dark(#ffffff,#202020));box-shadow:var(--dsw-elevation-panel,0 8px 28px #0003);transform-origin:top right;animation:ts-profile-open .18s ease-out both}
 .ts-tool-filter-menu[data-phase=closing]{pointer-events:none;animation:ts-profile-close .18s ease-in both}
@@ -134,12 +120,7 @@
 .ts-tool-filter-option:focus-visible{background:var(--dsw-alias-interactive-bg-hover,light-dark(#edf0f4,#ffffff14))}
 .ts-tool-filter-check{flex-shrink:0}
 
-.ts-tool-filter-option[aria-checked=true] 
-
-
-.ts-tool-sort-direction[aria-pressed=true] 
-.ts-tool-sort-direction[aria-pressed=true] 
-@media(prefers-reduced-motion:reduce){.ts-tool-filter-menu{animation-duration:1ms}.ts-filter-funnel,.ts-filter-dot,.ts-sort-arrow,.ts-sort-bars,}
+@media(prefers-reduced-motion:reduce){.ts-tool-filter-menu{animation-duration:1ms}}
 
 /* Shared SVG close controls for dialog headers. */
 .ts-intellisense button.ts-close-button{display:inline-flex;align-items:center;justify-content:center;flex:0 0 28px;width:28px;height:28px;min-height:28px;padding:4px;border:0}
@@ -161,7 +142,6 @@
 .ts-tool-list-source,.ts-tool-list-description{font-size:12px;color:var(--dsw-alias-label-secondary,light-dark(#4b5563,#bdbdbd));white-space:pre-wrap;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .ts-tool-list-count{text-align:right;font-size:12px;font-variant-numeric:tabular-nums}
 
-
 /* Explorer-style layout menus: icon, label, and a full-row selection surface. */
 .ts-intellisense .ts-tool-layout .ts-tool-filter-trigger{width:auto;gap:8px;padding:8px 10px;white-space:nowrap}
 .ts-tool-layout .ts-tool-filter-menu{min-width:190px;padding:4px;border-radius:6px}
@@ -171,7 +151,6 @@
 .ts-intellisense .ts-tool-layout .ts-tool-filter-option[aria-checked=true]:hover{background:var(--dsw-alias-interactive-bg-accent-hover,light-dark(#cde2f5,#294b65))}
 .ts-tool-layout .ts-tool-filter-option:focus-visible{outline:2px solid var(--ts-border-focus);outline-offset:-2px}
 @media(prefers-reduced-motion:reduce){.ts-tool-layout .ts-tool-filter-option{transition:none}}
-
 
 /* Fixed viewport share; only the tool results scroll as content changes. */
 .ts-tool-picker{box-sizing:border-box;width:60vw;height:80vh;min-width:900px;min-height:560px;max-width:none;max-height:none;overflow:hidden}

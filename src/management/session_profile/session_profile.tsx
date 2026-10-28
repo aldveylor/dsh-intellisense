@@ -1,7 +1,8 @@
+import { SessionProfileIcon, SessionChevronIcon } from './profile_icons.js';
 import { HintButton } from '../tooltip/action_hint.js';
 import { TooltipProvider } from '../tooltip/tooltip.js';
 import { useEffect, useRef, useState } from 'react';
-import { IconChevronDownOutlineRegular, IconDatabaseOutlineRegular, IconWarningOutlineRegular, Menu, Toast } from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconWarningOutlineRegular, Menu, Toast } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots';
 import type {} from '@deepseek-ai/dsh-client-ui-session/client';
 import type {} from '@deepseek-ai/dsh-agent-preset-registry';
@@ -68,9 +69,9 @@ export function SessionProfile({ sessionId, useProjection, api, t }: PropsRuntim
             onSelect={profile => { void select(profile); }} anchor={<HintButton type="button" className="ts-session-profile-trigger"
                 aria-label={t('session_profile_label')} title={t(state.locked ? 'locked_session_profile_hint' : 'select_session_profile')} aria-haspopup="menu" aria-expanded={open} disabled={busy || state.locked}
                 onClick={() => setOpen(value => !value)}>
-                <IconDatabaseOutlineRegular className="ts-session-profile-icon" />
+                <SessionProfileIcon valid={!busy && !state.locked} />
                 <span>{state.profile}</span>
-                <IconChevronDownOutlineRegular className="ts-session-profile-chevron" />
+                <SessionChevronIcon valid={!busy && !state.locked} open={open} />
             </HintButton>} />}
         {error && <Toast key={error.generation} text={t('operation_failed_detail', { message: errorKey ? t(errorKey) : error.message })} icon={<IconWarningOutlineRegular />}
             holdMs={6000} onDone={() => setError(undefined)} />}
