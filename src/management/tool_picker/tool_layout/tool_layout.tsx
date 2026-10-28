@@ -3,9 +3,15 @@ import { ActionButton } from '../../controls/action_button.js';
 import { useTranslation } from '../../locale/locale.js';
 import { NameOptionIcon, CallsOptionIcon, QueriesOptionIcon, DefaultOptionIcon, CardsOptionIcon, ListOptionIcon, TypeOptionIcon, SourceOptionIcon, NoneOptionIcon } from './option_icons.js';
 
+import { SortMenuIcon, GroupMenuIcon, ViewMenuIcon, MenuChevronIcon } from './animated_icons.js';
+
 const optionIcons: Record<string, ComponentType> = {
     name: NameOptionIcon, calls: CallsOptionIcon, queries: QueriesOptionIcon, default: DefaultOptionIcon,
     cards: CardsOptionIcon, list: ListOptionIcon, type: TypeOptionIcon, source: SourceOptionIcon, none: NoneOptionIcon,
+};
+
+const menuIcons: Record<'sort' | 'group' | 'view', ComponentType<{ open: boolean; value: string }>> = {
+    sort: SortMenuIcon, group: GroupMenuIcon, view: ViewMenuIcon,
 };
 
 /** @brief Shared single-choice tool menu with animated SVG states and keyboard navigation. */
@@ -18,6 +24,7 @@ export function ToolLayout({ kind, value, options, disabled, onChange }: {
     const trigger = useRef<HTMLButtonElement>(null);
     const menuId = useId();
     const open = phase === 'open';
+    const MenuIcon = menuIcons[kind];
 
     useEffect(() => {
         if (!open) return;
@@ -46,13 +53,9 @@ export function ToolLayout({ kind, value, options, disabled, onChange }: {
             aria-label={t(`tool_${kind}`)} title={`${t(`tool_${kind}`)}: ${t(`tool_${kind}_${value}`)}`}
             aria-expanded={open} aria-controls={menuId} aria-haspopup="menu"
             onClick={() => setPhase(current => current === 'open' ? 'closing' : 'open')}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                {kind === 'sort' ? <><path d="M6 4v16m-3-3 3 3 3-3" /><path className="ts-sort-menu-bars" d="M12 5h9M12 12h6M12 19h3" /></>
-                    : kind === 'group' ? <><path className="ts-group-branch" d="M5 4v16m0-13h5m-5 10h5" /><rect className="ts-group-top" x="11" y="3" width="9" height="7" rx="2" /><rect className="ts-group-bottom" x="11" y="14" width="9" height="7" rx="2" /></> :
-                    <>{[0, 1, 2, 3].map(index => <rect key={index} className={`ts-view-cell ts-view-cell-${index}`} x={3 + (index % 2) * 11} y={3 + Math.floor(index / 2) * 11} width="7" height="7" rx="1" />)}</>}
-            </svg>
+            <MenuIcon open={open} value={value} />
             <span>{t(`tool_${kind}`)}</span>
-            <svg className="ts-layout-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+            <MenuChevronIcon open={open} />
         </ActionButton>
         {phase !== 'closed' && <div id={menuId} role="menu" aria-label={t(`tool_${kind}`)} className="ts-tool-filter-menu" data-phase={phase}
             aria-hidden={!open} ref={element => { if (element) element.inert = !open; }}
@@ -60,9 +63,9 @@ export function ToolLayout({ kind, value, options, disabled, onChange }: {
             {options.map(option => {
                 const Icon = optionIcons[option] ?? NoneOptionIcon;
                 return <button type="button" key={option} className="ts-tool-filter-option" role="menuitemradio"
-                aria-checked={value === option} disabled={disabled} onClick={() => { onChange(option); setPhase('closing'); trigger.current?.focus(); }}>
-                <Icon /><span>{t(`tool_${kind}_${option}`)}</span>
-            </button>;
+                    aria-checked={value === option} disabled={disabled} onClick={() => { onChange(option); setPhase('closing'); trigger.current?.focus(); }}>
+                    <Icon /><span>{t(`tool_${kind}_${option}`)}</span>
+                </button>;
             })}
         </div>}
     </div>;

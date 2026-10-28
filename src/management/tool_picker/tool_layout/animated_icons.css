@@ -1,0 +1,14 @@
+.ts-layout-animated-icon{flex-shrink:0}
+.ts-layout-animated-icon>*{transform-box:fill-box;transform-origin:center;transition:transform .2s ease,x .2s ease,y .2s ease,width .2s ease,height .2s ease}
+.ts-tool-filter-trigger:hover .ts-layout-sort-icon .ts-sort-menu-bars,.ts-layout-sort-icon[data-open=true] .ts-sort-menu-bars{transform:scaleX(.85)}
+.ts-tool-filter-trigger:hover .ts-layout-group-icon .ts-group-top,.ts-layout-group-icon[data-open=true] .ts-group-top{transform:translateX(1px) translateY(-1px)}
+.ts-tool-filter-trigger:hover .ts-layout-group-icon .ts-group-bottom,.ts-layout-group-icon[data-open=true] .ts-group-bottom{transform:translateX(-1px) translateY(1px)}
+.ts-layout-group-icon[data-value=none] .ts-group-branch{transform:scaleY(.65)}
+.ts-tool-filter-trigger:hover .ts-layout-view-icon .ts-view-cell,.ts-layout-view-icon[data-open=true] .ts-view-cell{transform:scale(.85)}
+.ts-layout-view-icon[data-value=list] .ts-view-cell-0{width:3px;height:5px}
+.ts-layout-view-icon[data-value=list] .ts-view-cell-1{x:9px;width:12px;height:5px}
+.ts-layout-view-icon[data-value=list] .ts-view-cell-2{width:3px;height:5px}
+.ts-layout-view-icon[data-value=list] .ts-view-cell-3{x:9px;width:12px;height:5px}
+.ts-layout-chevron{transition:transform .2s ease}
+.ts-layout-chevron[data-open=true]{transform:rotate(180deg)}
+@media(prefers-reduced-motion:reduce){.ts-layout-animated-icon,.ts-layout-animated-icon>*{transition:none}}
