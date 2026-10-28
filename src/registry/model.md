@@ -50,3 +50,5 @@ Profile 与配置快照共享可选 brief 字符串，描述配置用途；保�
 ProfileSessions.forSession 可传入固定 profile 名称，首次创建快照时优先于父会话继承与全局默认，持久化会话快照仍优先读取。
 
 Profile save 覆盖目录树时，tools 仍为受保护命名空间，但默认禁用：省略 tools 节点或其 disabled 字段时写入 builtinDisabled，显式 disabled: false 时启用；不切换或修改当前会话。其它已提交设置保留，缺失保护节点继续递归补齐。save 的原生说明与 PTC 声明同步描述该规则。annotation 与 JSON Schema 说明禁用节点及后代从发现、运行时绑定、原生工具、预加载值和固定提示中排除，保留配置以供重新启用；禁用 tools 时移除 tools.inspect 指引。
+
+profileConfiguration 可选接收 onComplete(path) 回调，仅在实际补齐缺失受保护节点时调用，供工具 save 汇总补全信息；不改变普通调用的返回类型、导入规则及输入树。

@@ -128,8 +128,11 @@ export function profileTree(name: string, configuration: RegistryConfigurationDa
     return new Profile({ name, brief: configuration.brief, root: snapshot });
 }
 
-/** @brief Restore missing protected descendants, then apply edits under server-owned permissions without mutating input. */
-export function profileConfiguration(profile: ProfileData, current: RegistryConfigurationData, commands: readonly CommandBrief[]): RegistryConfiguration {
+/**
+ * @brief Restore missing protected descendants, then apply edits under server-owned permissions without mutating input.
+ * @param onComplete Optional observer called with each protected path restored into the input tree copy.
+ */
+export function profileConfiguration(profile: ProfileData, current: RegistryConfigurationData, commands: readonly CommandBrief[], onComplete?: (path: string) => void): RegistryConfiguration {
     const protectedRoot = createNamespace({ tools: [], includeUnavailable: true });
     const configuration = new RegistryConfiguration({ ...current, brief: profile.brief, mappings: [], namespaces: [], order: [], toolComments: {}, builtinVisible: {}, builtinDisabled: [], namespaceVisible: {} });
     const submitted: { node: ProfileTreeNode; path: string }[] = [];
@@ -182,6 +185,7 @@ export function profileConfiguration(profile: ProfileData, current: RegistryConf
                     if (relocated.node.name !== child.name && !child.permissions.renamable) throw new Error(`Node cannot be renamed: ${child.path} -> ${relocated.path} (root.${child.path} -> root.${relocated.path}; permissions.renamable=false; protected builtin node)`);
                     if (!child.permissions.movable) throw new Error(`Node cannot be moved: ${child.path} -> ${relocated.path} (root.${child.path} -> root.${relocated.path}; permissions.movable=false; preserve the protected builtin path)`);
                 }
+                onComplete?.(child.path);
                 children.push(structuredClone(original?.children?.find(item => item.name === child.name) ?? profileNode(child.serialize())));
             }
             if (path) {

@@ -294,9 +294,9 @@ test('PTC projects results once, preserves void results and supports parallel na
         assert.deepEqual(result.value, { logs: [], result: [{ value: 'a' }, { value: 'b' }] });
         const children = agent.session.snapshotEvents().filter(event => event.type === 'tool/ptc-dispatch-start');
         assert.equal(new Set(children.map(event => event.data.subCallId)).size, 2);
-        const saved = await run('const profile = await tools.profile.load(); return typeof await tools.profile.save(profile);');
+        const saved = await run('const profile = await tools.profile.load(); profile.root.children.find(node => node.name === "std").children.find(node => node.name === "read").fixedLevel = 2; return await tools.profile.save(profile);');
         assert.equal(saved.isError, false, JSON.stringify(saved));
-        assert.deepEqual(saved.value, { logs: [], result: 'undefined' });
+        assert.deepEqual(saved.value, { logs: [], result: null });
     } finally { await dispose(); }
 });
 
@@ -465,7 +465,7 @@ test('repeated Profile saves preserve overload mapping across executions and con
 });
 
 
-test('returning void Profile save results serializes undefined array entries as null', async () => {
+test('returning Profile save results preserves native null array entries', async () => {
     const { run, dispose } = await fixture();
     try {
         const result = await run(`
@@ -486,6 +486,7 @@ test('Profile cleanup steps serialize void values and preserve per-step errors',
     try {
         const setup = await run(`
             const profile = await tools.profile.load();
+            profile.root.children.find(node => node.name === 'tools').disabled = false;
             for (const name of ['TMP_ProfileTest2', 'TMP_FromDefault', 'TMP_ProfileTest', 'TMP_Leftover']) {
                 await tools.profile.save(name, profile);
             }
@@ -536,6 +537,7 @@ test('Profile organization mounts catalog commands and applies briefs without mu
         }
         const result = await run(`
             const profile = await tools.profile.load();
+            profile.root.children.find(node => node.name === 'tools').disabled = false;
             const permissions = { renamable: true, movable: true, removable: true, disableable: true, acceptsChildren: true, availableFixLevels: [0, 1] };
             const names = ['read', 'write', 'edit', 'glob', 'grep', 'working_directory', 'tools_external'];
             if (names.some(name => !tools.profile.commands.some(command => command.name === name))) throw new Error('Missing catalog command');
@@ -598,5 +600,27 @@ test('Profile save merges omitted protected members from the target without chan
         `);
         assert.equal(result.isError, false, JSON.stringify(result));
         assert.deepEqual(result.value, { logs: [], result: [2, 1, false, false, 'Default'] });
+    } finally { await dispose(); }
+});
+
+test('PTC Profile save preserves native null or informational strings through dispatch', async () => {
+    const { run, dispose } = await fixture();
+    try {
+        const result = await run(`
+            const profile = await tools.profile.load();
+            const clean = await tools.profile.save('Info', profile);
+            const toolsNode = profile.root.children.find(node => node.name === 'tools');
+            toolsNode.disabled = false;
+            toolsNode.children.find(node => node.name === 'inspect').disabled = true;
+            toolsNode.children.find(node => node.name === 'search').disabled = true;
+            const advisory = await tools.profile.save('Info', profile);
+            const group = toolsNode.children.find(node => node.name === 'profile');
+            group.children = [];
+            const both = await tools.profile.save('Info', profile);
+            return [clean, advisory, both, (await tools.profile.load('Info')).name];
+        `);
+        assert.equal(result.isError, false, JSON.stringify(result));
+        const advisory = '`inspect` and `search` are disabled when there are some commands not fixed with level 2.';
+        assert.deepEqual(result.value, { logs: [], result: [null, advisory, '`tools` namespace is completed.\n' + advisory, 'Info'] });
     } finally { await dispose(); }
 });

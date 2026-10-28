@@ -77,3 +77,5 @@ Profile、RegistryConfiguration 与 RegistryState 为可导出的运行时类，
 `intellisense-presentation` 的 config 可选配置 `profile: <name>`，会话优先使用指定具名 Profile，新对话首页的 Profile 按钮保持显示并置灰；会话选择接口和 tools.profile.switch 拒绝切换。省略时沿用默认及父会话继承行为。
 
 Profile save 覆盖目录树时，受保护 tools 命名空间默认禁用（省略节点或 disabled 均禁用），显式 disabled: false 可启用；当前会话仍需显式 switch 才应用保存结果。annotation 与 schema 说明禁用节点及后代退出发现、调用绑定、预加载和提示，保留配置用于重新启用。
+
+Profile save 保留原生 string | null 返回值：null 表示无提示的成功，发生受保护树补全或两个发现入口均无法调用且其它启用命令未全部固定等级 2 时返回信息字符串；建议不阻止保存，也不自动修改固定等级。

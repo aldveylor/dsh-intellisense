@@ -302,3 +302,50 @@ test('Profile save defaults protected tools to disabled and honors explicit enab
     assert(profileAnnotation.includes('excluded from') || profileAnnotation.includes('disappear from discovery'));
     assert(profileAnnotation.includes('preloaded values and pinned prompts'));
 });
+
+test('Profile save reports completion and advisory discovery issues without changing pins or blocking persistence', async () => {
+    const { call, load, catalog, registry, definitions } = await fixture();
+    const completed = '`tools` namespace is completed.';
+    const advisory = '`inspect` and `search` are disabled when there are some commands not fixed with level 2.';
+    const profile = await load();
+    profile.root.children!.push({ type: 'namespace', name: 'files', children: [
+        { type: 'command', name: 'read', fixedLevel: 1, command: { tool: 'read_file' } },
+    ] });
+    const before = registry.snapshot();
+    assert.equal(await call('tools_profile_save', { name: 'Info', profile }), advisory);
+    assert.equal(catalog.configuration('Info').mappings[0]!.alwaysVisible, 1);
+    assert.deepEqual(registry.snapshot(), before);
+    profile.root.children = profile.root.children!.filter(node => node.name !== 'tools');
+    assert.equal(await call('tools_profile_save', { name: 'Info', profile }), `${completed}\n${advisory}`);
+    profile.root.children[0]!.children![0]!.fixedLevel = 2;
+    assert.equal(await call('tools_profile_save', { name: 'Info', profile }), completed);
+    const complete = await load({ name: 'Info' });
+    assert.equal(await call('tools_profile_save', { name: 'Info', profile: complete }), null);
+    const partial = await load({ name: 'Info' });
+    partial.root.children!.find(node => node.name === 'tools')!.children!.find(node => node.name === 'profile')!.children = [];
+    assert.equal(await call('tools_profile_save', { name: 'Info', profile: partial }), completed);
+    const schema = definitions.get('tools_profile_save')!.output.schema;
+    assert.deepEqual(schema, { oneOf: [{ type: 'string' }, { type: 'null' }] });
+});
+
+test('Profile save checks enabled descendants and accepts either callable discovery tool', async () => {
+    const { call, load, registry } = await fixture();
+    registry.refresh([...registry.tools(), ...['tools_inspect', 'tools_search'].map(id => ({ id, description: '', parameters: {}, output: {} }))]);
+    const profile = await load();
+    const tools = profile.root.children!.find(node => node.name === 'tools')!;
+    tools.disabled = false;
+    const inspect = tools.children!.find(node => node.name === 'inspect')!;
+    const search = tools.children!.find(node => node.name === 'search')!;
+    for (const [inspectDisabled, searchDisabled] of [[true, false], [false, true], [true, true]]) {
+        inspect.disabled = inspectDisabled;
+        search.disabled = searchDisabled;
+        const information = await call('tools_profile_save', { name: 'Discovery', profile });
+        assert.equal(typeof information === 'string', inspectDisabled && searchDisabled);
+    }
+    tools.children!.find(node => node.name === 'profile')!.disabled = true;
+    assert.equal(await call('tools_profile_save', { name: 'Discovery', profile }), null);
+    profile.root.children!.push({ type: 'namespace', name: 'files', disabled: true, children: [
+        { type: 'command', name: 'read', command: { tool: 'read_file' } },
+    ] });
+    assert.equal(await call('tools_profile_save', { name: 'Discovery', profile }), null);
+});

@@ -1,3 +1,4 @@
+import { profileSaveInformation } from './profile_save.js';
 import { presentationConfigFor } from '../integration/presentation.js';
 import { registerBuiltin } from './builtin_trace.js';
 import { z } from 'zod';
@@ -61,19 +62,21 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         },
     })));
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_save', description: 'Replace the catalog Profile tree, recursively restoring missing protected builtin commands and namespaces while preserving supplied settings. The tools namespace is protected and defaults to disabled on save; explicitly set its disabled field to false to enable it. Omitted or undefined name uses the current conversation Profile name, ignoring profile.name. Call tools.profile.switch(name) to apply the saved Profile.',
-        parameters: { name: { type: 'string', description: 'Target catalog name; defaults to the current conversation Profile name.' }, profile: { type: 'object', additionalProperties: true, required: true, description: 'Editable Profile tree. Missing protected nodes are restored recursively; tools defaults to disabled unless its node explicitly sets disabled: false. Other supplied settings are preserved.' } }, output: { ...output, schema: { type: 'null' } },
+        name: 'tools_profile_save', description: 'Replace the catalog Profile tree, recursively restoring missing protected builtin commands and namespaces while preserving supplied settings. The tools namespace is protected and defaults to disabled on save; explicitly set its disabled field to false to enable it. Omitted or undefined name uses the current conversation Profile name, ignoring profile.name. Call tools.profile.switch(name) to apply the saved Profile. When inspect and search are both unavailable, including when tools is disabled, namespace members cannot be discovered; all other enabled commands should be fixed at level 2. This is advisory and does not block saving or change pin levels. Returns null on success without information, otherwise an informational string.',
+        parameters: { name: { type: 'string', description: 'Target catalog name; defaults to the current conversation Profile name.' }, profile: { type: 'object', additionalProperties: true, required: true, description: 'Editable Profile tree. Missing protected nodes are restored recursively; tools defaults to disabled unless its node explicitly sets disabled: false. Other supplied settings are preserved.' } }, output: { ...output, schema: { oneOf: [{ type: 'string' }, { type: 'null' }] }, render: (_args, value) => [{ type: 'text', text: value ?? '' }] },
         execute: async (args, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
             const { name, profile } = z.strictObject({ name: z.string().optional(), profile: ProfileSchema }).parse(args);
             const registry = await registryFor(execution.agent);
             const target = name ?? registry.snapshot().profile!;
             const original = catalog.snapshot().profiles?.includes(target) ? catalog.configuration(target) : registry.configuration();
-            const configuration = profileConfiguration(profile, original, await commands(execution.agent));
+            let completed = false;
+            const configuration = profileConfiguration(profile, original, await commands(execution.agent), () => { completed = true; });
             if (profile.root.children?.find(node => node.name === 'tools')?.disabled !== false
                 && !configuration.builtinDisabled.includes('tools')) configuration.builtinDisabled.push('tools');
+            const information = profileSaveInformation(profileTree(target, configuration), registry.tools().map(tool => tool.id), completed);
             await catalog.saveProfile(target, configuration);
-            return null;
+            return information;
         },
     })));
     ctx.effect(() => register(defineTool({
