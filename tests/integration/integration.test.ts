@@ -59,7 +59,7 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
             const model = new ScriptedModel(); ctx.llm.registerAdapter(['fake'], model);
             const mounted = mode === 'native' ? await ctx.plugin(namespacePlugin) : await ctx.plugin(plugin, { timeoutMs: 3000 });
             assert.deepEqual([...presets.keys()].sort(), mode === 'native' ? [] : ['intellisense', 'intellisense-ptc']);
-            assert.deepEqual([...routes.keys()].sort(), ['/api/ts-intellisense', '/api/ts-intellisense-client', '/api/ts-intellisense-profile', '/api/ts-intellisense-state']);
+            assert.deepEqual([...routes.keys()].sort(), ['/api/ts-intellisense', '/api/ts-intellisense-client', '/api/ts-intellisense-docs-image', '/api/ts-intellisense-profile', '/api/ts-intellisense-state']);
             const agent = await ctx.agentLoop.create(SessionId(`integration-${mode}`), { provider: 'fake', model: 'scripted' });
             const namespaces = ctx.commandNamespaces;
             assert.equal(namespaces.enabled(agent), false);
@@ -148,8 +148,6 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
                 assert(briefPrompt.includes('"path": "tools.profile.load"'), briefPrompt);
                 assert(!briefPrompt.includes('```ts:namespace'), briefPrompt);
                 assert(!briefRequest.tools?.some(tool => tool.name === 'ns_tools__profile__load'));
-
-
             }
             assert(!agent.session.snapshotEvents().some(event => String(event.type) === 'plugin:ts_intellisense/rewrite'));
             await mounted.dispose();
