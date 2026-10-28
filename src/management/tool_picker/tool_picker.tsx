@@ -4,7 +4,6 @@ import { CloseButton } from '../controls/close_button.js';
 import { useTranslation } from '../locale/locale.js';
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { TooltipProvider, useTooltip } from '../tooltip/tooltip.js';
-import { NativeProfileSelect } from '../profile_picker/native_profile_select.js';
 import { ToolFilter, toolCategories } from './tool_filter/tool_filter.js';
 import { usePickerPreferences } from './session_preferences.js';
 import { ToolLayout } from './tool_layout/tool_layout.js';
@@ -108,9 +107,7 @@ export function ToolPicker({ parent, tools, mappings, unmountedOnly = false, pro
         </header>
         <div className="ts-tool-picker-search">
             <input type="search" autoFocus aria-label={t('search_tools')} placeholder={t('search_hint')} value={search} onChange={event => setSearch(event.target.value)} />
-            <div className="ts-tool-picker-sort"><NativeProfileSelect label={t('tool_sort')} hint={t('sort_tools_hint')} value={sort}
-                options={['default', 'name', 'calls', 'queries'].map(value => ({ value, label: t(`tool_sort_${value}`) }))}
-                disabled={busy} readOnly closeOnSelect onChange={setSort} /></div>
+            <ToolLayout kind="sort" value={sort} options={['default', 'name', 'calls', 'queries']} disabled={busy} onChange={setSort} />
             <ActionButton className="ts-tool-sort-direction" type="button" aria-label={t(descending ? 'tool_sort_ascending' : 'tool_sort_descending')}
                 aria-pressed={descending} title={t(descending ? 'sort_descending_hint' : 'sort_ascending_hint')}
                 disabled={busy || sort === 'default'} onClick={() => setDescending(value => !value)}>

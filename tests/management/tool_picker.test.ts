@@ -79,7 +79,8 @@ test('picker and namespace details show global call and query counts', async () 
         assert.deepEqual(order(), ['zebra', 'alpha', 'beta']);
         assert(document.querySelector('.ts-tool-picker-footer')!.textContent!.includes('3'));
         assert(document.querySelectorAll('dialog .ts-builtin-tool:disabled').length > 0);
-        const sort = document.querySelector<HTMLButtonElement>('.ts-tool-picker-sort .ts-profile-select > button')!;
+        const sort = document.querySelector<HTMLButtonElement>('.ts-tool-sort .ts-tool-filter-trigger')!;
+        assert(sort.querySelector('svg'));
         const direction = document.querySelector<HTMLButtonElement>('.ts-tool-sort-direction')!;
         assert(direction.disabled);
         for (const [value, ascending, descending] of [
@@ -89,8 +90,9 @@ test('picker and namespace details show global call and query counts', async () 
         ] as const) {
             sort.click();
             await until(() => sort.getAttribute('aria-expanded') === 'true');
-            const options = document.querySelectorAll<HTMLButtonElement>('.ts-tool-picker-sort .ts-profile-option');
+            const options = document.querySelectorAll<HTMLButtonElement>('.ts-tool-sort [role=menuitemradio]');
             assert.equal(options.length, 4);
+            assert(Array.from(options).every(option => option.querySelector('svg')));
             options[['default', 'name', 'calls', 'queries'].indexOf(value)]!.click();
             await until(() => order().join() === ascending.join());
             assert(!direction.disabled);
@@ -104,7 +106,7 @@ test('picker and namespace details show global call and query counts', async () 
         direction.click();
         sort.click();
         await until(() => sort.getAttribute('aria-expanded') === 'true');
-        document.querySelector<HTMLButtonElement>('.ts-tool-picker-sort [data-profile-value="default"] .ts-profile-option')!.click();
+        document.querySelector<HTMLButtonElement>('.ts-tool-sort [role=menuitemradio]')!.click();
         await until(() => order().join() === ['zebra', 'alpha', 'beta'].join());
         assert(direction.disabled);
         assert.equal(direction.getAttribute('aria-pressed'), 'true');
@@ -201,7 +203,7 @@ test('tool category filter combines selections and keeps the picker open on Esca
         document.querySelector<HTMLButtonElement>('.ts-open-tools')!.click();
         await until(() => !!document.querySelector('dialog[open]'));
         const order = (): string[] => Array.from(document.querySelectorAll<HTMLElement>('dialog [data-tool-id]:not(:disabled)'), card => card.dataset.toolId!);
-        const filter = document.querySelector<HTMLButtonElement>('.ts-tool-filter-trigger')!;
+        const filter = document.querySelector<HTMLButtonElement>('.ts-tool-filter:not(.ts-tool-layout) > .ts-tool-filter-trigger')!;
         assert(filter.querySelector('svg'));
         filter.click();
         await until(() => filter.getAttribute('aria-expanded') === 'true');

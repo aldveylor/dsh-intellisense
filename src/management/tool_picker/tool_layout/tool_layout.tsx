@@ -2,10 +2,14 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { ActionButton } from '../../controls/action_button.js';
 import { useTranslation } from '../../locale/locale.js';
 
-/** @brief Distinct menu glyphs for the supported grouping and view choices. */
+/** @brief Distinct menu glyphs for sorting, grouping and view choices. */
 function LayoutOptionIcon({ option }: { option: string }) {
     return <svg className="ts-layout-option-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        {option === 'cards' ? <><rect x="3" y="3" width="7" height="7" rx="2" /><rect x="14" y="3" width="7" height="7" rx="2" /><rect x="3" y="14" width="7" height="7" rx="2" /><rect x="14" y="14" width="7" height="7" rx="2" /></>
+        {option === 'name' ? <><path d="m3 13 4-9 4 9M5 10h4M14 14h7l-7 7h7" /></>
+            : option === 'calls' ? <><path d="M4 20V4M4 20h17M8 16v-4M13 16V8M18 16V4" /></>
+                : option === 'queries' ? <><circle cx="10" cy="10" r="6" /><path d="m15 15 6 6M7 10h6M10 7v6" /></>
+                    : option === 'default' ? <><path d="M9 5h12M9 12h12M9 19h12M3 4h1v3M3 11h2l-2 3h2M3 18h2v3H3" /></>
+                        : option === 'cards' ? <><rect x="3" y="3" width="7" height="7" rx="2" /><rect x="14" y="3" width="7" height="7" rx="2" /><rect x="3" y="14" width="7" height="7" rx="2" /><rect x="14" y="14" width="7" height="7" rx="2" /></>
             : option === 'list' ? <path d="M3 5h18M3 10h18M3 15h18M3 20h18M8 5v15M16 5v15" />
                 : option === 'type' ? <><rect x="3" y="3" width="6" height="6" rx="1" /><rect x="3" y="15" width="6" height="6" rx="1" /><path d="M13 6h8M13 18h8" /></>
                     : option === 'source' ? <><rect x="8" y="2" width="8" height="6" rx="1" /><path d="M12 8v5M5 17v-4h14v4" /><rect x="2" y="17" width="6" height="5" rx="1" /><rect x="16" y="17" width="6" height="5" rx="1" /></>
@@ -13,9 +17,9 @@ function LayoutOptionIcon({ option }: { option: string }) {
     </svg>;
 }
 
-/** @brief Single-choice layout menu with animated SVG states and keyboard navigation. */
+/** @brief Shared single-choice tool menu with animated SVG states and keyboard navigation. */
 export function ToolLayout({ kind, value, options, disabled, onChange }: {
-    kind: 'group' | 'view'; value: string; options: string[]; disabled: boolean; onChange: (value: string) => void;
+    kind: 'sort' | 'group' | 'view'; value: string; options: string[]; disabled: boolean; onChange: (value: string) => void;
 }) {
     const t = useTranslation();
     const [phase, setPhase] = useState<'closed' | 'open' | 'closing'>('closed');
@@ -52,7 +56,8 @@ export function ToolLayout({ kind, value, options, disabled, onChange }: {
             aria-expanded={open} aria-controls={menuId} aria-haspopup="menu"
             onClick={() => setPhase(current => current === 'open' ? 'closing' : 'open')}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                {kind === 'group' ? <><path className="ts-group-branch" d="M5 4v16m0-13h5m-5 10h5" /><rect className="ts-group-top" x="11" y="3" width="9" height="7" rx="2" /><rect className="ts-group-bottom" x="11" y="14" width="9" height="7" rx="2" /></> :
+                {kind === 'sort' ? <><path d="M6 4v16m-3-3 3 3 3-3" /><path className="ts-sort-menu-bars" d="M12 5h9M12 12h6M12 19h3" /></>
+                    : kind === 'group' ? <><path className="ts-group-branch" d="M5 4v16m0-13h5m-5 10h5" /><rect className="ts-group-top" x="11" y="3" width="9" height="7" rx="2" /><rect className="ts-group-bottom" x="11" y="14" width="9" height="7" rx="2" /></> :
                     <>{[0, 1, 2, 3].map(index => <rect key={index} className={`ts-view-cell ts-view-cell-${index}`} x={3 + (index % 2) * 11} y={3 + Math.floor(index / 2) * 11} width="7" height="7" rx="1" />)}</>}
             </svg>
             <span>{t(`tool_${kind}`)}</span>
