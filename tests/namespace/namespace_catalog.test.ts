@@ -113,3 +113,47 @@ test('command briefs expose current session mount paths including disabled paths
         assert.deepEqual((await component.commandBriefs())[0]?.paths, ['fs.read', 'fs.cat', 'text.read']);
     } finally { await ctx.fiber.dispose(); }
 });
+
+test('session catalogs skip unchanged projection and invalidate tool changes, scope rebinds and release', async () => {
+    const { bindScopeParent } = await import('@deepseek-ai/dsh-scope');
+    const ctx = new Context();
+    try {
+        ctx.provide('systemPrompt', { tools: () => () => {} });
+        ctx.provide('agents', { list: () => [] });
+        await ctx.plugin(ToolRuntime);
+        let toolContext = ctx;
+        await ctx.plugin({ inject: ['tools'], apply: (injected: Context) => { toolContext = injected; } });
+        const firstKey = {}, secondKey = {};
+        const first = createScope(toolContext, firstKey), second = createScope(toolContext, secondKey);
+        register(first.ctx, 'first_only');
+        register(second.ctx, 'second_only');
+        const store = new MemoryStore();
+        const catalog = new SemanticRegistry(store);
+        const component = new NamespaceComponent(ctx, catalog, new ProfileSessions(catalog, store), []);
+        const agent = { id: 'cached', ctx } as Agent;
+        const binding = bindScopeParent(agent, firstKey);
+        const physical = component.physical.bind(component);
+        let reads = 0;
+        component.physical = (...args) => { reads++; return physical(...args); };
+        const registry = await component.registryFor(agent);
+        assert(registry.tools().some(tool => tool.id === 'first_only'));
+        await component.registryFor(agent);
+        assert.equal(reads, 1);
+        register(first.ctx, 'new_tool');
+        await component.registryFor(agent);
+        assert.equal(reads, 2);
+        assert(registry.tools().some(tool => tool.id === 'new_tool'));
+        binding.rebind(secondKey);
+        await component.registryFor(agent);
+        assert.equal(reads, 3);
+        assert(registry.tools().some(tool => tool.id === 'second_only'));
+        assert(!registry.tools().some(tool => tool.id === 'first_only'));
+        await component.release(agent.id);
+        const reopened = await component.registryFor(agent);
+        assert.notEqual(reopened, registry);
+        assert(reopened.tools().some(tool => tool.id === 'second_only'));
+        assert.equal(reads, 4);
+        await first.dispose();
+        await second.dispose();
+    } finally { await ctx.fiber.dispose(); }
+});

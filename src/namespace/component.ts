@@ -3,9 +3,9 @@ import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 import * as presentation from '../integration/presentation.js';
 import type { Position } from '../protocol/events.js';
-import type { Context } from '@deepseek-ai/cordis';
+import { symbols, type Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
-import type { ScopeKey } from '@deepseek-ai/dsh-scope';
+import { scopeChainOf, type ScopeKey } from '@deepseek-ai/dsh-scope';
 import '@deepseek-ai/dsh-agent-preset-registry';
 import type { PhysicalTool, SemanticRegistry } from '../registry/registry.js';
 import type { ProfileSessions } from '../registry/profiles.js';
@@ -28,6 +28,7 @@ export class NamespaceComponent {
     private refreshedRevision = -1;
     private refreshing?: Promise<void>;
     private generatedTools = new WeakSet<ToolDefinition>();
+    private physicalSources = new WeakMap<Agent, { registry: SemanticRegistry; tools: object; revision: number; chain: ScopeKey[] }>();
     private positions = new Map<string, Position>();
     private discovered = new Map<string, Set<string>>();
     private nativeTools = new Map<string, { source: string; names: string[]; fingerprint: string; disposers: (() => void)[] }>();
@@ -119,8 +120,15 @@ export class NamespaceComponent {
             const parent = this.ctx.agents.list().find(candidate => candidate !== agent && this.ctx.agents.isOwnedBy(agent.id, candidate));
             return parent && this.enabled(parent) ? this.registryFor(parent) : this.registry;
         }, profile);
-        if (profile !== undefined && registry.snapshot().profile !== profile) await this.profiles.load(agent.id, profile);
-        registry.refresh(this.physical(agent));
+        if (profile !== undefined && registry.profileSelection().selected !== profile) await this.profiles.load(agent.id, profile);
+        const chain = scopeChainOf(agent);
+        const tools: object = Reflect.get(agent.ctx.tools, symbols.original) ?? agent.ctx.tools;
+        const previous = this.physicalSources.get(agent);
+        if (!previous || previous.registry !== registry || previous.tools !== tools || previous.revision !== this.catalogRevision
+            || previous.chain.length !== chain.length || previous.chain.some((scope, index) => scope !== chain[index])) {
+            registry.refresh(this.physical(agent));
+            this.physicalSources.set(agent, { registry, tools, revision: this.catalogRevision, chain });
+        }
         return registry;
     }
 

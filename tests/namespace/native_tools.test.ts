@@ -27,7 +27,9 @@ test('native names satisfy API limits and avoid path and physical name collision
 
 test('native aliases publish callable names, preserve native arguments and revoke stale handlers', async () => {
     const definitions = new Map<string, ToolDefinition>();
-    const ctx = { effect: () => {}, on: () => {}, emit: () => {}, agents: { list: () => [] }, tools: {
+    const changes: Array<() => void> = [];
+    const ctx = { effect: () => {}, on: (event: string, callback: () => void) => { if (event === 'tools/change') changes.push(callback); },
+        emit: (event: string) => { if (event === 'tools/change') changes.forEach(callback => callback()); }, agents: { list: () => [] }, tools: {
         register: (tool: ToolDefinition) => { definitions.set(tool.name, tool); return () => { definitions.delete(tool.name); }; },
     } } as unknown as Context;
     const store = new MemoryStore(), registry = new SemanticRegistry(store);
@@ -63,6 +65,7 @@ test('native aliases publish callable names, preserve native arguments and revok
     assert.deepEqual(await open.execute({ file: '/tmp/file' }, parent), { tool: 'read_file', args: { file: '/tmp/file' } });
     await assert.rejects(open.execute({ path: '/tmp/file' }, parent), /Invalid arguments/);
     physical.length = 0;
+    ctx.emit('tools/change');
     assert.deepEqual(await component.syncNative(agent), []);
     assert.equal(definitions.size, 0);
     assert(!definitions.has('ns_fs__open'), 'Unavailable tools are removed from the native registry');

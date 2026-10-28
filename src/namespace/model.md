@@ -66,3 +66,5 @@ manifest 保留物理工具原始注释，精确 Inspect 函数查询（含 YAML
 native 模式在 tools.inspect 不可用（自身禁用、tools 祖先禁用或未注册）时完全移除 namespaces:execution 提示段，包括 DSML 调用和 ns_/__ 命名约定，保留实际工具 schema；恢复 inspect 后重新生成发现说明。PTC 仍保留运行代码和 VM 语义，仅移除 inspect 指引。
 
 插件在加载持久化配置失败时保留管理路由，GET 返回错误供 UI 展示加载错误叠层；重置接口仅恢复无法加载的数据部分，成功后再初始化命名空间服务及会话事件，不要求手动删除存档。
+
+会话 registryFor 按 Agent 对象弱引用缓存已同步的物理目录来源；工具服务、tools/change/会话生命周期版本、registry 实例或 scopeChainOf 祖先链变化时才重新投影并刷新目录，未变时跳过 schemas 的深复制及 registry.refresh 的全量序列化。作用域重新绑定不要求额外工具事件也能失效；不同 Agent 不共享来源缓存。固定 Profile 名称比较通过 profileSelection 读取，不复制配置树。
