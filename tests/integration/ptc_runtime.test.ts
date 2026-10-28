@@ -576,30 +576,42 @@ test('Profile organization mounts catalog commands and applies briefs without mu
 });
 
 
-test('Profile save merges omitted protected members from the target without changing session settings', async () => {
+test('PTC Profile save honors protected permissions and leaves catalog and session unchanged on rejection', async () => {
     const { run, dispose } = await fixture();
     try {
         const result = await run(`
             const original = await tools.profile.load();
+            const sessionBefore = JSON.stringify(original);
             const group = original.root.children['tools'].children['profile'];
             group.children['load'].fixedLevel = 2;
-            await tools.profile.save('Merged', original);
-            const save = group.children['save'];
-            save.fixedLevel = 1;
-            save.command.doc = 'Ignored protected comment';
-            group.children = { save };
-            original.root.children = { tools: original.root.children.tools };
-            await tools.profile.save('Merged', original);
-            const merged = await tools.profile.load('Merged');
-            const members = merged.root.children['tools'].children['profile'].children;
-            return [members['load'].fixedLevel,
-                members['save'].fixedLevel,
-                Object.hasOwn(merged.root.children, 'console'),
-                members['save'].command.doc.includes('Ignored protected comment'),
-                tools.profile.profiles.selected];
+            group.children['save'].fixedLevel = 1;
+            group.children['save'].disabled = true;
+            await tools.profile.save('Protected', original);
+            const saved = await tools.profile.load('Protected');
+            const catalogBefore = JSON.stringify(saved);
+            const errors = [];
+            for (const change of ['remove', 'comment']) {
+                const invalid = JSON.parse(catalogBefore);
+                const members = invalid.root.children['tools'].children['profile'].children;
+                if (change === 'remove') delete members['load'];
+                else members['save'].command.doc = 'Forbidden protected comment';
+                try { await tools.profile.save('Protected', invalid); }
+                catch (error) { errors.push(error.message); }
+            }
+            const members = saved.root.children['tools'].children['profile'].children;
+            return { errors, levels: [members['load'].fixedLevel, members['save'].fixedLevel],
+                disabled: members['save'].disabled,
+                catalogUnchanged: JSON.stringify(await tools.profile.load('Protected')) === catalogBefore,
+                sessionUnchanged: JSON.stringify(await tools.profile.load()) === sessionBefore,
+                selected: tools.profile.profiles.selected };
         `);
         assert.equal(result.isError, false, JSON.stringify(result));
-        assert.deepEqual(result.value, { logs: [], result: [2, 1, false, false, 'Default'] });
+        const value = result.value as { logs: string[]; result: { errors: string[]; levels: number[]; disabled: boolean; catalogUnchanged: boolean; sessionUnchanged: boolean; selected: string } };
+        assert.equal(value.result.errors.length, 2);
+        assert.match(value.result.errors[0]!, /Node cannot be removed: tools\.profile\.load.*permissions\.removable=false/);
+        assert.match(value.result.errors[1]!, /Node documentation cannot be changed: tools\.profile\.save.*permissions\.commentable=false/);
+        assert.deepEqual(value, { logs: [], result: { errors: value.result.errors, levels: [2, 1], disabled: true,
+            catalogUnchanged: true, sessionUnchanged: true, selected: 'Default' } });
     } finally { await dispose(); }
 });
 
@@ -615,12 +627,12 @@ test('PTC Profile save preserves native null or informational strings through di
             toolsNode.children['search'].disabled = true;
             const advisory = await tools.profile.save('Info', profile);
             const group = toolsNode.children['profile'];
-            group.children = {};
-            const both = await tools.profile.save('Info', profile);
-            return [clean, advisory, both, (await tools.profile.load('Info')).name];
+            for (const member of Object.values(group.children)) member.fixedLevel = 2;
+            const resolved = await tools.profile.save('Info', profile);
+            return [clean, advisory, resolved, (await tools.profile.load('Info')).name];
         `);
         assert.equal(result.isError, false, JSON.stringify(result));
         const advisory = 'warning: `inspect` is disabled when there are some commands not fixed with level 2.';
-        assert.deepEqual(result.value, { logs: [], result: [null, advisory, 'info: `tools` namespace is completed.\n' + advisory, 'Info'] });
+        assert.deepEqual(result.value, { logs: [], result: [null, advisory, null, 'Info'] });
     } finally { await dispose(); }
 });
