@@ -70,6 +70,7 @@ export class NamespaceRuntime extends Service {
         let sequence = 0;
         try {
             const registry = await namespaces.registryFor(agent);
+            let revision = registry.snapshot().revision;
             const entries = (await namespaces.entries(agent, registry)).filter(entry => !entry.preload);
             const result = await this.runtime.execute(agent.id, `run-code-${++this.sequence}`, code, entries.map(entry => entry.binding()), async (tool, input, signal) => {
                 signal.throwIfAborted();
@@ -77,7 +78,13 @@ export class NamespaceRuntime extends Service {
                 pending.add(work);
                 void work.finally(() => { pending.delete(work); }).catch(() => {});
                 return bindingResult(work, signal);
-            }, controller.signal, await namespaces.values(agent, registry), async () => ({ 'tools.profile.profiles': { ...await namespaces.profileNames(agent) } }));
+            }, controller.signal, await namespaces.values(agent, registry), async () => {
+                const currentRevision = registry.snapshot().revision;
+                const values = { 'tools.profile.profiles': { ...await namespaces.profileNames(agent) },
+                    ...(currentRevision === revision ? {} : { 'tools.profile.commands': (await namespaces.commandBriefs(agent, registry)).map(command => ({ ...command })) }) };
+                revision = currentRevision;
+                return values;
+            });
             if (result.error) throw new Error(result.error + (result.logs.length ? `\nCaptured output:\n${result.logs.join('\n')}` : ''));
             return { logs: result.logs, ...(result.value === undefined ? {} : { result: result.value }) };
         } catch (error) {

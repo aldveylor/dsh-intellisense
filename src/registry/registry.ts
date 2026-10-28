@@ -1,3 +1,4 @@
+import { ProfileNotFoundError } from '../error.js';
 import { CommandNode, NamespaceNode, createNamespace } from '../namespace/namespace.js';
 import { pluginCommands } from '../runtime/builtins.js';
 import { toolName, validatePath } from './path.js';
@@ -205,7 +206,7 @@ export class SemanticRegistry {
         this.validateProfileName(name);
         if (name !== (this.state.profile ?? 'Default')) {
             const configuration = Object.hasOwn(this.state.inactiveProfiles ?? {}, name) ? this.state.inactiveProfiles![name] : undefined;
-            if (!configuration) throw new Error('Profile does not exist');
+            if (!configuration) throw new ProfileNotFoundError(name);
             return new RegistryConfiguration(configuration);
         }
         return new RegistryConfiguration(this.state);
@@ -278,7 +279,7 @@ export class SemanticRegistry {
                     next = { ...next, ...empty, profile: name };
                 } else archive[name] = empty;
             } else {
-                if (!exists(name)) throw new Error('Profile does not exist');
+                if (!exists(name)) throw new ProfileNotFoundError(name);
                 if (action === 'rename') {
                     this.validateProfileName(newName!);
                     if (newName === name) return;

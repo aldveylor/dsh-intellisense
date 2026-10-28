@@ -35,3 +35,6 @@ PTC 初始化先建立运行时环境（包括 console 输出对象），再安�
 内置命令的功能说明与参数注释统一定义于 `runtime/builtins.ts`（源码根目录下）的 `PluginCommands` 契约表；原生注册、Inspect、固定提示及管理 UI 引用同一来源。BuiltinTool 保存共享或按 native/PTC 区分的描述、参数注释与 discoveryHint，通过 projectBuiltin(command, mode) 投影为纯字符串注释的 BuiltinCommand；原生注册按 presentation 作用域选择模式，会话命名空间按当前执行模式选择，管理目录默认使用 PTC 投影。依赖 inspect 的可选指引由投影后的 discoveryHint 标记，禁用发现时按该标记移除。
 
 worker 在创建 VM Context 时编译一次固定命名空间安装函数，后续 init 复用已编译函数；每轮仍移除旧部署根、重新传入宿主回调、命令及预加载数据，并创建新的 guest 命令闭包和冻结树。缓存不跨 worker/VM Context 共享，也不缓存用户源码转译结果。
+
+
+Guest 位置参数个数错误使用 PositionalArgumentError（继承 ToolCallError），包含 toolName 与 invalid_argument_count 错误码；服务端已知错误通过 IPC errorCode 传递。src/error.ts 定义对应的宿主错误类型，VM 内使用同样的定义。会话配置 revision 变化后，成功调用的 IPC 回复刷新 commands 中原有条目的 paths getter，持有条目引用仍可读取 switch 后路径；save/apply 只写目录时不刷新路径。

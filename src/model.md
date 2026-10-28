@@ -20,7 +20,7 @@ Intellisense PTC 模式仅向模型提供插件自有 tools_run_code 工具。`n
 
 `registry/registry.ts` 管理全局具名 Profile 目录、挂载路径、注释、排序和固定路径。`registry/profiles.ts` 为每会话持有独立配置快照，草稿覆盖保存且释放会话时删除；目录覆盖/删除不修改既有会话。普通新会话捕获 UI 默认配置；子 agent 首次初始化继承运行时父对话的当前 Profile 工作快照，包含未保存修改，之后父子各自独立；已有工作区会话的首页在含 intellisense-presentation 的 preset 右侧显示 Profile 下拉框，选择仅替换该会话快照并刷新工具和提示词，不更改全局默认。工具权限始终由原生 guard/策略决定。
 
-tools.inspect 固定映射到内置 tools_inspect，强制固定等级 2，不受 Profile 图钉偏好影响。tools 包含 inspect、search 和 profile：profile.load(name?) 只读取当前会话草稿或目录中的具名 Profile 数据，不切换会话或刷新提示；profile.save(name, profile) 仅保存目录中的树，省略名称时使用当前 Profile 名称，也支持 save(profile)；profile.apply(name?, value) 按 load 规则读取后递归合并部分对象 patch，再复用 save；null 删除字段，数组整体替换。保存不更新当前会话配置或选择，显式 switch(name) 后应用保存的配置。profile.profiles 返回目录名称列表与当前会话选择（Profiles），native 下为无参数命令，PTC 下为随工具成功回复刷新的只读字段；profile.annotation 与 profile.commands 在 VM 执行前预加载为冻结常量，在 DSML 中为可直接调用的无参数工具，分别返回模型文档（DSML 为 JSON Schema）与排除插件内置命令的完整目录中的原始命令摘要、当前会话 Profile 的挂载路径 paths（包含被禁用的路径，未挂载时为空数组）及全局总调用次数 totalCalls（含当前上下文没有的命令）；其余旧 tools 管理命令移除。未配置物理工具需挂载或提供自定义别名后调用；不生成 unknown 命名空间。路径保留名称、重复和树碰撞检查。失效工具保留配置，但不进入实际 manifest、补全或执行环境。builtinVisible 记录内置固定提示偏好，按 Profile 保存；默认仅固定 tools.inspect。unmountedVisible 保存未挂载工具的固定提示偏好，不兼容旧字段名。
+tools.inspect 固定映射到内置 tools_inspect，启用时固定等级为 2，允许禁用。tools 包含 inspect、search 和 profile：profile.load(name?) 只读取当前会话草稿或目录中的具名 Profile 数据，不切换会话或刷新提示；profile.save(name, profile) 仅保存目录中的树，省略名称时使用当前 Profile 名称，也支持 save(profile)；profile.apply(name?, value) 按 load 规则读取后递归合并部分对象 patch，再复用 save；null 删除字段，数组整体替换。保存不更新当前会话配置或选择，显式 switch(name) 后应用保存的配置。profile.profiles 返回目录名称列表与当前会话选择（Profiles），native 下为无参数命令，PTC 下为随工具成功回复刷新的只读字段；profile.annotation 与 profile.commands 在 VM 执行前预加载为冻结常量，在 DSML 中为可直接调用的无参数工具，分别返回模型文档（DSML 为 JSON Schema）与排除插件内置命令的完整目录中的原始命令摘要、当前会话 Profile 的挂载路径 paths（包含被禁用的路径，未挂载时为空数组）及全局总调用次数 totalCalls（含当前上下文没有的命令）；其余旧 tools 管理命令移除。未配置物理工具需挂载或提供自定义别名后调用；不生成 unknown 命名空间。路径保留名称、重复和树碰撞检查。失效工具保留配置，但不进入实际 manifest、补全或执行环境。builtinVisible 记录内置固定提示偏好，按 Profile 保存；默认仅固定 tools.inspect。unmountedVisible 保存未挂载工具的固定提示偏好，不兼容旧字段名。
 
 `storage/store.ts` 通过 DSH JSON backend 保存工具目录、具名 Profile 和会话工作快照；MemoryStore/FileStore 用于独立使用。`storage/journal_store.ts` 按存储前缀绑定可恢复写日志。统计只增量更新目标会话及全局计数，通过唯一计时器将 30 秒窗口内的脏记录合并保存；NamespaceComponent 释放时及插件关闭存储前均主动刷新。运行时不保存可执行状态或重放工具。
 
@@ -54,7 +54,7 @@ package.json 的 build 命令依次调用 build:server 和 build:client；build:
 
 namespaceVisible 为随 Profile 保存的命名空间路径 → 固定提示布尔值映射，默认空对象；命令各自保留独立的提示等级。所有模式均不提供 console 命名空间及其命令、查询声明或管理节点；PTC 运行时原生 console 输出对象仍独立可用。
 
-命令映射与命名空间通过可选 disabled 标志保存禁用状态；内置树使用 builtinDisabled 路径集合。禁用项保留在管理 UI，禁用按钮位于删除按钮左侧，节点变灰；manifest、补全、固定提示与 PTC 预加载排除禁用路径，命名空间禁用作用于所有后代。tools.inspect 保留可用。
+命令映射与命名空间通过可选 disabled 标志保存禁用状态；内置树使用 builtinDisabled 路径集合。禁用项保留在管理 UI，禁用按钮位于删除按钮左侧，节点变灰；manifest、补全、固定提示与 PTC 预加载排除禁用路径，命名空间禁用作用于所有后代。tools.inspect 允许禁用，不自动保底。
 
 `search/` 通过 SearchEngine 接口与 SearchEngineRegistry 注册器提供命令搜索，支持可选 MiniSearch BM25、包含匹配及自定义同步/异步引擎。tools.search 固定映射 tools_search，默认不固定，可禁用；method 枚举及默认值从注册器选择器直接生成，只有一个引擎时移除该参数。defaultSearchMethod 配置及 searchEngines.setDefault 均可指定默认方法。详见 search/model.md。
 
@@ -83,3 +83,8 @@ Profile save 保留原生 string | null 返回值：null 表示无提示的成�
 管理 UI 命名空间树在 inspect 不可调用且其它启用命令未全部固定等级 2 时，在下方展示黄色边框和背景的缩放淡入警告。此规则仅提示，不阻止操作或保存；应将其它命令固定为等级 2 或者禁用，保存说明与 annotation 同步此约定。
 
 存储模型版本由 storage/version.ts 统一定义（当前 2）；全局 Profile、会话草稿和统计在版本变化时保留可加载内容，只丢弃失败部分。同版本错误可在管理 UI 加载错误叠层通过“刷新”后的“重置”触发局部恢复，保留有效配置和统计。
+
+
+Profile 写入模型使用 `registry/profile_write.ts` 的 ProfileWrite（从 ProfileData 排除 name，递归排除 permissions），apply 使用递归 Partial 的 ProfilePatch。permissions 仅作为 load 的服务端只读规则返回；save/apply 对 name、permissions、未知字段（含 null 删除）强校验并抛错。调用方从 load 数据显式投影为写入树，宿主可使用 profileWrite；annotation 提供读取与写入两套类型，native annotation 返回写入 JSON Schema。null 仅删除可选字段或 children 成员，删除必填字段直接报告 null 输入。save/apply 仍只写目录，commands.paths 继续指向当前会话，验证保存结果用 load(name)，显式 switch 后才更新会话路径。
+
+`src/error.ts` 定义 ValidationError、ProfilePermissionError、ProfileNotFoundError、ToolCallError 和 PositionalArgumentError。Zod 错误转换为包含 code 及 path/message 列表的紧凑 JSON；guest 的位置参数错误为带 toolName/code 的 ToolCallError 子类，服务端错误码随 IPC 回复传递。

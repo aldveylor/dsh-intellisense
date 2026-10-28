@@ -50,7 +50,7 @@ async function fixture(store: Store = new MemoryStore(), mode: 'ptc' | 'native' 
     let sequence = 0;
     const run = (code: string, timeoutMs?: number, signal = new AbortController().signal) => ctx.tools.execute({
         agent, callId: ToolCallId(`parent-${++sequence}`), name: ptcToolName,
-        arguments: { code, description: 'Test namespace execution', ...(timeoutMs === undefined ? {} : { timeoutMs }) }, signal,
+        arguments: { code: `const writable = value => Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'permissions' && key !== 'name').map(([key, child]) => [key, child && typeof child === 'object' ? writable(child) : child]));\n${code}`, description: 'Test namespace execution', ...(timeoutMs === undefined ? {} : { timeoutMs }) }, signal,
     });
     const dispose = async () => { await live.dispose(); await mounted.dispose(); await standing.dispose(); await ctx.fiber.dispose(); };
     return { ctx, agent, namespaces, run, dispose, standing, mounted, defaultRuntime, injected };
@@ -237,7 +237,7 @@ test('PTC discovery accepts empty, single and multiple query arrays through the 
         for (const args of ['', '"tools."', '"tools.", "std."', '[3]']) {
             const invalid = await run(`return await tools.inspect(${args});`);
             assert.equal(invalid.isError, true);
-            assert.match(JSON.stringify(invalid), /Invalid arguments|Too many arguments/i);
+            assert.match(JSON.stringify(invalid), /Invalid arguments|Too many arguments|Invalid positional argument count/i);
         }
     } finally { await dispose(); }
 });
@@ -294,7 +294,7 @@ test('PTC projects results once, preserves void results and supports parallel na
         assert.deepEqual(result.value, { logs: [], result: [{ value: 'a' }, { value: 'b' }] });
         const children = agent.session.snapshotEvents().filter(event => event.type === 'tool/ptc-dispatch-start');
         assert.equal(new Set(children.map(event => event.data.subCallId)).size, 2);
-        const saved = await run('const profile = await tools.profile.load(); profile.root.children["std"].children["read"].fixedLevel = 2; return await tools.profile.save(profile);');
+        const saved = await run('const profile = await tools.profile.load(); profile.root.children["std"].children["read"].fixedLevel = 2; return await tools.profile.save(writable(profile));');
         assert.equal(saved.isError, false, JSON.stringify(saved));
         assert.deepEqual(saved.value, { logs: [], result: null });
     } finally { await dispose(); }
@@ -337,10 +337,10 @@ test('PTC Profile save overloads preserve the selection and reject invalid calls
     try {
         const saved = await run(`
             const profile = await tools.profile.load();
-            await tools.profile.save('Copy', profile);
+            await tools.profile.save('Copy', writable(profile));
             profile.name = 'Ignored';
-            await tools.profile.save(undefined, profile);
-            await tools.profile.save(profile);
+            await tools.profile.save(undefined, writable(profile));
+            await tools.profile.save(writable(profile));
             return tools.profile.profiles;
         `);
         assert.equal(saved.isError, false, JSON.stringify(saved));
@@ -365,7 +365,7 @@ test('PTC Profile deletion protects the selection and refreshes preloaded names'
     try {
         const result = await run(`
             const profile = await tools.profile.load();
-            await tools.profile.save('Copy', profile);
+            await tools.profile.save('Copy', writable(profile));
             await tools.profile.switch('Copy');
             let blocked = false;
             try { await tools.profile.delete(); } catch { blocked = true; }
@@ -384,7 +384,7 @@ test('PTC Profile switch changes the selection and rejects an omitted name', asy
     try {
         const result = await run(`
             const profile = await tools.profile.load();
-            await tools.profile.save('Copy', profile);
+            await tools.profile.save('Copy', writable(profile));
             const state = tools.profile.profiles;
             const returned = await tools.profile.switch('Copy');
             let blocked = false;
@@ -404,8 +404,8 @@ test('Profile saves preserve the snapshot and inject notices only when explicitl
         const before = registry.snapshot();
         const saved = await run(`
             const profile = await tools.profile.load();
-            await tools.profile.save('Copy', profile);
-            await tools.profile.save(undefined, profile);
+            await tools.profile.save('Copy', writable(profile));
+            await tools.profile.save(undefined, writable(profile));
         `);
         assert.equal(saved.isError, false, JSON.stringify(saved));
         assert.deepEqual(registry.snapshot(), before);
@@ -413,7 +413,7 @@ test('Profile saves preserve the snapshot and inject notices only when explicitl
         const result = await run(`
             const profile = await tools.profile.load();
             await tools.profile.switch('Default');
-            await tools.profile.save(undefined, profile);
+            await tools.profile.save(undefined, writable(profile));
             await tools.profile.load('Copy');
             try { await tools.profile.switch('Missing'); } catch {}
             try { await tools.profile.save(); } catch {}
@@ -450,11 +450,11 @@ test('repeated Profile saves preserve overload mapping across executions and con
         for (let index = 0; index < 8; index++) {
             const result = await run(`
                 const profile = await tools.profile.load();
-                await tools.profile.save('Repeated', profile);
-                await tools.profile.save('Repeated', profile);
-                await tools.profile.save(profile);
-                await tools.profile.save(undefined, profile);
-                await Promise.all([tools.profile.save('Repeated', profile), tools.profile.save('Repeated', profile)]);
+                await tools.profile.save('Repeated', writable(profile));
+                await tools.profile.save('Repeated', writable(profile));
+                await tools.profile.save(writable(profile));
+                await tools.profile.save(undefined, writable(profile));
+                await Promise.all([tools.profile.save('Repeated', writable(profile)), tools.profile.save('Repeated', writable(profile))]);
                 return tools.profile.profiles;
             `);
             assert.equal(result.isError, false, JSON.stringify(result));
@@ -470,7 +470,7 @@ test('returning Profile save results preserves native null array entries', async
     try {
         const result = await run(`
             const profile = await tools.profile.load();
-            return [await tools.profile.save('Repeated', profile), await tools.profile.save('Repeated', profile)];
+            return [await tools.profile.save('Repeated', writable(profile)), await tools.profile.save('Repeated', writable(profile))];
         `);
         assert.equal(result.isError, false, JSON.stringify(result));
         assert.deepEqual(result.value, { logs: [], result: [null, null] });
@@ -488,7 +488,7 @@ test('Profile cleanup steps serialize void values and preserve per-step errors',
             const profile = await tools.profile.load();
             profile.root.children['tools'].disabled = false;
             for (const name of ['TMP_ProfileTest2', 'TMP_FromDefault', 'TMP_ProfileTest', 'TMP_Leftover']) {
-                await tools.profile.save(name, profile);
+                await tools.profile.save(name, writable(profile));
             }
             await tools.profile.switch('TMP_FromDefault');
         `);
@@ -544,11 +544,11 @@ test('Profile organization mounts catalog commands and applies briefs without mu
             profile.root.children['files'] = { type: 'namespace', description: 'File operations', permissions,
                 children: Object.fromEntries(names.map(name => [name, { type: 'command', permissions: { ...permissions, acceptsChildren: false, availableFixLevels: [0, 1, 2] },
                     command: { tool: name, doc: 'Brief ' + name } }])) };
-            await tools.profile.save('Organized', profile);
+            await tools.profile.save('Organized', writable(profile));
             const invalid = JSON.parse(JSON.stringify(profile));
             invalid.root.children['tools'].children['inspect'].command.tool = 'read';
             let rejected = 0;
-            try { await tools.profile.save('Organized', invalid); } catch { rejected++; }
+            try { await tools.profile.save('Organized', writable(invalid)); } catch { rejected++; }
             try { await tools.profile.delete('Missing'); } catch { rejected++; }
             return [rejected, tools.profile.profiles.selected, (await tools.profile.load('Organized')).root.children['files'].description];
         `);
@@ -586,7 +586,7 @@ test('PTC Profile save honors protected permissions and leaves catalog and sessi
             group.children['load'].fixedLevel = 2;
             group.children['save'].fixedLevel = 1;
             group.children['save'].disabled = true;
-            await tools.profile.save('Protected', original);
+            await tools.profile.save('Protected', writable(original));
             const saved = await tools.profile.load('Protected');
             const catalogBefore = JSON.stringify(saved);
             const errors = [];
@@ -595,7 +595,7 @@ test('PTC Profile save honors protected permissions and leaves catalog and sessi
                 const members = invalid.root.children['tools'].children['profile'].children;
                 if (change === 'remove') delete members['load'];
                 else members['save'].command.doc = 'Forbidden protected comment';
-                try { await tools.profile.save('Protected', invalid); }
+                try { await tools.profile.save('Protected', writable(invalid)); }
                 catch (error) { errors.push(error.message); }
             }
             const members = saved.root.children['tools'].children['profile'].children;
@@ -620,19 +620,40 @@ test('PTC Profile save preserves native null or informational strings through di
     try {
         const result = await run(`
             const profile = await tools.profile.load();
-            const clean = await tools.profile.save('Info', profile);
+            const clean = await tools.profile.save('Info', writable(profile));
             const toolsNode = profile.root.children['tools'];
             toolsNode.disabled = false;
             toolsNode.children['inspect'].disabled = true;
             toolsNode.children['search'].disabled = true;
-            const advisory = await tools.profile.save('Info', profile);
+            const advisory = await tools.profile.save('Info', writable(profile));
             const group = toolsNode.children['profile'];
             for (const member of Object.values(group.children)) member.fixedLevel = 2;
-            const resolved = await tools.profile.save('Info', profile);
+            const resolved = await tools.profile.save('Info', writable(profile));
             return [clean, advisory, resolved, (await tools.profile.load('Info')).name];
         `);
         assert.equal(result.isError, false, JSON.stringify(result));
-        const advisory = 'warning: `inspect` is disabled when there are some commands not fixed with level 2.';
+        const advisory = 'warning: `tools.inspect` is disabled when there are some enabled commands not fixed with level 2.';
         assert.deepEqual(result.value, { logs: [], result: [null, advisory, null, 'Info'] });
+    } finally { await dispose(); }
+});
+
+
+test('Profile command paths preserve session mounts after apply and refresh held entries after switch', async () => {
+    const { agent, run, dispose } = await fixture();
+    try {
+        agent.ctx.tools.register(defineTool({ name: 'working_directory', description: 'Working directory', parameters: {},
+            output: { schema: { type: 'string' }, render: () => [] }, execute: async () => '/workspace' }));
+        const result = await run(`
+            const entry = tools.profile.commands.find(command => command.name === 'working_directory');
+            const before = entry.paths;
+            await tools.profile.apply({root: {children: {cwd: {type: 'command', command: {tool: 'working_directory'}}}}});
+            const afterApply = entry.paths;
+            const catalog = await tools.profile.load('Default');
+            const draft = await tools.profile.load();
+            await tools.profile.switch('Default');
+            return [before, afterApply, !!catalog.root.children.cwd, !!draft.root.children.cwd, entry.paths, Object.isFrozen(entry.paths)];
+        `);
+        assert.equal(result.isError, false, JSON.stringify(result));
+        assert.deepEqual(result.value, { logs: [], result: [[], [], true, false, ['cwd'], true] });
     } finally { await dispose(); }
 });

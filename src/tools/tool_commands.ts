@@ -1,3 +1,4 @@
+import { ProfileWriteSchema, profileWrite, validateProfilePatch } from '../registry/profile_write.js';
 import { pluginCommands, projectBuiltin } from '../runtime/builtins.js';
 import { mergeProfilePatch, profileSaveInformation } from './profile_save.js';
 import { presentationConfigFor, presentationFor } from '../integration/presentation.js';
@@ -44,8 +45,9 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
     ctx.effect(() => register(defineTool({
         name: 'tools_profile_load', description: contract('tools_profile_load').description,
         parameters: { name: { type: 'string', description: contract('tools_profile_load').parameterDocs!.name } }, output,
-        execute: async ({ name }, execution) => {
+        execute: async (args, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
+            const { name } = z.strictObject({ name: z.string().optional() }).parse(args);
             const registry = name === undefined ? await registryFor(execution.agent) : catalog;
             return JSON.parse(JSON.stringify(profileTree(name ?? registry.snapshot().profile!, registry.configuration(name)))) as Record<string, z.infer<ReturnType<typeof z.json>>>;
         },
@@ -81,8 +83,9 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         parameters: { name: { type: 'string', description: contract('tools_profile_save').parameterDocs!.name }, profile: { type: 'object', additionalProperties: true, required: true, description: contract('tools_profile_save').parameterDocs!.profile } }, output: { ...output, schema: { oneOf: [{ type: 'string' }, { type: 'null' }] }, render: (_args, value) => [{ type: 'text', text: value ?? '' }] },
         execute: async (args, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
-            const { name, profile } = z.strictObject({ name: z.string().optional(), profile: ProfileSchema }).parse(args);
-            return save(execution.agent, name, profile);
+            const { name, profile } = z.strictObject({ name: z.string().optional(), profile: ProfileWriteSchema }).parse(args);
+            const target = name ?? (await registryFor(execution.agent)).snapshot().profile!;
+            return save(execution.agent, name, { ...profile, name: target });
         },
     })));
     ctx.effect(() => register(defineTool({
@@ -93,8 +96,11 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
             if (!execution.agent) throw new Error('A live conversation is required');
             const { name, value } = z.strictObject({ name: z.string().optional(), value: z.custom<Record<string, unknown>>(value => value !== null && typeof value === 'object' && !Array.isArray(value), 'Expected a Profile object patch') }).parse(args);
             const registry = name === undefined ? await registryFor(execution.agent) : catalog;
-            const profile = JSON.parse(JSON.stringify(profileTree(name ?? registry.snapshot().profile!, registry.configuration(name))));
-            return save(execution.agent, name, ProfileSchema.parse(mergeProfilePatch(profile, value)), false);
+            validateProfilePatch(value);
+            const target = name ?? registry.snapshot().profile!;
+            const profile = profileWrite(profileTree(target, registry.configuration(name)));
+            const merged = ProfileWriteSchema.parse(mergeProfilePatch(profile, value));
+            return save(execution.agent, name, ProfileSchema.parse({ ...merged, name: target }), false);
         },
     })));
     ctx.effect(() => register(defineTool({
@@ -124,7 +130,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         name: 'tools_profile_annotation', description: contract('tools_profile_annotation').description, parameters: {},
         output: { ...output, schema: { type: 'string' } },
         execute: async (_args, execution) => execution.agent && !execution.agent.ctx.get('commandNamespaces')!.isPtc(execution.agent)
-            ? JSON.stringify(ProfileSchema.toJSONSchema()) : profileAnnotation,
+            ? JSON.stringify(ProfileWriteSchema.toJSONSchema()) : profileAnnotation,
     })));
     ctx.effect(() => register(defineTool({
         name: 'tools_profile_commands', description: contract('tools_profile_commands').description, parameters: {},

@@ -91,7 +91,7 @@ export class RuntimeHost {
                 const value = await active.invoke(message.tool, message.args, active.controller.signal);
                 this.send(state, { type: 'reply', id: message.id, value: value === undefined ? undefined : z.json().parse(value), values: await active.values?.() });
             } catch (error) {
-                if (!state.closed) this.send(state, { type: 'reply', id: message.id, error: error instanceof Error ? error.message : String(error) });
+                if (!state.closed) this.send(state, { type: 'reply', id: message.id, error: error instanceof Error ? error.message : String(error), errorCode: error && typeof error === 'object' && 'code' in error && typeof error.code === 'string' ? error.code : undefined });
             }
         } catch (error) { this.close(owner, state, error instanceof Error ? error : new Error(String(error))); }
     }

@@ -39,3 +39,7 @@ export type { SearchEngine, SearchSelection, SearchDocument, SearchSelector, Sea
 
 export { CommandStatistics } from './namespace/statistics.js';
 export type { CommandCounts, CommandStatisticsSnapshot, QueryTarget } from './namespace/statistics.js';
+
+export { profileWrite } from './registry/profile_write.js';
+export type { ProfileWrite, ProfilePatch, CommandWrite, NamespaceWrite } from './registry/profile_write.js';
+export { ValidationError, ProfilePermissionError, ProfileNotFoundError, ToolCallError, PositionalArgumentError } from './error.js';

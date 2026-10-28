@@ -33,9 +33,14 @@ const installNamespaces = vm.runInContext(`(function(root, call, print, commands
         if(!Object.hasOwn(root,'ToolCallError')) {
             /** @brief A rejected namespace call, created entirely in the guest realm. */
             class ToolCallError extends Error {
-                constructor(message,toolName){super(message);this.name='ToolCallError';this.toolName=toolName;}
+                constructor(message,toolName,code='tool_call_failed'){super(message);this.name='ToolCallError';this.toolName=toolName;this.code=code;}
             }
             Object.defineProperty(root,'ToolCallError',{value:ToolCallError,configurable:false});
+            /** @brief Invalid guest positional arity retaining the command path. */
+            class PositionalArgumentError extends ToolCallError {
+                constructor(toolName){super('Invalid positional argument count',toolName,'invalid_argument_count');this.name='PositionalArgumentError';}
+            }
+            Object.defineProperty(root,'PositionalArgumentError',{value:PositionalArgumentError,configurable:false});
         }
         const logger=Object.create(null);
         for(const method of parse(methods)) {
@@ -58,10 +63,18 @@ const installNamespaces = vm.runInContext(`(function(root, call, print, commands
                 selected:{get:()=>profiles.selected,enumerable:true}
             });
         }
+        const commandPaths=new Map();
+        const updateCommands=values=>{
+            for(const entry of values?.['tools.profile.commands']??[]) {
+                commandPaths.set(entry.name,Object.freeze(entry.paths??[]));
+            }
+        };
+        updateCommands(data);
         const counters=new Map();
         for(const entry of Array.isArray(data['tools.profile.commands'])?data['tools.profile.commands']:[]) {
             if(!entry||typeof entry.name!=='string'||typeof entry.totalCalls!=='number')continue;
             let totalCalls=entry.totalCalls;
+            Object.defineProperty(entry,'paths',{get:()=>commandPaths.get(entry.name),enumerable:true,configurable:false});
             counters.set(entry.name,()=>{totalCalls++;});
             Object.defineProperty(entry,'totalCalls',{get:()=>totalCalls,enumerable:true,configurable:false});
         }
@@ -76,7 +89,7 @@ const installNamespaces = vm.runInContext(`(function(root, call, print, commands
                 switch(parameters.kind) {
                     case 'fields':
                         this.arguments=args=>{
-                            if(args.length>parameters.fields.length)throw new Error('Too many arguments');
+                            if(args.length>parameters.fields.length)throw new PositionalArgumentError(this.path);
                             return named(parameters.fields,args);
                         };
                         break;
@@ -84,14 +97,14 @@ const installNamespaces = vm.runInContext(`(function(root, call, print, commands
                         const layouts=new Map(parameters.layouts.map(fields=>[fields.length,fields]));
                         this.arguments=args=>{
                             const fields=layouts.get(args.length);
-                            if(!fields)throw new Error('Invalid positional argument count');
+                            if(!fields)throw new PositionalArgumentError(this.path);
                             return named(fields,args);
                         };
                         break;
                     }
                     case 'object':
                         this.arguments=args=>{
-                            if(args.length>1)throw new Error('Too many arguments');
+                            if(args.length>1)throw new PositionalArgumentError(this.path);
                             return args[0]===undefined?{}:args[0];
                         };
                 }
@@ -108,10 +121,10 @@ const installNamespaces = vm.runInContext(`(function(root, call, print, commands
                         const pending=call(this.tool,stringify(this.arguments(args)));
                         this.count();
                         pending.then(json=>{
-                            try {const [present,value,values]=parse(json);updateProfiles(values);resolve(this.result(present?value:undefined));}
+                            try {const [present,value,values]=parse(json);updateProfiles(values);updateCommands(values);resolve(this.result(present?value:undefined));}
                             catch(error){reject(new Error(String(error)));}
-                        },error=>reject(new ToolCallError(String(error.message??error),this.path)));
-                    } catch(error){reject(new Error(String(error)));}
+                        },error=>reject(new ToolCallError(String(error.message??error),this.path,error.code)));
+                    } catch(error){reject(error instanceof ToolCallError?error:new ToolCallError(String(error.message??error),this.path));}
                 });
             }
         }
@@ -193,7 +206,7 @@ process.on('message', async raw => {
     const message = parsed.data;
     if (message.type === 'reply') {
         const pending = outstanding.get(message.id); outstanding.delete(message.id);
-        if (message.error !== undefined) pending?.reject(new Error(message.error));
+        if (message.error !== undefined) pending?.reject(Object.assign(new Error(message.error), { code: message.errorCode }));
         else pending?.resolve(JSON.stringify([message.value !== undefined, message.value ?? null, message.values]));
         return;
     }

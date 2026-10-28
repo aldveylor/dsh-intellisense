@@ -1,3 +1,4 @@
+import { normalizeError } from '../error.js';
 import type { Context } from '@deepseek-ai/cordis';
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools';
 import { appendPluginRecord } from '@deepseek-ai/dsh-session';
@@ -12,7 +13,7 @@ export function registerBuiltin(ctx: Context, definition: ToolDefinition): () =>
             let result: unknown;
             let error: string | undefined;
             try { result = await definition.execute(args, execution); return result; }
-            catch (failure) { error = failure instanceof Error ? failure.message : String(failure); throw failure; }
+            catch (failure) { const normalized = normalizeError(failure); error = normalized instanceof Error ? normalized.message : String(normalized); throw normalized; }
             finally {
                 const agent = execution.agent;
                 if (agent) appendPluginRecord(agent.session, 'plugin:ts_intellisense/builtin', {

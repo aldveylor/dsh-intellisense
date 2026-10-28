@@ -24,7 +24,7 @@ PTC 在每次执行前预加载 commands，并由 VM 命令包装同步更新本
 
 `tools.profile.profiles` 返回 `Profiles { profiles: string[]; selected: string }`，列表来自全局目录，selected 来自当前会话。native 为无参数命令，每次调用读取最新状态；PTC 为只读字段，每次执行前初始化，并在工具调用成功返回前通过 IPC 刷新，load/save 后同次执行内的读取和持有的对象引用均可见新状态。
 
-Profile save 的 name 省略或为 undefined 时，始终覆盖当前会话选择对应的目录项，忽略树中的 profile.name；save 不替换当前会话快照、不切换选择，也不刷新工具提示或注入配置更新通知；创建新目录项必须传入显式字符串名称。支持 save(profile) 和 save(name, profile)，缺少 Profile、非法名称类型或非法树均抛错；写入失败透传异常。native schema 与 PTC 声明同步说明权限违规抛错、受保护树必须完整保留、默认禁用及显式 switch 规则。
+Profile save 的 name 省略或为 undefined 时，始终覆盖当前会话选择对应的目录项，写入树禁止包含 name；save 不替换当前会话快照、不切换选择，也不刷新工具提示或注入配置更新通知；创建新目录项必须传入显式字符串名称。支持 save(profileWrite) 和 save(name, profile)，缺少 Profile、非法名称类型或非法树均抛错；写入失败透传异常。native schema 与 PTC 声明同步说明权限违规抛错、受保护树必须完整保留、默认禁用及显式 switch 规则。
 
 `tools.profile.delete(name: string)` 删除全局目录中的指定配置；必须显式指定目标名称，省略或传入 undefined 时拒绝调用，删除当前会话配置一律拒绝。其它会话已有快照保留，成功删除后 PTC 的 profiles 字段随工具回复刷新。
 
@@ -36,7 +36,7 @@ save 使用目标目录配置作为受保护节点文档及锁定等级的校验
 
 `tools.profile.setdefault(name: string)` 将已有目录配置设为全局默认 Profile，复用管理界面的默认配置选择事务并持久化；新建根会话使用该默认配置，已有会话工作快照保持不变，不刷新当前会话工具或注入配置切换通知。native 与 PTC 均可调用，支持通过 builtinDisabled 禁用。
 
-Profile 节点 permissions 为可选的普通权限差异项：commentable/renamable/movable/removable/disableable 默认 true，acceptsChildren 在命令为 false、命名空间为 true，availableFixLevels 在命令为 [0,1,2]、命名空间为 [0,1]。省略对象或字段均使用默认权限，受保护节点权限仍由服务端校验。Profile 构造及 save() 递归省略默认权限字段、空 permissions、fixedLevel=0 和 disabled=false；load 与 annotation/JSON Schema 同步说明默认值。提交节点省略 fixedLevel/disabled 时通常使用 0/false；tools.profile.save 对 tools 命名空间缺省使用 disabled=true。缺失受保护节点会抛错。
+Profile 读取节点 permissions 为可选的服务端只读权限差异项（save/apply 禁止提交）：commentable/renamable/movable/removable/disableable 默认 true，acceptsChildren 在命令为 false、命名空间为 true，availableFixLevels 在命令为 [0,1,2]、命名空间为 [0,1]。省略对象或字段均使用默认权限，受保护节点权限仍由服务端校验。Profile 构造及 save() 递归省略默认权限字段、空 permissions、fixedLevel=0 和 disabled=false；load 与 annotation/JSON Schema 同步说明默认值。提交节点省略 fixedLevel/disabled 时通常使用 0/false；tools.profile.save 对 tools 命名空间缺省使用 disabled=true。缺失受保护节点会抛错。
 
 Inspect 声明渲染仅接收查询、命名空间树、运行时模式与简略注释查询；禁用状态由节点的 disabled 属性提供，queryNodes 过滤禁用目标与成员，显式保留空命名空间时同样检查节点禁用状态，不再向渲染函数传入独立的路径禁用回调。
 
@@ -48,10 +48,15 @@ Profile save 覆盖目录树时，tools 仍为受保护命名空间，但默认�
 
 内置命令的功能说明与参数注释统一定义于 `runtime/builtins.ts`（源码根目录下）的 `PluginCommands` 契约表；原生注册、Inspect、固定提示及管理 UI 引用同一来源。BuiltinTool 保存共享或按 native/PTC 区分的描述、参数注释与 discoveryHint，通过 projectBuiltin(command, mode) 投影为纯字符串注释的 BuiltinCommand；原生注册按 presentation 作用域选择模式，会话命名空间按当前执行模式选择，管理目录默认使用 PTC 投影。依赖 inspect 的可选指引由投影后的 discoveryHint 标记，禁用发现时按该标记移除。
 
-`tools.profile.apply(value: object)` / `apply(name: string | undefined, value: object)` 按 load(name?) 规则读取当前会话草稿或已有目录配置，递归合并部分对象 patch 后复用 save 的验证及持久化流程。未提交字段保留，null 删除对象字段，children 对象按成员名递归合并，数组整体替换，不按索引合并。合并结果必须满足 ProfileSchema；受保护节点继续按 save 规则校验，违规修改抛错，返回相同的 string | null 信息。显式名称必须已存在；省略名称读取会话草稿并保存到当前选择的目录名称。保存不更改会话工作快照或选择，不刷新提示，应用仍需显式 switch。`profile_save.ts` 提供对象 patch 合并及保存信息生成。
+`tools.profile.apply(value: ProfilePatch)` / `apply(name: string | undefined, value: ProfilePatch)` 按 load(name?) 规则读取当前会话草稿或已有目录配置，递归合并部分对象 patch 后复用 save 的验证及持久化流程。未提交字段保留，null 删除对象字段，children 对象按成员名递归合并，数组整体替换，不按索引合并。合并结果必须满足 ProfileSchema；受保护节点继续按 save 规则校验，违规修改抛错，返回相同的 string | null 信息。显式名称必须已存在；省略名称读取会话草稿并保存到当前选择的目录名称。保存不更改会话工作快照或选择，不刷新提示，应用仍需显式 switch。`profile_save.ts` 提供对象 patch 合并及保存信息生成。
 
 apply 不使用 save 对 tools 的默认禁用规则：未提交禁用字段时保留 tools 及其内部命名空间、命令的原状态，显式 disabled 仍可切换状态，null 删除字段后使用节点默认值 false。save 的整树替换默认规则保持不变。
 
 Profile 成员键必须为非空标识符，不能以 $ 或 __ 开头；禁止 Object.prototype 自有名称、prototype、then 等 JS 约定键。children 在 record 解析前校验，显式拒绝 JSON __proto__；apply 在合并前校验所有 patch 键，包括 null 删除项。普通路径继续使用 validatePath 校验运行时全局和语言保留名。普通命名空间可在其它路径使用与受保护成员相同的名称（如 inspect、profile、save）；仅禁止在受保护对象原路径覆盖或替换该对象，原位置的受保护命令不能替换为命名空间。
 
 apply 的命令说明明确改名或移动普通挂载时，需要将原 children 键设为 null 并新增目标键；仅新增键会保留两个挂载。save 和 apply 共用校验，失败不写入目录或改变会话草稿。
+
+
+Profile 写入模型使用 `registry/profile_write.ts` 的 ProfileWrite（从 ProfileData 排除 name，递归排除 permissions），apply 使用递归 Partial 的 ProfilePatch。permissions 仅作为 load 的服务端只读规则返回；save/apply 对 name、permissions、未知字段（含 null 删除）强校验并抛错。调用方从 load 数据显式投影为写入树，宿主可使用 profileWrite；annotation 提供读取与写入两套类型，native annotation 返回写入 JSON Schema。null 仅删除可选字段或 children 成员，删除必填字段直接报告 null 输入。save/apply 仍只写目录，commands.paths 继续指向当前会话，验证保存结果用 load(name)，显式 switch 后才更新会话路径。
+
+`src/error.ts` 定义 ValidationError、ProfilePermissionError、ProfileNotFoundError、ToolCallError 和 PositionalArgumentError。Zod 错误转换为包含 code 及 path/message 列表的紧凑 JSON；guest 的位置参数错误为带 toolName/code 的 ToolCallError 子类，服务端错误码随 IPC 回复传递。

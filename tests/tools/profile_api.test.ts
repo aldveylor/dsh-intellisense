@@ -1,3 +1,4 @@
+import { profileWrite } from '../../src/registry/profile_write.js';
 import { namespace, positionalArguments } from '../namespace/fixtures.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -43,12 +44,12 @@ test('native Profile data tools and optional-name save/load use session defaults
     assert.deepEqual(await call('tools_profile_commands'), [{ name: 'read_file', brief: 'Read a file.', paths: ['files.read', 'files.cat'], totalCalls: 2 }, { name: 'outside_scope', brief: 'Outside this session.', paths: [], totalCalls: 0 }]);
     const profile = JSON.parse(JSON.stringify(profileTree('Ignored', { ...registry.configuration(), namespaces: [{ path: 'files', description: '', alwaysVisible: true }], mappings: [{ id: 'read_file', path: 'files.read', pinned: false, alwaysVisible: 2 }], toolComments: { read_file: 'Read text' } }))); 
     const before = registry.snapshot();
-    await call('tools_profile_save', { profile });
+    await call('tools_profile_save', { profile: profileWrite(profile) });
     assert.deepEqual(registry.snapshot(), before);
     const savedProfile = structuredClone(profile);
     savedProfile.root.children['tools'].disabled = true;
     assert.deepEqual(JSON.parse(JSON.stringify(profileTree('Default', catalog.configuration('Default')))), { ...savedProfile, name: 'Default' });
-    await call('tools_profile_save', { name: 'Copy', profile });
+    await call('tools_profile_save', { name: 'Copy', profile: profileWrite(profile) });
     assert.deepEqual(registry.snapshot(), before);
     assert.deepEqual(await call('tools_profile_profiles'), { profiles: ['Copy', 'Default'], selected: 'Default' });
     await call('tools_profile_switch', { name: 'Copy' });
@@ -73,8 +74,8 @@ test('manifest exposes only the new tools API and projects VM array arguments', 
     const vm = inspect(['tools.profile.', 'tools.profile.save', 'tools.profile.apply', 'tools.inspect'], entries, true);
     assert(vm.includes('readonly annotation: string'));
     assert(vm.includes('readonly profiles: Profiles'));
-    assert(vm.includes('save(profile: Profile)'));
-    assert(vm.includes('apply(value: object)'));
+    assert(vm.includes('save(profile: ProfileWrite)'));
+    assert(vm.includes('apply(value: ProfilePatch)'));
     const apply = entries.commands().find(entry => entry.path === 'tools.profile.apply')!;
     assert.deepEqual(await positionalArguments(apply, [{ brief: null }]), { value: { brief: null } });
     assert.deepEqual(await positionalArguments(apply, [undefined, { brief: 'Draft' }]), { value: { brief: 'Draft' } });
@@ -131,12 +132,12 @@ test('Profile save validates input and undefined name overwrites the current sel
         await assert.rejects(call('tools_profile_save', args));
     }
     assert.deepEqual(catalog.snapshot().profiles, ['Default']);
-    await call('tools_profile_save', { name: 'Copy', profile });
+    await call('tools_profile_save', { name: 'Copy', profile: profileWrite(profile) });
     const updated = { ...profile, name: 'Ignored', root: { ...profile.root, children: { ...profile.root.children, business: {
         type: 'namespace', permissions: profile.root.permissions, children: {},
     } } } };
     const before = registry.snapshot();
-    await call('tools_profile_save', { profile: updated });
+    await call('tools_profile_save', { profile: profileWrite(updated) });
     assert.deepEqual(registry.snapshot(), before);
     assert.equal(registry.snapshot().profile, 'Default');
     assert(!catalog.configuration('Copy').namespaces.some(node => node.path === 'business'));
@@ -154,7 +155,7 @@ test('Profile deletion rejects the current selection and missing entries, and ca
     await assert.rejects(call('tools_profile_delete', { name: 'Default' }), /Current Profile cannot be deleted: Default/);
     await assert.rejects(call('tools_profile_delete', { name: 'Missing' }), /Profile does not exist/);
     const profile = await load();
-    await call('tools_profile_save', { name: 'Copy', profile });
+    await call('tools_profile_save', { name: 'Copy', profile: profileWrite(profile) });
     await call('tools_profile_switch', { name: 'Copy' });
     await assert.rejects(call('tools_profile_delete', { name: 'Copy' }), /Current Profile cannot be deleted: Copy/);
     await call('tools_profile_delete', { name: 'Default' });
@@ -168,7 +169,7 @@ test('Profile deletion rejects the current selection and missing entries, and ca
 test('Profile switch requires a name and supports disabling through server permissions', async () => {
     const { call, load, catalog, registry, definitions } = await fixture();
     const profile = await load();
-    await call('tools_profile_save', { name: 'Copy', profile });
+    await call('tools_profile_save', { name: 'Copy', profile: profileWrite(profile) });
     await call('tools_profile_switch', { name: 'Copy' });
     assert.equal(registry.snapshot().profile, 'Copy');
     assert.equal(catalog.snapshot().profile, 'Default');
@@ -180,7 +181,7 @@ test('Profile switch requires a name and supports disabling through server permi
     assert.equal(command.permissions?.disableable, undefined);
     assert.equal(nodePermissions('leaf', command.permissions).disableable, true);
     command.disabled = true;
-    await call('tools_profile_save', { profile: edited });
+    await call('tools_profile_save', { profile: profileWrite(edited) });
     assert(!registry.configuration().builtinDisabled?.includes('tools.profile.switch'));
     await call('tools_profile_switch', { name: 'Copy' });
     registry.refresh([...definitions.values()].map(tool => ({ id: tool.name, description: tool.description, parameters: tool.parameters, output: tool.output.schema })));
@@ -195,7 +196,7 @@ test('Profile load reads catalog data without replacing the working draft or ref
     const copy = { ...draft, name: 'Copy', root: { ...draft.root, children: { ...draft.root.children, catalog_only: {
         type: 'namespace', permissions: draft.root.permissions, children: {},
     } } } };
-    await call('tools_profile_save', { name: 'Copy', profile: copy });
+    await call('tools_profile_save', { name: 'Copy', profile: profileWrite(copy) });
     const before = registry.snapshot();
     const catalogBefore = catalog.snapshot();
     const loaded = await load({ name: 'Copy' });
@@ -214,7 +215,7 @@ test('Profile load reads catalog data without replacing the working draft or ref
 test('Profile setdefault persists the default for new sessions and preserves existing drafts', async () => {
     const { call, load, catalog, registry, changed, definitions } = await fixture();
     const profile = await load();
-    await call('tools_profile_save', { name: 'Copy', profile });
+    await call('tools_profile_save', { name: 'Copy', profile: profileWrite(profile) });
     const before = registry.snapshot();
     assert.equal(await call('tools_profile_setdefault', { name: 'Copy' }), null);
     assert.equal(catalog.snapshot().profile, 'Copy');
@@ -239,7 +240,7 @@ test('Profile setdefault persists the default for new sessions and preserves exi
     assert.equal(command.permissions?.disableable, undefined);
     assert.equal(nodePermissions('leaf', command.permissions).disableable, true);
     command.disabled = true;
-    await call('tools_profile_save', { profile: edited });
+    await call('tools_profile_save', { profile: profileWrite(edited) });
     await call('tools_profile_switch', { name: 'Default' });
     assert(!manifest(registry, []).commands().some(node => node.path === 'tools.profile.setdefault'));
 });
@@ -269,7 +270,8 @@ test('PTC agents can load, edit, save and switch plain Profile trees across host
             const plain = Object.getPrototypeOf(profile) === Object.prototype && !('save' in profile);
             profile.root.children['agent_draft'] = { type: 'namespace',
                 permissions: profile.root.permissions, children: {}, description: 'Agent draft' };
-            await tools.profile.save('AgentCopy', profile);
+            const write = value => Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'permissions' && key !== 'name').map(([key, child]) => [key, child && typeof child === 'object' ? write(child) : child]));
+            await tools.profile.save('AgentCopy', write(profile));
             const catalog = await tools.profile.load('AgentCopy');
             const current = await tools.profile.load();
             await tools.profile.switch('AgentCopy');
@@ -293,13 +295,13 @@ test('Profile save defaults protected tools to disabled and honors explicit enab
         const tools = profile.root.children!['tools'];
         if (state === 'missing') {
             delete profile.root.children!['tools'];
-            await assert.rejects(call('tools_profile_save', { name: 'Copy', profile }), /Node cannot be removed: tools/);
+            await assert.rejects(call('tools_profile_save', { name: 'Copy', profile: profileWrite(profile) }), /Node cannot be removed: tools/);
             continue;
         }
         else if (state === 'omitted') delete tools.disabled;
         else tools.disabled = state;
         const input = structuredClone(profile);
-        await call('tools_profile_save', { name: 'Copy', profile });
+        await call('tools_profile_save', { name: 'Copy', profile: profileWrite(profile) });
         const saved = await load({ name: 'Copy' });
         assert.equal(saved.root.children!['tools'].disabled ?? false, state !== false);
         assert.equal(catalog.configuration('Copy').builtinDisabled.includes('tools'), state !== false);
@@ -328,25 +330,25 @@ test('Profile annotation keeps field semantics without repeating Profile command
 
 test('Profile save rejects protected omissions and reports advisory discovery issues without changing pins or blocking persistence', async () => {
     const { call, load, catalog, registry, definitions } = await fixture();
-    const advisory = 'warning: `inspect` is disabled when there are some commands not fixed with level 2.';
+    const advisory = 'warning: `tools.inspect` is disabled when there are some enabled commands not fixed with level 2.';
     const profile = await load();
     profile.root.children!['files'] = { type: 'namespace', children: {
         read: { type: 'command', fixedLevel: 1, command: { tool: 'read_file' } },
     } };
     const before = registry.snapshot();
-    assert.equal(await call('tools_profile_save', { name: 'Info', profile }), advisory);
+    assert.equal(await call('tools_profile_save', { name: 'Info', profile: profileWrite(profile) }), advisory);
     assert.equal(catalog.configuration('Info').mappings[0]!.alwaysVisible, 1);
     assert.deepEqual(registry.snapshot(), before);
     delete profile.root.children!['tools'];
-    await assert.rejects(call('tools_profile_save', { name: 'Info', profile }), /Node cannot be removed: tools/);
+    await assert.rejects(call('tools_profile_save', { name: 'Info', profile: profileWrite(profile) }), /Node cannot be removed: tools/);
     profile.root.children!['tools'] = (await load()).root.children!['tools'];
     profile.root.children!['files']!.children!['read']!.fixedLevel = 2;
-    await call('tools_profile_save', { name: 'Info', profile });
+    await call('tools_profile_save', { name: 'Info', profile: profileWrite(profile) });
     const complete = await load({ name: 'Info' });
-    assert.equal(await call('tools_profile_save', { name: 'Info', profile: complete }), null);
+    assert.equal(await call('tools_profile_save', { name: 'Info', profile: profileWrite(complete) }), null);
     const partial = await load({ name: 'Info' });
     partial.root.children!['tools'].children!['profile'].children = {};
-    await assert.rejects(call('tools_profile_save', { name: 'Info', profile: partial }), /Node cannot be removed: tools.profile/);
+    await assert.rejects(call('tools_profile_save', { name: 'Info', profile: profileWrite(partial) }), /Node cannot be removed: tools.profile/);
     const schema = definitions.get('tools_profile_save')!.output.schema;
     assert.deepEqual(schema, { oneOf: [{ type: 'string' }, { type: 'null' }] });
 });
@@ -362,15 +364,15 @@ test('Profile save checks enabled descendants and requires callable inspect rega
     for (const [inspectDisabled, searchDisabled] of [[true, false], [false, true], [true, true]]) {
         inspect.disabled = inspectDisabled;
         search.disabled = searchDisabled;
-        const information = await call('tools_profile_save', { name: 'Discovery', profile });
+        const information = await call('tools_profile_save', { name: 'Discovery', profile: profileWrite(profile) });
         assert.equal(typeof information === 'string', inspectDisabled);
     }
     tools.children!['profile'].disabled = true;
-    assert.equal(await call('tools_profile_save', { name: 'Discovery', profile }), null);
+    assert.equal(await call('tools_profile_save', { name: 'Discovery', profile: profileWrite(profile) }), null);
     profile.root.children!['files'] = { type: 'namespace', disabled: true, children: {
         read: { type: 'command', command: { tool: 'read_file' } },
     } };
-    assert.equal(await call('tools_profile_save', { name: 'Discovery', profile }), null);
+    assert.equal(await call('tools_profile_save', { name: 'Discovery', profile: profileWrite(profile) }), null);
 });
 
 
@@ -382,7 +384,7 @@ test('Profile apply recursively patches a named catalog tree and deletes null fi
     profile.root.children!['files'] = { type: 'namespace', description: 'Files', children: {
         read: { type: 'command', command: { tool: 'read_file' }, fixedLevel: 2 },
     } };
-    await call('tools_profile_save', { name: 'Copy', profile });
+    await call('tools_profile_save', { name: 'Copy', profile: profileWrite(profile) });
     const before = registry.snapshot();
     const original = await load({ name: 'Copy' });
     await call('tools_profile_apply', { name: 'Copy', value: { brief: null, root: { fixedLevel: null } } });
@@ -413,7 +415,7 @@ test('Profile apply preserves tools subtree states for catalog and draft patches
             tools.children!['profile']!.fixedLevel = 1;
             tools.children!['profile']!.children!['load']!.disabled = disabled;
             tools.children!['search']!.disabled = !disabled;
-            await call('tools_profile_save', { profile });
+            await call('tools_profile_save', { profile: profileWrite(profile) });
             await call('tools_profile_switch', { name: 'Default' });
             const before = await load();
             const snapshot = registry.snapshot();
@@ -511,7 +513,7 @@ test('Profile save and apply allow namespaces sharing protected names at differe
     const names = ['inspect', 'save', 'load', 'profile'];
     for (const name of names) profile.root.children![name] = { type: 'namespace' };
     profile.root.children!['custom'] = { type: 'namespace', children: { tools: { type: 'namespace' } } };
-    await call('tools_profile_save', { name: 'Copy', profile });
+    await call('tools_profile_save', { name: 'Copy', profile: profileWrite(profile) });
     const saved = await load({ name: 'Copy' });
     for (const name of names) assert.equal(saved.root.children![name].type, 'namespace');
     assert.equal(saved.root.children!['tools'].children!['inspect'].type, 'command');
@@ -523,8 +525,91 @@ test('Profile save and apply allow namespaces sharing protected names at differe
     assert.deepEqual(applied.root.children!['tools'], saved.root.children!['tools']);
     await assert.rejects(call('tools_profile_apply', { name: 'Copy', value: { root: { children: {
         tools: { children: { inspect: { type: 'namespace', command: null, fixedLevel: null } } },
-    } } } }), /Protected node cannot be replaced/);
+    } } } }), /Required field cannot be deleted/);
     saved.root.children!['tools'].children!['inspect'] = { type: 'namespace' };
-    await assert.rejects(call('tools_profile_save', { name: 'Copy', profile: saved }), /Protected node cannot be replaced/);
+    await assert.rejects(call('tools_profile_save', { name: 'Copy', profile: profileWrite(saved) }), /Protected node cannot be replaced/);
     assert.deepEqual(await load({ name: 'Copy' }), applied);
+});
+
+
+test('save and apply reject readonly name and permissions without changing catalog or draft', async () => {
+    const { call, load, catalog, registry } = await fixture();
+    const original = await load();
+    const before = catalog.snapshot();
+    const draft = registry.snapshot();
+    const values = [
+        { name: 'Hacked' }, { name: null },
+        { root: { permissions: null } },
+        { root: { children: { tools: { permissions: { acceptsChildren: true } } } } },
+        { root: { children: { tools: { children: { search: { permissions: { acceptsChildren: true } } } } } } },
+        { root: { children: { file: { type: 'command', command: { tool: 'read_file' }, permissions: { availableFixLevels: [] } } } } },
+    ];
+    for (const value of values) {
+        await assert.rejects(call('tools_profile_apply', { value }), /Unknown or read-only field/);
+        assert.deepEqual(catalog.snapshot(), before);
+        assert.deepEqual(registry.snapshot(), draft);
+    }
+    for (const profile of [original, { ...profileWrite(original), name: original.name },
+        { ...profileWrite(original), root: { ...original.root, permissions: null } }]) {
+        await assert.rejects(call('tools_profile_save', { profile }), /Unknown or read-only field/);
+        assert.deepEqual(catalog.snapshot(), before);
+    }
+});
+
+test('apply reports null required fields explicitly and compact validation identifies exact node fields', async () => {
+    const { call } = await fixture();
+    await assert.rejects(call('tools_profile_apply', { value: { root: null } }), /root.*received null/);
+    await assert.rejects(call('tools_profile_apply', { value: { root: { children: { files: { type: 'command', command: { tool: 'read_file' }, fixedLevel: 9 } } } } }), error => {
+        const text = (error as Error).message;
+        const data = JSON.parse(text);
+        assert.equal(data.code, 'invalid_arguments');
+        assert(data.issues.some((issue: { path: string }) => issue.path === 'root.children.files.fixedLevel'));
+        assert(text.length < 700, text);
+        return true;
+    });
+});
+
+test('apply rejects additions to protected namespaces and command children', async () => {
+    const { call } = await fixture();
+    for (const parent of ['tools', 'profile']) {
+        const addition = { children: { added: { type: 'command', command: { tool: 'read_file' } } } };
+        const tools = parent === 'tools' ? addition : { children: { profile: addition } };
+        await assert.rejects(call('tools_profile_apply', { value: { root: { children: { tools } } } }), /Namespace does not accept children: tools/);
+    }
+    await assert.rejects(call('tools_profile_apply', { value: { root: { children: { tools: { children: { search: { children: { child: { type: 'namespace' } } } } } } } } }), /children.*Unknown or read-only field/);
+});
+
+test('nested rename and move persist in the catalog while session paths change only on switch', async () => {
+    const { call, load, catalog, registry } = await fixture();
+    const mount = { type: 'command', command: { tool: 'read_file', doc: 'Read text' }, fixedLevel: 1 };
+    await call('tools_profile_apply', { name: 'Default', value: { root: { children: { file: { type: 'namespace', children: { read: mount } } } } } });
+    await call('tools_profile_apply', { name: 'Default', value: { root: { children: { file: { children: { read: null, read2: mount } } } } } });
+    assert.deepEqual(catalog.configuration('Default').mappings.map(item => item.path), ['file.read2']);
+    assert.deepEqual(registry.configuration().mappings, []);
+    assert(!(await load()).root.children!['file']);
+    const saved = await load({ name: 'Default' });
+    assert(!saved.root.children!['file'].children!['read']);
+    await call('tools_profile_switch', { name: 'Default' });
+    assert.deepEqual(registry.configuration().mappings.map(item => item.path), ['file.read2']);
+    await call('tools_profile_apply', { name: 'Default', value: { root: { children: { file: { children: { read2: null } }, moved: mount } } } });
+    assert.deepEqual(catalog.configuration('Default').mappings.map(item => item.path), ['moved']);
+    assert.deepEqual(registry.configuration().mappings.map(item => item.path), ['file.read2']);
+});
+
+test('guest positional failures are typed ToolCallError subclasses with namespace paths', async () => {
+    const { registry, definitions, call } = await fixture();
+    registry.refresh([...definitions.values()].map(tool => ({ id: tool.name, description: tool.description, parameters: tool.parameters, output: tool.output.schema })));
+    const host = new RuntimeHost({ timeoutMs: 3000 });
+    try {
+        const result = await host.execute('argument_errors', 'one', `
+            const results = [];
+            for (const args of [[], [undefined, {}, {}]]) {
+                try { await tools.profile.apply(...args); }
+                catch (error) { results.push([error instanceof ToolCallError, error instanceof PositionalArgumentError, error.toolName, error.code]); }
+            }
+            return results;`, manifest(registry, []).commands().filter(node => !node.preload).map(node => node.binding()),
+        async (tool, args) => call(tool, args), new AbortController().signal);
+        assert.equal(result.error, undefined);
+        assert.deepEqual(result.value, Array.from({ length: 2 }, () => [true, true, 'tools.profile.apply', 'invalid_argument_count']));
+    } finally { await host.dispose(); }
 });
