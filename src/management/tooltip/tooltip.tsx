@@ -118,28 +118,42 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
         hideTimer.current = setTimeout(hide, 200);
     }
 
+    /** @brief Recover modifier changes even when key events were missed before mounting. */
+    function updateControl(held: boolean): void {
+        if (ctrl.current === held) return;
+        ctrl.current = held;
+        updateInteractivity();
+        if (held) { cancelSettle(); cancelHide(); }
+        else { scheduleSettle(); scheduleHide(); }
+    }
+
     useEffect(() => {
         /** @brief Track Ctrl even when the pointer is outside the original card. */
         function keydown(event: KeyboardEvent): void {
-            if (event.key === 'Control') { ctrl.current = true; updateInteractivity(); cancelSettle(); cancelHide(); }
+            if (event.key === 'Control') updateControl(true);
         }
 
         /** @brief Resume normal dismissal when Ctrl is released outside both regions. */
         function keyup(event: KeyboardEvent): void {
-            if (event.key === 'Control') { ctrl.current = false; updateInteractivity(); scheduleSettle(); scheduleHide(); }
+            if (event.key === 'Control') updateControl(false);
         }
+
+        /** @brief Synchronize held Ctrl for newly mounted providers and outside-anchor movement. */
+        function pointermove(event: PointerEvent): void { updateControl(event.ctrlKey); }
 
         /** @brief Clear held modifiers and dismiss when the browser loses focus. */
         function blur(): void { ctrl.current = false; hovered.current = undefined; hide(); }
 
-        window.addEventListener('keydown', keydown);
-        window.addEventListener('keyup', keyup);
+        window.addEventListener('keydown', keydown, true);
+        window.addEventListener('keyup', keyup, true);
+        window.addEventListener('pointermove', pointermove, true);
         window.addEventListener('blur', blur);
         return () => {
             cancelHide();
             cancelSettle();
-            window.removeEventListener('keydown', keydown);
-            window.removeEventListener('keyup', keyup);
+            window.removeEventListener('keydown', keydown, true);
+            window.removeEventListener('keyup', keyup, true);
+            window.removeEventListener('pointermove', pointermove, true);
             window.removeEventListener('blur', blur);
         };
     }, []);
@@ -164,8 +178,7 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
             scheduleSettle();
         },
         move: (x, y, ctrlKey) => {
-            ctrl.current = ctrlKey;
-            updateInteractivity();
+            updateControl(ctrlKey);
             if (ctrlKey || settled.current) return;
             if (point.current.x === x && point.current.y === y) return;
             point.current = { x, y }; position();

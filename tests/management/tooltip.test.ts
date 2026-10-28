@@ -122,6 +122,34 @@ test('tooltips require pointer rest before hover retention and retain Ctrl contr
         advance(200);
         assert.equal(tooltip(), null, 'Releasing Ctrl resumes dismissal');
 
+        const root = dom.window.document.getElementById('root')!;
+        /** @brief Model host shortcuts that consume keyboard events before they reach window bubbling. */
+        function consumeKey(event: Event): void { event.stopPropagation(); }
+        root.addEventListener('keydown', consumeKey);
+        root.addEventListener('keyup', consumeKey);
+        show();
+        browser.run(() => root.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Control', bubbles: true })));
+        leave();
+        hover(true);
+        advance(1000);
+        assert(tooltip(), 'Ctrl must survive host keyboard handlers while entering the tooltip');
+        hover(false);
+        browser.run(() => root.dispatchEvent(new dom.window.KeyboardEvent('keyup', { key: 'Control', bubbles: true })));
+        advance(200);
+        assert.equal(tooltip(), null, 'Consumed keyup must still release Ctrl retention');
+
+        show();
+        leave();
+        advance(100);
+        browser.run(() => root.dispatchEvent(new dom.window.MouseEvent('pointermove', { bubbles: true, ctrlKey: true })));
+        hover(true);
+        advance(1000);
+        assert(tooltip(), 'Pointer modifiers recover a missed keydown and cancel pending dismissal');
+        hover(false);
+        browser.run(() => root.dispatchEvent(new dom.window.MouseEvent('pointermove', { bubbles: true, ctrlKey: false })));
+        advance(200);
+        assert.equal(tooltip(), null, 'Pointer modifiers also recover a missed keyup');
+
         show();
         browser.dispose();
         advance(0);
