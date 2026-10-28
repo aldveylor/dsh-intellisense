@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { KvUnit } from '@deepseek-ai/dsh-storage';
 
@@ -7,6 +7,8 @@ export interface Store {
     load<T>(key: string): Promise<T | undefined>;
     /** @brief Optionally load a set of records from one backend snapshot. */
     loadMany?<T>(keys: readonly string[]): Promise<(T | undefined)[]>;
+    /** @brief Enumerate detached records for journal and checkpoint recovery. */
+    loadEntries?<T>(prefix: string): Promise<[string, T][]>;
     save<T>(key: string, value: T): Promise<void>;
     remove(key: string): Promise<void>;
 }
@@ -31,6 +33,12 @@ export class DshStore implements Store {
 
     async remove(key: string): Promise<void> { await this.unit.deleteRecord('state', key); }
 
+    async loadEntries<T>(prefix: string): Promise<[string, T][]> {
+        const snapshot = await this.unit.loadAll();
+        return Object.entries(snapshot.tables.state ?? {}).filter(([key]) => key.startsWith(prefix))
+            .map(([key, value]) => [key, structuredClone(value) as T]);
+    }
+
 }
 
 /** @brief Atomic file store for explicit standalone use and tests. */
@@ -51,6 +59,23 @@ export class FileStore implements Store {
     }
 
     async remove(key: string): Promise<void> { await rm(this.path(key), { force: true }); }
+
+    async loadEntries<T>(prefix: string): Promise<[string, T][]> {
+        let names: string[];
+        try { names = await readdir(this.directory); }
+        catch (error) {
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+            throw error;
+        }
+        const entries: [string, T][] = [];
+        for (const name of names) {
+            if (!name.endsWith('.json') || !name.startsWith(prefix)) continue;
+            const key = name.slice(0, -5);
+            const value = await this.load<T>(key);
+            if (value !== undefined) entries.push([key, value]);
+        }
+        return entries;
+    }
 
     async save<T>(key: string, value: T): Promise<void> {
         const path = this.path(key);
@@ -73,5 +98,9 @@ export class MemoryStore implements Store {
 
     async save<T>(key: string, value: T): Promise<void> {
         this.values.set(key, structuredClone(value));
+    }
+
+    async loadEntries<T>(prefix: string): Promise<[string, T][]> {
+        return [...this.values].filter(([key]) => key.startsWith(prefix)).map(([key, value]) => [key, structuredClone(value) as T]);
     }
 }
