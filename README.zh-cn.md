@@ -34,6 +34,8 @@ dsh plugin --profile <profile> add @aldveylor/dsh-intellisense
 
 ## 开发（Development）
 
+查看[开发文档](docs/zh-cn/development.md)，了解 agent preset 的 `config.mode` / `config.profile` 配置与内置工具接口。
+
 需要 Node.js >=24、DeepSeek Harness >=0.2.1-rc.2。
 
 ### 通过 npm 安装

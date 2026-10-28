@@ -34,6 +34,8 @@ The bundle includes **Intellisense Preset** (`intellisense/preset`, entry `@aldv
 
 ## Development
 
+Read the [development guide](docs/en/development.md) for agent preset `config.mode` / `config.profile` settings and builtin tool interfaces.
+
 Requires Node.js >=24 and DeepSeek Harness >=0.2.1-rc.2.
 
 ### Install from npm
