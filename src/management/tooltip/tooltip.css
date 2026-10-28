@@ -1,0 +1,4 @@
+.ts-tooltip-scope{display:contents}.ts-tooltip{position:fixed;inset:auto;margin:0;pointer-events:auto;width:max-content;max-width:min(560px,calc(100vw - 16px));max-height:calc(100vh - 16px);overflow:auto;overscroll-behavior:contain;padding:12px 16px;border:1px solid var(--ts-border,var(--dsw-alias-border-l2,#80808047));border-radius:var(--dsw-radius-md,6px);background:var(--dsw-alias-bg-base,light-dark(#ffffff,#202020));color:var(--dsw-alias-label-primary,light-dark(#202124,#dce3ed));box-shadow:var(--dsw-elevation-panel,0 8px 28px #0003)}
+.ts-action-hint{display:flex;flex-direction:column;gap:4px;max-width:340px;line-height:1.5;white-space:normal;overflow-wrap:anywhere}.ts-action-hint>strong{font-weight:600}.ts-action-hint>span{color:var(--dsw-alias-label-secondary,light-dark(#626b78,#a5a5a5))}
+
+.ts-tooltip:has(.ts-tool-details)>.ts-action-hint{margin:16px 16px 0}

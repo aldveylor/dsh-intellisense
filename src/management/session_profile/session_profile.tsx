@@ -1,3 +1,5 @@
+import { HintButton } from '../tooltip/action_hint.js';
+import { TooltipProvider } from '../tooltip/tooltip.js';
 import { useEffect, useRef, useState } from 'react';
 import { IconChevronDownOutlineRegular, IconDatabaseOutlineRegular, IconWarningOutlineRegular, Menu, Toast } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots';
@@ -60,17 +62,17 @@ export function SessionProfile({ sessionId, useProjection, api, t }: PropsRuntim
 
     if (!state?.enabled && !error) return null;
     return <div className="ts-session-profile">
-        <style>{styles + labelStyles}</style>
+        <style>{styles + labelStyles}</style><TooltipProvider>
         {state?.enabled && <Menu open={open && !state.locked} onClose={() => setOpen(false)} align="start" portal className="ts-session-profile-menu"
             items={state.profiles.map(profile => ({ id: profile, label: <ProfileLabel label={profile} brief={state.profileBriefs?.[profile]} /> }))} selectedId={state.profile}
-            onSelect={profile => { void select(profile); }} anchor={<button type="button" className="ts-session-profile-trigger"
-                aria-label={t('session_profile_label')} title={t('select_session_profile')} aria-haspopup="menu" aria-expanded={open} disabled={busy || state.locked}
+            onSelect={profile => { void select(profile); }} anchor={<HintButton type="button" className="ts-session-profile-trigger"
+                aria-label={t('session_profile_label')} title={t(state.locked ? 'locked_session_profile_hint' : 'select_session_profile')} aria-haspopup="menu" aria-expanded={open} disabled={busy || state.locked}
                 onClick={() => setOpen(value => !value)}>
                 <IconDatabaseOutlineRegular className="ts-session-profile-icon" />
                 <span>{state.profile}</span>
                 <IconChevronDownOutlineRegular className="ts-session-profile-chevron" />
-            </button>} />}
+            </HintButton>} />}
         {error && <Toast key={error.generation} text={t('operation_failed_detail', { message: errorKey ? t(errorKey) : error.message })} icon={<IconWarningOutlineRegular />}
             holdMs={6000} onDone={() => setError(undefined)} />}
-    </div>;
+    </TooltipProvider></div>;
 }

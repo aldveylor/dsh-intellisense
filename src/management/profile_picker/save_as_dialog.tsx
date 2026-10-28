@@ -25,8 +25,8 @@ export function SaveAsDialog({ profiles, busy, save, close, title }: {
                     onKeyDown={event => { if (event.nativeEvent.isComposing && event.key === 'Enter') event.preventDefault(); }} />
             </label>
             <div className="ts-dialog-actions">
-                <ActionButton type="button" onClick={close}>{t('cancel')}</ActionButton>
-                <ActionButton variant="primary" type="submit" disabled={busy || !draft.trim() || profiles.includes(draft.trim())}>{t('confirm')}</ActionButton>
+                <ActionButton type="button" title={t('cancel_hint')} onClick={close}>{t('cancel')}</ActionButton>
+                <ActionButton variant="primary" type="submit" title={t('confirm_save_as_hint')} disabled={busy || !draft.trim() || profiles.includes(draft.trim())}>{t('confirm')}</ActionButton>
             </div>
         </form>
     </dialog>;

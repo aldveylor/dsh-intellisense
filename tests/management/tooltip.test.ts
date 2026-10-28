@@ -14,7 +14,7 @@ test('tooltips share the same fixed state for pointer rest and Ctrl', async () =
             window.run = callback => flushSync(callback);
             window.dispose = () => flushSync(() => root.unmount());
             flushSync(() => root.render(<TooltipProvider><Controls /></TooltipProvider>));
-        ` }, bundle: true, platform: 'browser', format: 'iife', jsx: 'automatic', write: false,
+        ` }, bundle: true, platform: 'browser', format: 'iife', jsx: 'automatic', write: false, loader: { '.css': 'text' },
     });
     const dom = new JSDOM('<div id="root"></div>', { runScripts: 'outside-only' });
     const browser = dom.window as unknown as {

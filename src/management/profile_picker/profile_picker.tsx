@@ -9,7 +9,7 @@ import { useActionAnimation } from '../animation/action_animation.js';
 /** @brief A host may supply its own dropdown without imposing host dependencies on standalone pages. */
 export interface ProfileSelectProps {
     value: string; options: ReadonlyArray<{ value: string; label: string; brief?: string }>; disabled: boolean; readOnly?: boolean; allowCreate?: boolean; protectedProfile?: string;
-    label?: string; closeOnSelect?: boolean;
+    label?: string; hint?: string; closeOnSelect?: boolean;
     onChange: (value: string) => void;
     onCreate?: (name: string) => void; onRename?: (name: string, newName: string) => void; onRemove?: (name: string) => void;
 }
@@ -39,31 +39,31 @@ export function ProfilePicker({ name, profiles, briefs = {}, dirty, busy, select
 
     return <TooltipProvider><div className="ts-profile-picker">
         <Select value={name} options={profiles.map(profile => ({ value: profile, label: `${profile}${dirty && profile === name ? ' *' : ''}`, brief: briefs[profile] }))}
-            disabled={busy} protectedProfile={protectedProfile} onChange={select} onCreate={create} onRename={rename} onRemove={remove} />
-        <ProfileActionButton type="button" label={t('refresh')} disabled={refreshDisabled} aria-busy={animation.running.has('refresh')} onClick={() => void animation.run('refresh', refresh)}>
+            disabled={busy} hint={t('edit_profile_hint')} protectedProfile={protectedProfile} onChange={select} onCreate={create} onRename={rename} onRemove={remove} />
+        <ProfileActionButton type="button" label={t('refresh')} hint={t('refresh_hint')} disabled={refreshDisabled} aria-busy={animation.running.has('refresh')} onClick={() => void animation.run('refresh', refresh)}>
             <svg {...icon('refresh')} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M20 7v5h-5M4 17v-5h5M6.1 6.1A8 8 0 0 1 20 12M4 12a8 8 0 0 0 13.9 5.9" />
             </svg>
         </ProfileActionButton>
-        <ProfileActionButton type="button" label={t('save')} disabled={busy} aria-busy={animation.running.has('save')} onClick={() => void animation.run('save', () => save())}>
+        <ProfileActionButton type="button" label={t('save')} hint={t('save_hint')} disabled={busy} aria-busy={animation.running.has('save')} onClick={() => void animation.run('save', () => save())}>
             <svg {...icon('save')} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path className="ts-archive-box" d="M4 11h16v10H4zM3 8h18v3H3zM10 15h4" />
                 <g className="ts-archive-paper"><path d="M7 8V2h7l3 3v3M10 4h3M10 6h4" /></g>
                 <path className="ts-archive-seal" d="M3 8h18" />
             </svg>
         </ProfileActionButton>
-        <ProfileActionButton type="button" label={t('save_as')} disabled={busy} aria-busy={animation.running.has('save_as')} onClick={() => { if (!animation.running.has('save_as')) setSavingAs(true); }}>
+        <ProfileActionButton type="button" label={t('save_as')} hint={t('save_as_hint')} disabled={busy} aria-busy={animation.running.has('save_as')} onClick={() => { if (!animation.running.has('save_as')) setSavingAs(true); }}>
             <svg {...icon('save_as')} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M11 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h10l4 4v4M7 7h6M7 11h4" />
                 <path className="ts-action-pen" d="m14 21 1-4 5-5 3 3-5 5-4 1ZM18 14l3 3" />
             </svg>
         </ProfileActionButton>
-        <ProfileActionButton type="button" label={t('download_profile')} disabled={busy} aria-busy={animation.running.has('download')} onClick={() => void animation.run('download', download)}>
+        <ProfileActionButton type="button" label={t('download_profile')} hint={t('download_profile_hint')} disabled={busy} aria-busy={animation.running.has('download')} onClick={() => void animation.run('download', download)}>
             <svg {...icon('download')} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path className="ts-transfer-arrow" d="M12 3v12m-5-5 5 5 5-5" /><path d="M4 16v5h16v-5" />
             </svg>
         </ProfileActionButton>
-        <ProfileActionButton type="button" label={t('upload_profile')} disabled={busy} aria-busy={animation.running.has('upload')} onClick={() => { if (!animation.running.has('upload')) fileInput.current?.click(); }}>
+        <ProfileActionButton type="button" label={t('upload_profile')} hint={t('upload_profile_hint')} disabled={busy} aria-busy={animation.running.has('upload')} onClick={() => { if (!animation.running.has('upload')) fileInput.current?.click(); }}>
             <svg {...icon('upload')} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path className="ts-transfer-arrow" d="M12 15V3m-5 5 5-5 5 5" /><path d="M4 16v5h16v-5" />
             </svg>

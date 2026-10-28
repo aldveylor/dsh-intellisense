@@ -14,6 +14,6 @@ export function ErrorDialog({ message, close }: { message: string; close: () => 
     return <dialog ref={dialog} className="ts-management-dialog" aria-labelledby={titleId} aria-describedby={messageId} onClose={close}>
         <h2 id={titleId}>{t('operation_failed')}</h2>
         <p id={messageId} className="ts-error-message">{message}</p>
-        <div className="ts-dialog-actions"><ActionButton variant="primary" type="button" autoFocus onClick={close}>{t('confirm')}</ActionButton></div>
+        <div className="ts-dialog-actions"><ActionButton variant="primary" type="button" autoFocus title={t('close_hint')} onClick={close}>{t('confirm')}</ActionButton></div>
     </dialog>;
 }

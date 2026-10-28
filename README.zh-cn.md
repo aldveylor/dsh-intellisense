@@ -75,10 +75,10 @@ pnpm install --frozen-lockfile
 
 ### 工具详情
 
-悬停工具卡片可查看原始名称、描述、参数、返回类型和调用统计。参数类型拥有二层 Tooltip，类型直接显示表达式；参数与统计标题置于表格外，列宽按内容自适应。按住 Alt 固定提示，移入可手动滚动。
+悬停工具卡片可查看原始名称、描述、参数、返回类型和调用统计。参数类型拥有二层 Tooltip，类型直接显示表达式；参数与统计标题置于表格外，列宽按内容自适应。按住 Ctrl 固定提示，移入可手动滚动。
 
 ![Bash 工具详情与类型展示](assets/zh/tooltip.png)
 
 ## 许可
 
-[Apache License 2.0](LICENSE)。
+[Apache License 2.0](LICENSE)

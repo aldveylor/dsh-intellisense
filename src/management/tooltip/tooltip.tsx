@@ -1,3 +1,4 @@
+import styles from './tooltip.css';
 import { createContext, useContext, useId, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 
 /** @brief Shared tooltip controls; pointer movement updates the floating element directly. */
@@ -179,6 +180,7 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
         },
         hide,
     }}>
+        <style>{styles}</style>
         <div className="ts-tooltip-scope" onScrollCapture={hide} onKeyDownCapture={event => {
             if (event.key === 'Escape' && content !== undefined) { event.preventDefault(); event.stopPropagation(); hide(); }
         }}>{children}</div>

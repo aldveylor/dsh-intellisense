@@ -13,3 +13,7 @@ Select props also accept an optional accessible label; management callbacks are 
 Refresh, Save, Save as, Download and Upload return promises to the shared action animation hook. SVG master cycles repeat during the operation and finish at the next complete cycle boundary after success or failure; child animation events do not stop the master cycle. Save as begins on name confirmation, Upload begins after file selection, and cancelling either picker starts no operation animation. Profile deletion shifts surviving dropdown items with transform animations. Reduced-motion preferences shorten cycles and suppress movement while retaining completion events.
 
 Profile 下拉选项支持可选 brief，存在时在名称下显示灰色简介，无简介时省略该行。命名空间树保留 NativeProfileSelect 自定义可编辑菜单，默认配置在宿主中使用 HostProfileSelect 对接原生 Menu。ProfileLabel 共享名称与简介布局。JSON 导入导出保留可选 brief。
+
+配置操作按钮通过独立 hint 显示中英文功能说明，保留简短可访问名称；说明刷新覆盖草稿、保存的会话范围、另存为及导入导出的实际效果。选择器支持独立 hint，区分默认配置、编辑配置与工具排序用途。
+
+按钮提示统一使用第一行动作、第二行浅色说明的 ActionHint；菜单按钮由 HintButton 提供相同的鼠标和键盘提示，不再生成浏览器 title 浮层。

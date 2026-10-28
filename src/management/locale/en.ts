@@ -31,6 +31,8 @@ export const en = {
     "pin_detailed_action": "Pin detailed hint",
     "unpin_action": "Unpin",
     "pin_namespace_action": "Pin group",
+    "sort_ascending_hint": "Currently ascending: click to sort descending. Only the picker display changes.",
+    "sort_descending_hint": "Currently descending: click to sort ascending. Only the picker display changes.",
     "usage_guide": "Usage guide",
     "documentation_language": "en",
     "page_loading": "Loading tool management…",

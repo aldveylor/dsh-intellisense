@@ -28,7 +28,7 @@ Keep the built-in discovery entry enabled so the agent can find tools without de
 
 ## Find your way around the page
 
-The default Profile selector at the top chooses the configuration for new conversations. Generate organization proposal, to its right, asks an agent to help organize tools. The namespace tree occupies the main area. Its own Profile selector chooses what you are editing, followed by Refresh, Save, Save as, Download and Upload. Hover buttons to see what they do.
+The default Profile selector at the top chooses the configuration for new conversations. Generate organization proposal, to its right, asks an agent to help organize tools. The namespace tree occupies the main area. Its own Profile selector chooses what you are editing, followed by Refresh, Save, Save as, Download and Upload. Hover a button for its action on the first line and a subdued explanation of its effect on the second.
 
 The tool icon beside the tree heading opens the full tool picker. The unmounted-tools entry below the heading lists tools not yet added to this Profile; Edit Profile description changes its purpose summary. Each row has the permitted pin, enable/disable and removal controls. Protected built-in entries offer only allowed actions.
 
@@ -45,6 +45,8 @@ Refresh reloads the saved configuration and updates the tool catalog, replacing 
 ## Add tools and create groups
 
 Click the tool icon beside Namespace tree to add tools at the outermost level. To add inside a group, expand it and click its plus button. Search the picker by name, path or description, or sort by name, call count or query count. Click an available card to add it.
+
+Use the sort menu to choose name, call count or query count, then its direction button to switch ascending or descending. Direction is unavailable for the default order. The filter button lets you combine unmounted, mounted and built-in fixed tools. Filtering and sorting only change the picker display.
 
 The unmounted-tools entry shows only tools not yet added to the current Profile. Card footers show existing placements; adding a tool again creates another placement. Gray built-in cards cannot be added again.
 
@@ -70,7 +72,7 @@ The removal button deletes the current tool placement, or the group and its cont
 
 Hover a group to see its name, full location and description. Hover a tool for its short comment, full documentation and statistics; hover its original tool name within that tooltip for more details. Cards in the picker also show details on hover.
 
-Details show required inputs, their types, what the tool returns, and call and query counts. Hover a parameter type to inspect its structure. Hold Alt to keep the tooltip in place, then move inside to scroll. Counts help identify frequent tools; placements of the same tool share tool statistics.
+Details show required inputs, their types, what the tool returns, and call and query counts. Hover a parameter type to inspect its structure. Hold Ctrl to keep the tooltip in place, then move inside to scroll. Counts help identify frequent tools; placements of the same tool share tool statistics.
 
 ![Tool details and parameter hints](../../assets/en/tooltip.png)
 
@@ -82,7 +84,7 @@ Download saves the current draft as a JSON file, including unsaved changes, for 
 
 Save your arrangement, open a blank conversation and select Intellisense or Intellisense PTC. Choose a Profile from the menu beside the mode on the conversation home screen, then start chatting. A grayed-out Profile button means the mode specifies a fixed configuration that cannot be changed there.
 
-New conversations without a specified configuration use the default Profile. Existing conversations retain their own working configurations, so saving a Profile with the same name or changing the default does not update them automatically. To apply saved edits, select that Profile again on the conversation home screen. The home-screen menu disappears once chatting begins; you can then ask the agent to switch to a Profile by name.
+New conversations without a specified configuration use the default Profile. Existing conversations retain their own working configurations, so saving a Profile with the same name or changing the default does not update them automatically. To apply saved edits, select another Profile on the conversation home screen, then switch back to the updated one. The home-screen menu disappears once chatting begins; you can then ask the agent to switch to a Profile by name.
 
 ## Ask the agent to organize tools
 

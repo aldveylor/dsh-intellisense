@@ -31,6 +31,8 @@ export const zh = {
     "pin_detailed_action": "详细固定",
     "unpin_action": "取消固定",
     "pin_namespace_action": "固定分组",
+    "sort_ascending_hint": "当前升序：点击切换为降序，仅改变工具列表显示。",
+    "sort_descending_hint": "当前降序：点击切换为升序，仅改变工具列表显示。",
     "usage_guide": "使用文档",
     "documentation_language": "zh",
     "page_loading": "正在加载工具管理…",

@@ -19,7 +19,7 @@ export function UsageDialog({ api, close }: { api: string; close: () => void }) 
     useEffect(() => { dialog.current?.showModal(); }, []);
 
     return <dialog ref={dialog} className="ts-management-dialog ts-usage-dialog" aria-labelledby={title} onClose={close}>
-        <header><h2 id={title}>{t('usage_guide')}</h2><ActionButton variant="ghost" onClick={close}>{t('close')}</ActionButton></header>
+        <header><h2 id={title}>{t('usage_guide')}</h2><ActionButton variant="ghost" title={t('close_hint')} onClick={close}>{t('close')}</ActionButton></header>
         <article>{source.trim().split(/\n\s*\n/).map((block, index) => {
             if (block.startsWith('# ')) return null;
             if (block.startsWith('## ')) return <h3 key={index}>{block.slice(3)}</h3>;

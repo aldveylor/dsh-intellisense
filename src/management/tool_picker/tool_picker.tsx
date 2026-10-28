@@ -85,8 +85,8 @@ export function ToolPicker({ parent, tools, mappings, unmountedOnly = false, pro
             <div className="ts-tool-picker-sort"><NativeProfileSelect label={t('tool_sort')} hint={t('sort_tools_hint')} value={sort}
                 options={['default', 'name', 'calls', 'queries'].map(value => ({ value, label: t(`tool_sort_${value}`) }))}
                 disabled={busy} readOnly closeOnSelect onChange={setSort} /></div>
-            <ActionButton className="ts-tool-sort-direction" type="button" aria-label={t('tool_sort_descending')}
-                aria-pressed={descending} title={t(descending ? 'tool_sort_descending' : 'tool_sort_ascending')}
+            <ActionButton className="ts-tool-sort-direction" type="button" aria-label={t(descending ? 'tool_sort_ascending' : 'tool_sort_descending')}
+                aria-pressed={descending} title={t(descending ? 'sort_descending_hint' : 'sort_ascending_hint')}
                 disabled={busy || sort === 'default'} onClick={() => setDescending(value => !value)}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d={descending ? 'M7 4v16m-4-4 4 4 4-4M14 6h7m-7 6h5m-5 6h3' : 'M7 20V4m-4 4 4-4 4 4M14 6h3m-3 6h5m-5 6h7'} />

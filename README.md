@@ -44,7 +44,7 @@ npm install @aldveylor/dsh-intellisense
 
 In the same `package.json`, append `"@aldveylor/dsh-intellisense"` to the existing `dsh.profile.bundles` list, keeping the other entries. Restart DeepSeek Harness with that profile.
 
-Alternatively, open **Plugins** in the DeepSeek Harness sidebar and install `@aldveylor/dsh-intellisense` from the npm registry, with the bundle enabled. This handles installation and activation for the current profile.
+Ctrlernatively, open **Plugins** in the DeepSeek Harness sidebar and install `@aldveylor/dsh-intellisense` from the npm registry, with the bundle enabled. This handles installation and activation for the current profile.
 
 ### Run from source
 
@@ -75,10 +75,10 @@ Click the tool icon beside “Namespace tree” to open the tool picker. The unm
 
 ### Tool details
 
-Hover a card for its original name, description, parameters, return type, and call totals. Parameter types have nested tooltips showing the type expression directly. Table titles sit outside their tables, and columns size to content. Hold Alt to keep a tooltip in place, then move into it to scroll manually.
+Hover a card for its original name, description, parameters, return type, and call totals. Parameter types have nested tooltips showing the type expression directly. Table titles sit outside their tables, and columns size to content. Hold Ctrl to keep a tooltip in place, then move into it to scroll manually.
 
 ![Bash tool details and type display](assets/en/tooltip.png)
 
 ## License
 
-[Apache License 2.0](LICENSE).
+[Apache License 2.0](LICENSE)
