@@ -93,6 +93,6 @@ test('plugin teardown flushes delayed statistics before closing their storage ba
     assert.equal(records.command_statistics, undefined);
     for (const dispose of cleanup.reverse()) await dispose();
     assert(closed);
-    assert.equal((records.command_statistics as { counts: { callsByTool: { read: number } } }).counts.callsByTool.read, 1);
+    assert.equal((records.command_statistics as unknown as { counts: { callsByTool: { read: number } } }).counts.callsByTool.read, 1);
     assert.equal(records.command_statistics_journal, undefined);
 });

@@ -34,7 +34,7 @@ export class NamespaceComponent {
     private nativeTools = new Map<string, { source: string; names: string[]; fingerprint: string; disposers: (() => void)[] }>();
 
     constructor(private ctx: Context, private registry: SemanticRegistry, readonly profiles: ProfileSessions, private aliases: z.infer<typeof Aliases>, readonly searchEngines = createSearchEngines(), readonly statistics = new CommandStatistics(new MemoryStore())) {
-        ctx.effect(() => async () => { await Promise.all([...new Set([...this.nativeTools.keys(), ...this.positions.keys(), ...this.discovered.keys()])].map(id => this.release(id))); await this.profiles.dispose(); });
+        ctx.effect(() => async () => { await Promise.all([...new Set([...this.nativeTools.keys(), ...this.positions.keys(), ...this.discovered.keys()])].map(id => this.release(id))); await this.profiles.dispose(); await this.statistics.dispose(); });
         ctx.on('tools/change', () => { this.catalogRevision++; });
         ctx.on('agent/request', async (payload, next) => {
             if (this.enabled(payload.agent)) this.positions.set(payload.agent.id, { turn: payload.turn, step: payload.step });
