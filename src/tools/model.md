@@ -48,4 +48,6 @@ Profile save 覆盖目录树时，tools 仍为受保护命名空间，但默认�
 
 内置命令的功能说明与参数注释统一定义于 `runtime/builtins.ts`（源码根目录下）的 `PluginCommands` 契约表；原生注册、Inspect、固定提示及管理 UI 引用同一来源。BuiltinTool 保存共享或按 native/PTC 区分的描述、参数注释与 discoveryHint，通过 projectBuiltin(command, mode) 投影为纯字符串注释的 BuiltinCommand；原生注册按 presentation 作用域选择模式，会话命名空间按当前执行模式选择，管理目录默认使用 PTC 投影。依赖 inspect 的可选指引由投影后的 discoveryHint 标记，禁用发现时按该标记移除。
 
-`tools.profile.apply(value: object)` / `apply(name: string | undefined, value: object)` 按 load(name?) 规则读取当前会话草稿或已有目录配置，递归合并部分对象 patch 后复用 save 的验证及持久化流程。未提交字段保留，null 删除对象字段，数组（包括 children）整体替换，不按索引或节点名合并。合并结果必须满足 ProfileSchema；受保护节点继续按 save 规则恢复，返回相同的 string | null 信息。显式名称必须已存在；省略名称读取会话草稿并保存到当前选择的目录名称。保存不更改会话工作快照或选择，不刷新提示，应用仍需显式 switch。`profile_save.ts` 提供对象 patch 合并及保存信息生成。
+`tools.profile.apply(value: object)` / `apply(name: string | undefined, value: object)` 按 load(name?) 规则读取当前会话草稿或已有目录配置，递归合并部分对象 patch 后复用 save 的验证及持久化流程。未提交字段保留，null 删除对象字段，children 对象按成员名递归合并，数组整体替换，不按索引合并。合并结果必须满足 ProfileSchema；受保护节点继续按 save 规则恢复，返回相同的 string | null 信息。显式名称必须已存在；省略名称读取会话草稿并保存到当前选择的目录名称。保存不更改会话工作快照或选择，不刷新提示，应用仍需显式 switch。`profile_save.ts` 提供对象 patch 合并及保存信息生成。
+
+apply 不使用 save 对 tools 的默认禁用规则：未提交禁用字段时保留 tools 及其内部命名空间、命令的原状态，显式 disabled 仍可切换状态，null 删除字段后使用节点默认值 false。save 的整树替换默认规则保持不变。

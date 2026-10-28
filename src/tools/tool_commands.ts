@@ -30,13 +30,13 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
     });
     const output = { schema: { type: 'object', additionalProperties: true } as const, render: (_args: unknown, value: unknown) => [{ type: 'text' as const, text: typeof value === 'string' ? value : JSON.stringify(value) }] };
     /** @brief Validate and publish a Profile without replacing the conversation draft. */
-    const save = async (agent: Agent, name: string | undefined, profile: ProfileData): Promise<string | null> => {
+    const save = async (agent: Agent, name: string | undefined, profile: ProfileData, defaultToolsDisabled = true): Promise<string | null> => {
         const registry = await registryFor(agent);
         const target = name ?? registry.snapshot().profile!;
         const original = catalog.snapshot().profiles?.includes(target) ? catalog.configuration(target) : registry.configuration();
         let completed = false;
         const configuration = profileConfiguration(profile, original, await commands(agent), () => { completed = true; });
-        if (profile.root.children?.tools?.disabled !== false
+        if (defaultToolsDisabled && profile.root.children?.tools?.disabled !== false
             && !configuration.builtinDisabled.includes('tools')) configuration.builtinDisabled.push('tools');
         const information = profileSaveInformation(profileTree(target, configuration), registry.tools().map(tool => tool.id), completed);
         await catalog.saveProfile(target, configuration);
@@ -95,7 +95,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
             const { name, value } = z.strictObject({ name: z.string().optional(), value: z.record(z.string(), z.json()) }).parse(args);
             const registry = name === undefined ? await registryFor(execution.agent) : catalog;
             const profile = JSON.parse(JSON.stringify(profileTree(name ?? registry.snapshot().profile!, registry.configuration(name))));
-            return save(execution.agent, name, ProfileSchema.parse(mergeProfilePatch(profile, value)));
+            return save(execution.agent, name, ProfileSchema.parse(mergeProfilePatch(profile, value)), false);
         },
     })));
     ctx.effect(() => register(defineTool({

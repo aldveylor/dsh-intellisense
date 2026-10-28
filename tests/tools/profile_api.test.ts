@@ -384,6 +384,39 @@ test('Profile apply recursively patches a named catalog tree and deletes null fi
     assert(Object.hasOwn((await load({ name: 'Copy' })).root.children!, 'tools'));
 });
 
+test('Profile apply preserves tools subtree states for catalog and draft patches', async () => {
+    for (const name of [undefined, 'Default']) {
+        for (const disabled of [false, true]) {
+            const { call, load, registry, changed } = await fixture();
+            const profile = await load();
+            const tools = profile.root.children!['tools']!;
+            tools.disabled = disabled;
+            tools.children!['profile']!.disabled = disabled;
+            tools.children!['profile']!.fixedLevel = 1;
+            tools.children!['profile']!.children!['load']!.disabled = disabled;
+            tools.children!['search']!.disabled = !disabled;
+            await call('tools_profile_save', { profile });
+            await call('tools_profile_switch', { name: 'Default' });
+            const before = await load();
+            const snapshot = registry.snapshot();
+            changed.length = 0;
+            await call('tools_profile_apply', { ...(name === undefined ? {} : { name }), value: { brief: 'Only change brief' } });
+            assert.deepEqual((await load({ name: 'Default' })).root, before.root);
+            assert.deepEqual(registry.snapshot(), snapshot);
+            assert.deepEqual(changed, []);
+            await call('tools_profile_apply', { ...(name === undefined ? {} : { name }), value: { root: { children: { tools: {
+                disabled: !disabled, children: { profile: { disabled: !disabled, children: { load: { disabled: !disabled } } } },
+            } } } } });
+            const patched = (await load({ name: 'Default' })).root.children!['tools']!;
+            assert.equal(patched.disabled ?? false, !disabled);
+            assert.equal(patched.children!['profile']!.disabled ?? false, !disabled);
+            assert.equal(patched.children!['profile']!.children!['load']!.disabled ?? false, !disabled);
+            assert.equal(patched.children!['profile']!.fixedLevel, 1);
+            assert.deepEqual(patched.children!['search'], before.root.children!['tools']!.children!['search']);
+        }
+    }
+});
+
 test('Profile apply without a name reads the conversation draft before saving', async () => {
     const { call, load, registry, changed } = await fixture();
     await call('tools_profile_apply', { value: { brief: 'Catalog edit', root: { fixedLevel: 1 } } });
