@@ -8,7 +8,7 @@ import { NamespaceRuntime } from '../namespace/runtime.js';
 export const name = 'intellisense-presentation';
 export const inject = ['tools', 'commandNamespaces'];
 /** @brief Select the execution form and optionally fix the conversation Profile. */
-export const Config = z.strictObject({ mode: z.enum(['native', 'ptc']), profile: z.string().min(1).max(80).optional() });
+export const Config = z.strictObject({ mode: z.enum(['native', 'ptc']).default('native'), profile: z.string().min(1).max(80).optional() });
 /** @brief The configured execution form shared by tool presentation and initial prompts. */
 export type PresentationMode = z.infer<typeof Config>['mode'];
 const configurations = new WeakMap<ScopeKey, z.infer<typeof Config>>();
