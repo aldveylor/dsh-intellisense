@@ -30,7 +30,10 @@ function tokenize(text: string): string[] {
 /** @brief Match any keyword as a case-insensitive substring in the selected fields. */
 export const accurateEngine: SearchEngine = {
     name: 'accurate', description: 'Case-insensitive substring matching.',
-    search: ({ documents, keywords, fields }) => documents.filter(document => fields.some(field => keywords.some(word => document[field].toLowerCase().includes(word))))
+    search: ({ documents, keywords, fields }) => documents.filter(document => fields.some(field => {
+        const text = document[field].toLowerCase();
+        return keywords.some(word => text.includes(word));
+    }))
         .map(document => document.id).sort(),
 };
 
