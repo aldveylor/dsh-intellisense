@@ -1,5 +1,5 @@
 import { decodeHTML } from 'entities';
-import type { BuiltinCommand, BuiltinTool } from '../runtime/builtins.js';
+import type { BuiltinCommand } from '../runtime/builtins.js';
 
 /** @brief One namespace, shallow command, typed value or complete command declaration. */
 export interface NamespaceDeclaration {
@@ -66,7 +66,7 @@ export function namespaceDeclaration(items: readonly NamespaceDeclaration[], amb
 }
 
 /** @brief Build documented builtin declarations from their shared runtime signatures. */
-export function builtinDeclaration(command: BuiltinCommand & Partial<Pick<BuiltinTool, 'preload' | 'overloads'>>): string {
+export function builtinDeclaration(command: BuiltinCommand): string {
     const names: string[] = [];
     let depth = 0;
     let start = 1;

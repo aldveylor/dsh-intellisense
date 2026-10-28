@@ -2,13 +2,14 @@ import { InnerNamespaceNode } from './inner_namespace_node.js';
 import { InnerCommandNode } from './inner_command_node.js';
 import type { NamespaceNode } from './node.js';
 import type { NamespaceContext } from './context.js';
-import { pluginCommands } from '../../runtime/builtins.js';
+import { pluginCommands, projectBuiltin } from '../../runtime/builtins.js';
 
 /** @brief Profile management owns creation of its restricted children. */
 export class ProfileNamespaceNode extends InnerNamespaceNode {
     constructor(parent: NamespaceNode, context: NamespaceContext) {
         super('profile', parent, 'Profile data and configuration', {}, context.disabled?.('tools.profile'));
-        for (const builtin of [...pluginCommands.managementCommands, ...pluginCommands.profileValues]) {
+        for (const source of [...pluginCommands.managementCommands, ...pluginCommands.profileValues]) {
+            const builtin = projectBuiltin(source, context.mode ?? 'ptc');
             if (context.disabled?.(builtin.path)) continue;
             const tool = context.tools.find(tool => tool.id === builtin.tool);
             if (!tool && !context.includeUnavailable) continue;

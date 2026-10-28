@@ -1,15 +1,16 @@
+import { presentationFor, type PresentationMode } from '../integration/presentation.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools';
 import { searchEntries, searchParameters } from '../search/search.js';
-import { pluginCommands } from '../runtime/builtins.js';
+import { pluginCommands, projectBuiltin } from '../runtime/builtins.js';
 import type { NamespaceComponent } from '../namespace/component.js';
 import { registerBuiltin } from './builtin_trace.js';
 
 /** @brief Build the search contract directly from the current registered engine selector. */
-export function searchDefinition(namespaces: Pick<NamespaceComponent, 'entries' | 'registryFor' | 'searchEngines'>): ToolDefinition {
+export function searchDefinition(namespaces: Pick<NamespaceComponent, 'entries' | 'registryFor' | 'searchEngines'>, mode: PresentationMode = 'native'): ToolDefinition {
     const selector = namespaces.searchEngines.selector();
     return defineTool({
-        name: 'tools_search', description: pluginCommands.searchCommand.description,
+        name: 'tools_search', description: projectBuiltin(pluginCommands.searchCommand, mode).description,
         parameters: searchParameters(selector),
         output: { schema: { type: 'array', items: { type: 'string' } }, render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }] },
         execute: async (args, execution) => {
@@ -27,10 +28,10 @@ export function searchDefinition(namespaces: Pick<NamespaceComponent, 'entries' 
 /** @brief Refresh scoped search contracts whenever registered methods or the default change. */
 export function registerSearch(ctx: Context, namespaces: NamespaceComponent): void {
     ctx.effect(() => {
-        let dispose = registerBuiltin(ctx, searchDefinition(namespaces));
+        let dispose = registerBuiltin(ctx, searchDefinition(namespaces, presentationFor(ctx) ?? 'native'));
         const unsubscribe = namespaces.searchEngines.subscribe(() => {
             dispose();
-            dispose = registerBuiltin(ctx, searchDefinition(namespaces));
+            dispose = registerBuiltin(ctx, searchDefinition(namespaces, presentationFor(ctx) ?? 'native'));
             ctx.emit('system-prompt/change');
         });
         return () => { unsubscribe(); dispose(); };

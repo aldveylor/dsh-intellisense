@@ -2,17 +2,17 @@ import { nodePermissions, type Permission } from '../node.js';
 import { CommandNode } from './command_node.js';
 import type { NamespaceNode } from './node.js';
 import type { ManifestEntry } from '../namespace.js';
-import { pluginCommands, type BuiltinTool } from '../../runtime/builtins.js';
+import { pluginCommands, type BuiltinCommand } from '../../runtime/builtins.js';
 import type { CommandBinding } from '../../runtime/protocol.js';
 import { namespaceDeclaration, builtinDeclaration } from '../declaration.js';
 
 /** @brief Restricted server commands own adapters and policies without exposing their class to clients. */
 export class InnerCommandNode extends CommandNode {
-    constructor(name: string, parent: NamespaceNode, entry: Omit<ManifestEntry, 'path'>, readonly builtin: BuiltinTool, permissions: Partial<Permission> = {}) {
+    constructor(name: string, parent: NamespaceNode, entry: Omit<ManifestEntry, 'path'>, readonly builtin: BuiltinCommand, permissions: Partial<Permission> = {}) {
         let root = parent;
         while (root.parent) root = root.parent;
         const discovery = root.resolve(['tools', 'inspect']);
-        if (builtin !== pluginCommands.discoveryCommand && (!discovery || discovery.disabled)) {
+        if (builtin.tool !== pluginCommands.discoveryCommand.tool && (!discovery || discovery.disabled)) {
             const description = builtin.description.replace(builtin.discoveryHint ?? '', '');
             builtin = { ...builtin, description };
             entry = { ...entry, doc: description };
@@ -34,8 +34,7 @@ export class InnerCommandNode extends CommandNode {
     override result(value: unknown): unknown { return this.builtin.discardResult ? undefined : super.result(value); }
 
     override declaration(nested = true): string {
-        const contract = this.tool === 'tools_search' ? { ...pluginCommands.searchContract(((this.schema.properties as Record<string, { enum?: string[] }> | undefined)?.method?.enum) ?? []), description: this.doc } : this.builtin;
-        return namespaceDeclaration([{ path: nested ? this.path : this.name, declaration: builtinDeclaration(contract) }], false);
+        return namespaceDeclaration([{ path: nested ? this.path : this.name, declaration: builtinDeclaration(this.builtin) }], false);
     }
 }
 

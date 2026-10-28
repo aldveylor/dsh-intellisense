@@ -125,7 +125,7 @@ export class NamespaceComponent {
     }
 
     /** @brief Resolve the current enabled namespace independently of prompt visibility. */
-    async tree(agent: Agent, current?: SemanticRegistry): Promise<NamespaceNode> { return manifest(current ?? await this.registryFor(agent), this.aliases); }
+    async tree(agent: Agent, current?: SemanticRegistry): Promise<NamespaceNode> { return manifest(current ?? await this.registryFor(agent), this.aliases, this.isPtc(agent) ? 'ptc' : 'native'); }
 
     /** @brief Flatten command bindings only for consumers that dispatch physical tools. */
     async entries(agent: Agent, current?: SemanticRegistry): Promise<CommandNode[]> { return (await this.tree(agent, current)).commands().filter(entry => !entry.disabled); }
@@ -175,7 +175,7 @@ export class NamespaceComponent {
         if (!this.isPtc(agent)) return '';
         const registry = await this.registryFor(agent);
         const state = registry.snapshot();
-        const root = manifest(registry, this.aliases);
+        const root = manifest(registry, this.aliases, this.isPtc(agent) ? 'ptc' : 'native');
         const hints: NamespaceHint[] = [];
         const mappings = new Map(registry.effective().map(mapping => [mapping.path, mapping]));
         for (const entry of root.commands()) {
@@ -229,7 +229,7 @@ export class NamespaceComponent {
     /** @brief Expand native tools for this conversation and invalidate the assembled system prompt. */
     async discover(agent: Agent, queries: readonly string[]): Promise<string> {
         const registry = await this.registryFor(agent);
-        const root = manifest(registry, this.aliases);
+        const root = manifest(registry, this.aliases, this.isPtc(agent) ? 'ptc' : 'native');
         if (this.isPtc(agent)) return nativeDiscovery(queries, root, (tool, path) => registry.description(path, tool));
         const selected = nativeQueryEntries(queries, root);
         let discovered = this.discovered.get(agent.id);
@@ -250,7 +250,7 @@ export class NamespaceComponent {
         const source = JSON.stringify([registry.generation, [...this.discovered.get(agent.id) ?? []]]);
         const previous = this.nativeTools.get(agent.id);
         if (previous?.source === source) return [...previous.names];
-        const entries = (root ?? manifest(registry, this.aliases)).commands().filter(entry => !entry.disabled);
+        const entries = (root ?? manifest(registry, this.aliases, this.isPtc(agent) ? 'ptc' : 'native')).commands().filter(entry => !entry.disabled);
         const visible = new Set(this.nativeEntries(agent, registry, entries));
         const bindings = nativeBindings(entries, registry.tools().map(tool => tool.id)).filter(({ entry }) => visible.has(entry));
         const descriptionFor = (entry: CommandNode): string => registry.description(entry.path, entry.tool) ?? entry.doc.trim().split(/\r?\n/, 1)[0]!;

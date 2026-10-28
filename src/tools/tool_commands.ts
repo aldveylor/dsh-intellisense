@@ -1,6 +1,6 @@
-import { pluginCommands } from '../runtime/builtins.js';
+import { pluginCommands, projectBuiltin } from '../runtime/builtins.js';
 import { mergeProfilePatch, profileSaveInformation } from './profile_save.js';
-import { presentationConfigFor } from '../integration/presentation.js';
+import { presentationConfigFor, presentationFor } from '../integration/presentation.js';
 import { registerBuiltin } from './builtin_trace.js';
 import { z } from 'zod';
 import type { Context } from '@deepseek-ai/cordis';
@@ -13,6 +13,8 @@ import { type CommandBrief, type ProfileData, ProfileSchema, profileConfiguratio
 
 /** @brief Register Profile management commands and data access. */
 export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, profiles: ProfileSessions, registryFor: (agent: Agent) => Promise<SemanticRegistry>, changed: (agent: Agent) => Promise<void>, commands: (agent: Agent) => Promise<CommandBrief[]>): void {
+    /** @brief Resolve mode-specific comments in the registration scope. */
+    const contract = (tool: string) => projectBuiltin(pluginCommands.find(tool)!, presentationFor(ctx) ?? 'native');
     const queues = new Map<string, Promise<unknown>>();
     /** @brief Serialize configuration changes belonging to one conversation. */
     const register = (definition: Parameters<typeof ctx.tools.register>[0]) => registerBuiltin(ctx, {
@@ -41,8 +43,8 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         return information;
     };
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_load', description: pluginCommands.find('tools_profile_load')!.description,
-        parameters: { name: { type: 'string', description: pluginCommands.find('tools_profile_load')!.parameterDocs!.name } }, output,
+        name: 'tools_profile_load', description: contract('tools_profile_load').description,
+        parameters: { name: { type: 'string', description: contract('tools_profile_load').parameterDocs!.name } }, output,
         execute: async ({ name }, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
             const registry = name === undefined ? await registryFor(execution.agent) : catalog;
@@ -50,8 +52,8 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         },
     })));
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_switch', description: pluginCommands.find('tools_profile_switch')!.description,
-        parameters: { name: { type: 'string', required: true, description: pluginCommands.find('tools_profile_switch')!.parameterDocs!.name } },
+        name: 'tools_profile_switch', description: contract('tools_profile_switch').description,
+        parameters: { name: { type: 'string', required: true, description: contract('tools_profile_switch').parameterDocs!.name } },
         output: { ...output, schema: { type: 'null' } },
         execute: async (args, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
@@ -65,8 +67,8 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         },
     })));
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_setdefault', description: pluginCommands.find('tools_profile_setdefault')!.description,
-        parameters: { name: { type: 'string', required: true, description: pluginCommands.find('tools_profile_setdefault')!.parameterDocs!.name } },
+        name: 'tools_profile_setdefault', description: contract('tools_profile_setdefault').description,
+        parameters: { name: { type: 'string', required: true, description: contract('tools_profile_setdefault').parameterDocs!.name } },
         output: { ...output, schema: { type: 'null' } },
         execute: async (args, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
@@ -76,8 +78,8 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         },
     })));
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_save', description: pluginCommands.find('tools_profile_save')!.description,
-        parameters: { name: { type: 'string', description: pluginCommands.find('tools_profile_save')!.parameterDocs!.name }, profile: { type: 'object', additionalProperties: true, required: true, description: pluginCommands.find('tools_profile_save')!.parameterDocs!.profile } }, output: { ...output, schema: { oneOf: [{ type: 'string' }, { type: 'null' }] }, render: (_args, value) => [{ type: 'text', text: value ?? '' }] },
+        name: 'tools_profile_save', description: contract('tools_profile_save').description,
+        parameters: { name: { type: 'string', description: contract('tools_profile_save').parameterDocs!.name }, profile: { type: 'object', additionalProperties: true, required: true, description: contract('tools_profile_save').parameterDocs!.profile } }, output: { ...output, schema: { oneOf: [{ type: 'string' }, { type: 'null' }] }, render: (_args, value) => [{ type: 'text', text: value ?? '' }] },
         execute: async (args, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
             const { name, profile } = z.strictObject({ name: z.string().optional(), profile: ProfileSchema }).parse(args);
@@ -85,8 +87,8 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         },
     })));
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_apply', description: pluginCommands.find('tools_profile_apply')!.description,
-        parameters: { name: { type: 'string', description: pluginCommands.find('tools_profile_apply')!.parameterDocs!.name }, value: { type: 'object', additionalProperties: true, required: true, description: pluginCommands.find('tools_profile_apply')!.parameterDocs!.value } },
+        name: 'tools_profile_apply', description: contract('tools_profile_apply').description,
+        parameters: { name: { type: 'string', description: contract('tools_profile_apply').parameterDocs!.name }, value: { type: 'object', additionalProperties: true, required: true, description: contract('tools_profile_apply').parameterDocs!.value } },
         output: { ...output, schema: { oneOf: [{ type: 'string' }, { type: 'null' }] }, render: (_args, value) => [{ type: 'text', text: value ?? '' }] },
         execute: async (args, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
@@ -97,8 +99,8 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         },
     })));
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_delete', description: pluginCommands.find('tools_profile_delete')!.description,
-        parameters: { name: { type: 'string', required: true, description: pluginCommands.find('tools_profile_delete')!.parameterDocs!.name } },
+        name: 'tools_profile_delete', description: contract('tools_profile_delete').description,
+        parameters: { name: { type: 'string', required: true, description: contract('tools_profile_delete').parameterDocs!.name } },
         output: { ...output, schema: { type: 'null' } },
         execute: async (args, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
@@ -111,7 +113,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         },
     })));
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_profiles', description: pluginCommands.find('tools_profile_profiles')!.description, parameters: {},
+        name: 'tools_profile_profiles', description: contract('tools_profile_profiles').description, parameters: {},
         output: { ...output, schema: { type: 'object', properties: { profiles: { type: 'array', items: { type: 'string' }, required: true }, selected: { type: 'string', required: true } }, additionalProperties: false } },
         execute: async (_args, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
@@ -120,13 +122,13 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         },
     })));
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_annotation', description: pluginCommands.find('tools_profile_annotation')!.description, parameters: {},
+        name: 'tools_profile_annotation', description: contract('tools_profile_annotation').description, parameters: {},
         output: { ...output, schema: { type: 'string' } },
         execute: async (_args, execution) => execution.agent && !execution.agent.ctx.get('commandNamespaces')!.isPtc(execution.agent)
             ? JSON.stringify(ProfileSchema.toJSONSchema()) : profileAnnotation,
     })));
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_commands', description: pluginCommands.find('tools_profile_commands')!.description, parameters: {},
+        name: 'tools_profile_commands', description: contract('tools_profile_commands').description, parameters: {},
         output: { ...output, schema: { type: 'array', items: { type: 'object', additionalProperties: true } } },
         execute: async (_args, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');

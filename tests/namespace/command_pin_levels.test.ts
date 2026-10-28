@@ -98,7 +98,7 @@ test('disabled or absent discovery disappears from pinned prompts and builtin he
             const text = await prompt(registry);
             assert.equal(text.includes('tools.inspect'), available && !disabled.length);
             assert(text.includes('function read('));
-            const component = { registryFor: async () => registry, aliases: [], tree: NamespaceComponent.prototype.tree } as unknown as NamespaceComponent;
+            const component = { registryFor: async () => registry, isPtc: () => true, aliases: [], tree: NamespaceComponent.prototype.tree } as unknown as NamespaceComponent;
             const entries = await NamespaceComponent.prototype.entries.call(component, {} as Agent);
             assert.equal(entries.some(entry => entry.path === 'tools.inspect'), available && !disabled.length);
             assert.equal(entries.some(entry => entry.path === 'tools.search'), !disabled.includes('tools'));

@@ -1,5 +1,6 @@
+import { presentationFor } from '../integration/presentation.js';
 import { namespaceDeclaration, type NamespaceDeclaration } from '../namespace/declaration.js';
-import { pluginCommands } from '../runtime/builtins.js';
+import { pluginCommands, projectBuiltin } from '../runtime/builtins.js';
 import { registerBuiltin } from './builtin_trace.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools';
@@ -54,10 +55,11 @@ export function inspect(queries: readonly string[], root: NamespaceNode, runtime
 
 /** @brief Register batched signature discovery as an ordinary guarded native tool. */
 export function registerInspect(ctx: Context, namespaces: NamespaceComponent): void {
+    const contract = projectBuiltin(pluginCommands.discoveryCommand, presentationFor(ctx) ?? 'native');
     const definition: ToolDefinition = defineTool({
         name: 'tools_inspect',
-        description: pluginCommands.discoveryCommand.description,
-        parameters: { queries: { type: 'array', items: { type: 'string' }, description: pluginCommands.discoveryCommand.parameterDocs!.queries, required: true } },
+        description: contract.description,
+        parameters: { queries: { type: 'array', items: { type: 'string' }, description: contract.parameterDocs!.queries, required: true } },
         output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
         presentCall: ({ queries }) => ({ card: 'generic', title: 'tools.inspect', kind: 'read', rawInput: queries }),
         presentResult: (_args, result) => {

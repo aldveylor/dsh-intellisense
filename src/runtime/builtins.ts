@@ -1,3 +1,4 @@
+import type { PresentationMode } from '../integration/presentation.js';
 import type { CommandVisibility } from '../registry/registry.js';
 
 /** @brief Plugin-owned execution entry, separate from the globally reserved run_code transport. */
@@ -7,16 +8,35 @@ export const ptcToolName = 'tools_run_code';
 export const reservedToolIds: readonly string[] = Object.freeze(['exec', 'run_code', ptcToolName]);
 
 /** @brief Fixed command metadata shared by runtime declarations, completion and the read-only UI. */
-export interface BuiltinCommand { path: string; signature: string; description: string; parameterDocs?: Readonly<Record<string, string>> }
-
-/** @brief Shared native identities, positional layouts and data-only runtime bindings. */
-export interface BuiltinTool extends BuiltinCommand {
+export interface BuiltinCommand {
+    path: string;
+    signature: string;
+    description: string;
+    parameterDocs?: Readonly<Record<string, string>>;
     tool: string;
     discoveryHint?: string;
     positional?: readonly (readonly string[])[];
     overloads?: readonly string[];
     discardResult?: boolean;
     preload?: boolean;
+}
+
+/** @brief Shared text or a complete selection of mode-specific text. */
+export type BuiltinComment = string | Readonly<Record<PresentationMode, string>>;
+
+/** @brief Source contract whose comments are resolved before registration or presentation. */
+export interface BuiltinTool extends Omit<BuiltinCommand, 'description' | 'parameterDocs' | 'discoveryHint'> {
+    description: BuiltinComment;
+    parameterDocs?: Readonly<Record<string, BuiltinComment>>;
+    discoveryHint?: BuiltinComment;
+}
+
+/** @brief Project a shared builtin contract into concrete metadata for one execution mode. */
+export function projectBuiltin(command: BuiltinTool, mode: PresentationMode): BuiltinCommand {
+    const text = (value: BuiltinComment): string => typeof value === 'string' ? value : value[mode];
+    return { ...command, description: text(command.description),
+        parameterDocs: command.parameterDocs && Object.fromEntries(Object.entries(command.parameterDocs).map(([name, value]) => [name, text(value)])),
+        discoveryHint: command.discoveryHint === undefined ? undefined : text(command.discoveryHint) };
 }
 
 /** @brief Optional discovery guidance shared by physical and namespace documentation. */
@@ -48,13 +68,23 @@ export class PluginCommands {
 
     /** @brief Preloaded Profile values, with visibility preferences stored alongside builtin commands. */
     readonly profileValues: readonly BuiltinTool[] = [
-        { tool: 'tools_profile_profiles', preload: true, path: 'tools.profile.profiles', signature: 'Profiles', description: 'Available Profile names and the currently selected conversation Profile. In PTC, this read-only value is updated after tool calls.' },
-        { tool: 'tools_profile_annotation', preload: true, path: 'tools.profile.annotation', signature: 'string', description: 'Editable Profile data model documentation: English TypeScript declarations in PTC, JSON Schema in native mode.' },
+        { tool: 'tools_profile_profiles', preload: true, path: 'tools.profile.profiles', signature: 'Profiles', description: { native: 'Return available Profile names and the currently selected conversation Profile.', ptc: 'Available Profile names and the currently selected conversation Profile. This read-only value is updated after tool calls.' } },
+        { tool: 'tools_profile_annotation', preload: true, path: 'tools.profile.annotation', signature: 'string', description: { native: 'Return editable Profile data model documentation as JSON Schema.', ptc: 'Editable Profile data model documentation as English TypeScript declarations in a read-only string.' } },
         { tool: 'tools_profile_commands', preload: true, path: 'tools.profile.commands', signature: 'CommandBrief[]', discoveryHint: commandsDiscoveryHint, description: `All catalog commands excluding plugin builtins, with physical names, summaries, mount paths in this conversation Profile (including disabled paths; empty when unmounted), and total calls across all sessions.${commandsDiscoveryHint}` },
     ];
 
     /** @brief Fixed discovery command available in both native and PTC modes. */
-    readonly discoveryCommand: BuiltinTool = { tool: 'tools_inspect', path: 'tools.inspect', signature: '(queries: string[]) => Promise<string>', description: 'Query namespace members with a trailing dot, or complete command contracts by exact path. Returns TypeScript declarations in PTC and JSON in native mode. An empty string ("") in queries lists root namespace members, e.g. {"queries":[""]}. Discovers commands progressively. Call through tools.inspect.', parameterDocs: { queries: 'Array of namespace member paths or exact command paths. A trailing dot lists immediate members; an exact path returns the complete command contract. An optional global. prefix is ignored. Include an empty string ("") to query root namespace members: tools.inspect([""]).' } };
+    readonly discoveryCommand: BuiltinTool = {
+        tool: 'tools_inspect', path: 'tools.inspect', signature: '(queries: string[]) => Promise<string>',
+        description: {
+            native: 'Query namespace members with a trailing dot, or complete command contracts by exact path. Returns JSON. An empty string ("") in queries lists root namespace members, e.g. {"queries":[""]}. Discovers commands progressively. Call through tools.inspect.',
+            ptc: 'Query namespace members with a trailing dot, or complete command contracts by exact path. Returns TypeScript declarations. An empty string ("") in queries lists root namespace members: tools.inspect([""]). Discovers commands progressively. Call through tools.inspect.',
+        },
+        parameterDocs: { queries: {
+            native: 'Array of namespace member paths or exact command paths. A trailing dot lists immediate members; an exact path returns the complete command contract. An optional global. prefix is ignored. Include an empty string to query root namespace members: {"queries":[""]}.',
+            ptc: 'Array of namespace member paths or exact command paths. A trailing dot lists immediate members; an exact path returns the complete command contract. An optional global. prefix is ignored. Include an empty string to query root namespace members: tools.inspect([""]).',
+        } },
+    };
 
     /** @brief Optional-ranked command search, unpinned by default and independently disableable. */
     readonly searchCommand: BuiltinTool = {

@@ -1,3 +1,4 @@
+import type { PresentationMode } from '../integration/presentation.js';
 import { NamespaceNode } from './nodes/node.js';
 import { CommandNode } from './nodes/command_node.js';
 import { ToolsNamespaceNode } from './nodes/tools_namespace_node.js';
@@ -63,10 +64,10 @@ export function queryNodes(root: NamespaceNode, queries: readonly string[]): (Na
 }
 
 /** @brief Build deterministic, scoped aliases from the current Profile and physical tool catalog. */
-export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Aliases>): NamespaceNode {
+export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Aliases>, mode: PresentationMode = 'ptc'): NamespaceNode {
     const tools = registry.tools();
     const byId = new Map(tools.map(tool => [tool.id, tool]));
-    const root = createNamespace({ tools, disabled: path => registry.disabled(path) });
+    const root = createNamespace({ tools, mode, disabled: path => registry.disabled(path) });
     const descriptions = new Map(registry.snapshot().namespaces?.map(item => [item.path, item.description]));
     const insert = (entry: ManifestEntry): void => {
         if (registry.disabled(entry.path)) return;
