@@ -5,7 +5,8 @@ import { useTranslation } from '../locale/locale.js';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { TooltipProvider, useTooltip } from '../tooltip/tooltip.js';
 import { NativeProfileSelect } from '../profile_picker/native_profile_select.js';
-import { ToolFilter, toolCategories, type ToolCategory } from './tool_filter/tool_filter.js';
+import { ToolFilter, toolCategories } from './tool_filter/tool_filter.js';
+import { usePickerPreferences } from './session_preferences.js';
 import { ToolLayout } from './tool_layout/tool_layout.js';
 import { ToolDetails } from './tool_details.js';
 import type { Mapping, PhysicalTool } from '../../registry/registry.js';
@@ -49,9 +50,7 @@ export function ToolPicker({ parent, tools, mappings, unmountedOnly = false, pro
     const [search, setSearch] = useState('');
     const [sort, setSort] = useState('default');
     const [descending, setDescending] = useState(false);
-    const [grouping, setGrouping] = useState('none');
-    const [view, setView] = useState('cards');
-    const [categories, setCategories] = useState<ToolCategory[]>(unmountedOnly ? ['unmounted'] : toolCategories);
+    const [{ grouping, view, categories }, setPreferences] = usePickerPreferences(unmountedOnly);
     const totalCalls = Object.values(callsByTool).reduce((total, count) => total + count, 0);
     const filter = search.trim().toLowerCase();
     const { cards, mappingsByTool, protectedPaths } = useMemo(() => {
@@ -115,9 +114,9 @@ export function ToolPicker({ parent, tools, mappings, unmountedOnly = false, pro
                     <path className="ts-sort-bars" d="M14 6h3m-3 6h5m-5 6h7" />
                 </svg>
             </ActionButton>
-            <ToolFilter value={categories} disabled={busy} onChange={setCategories} />
-            <ToolLayout kind="group" value={grouping} options={['none', 'type', 'source']} disabled={busy} onChange={setGrouping} />
-            <ToolLayout kind="view" value={view} options={['cards', 'list']} disabled={busy} onChange={setView} />
+            <ToolFilter value={categories} disabled={busy} onChange={categories => setPreferences(current => ({ ...current, categories }))} />
+            <ToolLayout kind="group" value={grouping} options={['none', 'type', 'source']} disabled={busy} onChange={grouping => setPreferences(current => ({ ...current, grouping }))} />
+            <ToolLayout kind="view" value={view} options={['cards', 'list']} disabled={busy} onChange={view => setPreferences(current => ({ ...current, view }))} />
         </div>
         <div className="ts-tool-results" data-view={view}>
             {!matches.length && <p>{filter || categories.length !== toolCategories.length ? t('no_matches') : t('no_tools')}</p>}
