@@ -84,3 +84,34 @@ test('disabled subtrees and commands stay saved but disappear from search and di
     assert(!inspect(['tools.'], manifest(registry, []), true).includes('const search'));
     await assert.rejects(definition.execute({ keywords: ['documents'] }, execution), /Execution denied/);
 });
+
+
+test('search reuses scoped manifest generations and isolates registries with equal generation numbers', async () => {
+    const { registry, namespaces, definition, execution } = await fixture();
+    const second = new SemanticRegistry(new MemoryStore());
+    second.refresh([]);
+    second.refresh([{ id: 'other', description: 'Other documents', parameters: {}, output: {} }]);
+    await second.configure([{ id: 'other', path: 'other.read', pinned: false }], 0);
+    assert.equal(second.generation, registry.generation);
+    let current = registry;
+    let projections = 0;
+    namespaces.registryFor = async () => current;
+    namespaces.entries = async () => { projections++; return manifest(current, []).commands(); };
+    const args = { keywords: ['documents'], method: 'accurate', target: 'description' };
+    assert.deepEqual(await definition.execute(args, execution), ['files.read']);
+    await definition.execute({ ...args, keywords: ['read'] }, execution);
+    assert.equal(projections, 1);
+    current = second;
+    assert.deepEqual(await definition.execute(args, execution), ['other.read']);
+    assert.equal(projections, 2);
+    current = registry;
+    assert.deepEqual(await definition.execute(args, execution), ['files.read']);
+    assert.equal(projections, 2);
+    await registry.replaceConfiguration({ ...registry.configuration(), toolComments: { read: 'Replacement phrase' } }, 'Default');
+    assert.deepEqual(await definition.execute(args, execution), []);
+    assert.deepEqual(await definition.execute({ ...args, keywords: ['replacement'] }, execution), ['files.read']);
+    assert.equal(projections, 3);
+    registry.refresh([]);
+    assert.deepEqual(await definition.execute(args, execution), []);
+    assert.equal(projections, 4);
+});

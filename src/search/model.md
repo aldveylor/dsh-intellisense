@@ -26,3 +26,5 @@ ctx.commandNamespaces.searchEngines.setDefault('custom');
 主插件与独立 namespace 配置均允许 defaultSearchMethod，未指定时优先 bm25。SearchEngineRegistry 及公共类型从根入口和 namespace 入口导出。
 
 空关键词和零上限在生成文档前返回；文档只投影选中的字段，未选择的字段为空字符串。分词器在模块内复用，每个注册器的 BM25 引擎按字段和文档内容比较复用索引，避免完整 JSON 序列化缓存键；最多缓存 8 个最近使用的索引，缓存文档的路径及选中字段合计最多 2,000,000 个 UTF-16 码元，超大集合只执行查询而不缓存。此预算限制输入文本，不是索引实际堆内存上限。缓存保存独立文档快照，作用域、路径、字段或文档变化时不能误用已有索引，不缓存查询结果。
+
+原生搜索入口按 SemanticRegistry 实例弱引用及 generation 缓存当前模式的有效 manifest 投影，配置和物理契约变化立即失效，不同 registry 即使 generation 相同也不共享。SearchCorpus 持有该代不可变条目，按规范化 namespace_path 与 target 缓存冻结文档及允许路径集合；切换关键词时不重建 manifest、不重新序列化 schema。每个 corpus 最多保留八份投影及 2,000,000 个输入字符。BM25 对冻结且缓存的文档通过引用识别索引，跳过逐字段内容比较；独立 searchEntries 继续按可变输入投影和内容比较，保留原地修改条目时的正确性。自定义引擎仍接收原有 SearchSelection，不新增版本参数或缓存搜索结果。

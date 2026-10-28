@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createSearchEngines, searchEntries, searchParameters } from '../../src/search/search.js';
+import { createSearchEngines, searchEntries, searchParameters, SearchCorpus } from '../../src/search/search.js';
 import { SearchEngineRegistry } from '../../src/search/engine_registry.js';
 import type { ManifestEntry } from '../../src/namespace/namespace.js';
 
@@ -105,4 +105,24 @@ test('BM25 evicts least recently used indexes after eight distinct document sets
     assert.equal(builds, 9);
     await search(1);
     assert.equal(builds, 10);
+});
+
+
+test('immutable corpora reuse document serialization across keywords and invalidate by range and fields', async () => {
+    let projections = 0;
+    const corpus = new SearchCorpus([{ ...entries[0]!, get schema() { projections++; return entries[0]!.schema; } }]);
+    const selector = createSearchEngines().selector();
+    const options = { keywords: ['filename'], target: 'parameters' as const };
+    assert.deepEqual(await corpus.search(options, selector), ['files.read']);
+    assert.equal(projections, 1);
+    assert.deepEqual(await corpus.search({ ...options, keywords: ['absolute'] }, selector), ['files.read']);
+    assert.equal(projections, 1);
+    await corpus.search({ ...options, namespace_path: 'files' }, selector);
+    assert.equal(projections, 2);
+    await corpus.search({ keywords: ['read'], target: 'name' }, selector);
+    assert.equal(projections, 2);
+    const first = corpus.documentsFor('', ['parameters']);
+    assert.equal(first, corpus.documentsFor('', ['parameters']));
+    assert(Object.isFrozen(first.documents));
+    assert(Object.isFrozen(first.documents[0]));
 });
