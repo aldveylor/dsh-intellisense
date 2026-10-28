@@ -73,7 +73,7 @@ test('picker and namespace details show global call and query counts', async () 
         disclosure.blur();
         namespace.dispatchEvent(new window.MouseEvent('pointerout', { bubbles: true, relatedTarget: document.body }));
         await until(() => !document.querySelector('[role="tooltip"]'));
-        document.querySelector<HTMLButtonElement>('[data-unmounted-count]')!.click();
+        document.querySelector<HTMLButtonElement>('.ts-open-tools')!.click();
         await until(() => !!document.querySelector('dialog[open]'));
         const order = (): string[] => Array.from(document.querySelectorAll<HTMLElement>('dialog [data-tool-id]:not(:disabled)'), card => card.dataset.toolId!);
         assert.deepEqual(order(), ['zebra', 'alpha', 'beta']);
@@ -129,5 +129,47 @@ test('picker and namespace details show global call and query counts', async () 
         assert(document.querySelector('dialog[open]'));
         card.click();
         await until(() => !document.querySelector('dialog'));
+    } finally { dom.window.close(); }
+});
+
+
+test('tool category filter combines selections and keeps the picker open on Escape', async () => {
+    const registry = new SemanticRegistry(new MemoryStore());
+    registry.refresh(['zebra', 'alpha', 'beta'].map(id => ({ id, description: id, parameters: { type: 'object' }, output: { type: 'string' } })));
+    const routes = new Map<string, (request: Request) => Promise<Response>>();
+    const ctx = { connection: { fetch: { register: (route: { path: string; fetch: (request: Request) => Promise<Response> }) => routes.set(route.path, route.fetch) } } } as unknown as Context;
+    registerManagement(ctx, registry, { refresh: async () => {} });
+    const dom = new JSDOM(managementHtml, { url: 'http://localhost/api/ts-intellisense', runScripts: 'outside-only', pretendToBeVisual: true });
+    try {
+        const { window } = dom;
+        const { document } = window;
+        window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
+        window.structuredClone = structuredClone;
+        window.fetch = async url => routes.get('/api/ts-intellisense-state')!(new Request(new URL(String(url), 'http://localhost')));
+        window.eval(await readFile(new URL('../../dist/management/standalone.js', import.meta.url), 'utf8'));
+        await until(() => document.querySelector<HTMLButtonElement>('.ts-open-tools')?.disabled === false);
+        document.querySelector<HTMLButtonElement>('.ts-open-tools')!.click();
+        await until(() => !!document.querySelector('dialog[open]'));
+        const order = (): string[] => Array.from(document.querySelectorAll<HTMLElement>('dialog [data-tool-id]:not(:disabled)'), card => card.dataset.toolId!);
+        const filter = document.querySelector<HTMLButtonElement>('.ts-tool-filter-trigger')!;
+        assert(filter.querySelector('svg'));
+        filter.click();
+        await until(() => filter.getAttribute('aria-expanded') === 'true');
+        const categories = Array.from(document.querySelectorAll<HTMLInputElement>('.ts-tool-filter-menu input'));
+        assert.deepEqual(categories.map(input => input.value), ['unmounted', 'mounted', 'fixed']);
+        assert(categories.every(input => input.checked));
+        categories[2]!.click();
+        await until(() => !document.querySelector('dialog .ts-builtin-tool'));
+        assert.equal(filter.getAttribute('aria-expanded'), 'true');
+        categories[0]!.click();
+        await until(() => order().length === 0);
+        assert.equal(document.querySelectorAll('dialog [data-tool-id]').length, 0);
+        categories[0]!.click();
+        categories[2]!.click();
+        await until(() => order().length === 3 && !!document.querySelector('dialog .ts-builtin-tool'));
+        categories[0]!.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        await until(() => filter.getAttribute('aria-expanded') === 'false');
+        assert.equal(document.activeElement, filter);
+        assert(document.querySelector('dialog[open]'));
     } finally { dom.window.close(); }
 });

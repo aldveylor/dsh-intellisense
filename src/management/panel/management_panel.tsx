@@ -1,3 +1,4 @@
+import { HintButton } from '../tooltip/action_hint.js';
 import { UsageDialog } from '../documentation/usage_dialog.js';
 import { ActionButton } from '../controls/action_button.js';
 import { useTranslation } from '../locale/locale.js';
@@ -85,30 +86,30 @@ function nextPinLevel(level: PinLevel): PinLevel { return ((level + 1) % 3) as P
 /** @brief Shared always-visible pin control for namespace and command prompt exposure. */
 function PinButton({ label, active, busy, locked = false, level, tooltip, toggle }: { tooltip?: string; label: string; active: boolean; busy: boolean; locked?: boolean; level?: PinLevel; toggle: () => void }) {
     const t = useTranslation();
-    return <button className="ts-pin" type="button" aria-label={label} aria-pressed={active} data-filled={active} data-level={level}
-        title={tooltip ?? (level !== undefined ? t(`pin_level_${level}`) : locked ? t('builtin_pinned') : active ? t('unpin') : t('pin'))} disabled={busy || locked} onClick={toggle}>
+    return <HintButton className="ts-pin" type="button" aria-label={label} action={t(locked ? 'pin_action' : level === 0 ? 'pin_brief_action' : level === 1 ? 'pin_detailed_action' : active ? 'unpin_action' : 'pin_namespace_action')} aria-pressed={active} data-filled={active} data-level={level}
+        title={tooltip ?? (locked ? t('builtin_pinned') : level !== undefined ? t(`pin_level_${level}`) : active ? t('unpin') : t('pin'))} disabled={busy || locked} onClick={toggle}>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" aria-hidden="true">
             <path d="m16 9 3-3-5-5-3 3v4l-5 5 5 5 5-5zM9 15l-5 5" />
         </svg>
-    </button>;
+    </HintButton>;
 }
 
 /** @brief Shared deletion control placed after the pin at the right edge of tree blocks. */
-function RemoveButton({ label, busy, remove }: { label: string; busy: boolean; remove: () => void }) {
-    return <button className="ts-remove" type="button" aria-label={label} title={label} disabled={busy} onClick={remove}>
+function RemoveButton({ label, hint, busy, remove }: { label: string; hint: string; busy: boolean; remove: () => void }) {
+    return <HintButton className="ts-remove" type="button" aria-label={label} title={hint} disabled={busy} onClick={remove}>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
             <path d="m6 6 12 12M18 6 6 18" />
         </svg>
-    </button>;
+    </HintButton>;
 }
 
 /** @brief Toggle command or namespace availability while retaining its editable tree node. */
 function DisableButton({ disabled, busy, toggle }: { disabled: boolean; busy: boolean; toggle: () => void }) {
     const t = useTranslation();
     const label = t(disabled ? 'enable_node' : 'disable_node');
-    return <button className="ts-disable ts-remove" type="button" aria-label={label} title={label} aria-pressed={disabled} disabled={busy} onClick={toggle}>
+    return <HintButton className="ts-disable ts-remove" type="button" aria-label={label} title={t(disabled ? 'enable_node_hint' : 'disable_node_hint')} aria-pressed={disabled} disabled={busy} onClick={toggle}>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><circle cx="12" cy="12" r="8" /><g className="ts-disable-mark"><path d="M6 12h12" /><path className="ts-disable-cross" d="M12 6v12" /></g></svg>
-    </button>;
+    </HintButton>;
 }
 
 /** @brief Mark a node as a drag target without intercepting ordinary text editing. */
@@ -166,7 +167,7 @@ function CommandNode({ node, tree }: { node: CommandTreeNode; tree: TreeProps })
             {command && disableButton}
             {pinButton}
             {!command && disableButton}
-            {node.permissions.removable && <RemoveButton label={t('remove_mapping', { path })} busy={tree.busy || !!mapping?.pinned} remove={() => tree.remove(path)} />}
+            {node.permissions.removable && <RemoveButton label={t('remove_mapping', { path })} hint={t('remove_mapping_hint', { path })} busy={tree.busy || !!mapping?.pinned} remove={() => tree.remove(path)} />}
         </span>
     </li>;
 }
@@ -207,10 +208,10 @@ function NamespacePlaceholder({ parent = '', busy, create, drop, pick }: {
                 if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); }
                 if (event.key === 'Escape') { event.preventDefault(); setName(undefined); }
             }} />}
-        <button className="ts-add-tool" type="button" aria-label={t('add_tools_to', { path: parent || t('root') })} title={t('choose_tools')} disabled={busy}
+        <HintButton className="ts-add-tool" type="button" aria-label={t('add_tools_to', { path: parent || t('root') })} title={t('add_tools_to_hint', { path: parent || t('root') })} disabled={busy}
             onClick={() => pick(parent)} onDoubleClick={event => event.stopPropagation()}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
-        </button>
+        </HintButton>
     </li>;
 }
 
@@ -251,10 +252,10 @@ function NamespaceNode({ node, tree }: { node: NamespaceTreeNode; tree: TreeProp
             if ((event.target as HTMLElement).tagName === 'INPUT') { event.preventDefault(); return; }
             event.stopPropagation(); event.dataTransfer.setData('application/x-ts-namespace', path); event.dataTransfer.effectAllowed = 'move';
         }} onDragOver={event => acceptTreeDrag(event, tree.busy || !node.permissions.acceptsChildren)} onDragLeave={leaveTreeDrag} onDrop={event => tree.dropNode(event, path, true)}>
-            <button className="ts-disclosure" type="button" aria-label={t('toggle_namespace', { path })} aria-expanded={open} disabled={tree.busy}
+            <HintButton className="ts-disclosure" type="button" aria-label={t('toggle_namespace', { path })} aria-expanded={open} title={t('toggle_namespace', { path })} disabled={tree.busy}
                 onClick={() => tree.toggle(path)}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
-            </button>
+            </HintButton>
             {!node.permissions.renamable ? <span className="ts-node-name">{path.split('.').at(-1)}</span> : <EditableText className="ts-node-name" value={path.split('.').at(-1)!} label={t('namespace_path_name', { path })} busy={tree.busy}
                 commit={name => tree.renameNamespace(path, name)} />}
             <small className="ts-node-count" aria-label={t('command_count', { path })}>{count}</small>
@@ -264,7 +265,7 @@ function NamespaceNode({ node, tree }: { node: NamespaceTreeNode; tree: TreeProp
                 <PinButton label={t('pin_namespace', { path })} active={config?.alwaysVisible ?? false} busy={tree.busy}
                     toggle={() => tree.configure(path, { alwaysVisible: !config?.alwaysVisible })} />
                 {node.permissions.disableable && <DisableButton disabled={tree.disabled(path)} busy={tree.busy || tree.disabledByAncestor(path)} toggle={() => tree.toggleDisabled(path)} />}
-                {node.permissions.removable && <RemoveButton label={t('delete_namespace', { path })} busy={tree.busy} remove={() => tree.deleteNamespace(path)} />}
+                {node.permissions.removable && <RemoveButton label={t('delete_namespace', { path })} hint={t('delete_namespace_hint', { path })} busy={tree.busy} remove={() => tree.deleteNamespace(path)} />}
             </span></>}
             {node.pinMode === 'locked' && <span className="ts-node-actions">
                 {node.permissions.disableable && <DisableButton disabled={tree.disabled(path)} busy={tree.busy || tree.disabledByAncestor(path)} toggle={() => tree.toggleDisabled(path)} />}
@@ -616,12 +617,12 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
     }, [namespaceTree, tree, toolsById]);
 
     return <div className="ts-intellisense" ref={drag.container} onPointerDownCapture={drag.pointerDown} onDragStartCapture={drag.preventNativeDrag}>
-        <style>{styles}</style>
+        <style>{styles}</style><TooltipProvider>
         {!view && <div className="ts-load-overlay" aria-busy={status === 'loading'}>
             {status === 'loading' ? <p role="status" aria-live="polite">{t('loading')}</p>
                 : <><p className="ts-error-message" role="alert">{t(status)}</p>
                     <div className="ts-dialog-actions">
-                        <ActionButton type="button" disabled={busy} onClick={() => void action('loading', () => reload(undefined, null))}>{t('refresh')}</ActionButton>
+                        <ActionButton type="button" title={t('retry_load_hint')} disabled={busy} onClick={() => void action('loading', () => reload(undefined, null))}>{t('refresh')}</ActionButton>
                         <ActionButton type="button" disabled={busy} title={t('reset_failed_data')} onClick={() => void action('loading', async () => {
                             await request(api, { action: 'recover' });
                             await reload(undefined, null);
@@ -629,7 +630,7 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
                     </div></>}
         </div>}
         <div className="ts-panel-content" ref={element => { if (element) element.inert = !view; }}>
-            <header className="ts-panel-header"><h1>{t('title')}</h1><ActionButton onClick={() => setShowUsage(true)}>{t('usage_guide')}</ActionButton></header>
+            <header className="ts-panel-header"><h1>{t('title')}</h1><ActionButton title={t('usage_guide_hint')} onClick={() => setShowUsage(true)}>{t('usage_guide')}</ActionButton></header>
             {showUsage && <UsageDialog api={api} close={() => setShowUsage(false)} />}
             {view && status && (['loading', 'updating_profile', 'organizing'].includes(status)
                 ? <p role="status" aria-live="polite">{t(status)}</p>
@@ -637,20 +638,20 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
             <div className="ts-toolbar"><div className="ts-actions">
                 <div className="ts-default-profile" aria-busy={pending === 'default' || undefined} ref={element => { if (element) element.inert = pending === 'default'; }}><span>{t('default_profile')}</span>
                     <div className="ts-default-profile-control"><Select value={view?.defaultProfile ?? ''} options={(view?.state.profiles ?? []).map(name => ({ value: name, label: name, brief: view?.profileBriefs?.[name] }))}
-                        disabled={!view} label={t('default_profile')} readOnly allowCreate={false} onChange={selectDefault}
+                        disabled={!view} label={t('default_profile')} hint={t('default_profile_hint')} readOnly allowCreate={false} onChange={selectDefault}
                         onCreate={createProfile} onRename={(name, newName) => manageProfile('rename', name, newName)} onRemove={name => manageProfile('delete', name)} /></div>
                 </div>
-                <ActionButton className="ts-organize" disabled={pending === 'organize' || !organize} onClick={() => void action('organizing', async () => {
+                <ActionButton className="ts-organize" title={t('generate_proposal_hint')} disabled={pending === 'organize' || !organize} onClick={() => void action('organizing', async () => {
                     await organize!(t('organization_prompt')); setStatus('');
                 }, 'organize')}>{t('generate_proposal')}</ActionButton>
             </div></div>
             <main><section className="ts-namespaces"><div className="ts-namespace-heading"><h2>{t('namespace_tree')}</h2>
-                <button className="ts-add-tool ts-open-tools" type="button" aria-label={t('add_tools')} title={t('add_tools')} disabled={!view}
+                <HintButton className="ts-add-tool ts-open-tools" type="button" aria-label={t('add_tools')} title={t('add_tools_hint_button')} disabled={!view}
                     onClick={() => setToolPicker({ parent: '' })}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
                         <path d="M14 6a5 5 0 0 0-6-4l3 3-3 3-3-3a5 5 0 0 0 6 6l8 8a2 2 0 0 0 3-3z" />
                     </svg>
-                </button>
+                </HintButton>
                 <div className="ts-namespace-profile" aria-busy={pending === 'editor' || undefined} ref={element => { if (element) element.inert = pending === 'editor'; }}>
                     <ProfilePicker name={view?.state.profile ?? ''} profiles={[...(view?.state.profiles ?? []), ...(newProfile ? [view!.state.profile!] : [])]}
                         download={downloadProfile} upload={uploadProfile} briefs={{ ...view?.profileBriefs, ...(view ? { [view.state.profile!]: brief ?? '' } : {}) }}
@@ -667,9 +668,9 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
                         })} />
                 </div>
             </div>
-                {view && <div className="ts-profile-summary"><button className="ts-unmounted-count" type="button" data-unmounted-count={unmounted.length} aria-live="polite" disabled={!unmounted.length}
-                    onClick={() => setToolPicker({ parent: '', unmountedOnly: true })}>{t('unmounted_count', { count: unmounted.length })}</button>
-                    <ActionButton type="button" disabled={busy} onClick={() => setBriefEditor(brief ?? '')}>{t('edit_profile_brief')}</ActionButton></div>}
+                {view && <div className="ts-profile-summary"><HintButton className="ts-unmounted-count" type="button" data-unmounted-count={unmounted.length} aria-live="polite" title={t('unmounted_hint')} disabled={!unmounted.length}
+                    onClick={() => setToolPicker({ parent: '', unmountedOnly: true })}>{t('unmounted_count', { count: unmounted.length })}</HintButton>
+                    <ActionButton type="button" title={t('edit_profile_brief_hint')} disabled={busy} onClick={() => setBriefEditor(brief ?? '')}>{t('edit_profile_brief')}</ActionButton></div>}
                 <div aria-busy={pending === 'editor' || undefined} ref={element => { if (element) element.inert = pending === 'editor'; }}>
                     <NamespaceTreeView roots={namespaceTree.roots} tree={tree} />
                 </div>
@@ -677,7 +678,7 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
                 {inspectWarning && <p className="ts-inspect-warning" role="status" aria-live="polite">{t('inspect_disabled_warning')}</p>}
             </section></main>
         </div>
-        {toolPicker !== undefined && view && <ToolPicker parent={toolPicker.parent} tools={toolPicker.unmountedOnly ? unmounted : view.tools} mappings={mappings} protectedTools={providedTools(provided, view.tools)} callsByTool={view.callsByTool} queriesByTool={view.queriesByTool} busy={busy}
+        {toolPicker !== undefined && view && <ToolPicker parent={toolPicker.parent} tools={view.tools} unmountedOnly={toolPicker.unmountedOnly} mappings={mappings} protectedTools={providedTools(provided, view.tools)} callsByTool={view.callsByTool} queriesByTool={view.queriesByTool} busy={busy}
             close={() => setToolPicker(undefined)} select={tool => {
                 applyDrop({ namespace: false, id: tool.id }, { path: toolPicker.parent, position: 'inside' });
                 setToolPicker(undefined);
@@ -686,8 +687,8 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
             <form onSubmit={event => { event.preventDefault(); setBrief(briefEditor.trim() || undefined); setBriefEditor(undefined); }}>
                 <h2 id="ts-brief-title">{t('edit_profile_brief')}</h2>
                 <textarea aria-label={t('profile_brief')} autoFocus rows={4} value={briefEditor} onChange={event => setBriefEditor(event.target.value)} />
-                <div className="ts-dialog-actions"><ActionButton variant="primary" type="submit">{t('apply')}</ActionButton>
-                    <ActionButton type="button" onClick={() => setBriefEditor(undefined)}>{t('cancel')}</ActionButton></div>
+                <div className="ts-dialog-actions"><ActionButton variant="primary" type="submit" title={t('apply_draft_hint')}>{t('apply')}</ActionButton>
+                    <ActionButton type="button" title={t('cancel_hint')} onClick={() => setBriefEditor(undefined)}>{t('cancel')}</ActionButton></div>
             </form>
         </section></div>}
         {descriptionEditor && <div className="ts-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="ts-description-title">
@@ -700,11 +701,11 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
                 <h2 id="ts-description-title">{t('prompt_comment')} · {descriptionEditor.path}</h2>
                 <textarea aria-label={t('prompt_comment')} autoFocus rows={8} value={descriptionEditor.text ?? view?.tools.find(t => t.id === descriptionEditor.id)?.description ?? ''}
                     onChange={event => setDescriptionEditor({ ...descriptionEditor, text: event.target.value })} />
-                <div className="ts-dialog-actions"><ActionButton variant="primary" type="submit">{t('apply')}</ActionButton>
-                    <ActionButton type="button" onClick={() => setDescriptionEditor({ id: descriptionEditor.id, path: descriptionEditor.path })}>{t('reset')}</ActionButton>
-                    <ActionButton type="button" onClick={() => setDescriptionEditor(undefined)}>{t('cancel')}</ActionButton></div>
+                <div className="ts-dialog-actions"><ActionButton variant="primary" type="submit" title={t('apply_draft_hint')}>{t('apply')}</ActionButton>
+                    <ActionButton type="button" title={t('reset_comment_hint')} onClick={() => setDescriptionEditor({ id: descriptionEditor.id, path: descriptionEditor.path })}>{t('reset')}</ActionButton>
+                    <ActionButton type="button" title={t('cancel_hint')} onClick={() => setDescriptionEditor(undefined)}>{t('cancel')}</ActionButton></div>
             </form>
         </section></div>}
-    </div>;
+    </TooltipProvider></div>;
 }
 
