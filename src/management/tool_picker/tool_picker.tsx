@@ -2,7 +2,7 @@ import { ActionHint } from '../tooltip/action_hint.js';
 import { ActionButton } from '../controls/action_button.js';
 import { CloseButton } from '../controls/close_button.js';
 import { useTranslation } from '../locale/locale.js';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { TooltipProvider, useTooltip } from '../tooltip/tooltip.js';
 import { NativeProfileSelect } from '../profile_picker/native_profile_select.js';
 import { ToolFilter, toolCategories } from './tool_filter/tool_filter.js';
@@ -18,17 +18,22 @@ function ToolCard({ tool, mappings, builtinPath, calls, queries, busy, select, d
 }) {
     const t = useTranslation();
     const tooltip = useTooltip();
-    return <button type="button" data-tool-id={tool.id} aria-describedby={tooltip.id}
+    const pointerHandlers = {
+        onPointerEnter: (event: PointerEvent<HTMLElement>) => tooltip.show(<><ActionHint action={t('add_tools')} description={t(builtinPath ? 'builtin_tool_card_hint' : 'add_tool_card_hint')} /><ToolDetails tool={tool} calls={calls} queries={queries} /></>, event.clientX, event.clientY),
+        onPointerMove: (event: PointerEvent<HTMLElement>) => tooltip.move(event.clientX, event.clientY, event.ctrlKey),
+        onPointerLeave: tooltip.leave,
+    };
+    return <button type="button" data-tool-id={tool.id} aria-describedby={detailed ? undefined : tooltip.id}
         className={`ts-tool ${builtinPath ? 'ts-builtin-tool' : mappings.length ? '' : 'ts-unmounted'}`} disabled={busy || !!builtinPath}
-        onPointerEnter={event => tooltip.show(<><ActionHint action={t('add_tools')} description={t(builtinPath ? 'builtin_tool_card_hint' : 'add_tool_card_hint')} /><ToolDetails tool={tool} calls={calls} queries={queries} /></>, event.clientX, event.clientY)}
-        onPointerMove={event => tooltip.move(event.clientX, event.clientY, event.ctrlKey)} onPointerLeave={tooltip.leave}
+        {...(detailed ? {} : pointerHandlers)}
         onFocus={event => {
+            if (detailed) return;
             const rect = event.currentTarget.getBoundingClientRect();
             tooltip.show(<><ActionHint action={t('add_tools')} description={t(builtinPath ? 'builtin_tool_card_hint' : 'add_tool_card_hint')} /><ToolDetails tool={tool} calls={calls} queries={queries} /></>, rect.left, rect.bottom);
         }} onBlur={tooltip.leave} onClick={() => { if (!builtinPath && !busy) { tooltip.hide(); select(tool); } }}>
         {detailed ? <>
             <span className="ts-tool-list-main">
-                <span className="ts-tool-list-title"><strong>{tool.id}</strong><code className="ts-tool-footer">{builtinPath || mappings.map(mapping => mapping.path).join('; ') || t('unmounted')}</code></span>
+                <span className="ts-tool-list-title"><strong aria-describedby={tooltip.id} {...pointerHandlers}>{tool.id}</strong><code className="ts-tool-footer">{builtinPath || mappings.map(mapping => mapping.path).join('; ') || t('unmounted')}</code></span>
                 <span className="ts-tool-list-description">{tool.description || t('tool_no_description')}</span>
             </span>
             <span className="ts-tool-list-source">{tool.source?.trim() || t('tool_source_unknown')}</span>
