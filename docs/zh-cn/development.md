@@ -33,10 +33,10 @@
 
 | 字段 | 类型 | 必填 | 行为 |
 | --- | --- | --- | --- |
-| `mode` | `native` 或 `ptc` | 是 | 选择工具呈现、初始提示词及执行方式，无默认值 |
+| `mode` | `native` 或 `ptc` | 否 | 选择工具呈现、初始提示词及执行方式，默认 `native` |
 | `profile` | 长度 1–80 的字符串 | 否 | 固定当前会话使用的具名工具 Profile，无默认值 |
 
-配置使用严格 schema，未知字段会被拒绝。Preset ID、插件条目的 `id` 和 `config.mode` 各自独立；应保留内置条目 ID `intellisense-presentation`，通过 `mode` 选择执行方式。只有显式配置 presentation 的作用域及其继承作用域启用本插件模式；主组件或 preset 注册组件单独加载不会自动设置模式。查找配置时使用作用域链中最近的 presentation 配置。
+配置使用严格 schema，未知字段会被拒绝。Preset ID、插件条目的 `id` 和 `config.mode` 各自独立；应保留内置条目 ID `intellisense-presentation`，通过 `mode` 选择执行方式。只有显式配置 presentation 的作用域及其继承作用域启用本插件模式；主组件或 preset 注册组件单独加载不会自动设置模式。查找配置时使用作用域链中最近的 presentation 配置；该配置省略 `mode` 时使用 `native`，即使外层 presentation 使用 `ptc`。
 
 ### `mode: native`
 
@@ -147,7 +147,7 @@ return { advisory, saved };
 
 ## 修改配置后的核对
 
-1. 以两份内置 `agent.cordis.yml` 为完整组合参考，自定义 preset 时保留需要的工具插件，并明确填写 `mode`。
+1. 以两份内置 `agent.cordis.yml` 为完整组合参考，自定义 preset 时保留需要的工具插件。使用 PTC 时设置 `mode: ptc`，省略 `mode` 时使用默认的 `native` 模式。
 2. 在已有 Profile 上试用 `profile`，确认锁定行为；省略该项时确认默认选择与父会话继承。
 3. 在 PTC 中通过 `tools_run_code` 检查发现接口和预加载字段；在 native 中先列举命名空间，再精确查询命令并调用。
 4. 修改内置 preset 或 TypeScript 实现时运行相应检查；仅修改本文档无需构建或运行完整测试。

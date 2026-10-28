@@ -33,10 +33,10 @@ The main component and DSH tools service must already be mounted. Presentation r
 
 | Field | Type | Required | Behavior |
 | --- | --- | --- | --- |
-| `mode` | `native` or `ptc` | Yes | Selects tool presentation, initial prompts and execution; no default |
+| `mode` | `native` or `ptc` | No | Selects tool presentation, initial prompts and execution; defaults to `native` |
 | `profile` | String, 1–80 characters | No | Fixes the conversation to a named tool Profile; no default |
 
-The schema is strict and rejects unknown fields. The preset ID, plugin entry ID and `config.mode` are independent. Keep the builtin entry ID `intellisense-presentation` and select execution with `mode`. The plugin's modes apply to explicitly configured presentation scopes and their descendants. Loading the main component or preset registration component alone does not select a mode. Configuration lookup uses the nearest presentation in the scope chain.
+The schema is strict and rejects unknown fields. The preset ID, plugin entry ID and `config.mode` are independent. Keep the builtin entry ID `intellisense-presentation` and select execution with `mode`. The plugin's modes apply to explicitly configured presentation scopes and their descendants. Loading the main component or preset registration component alone does not select a mode. Configuration lookup uses the nearest presentation in the scope chain. Omitting `mode` in that configuration selects `native`, even if an outer presentation uses `ptc`.
 
 ### `mode: native`
 
@@ -147,7 +147,7 @@ return { advisory, saved };
 
 ## Checking configuration changes
 
-1. Use the builtin `agent.cordis.yml` files as complete composition references. Retain the required tool plugins and explicitly configure `mode`.
+1. Use the builtin `agent.cordis.yml` files as complete composition references. Retain the required tool plugins. Set `mode: ptc` for PTC, or omit `mode` to use the default `native` mode.
 2. Try `profile` with an existing catalog entry and check locking. Without it, check default selection and parent-conversation inheritance.
 3. In PTC, check discovery and preloaded fields through `tools_run_code`. In native, list namespace members, inspect an exact command, then call it.
 4. Run relevant checks when changing builtin presets or TypeScript implementations. Documentation-only edits do not require a build or the full test suite.
