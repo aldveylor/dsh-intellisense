@@ -16,10 +16,10 @@ export class NamespaceTree {
     readonly root = new NamespaceTreeNode('');
 
     /** @brief Expose root children to the existing recursive renderer. */
-    get roots(): TreeNode[] { return this.root.children; }
+    get roots(): readonly TreeNode[] { return this.root.children; }
 
     constructor(draft: TreeDraft, provided: readonly ProvidedNamespace[], tools: readonly PhysicalTool[]) {
-        this.root.children.push(...provided.map(namespace => new ProvidedNamespaceTreeNode(namespace, this.root)));
+        this.root.add(...provided.map(namespace => new ProvidedNamespaceTreeNode(namespace, this.root)));
         /** @brief Create each missing namespace along the parent-child chain. */
         const ensureNamespace = (path: string): NamespaceTreeNode => {
             if (!path) return this.root;
@@ -28,7 +28,7 @@ export class NamespaceTree {
             const existing = parent.children.find(node => node.name === parts.at(-1));
             if (existing instanceof NamespaceTreeNode) return existing;
             const node = new NamespaceTreeNode(parts.at(-1)!, parent, draft.namespaces.find(namespace => namespace.path === path));
-            if (parent.permissions.acceptsChildren) parent.children.push(node);
+            if (parent.permissions.acceptsChildren) parent.add(node);
             return node;
         };
         for (const path of namespacePaths(draft)) ensureNamespace(path);
@@ -38,14 +38,17 @@ export class NamespaceTree {
             const parts = path.split('.');
             const parent = ensureNamespace(parts.slice(0, -1).join('.'));
             const tool = toolsById.get(mapping.id);
-            if (parent.permissions.acceptsChildren) parent.children.push(new CommandTreeNode(parts.at(-1)!, parent, mapping, tool?.description, tool));
+            if (parent.permissions.acceptsChildren) parent.add(new CommandTreeNode(parts.at(-1)!, parent, mapping, tool?.description, tool));
         }
         /** @brief Apply Profile ordering recursively to editable branches. */
-        const sort = (nodes: TreeNode[]): void => {
+        const sort = (parent: NamespaceTreeNode): void => {
+            const nodes = parent.children;
             const rank = new Map(orderedPaths(nodes.map(node => node.path), draft.order).map((path, index) => [path, index]));
-            nodes.sort((a, b) => rank.get(a.path)! - rank.get(b.path)!);
-            for (const node of nodes) if (node instanceof NamespaceTreeNode && !node.fixed) sort(node.children);
+            parent.sort((a, b) => rank.get(a.path)! - rank.get(b.path)!);
+            for (const node of nodes) if (node instanceof NamespaceTreeNode && !node.fixed) sort(node);
         };
-        sort(this.roots);
+        sort(this.root);
+        // Warm derived counts once so row rendering only reads cached values.
+        void this.root.count;
     }
 }

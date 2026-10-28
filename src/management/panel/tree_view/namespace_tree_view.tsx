@@ -12,7 +12,7 @@ function TreeNodeView({ node, tree }: { node: TreeNode; tree: TreeProps }) {
 }
 
 /** @brief Render tree rows independently from Profile requests and dialog state. */
-export const NamespaceTreeView = memo(function NamespaceTreeView({ roots, tree }: { roots: TreeNode[]; tree: TreeProps }) {
+export const NamespaceTreeView = memo(function NamespaceTreeView({ roots, tree }: { roots: readonly TreeNode[]; tree: TreeProps }) {
     return <TooltipProvider><ul className="ts-tree">{roots.map(node => <TreeNodeView key={node.path} node={node} tree={tree} />)}
         <NamespacePlaceholder busy={tree.busy} create={tree.create} pick={tree.pick} drop={tree.drop} />
     </ul></TooltipProvider>;

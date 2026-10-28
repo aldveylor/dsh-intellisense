@@ -7,3 +7,5 @@ provided_command_tree_node.ts 和 provided_namespace_tree_node.ts 代理服务�
 上层 panel/tree_node.ts 组织普通匿名根、服务端子树与草稿映射并排序；tree_provider.ts 负责序列化协议到视图的转换。无专用根节点类型。
 
 CommandTreeNode 对应单个挂载路径，其 Mapping 独立持有该路径的固定等级、禁用状态与简化描述。
+
+命名空间 children 为只读视图，构造及编辑通过 add/remove 修改成员并使祖先计数缓存失效；sort 仅调整顺序。普通节点首次读取 count 缓存递归结果，整树构造后预热；服务端子树继续显示直接成员数。

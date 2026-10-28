@@ -1,3 +1,4 @@
+import { treeDisabledState } from './tree_state.js';
 import { NamespaceSection } from './namespace_section/namespace_section.js';
 import type { TreeProps } from './tree_view/tree_props.js';
 import { UsageDialog } from '../documentation/usage_dialog.js';
@@ -330,17 +331,15 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
     const remapMotion = useLayoutMotion(drag.container, '.ts-tree .ts-node-block,.ts-tree .ts-tree-tool,.ts-tree .ts-namespace-placeholder',
         element => element.classList.contains('ts-namespace-placeholder') ? `${element.dataset.namespacePath}.__placeholder__` : element.dataset.namespacePath ?? element.dataset.treePath!, expanded);
 
+    const disabledStates = useMemo(() => treeDisabledState(namespaceTree.roots, builtinDisabled, namespaces, mappings),
+        [namespaceTree, builtinDisabled, namespaces, mappings]);
+
     /** @brief Lock descendant disable controls while preserving their own configured state. */
-    function disabledByAncestor(path: string): boolean {
-        return builtinDisabled.some(prefix => prefix !== path && inNamespace(path, prefix))
-            || namespaces.some(node => node.disabled && node.path !== path && inNamespace(path, node.path));
-    }
+    function disabledByAncestor(path: string): boolean { return disabledStates.get(path)?.disabledByAncestor ?? false; }
 
     const tree = useMemo<TreeProps>(() => ({
         disabledByAncestor,
-        disabled: path => !!namespaceTree.root.resolve(path.split('.'))?.permissions.disableable && (builtinDisabled.some(prefix => inNamespace(path, prefix))
-            || namespaces.some(node => node.disabled && inNamespace(path, node.path))
-            || mappings.some(mapping => mapping.disabled && mapping.path === path)),
+        disabled: path => disabledStates.get(path)?.disabled ?? false,
         toggleDisabled: path => {
             const node = namespaceTree.root.resolve(path.split('.'));
             if (busyRef.current || !node?.permissions.disableable || disabledByAncestor(path)) return;
@@ -368,7 +367,7 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
         pinTool: mapping => setMappings(current => current.map(m => m.path === mapping.path ? { ...m, alwaysVisible: nextPinLevel(m.alwaysVisible ?? 0) } : m)),
         renameNamespace: (path, name) => editNamespace(path, name), deleteNamespace: path => { editNamespace(path); },
         toggle: path => setExpanded(current => ({ ...current, [path]: !(current[path] ?? false) })), dropNode: (event) => nativeDrop(event, treeDropTarget(event.currentTarget, event.clientY)),
-    }), [namespaceTree, mappings, namespaces, order, paths, provided, expanded, namespaceVisible, builtinDisabled, toolComments, unmountedVisible, toolsById, view?.tools, view?.callsByTool, view?.queriesByTool, view?.namespaceQueriesByPath, view?.effective]);
+    }), [disabledStates, namespaceTree, mappings, namespaces, order, paths, provided, expanded, namespaceVisible, builtinDisabled, toolComments, unmountedVisible, toolsById, view?.tools, view?.callsByTool, view?.queriesByTool, view?.namespaceQueriesByPath, view?.effective]);
 
     const inspectWarning = useMemo(() => {
         let inspectAvailable = false;

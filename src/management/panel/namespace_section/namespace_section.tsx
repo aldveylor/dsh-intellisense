@@ -13,7 +13,7 @@ interface NamespaceSectionProps {
     busy: boolean;
     editorPending: boolean;
     profile: ComponentProps<typeof ProfilePicker>;
-    roots: TreeNode[];
+    roots: readonly TreeNode[];
     tree: TreeProps;
     unmountedCount: number;
     brief?: string;

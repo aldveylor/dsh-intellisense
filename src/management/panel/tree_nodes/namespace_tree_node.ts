@@ -6,16 +6,30 @@ import type { NodeType, SerializedNode } from '../../../namespace/node.js';
 /** @brief An editable namespace owns ordered child references and counts descendant commands. */
 export class NamespaceTreeNode extends TreeNode {
     readonly type: NodeType = 'tree';
-    readonly children: TreeNode[] = [];
+    private readonly members: TreeNode[] = [];
+    private cachedCount?: number;
+
+    /** @brief Expose children without allowing mutations to bypass count invalidation. */
+    get children(): readonly TreeNode[] { return this.members; }
 
     constructor(name: string, parent?: NamespaceTreeNode, readonly metadata?: Namespace) { super(name, parent); }
+
+    /** @brief Append direct children and invalidate cached ancestor counts. */
+    add(...nodes: TreeNode[]): void { this.members.push(...nodes); this.invalidateCount(); }
+
+    /** @brief Sort direct children without changing their counts. */
+    sort(compare: (left: TreeNode, right: TreeNode) => number): void { this.members.sort(compare); }
+
+    /** @brief Clear derived counts whenever membership changes. */
+    private invalidateCount(): void { this.cachedCount = undefined; this.parent?.invalidateCount(); }
 
     /** @brief Parent removal checks the child's server-supplied permission. */
     remove(name: string): boolean {
         const index = this.children.findIndex(node => node.name === name);
         if (index < 0) return false;
         if (!this.children[index]!.permissions.removable) throw new Error(`Node cannot be removed: ${this.children[index]!.path}`);
-        this.children.splice(index, 1);
+        this.members.splice(index, 1);
+        this.invalidateCount();
         return true;
     }
 
@@ -34,7 +48,7 @@ export class NamespaceTreeNode extends TreeNode {
     get pinMode(): 'profile' | 'locked' | 'provided' { return 'profile'; }
 
     /** @brief Number of commands represented by this namespace. */
-    get count(): number { return this.children.reduce((count, child) => count + (child instanceof NamespaceTreeNode ? child.count : 1), 0); }
+    get count(): number { return this.cachedCount ??= this.children.reduce((count, child) => count + (child instanceof NamespaceTreeNode ? child.count : 1), 0); }
 
     serialize(): SerializedNode { return { type: this.type, name: this.name, permissions: this.permissions, children: this.children.map(node => node.serialize()) }; }
 

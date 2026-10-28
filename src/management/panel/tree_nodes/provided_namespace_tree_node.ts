@@ -8,7 +8,7 @@ export class ProvidedNamespaceTreeNode extends NamespaceTreeNode {
 
     constructor(private readonly contract: ProvidedNamespace, parent: NamespaceTreeNode) {
         super(contract.path.split('.').at(-1)!, parent);
-        this.children.push(...contract.commands.map(command => new ProvidedCommandTreeNode(command, this)),
+        this.add(...contract.commands.map(command => new ProvidedCommandTreeNode(command, this)),
             ...(contract.children ?? []).map(namespace => new ProvidedNamespaceTreeNode(namespace, this)));
     }
 
