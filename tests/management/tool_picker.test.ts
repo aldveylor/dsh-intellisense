@@ -142,7 +142,16 @@ test('picker and namespace details show global call and query counts', async () 
         assert.equal(document.activeElement, viewButton);
         assert(document.querySelector('dialog[open]'));
         const card = document.querySelector<HTMLButtonElement>('[data-tool-id="alpha"]')!;
-        card.dispatchEvent(new window.MouseEvent('pointerover', { bubbles: true, clientX: 100, clientY: 100 }));
+        viewButton.blur();
+        await until(() => !document.querySelector('[role="tooltip"]'));
+        for (const target of [card, card.querySelector('.ts-tool-list-description')!, card.querySelector('.ts-tool-footer')!, card.querySelector('.ts-tool-list-source')!, card.querySelector('.ts-tool-list-count')!]) {
+            target.dispatchEvent(new window.MouseEvent('pointerover', { bubbles: true, clientX: 100, clientY: 100 }));
+            await delay(20);
+            assert(!document.querySelector('[role="tooltip"] .ts-tool-details'));
+            target.dispatchEvent(new window.MouseEvent('pointerout', { bubbles: true, relatedTarget: document.body }));
+        }
+        const name = card.querySelector('strong')!;
+        name.dispatchEvent(new window.MouseEvent('pointerover', { bubbles: true, clientX: 100, clientY: 100 }));
         await until(() => !!document.querySelector('[role="tooltip"]'));
         await until(() => !!document.querySelector('[role="tooltip"] .ts-tool-details h3')?.textContent?.includes('alpha'));
         const tooltip = document.querySelector<HTMLElement>('[role="tooltip"]')!;
@@ -152,17 +161,24 @@ test('picker and namespace details show global call and query counts', async () 
         assert(!tooltip.textContent!.includes('File content'));
         assert(tooltip.querySelector('.ts-tool-return')!.textContent!.includes('string'));
         const previous = tooltip.style.left;
-        card.dispatchEvent(new window.MouseEvent('pointermove', { bubbles: true, clientX: 200, clientY: 150 }));
+        name.dispatchEvent(new window.MouseEvent('pointermove', { bubbles: true, clientX: 200, clientY: 150 }));
         assert.notEqual(tooltip.style.left, previous);
-        card.dispatchEvent(new window.MouseEvent('pointerout', { bubbles: true, relatedTarget: document.body }));
+        name.dispatchEvent(new window.MouseEvent('pointerout', { bubbles: true, relatedTarget: document.body }));
         await until(() => !document.querySelector('[role="tooltip"]'));
         card.focus();
+        await delay(20);
+        assert(!document.querySelector('[role="tooltip"]'));
+        name.dispatchEvent(new window.MouseEvent('pointerover', { bubbles: true, clientX: 100, clientY: 100 }));
         await until(() => !!document.querySelector('[role="tooltip"]'));
         card.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
         await until(() => !document.querySelector('[role="tooltip"]'));
         assert(document.querySelector('dialog[open]'));
         card.click();
         await until(() => !document.querySelector('dialog'));
+        document.querySelector<HTMLButtonElement>('.ts-open-tools')!.click();
+        await until(() => !!document.querySelector('dialog[open]'));
+        assert.equal(document.querySelector('.ts-tool-results')!.getAttribute('data-view'), 'list');
+        assert.equal(document.querySelector('.ts-tool-group')!.getAttribute('data-value'), 'type');
     } finally { dom.window.close(); }
 });
 
@@ -210,5 +226,17 @@ test('tool category filter combines selections and keeps the picker open on Esca
         await until(() => filter.getAttribute('aria-expanded') === 'false');
         assert.equal(document.activeElement, filter);
         assert(document.querySelector('dialog[open]'));
+        filter.click();
+        await until(() => filter.getAttribute('aria-expanded') === 'true');
+        for (const option of document.querySelectorAll<HTMLButtonElement>('.ts-tool-filter-option')) {
+            option.click();
+            await until(() => option.getAttribute('aria-checked') === 'false');
+        }
+        await until(() => document.querySelectorAll('dialog [data-tool-id]').length === 0);
+        document.querySelector<HTMLButtonElement>('.ts-tool-picker header button')!.click();
+        await until(() => !document.querySelector('dialog'));
+        document.querySelector<HTMLButtonElement>('.ts-open-tools')!.click();
+        await until(() => !!document.querySelector('dialog[open]'));
+        assert.equal(document.querySelectorAll('dialog [data-tool-id]').length, 0);
     } finally { dom.window.close(); }
 });
