@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import english from '../../../docs/en/usage.md';
 import chinese from '../../../docs/zh-cn/usage.md';
-import { ActionButton } from '../controls/action_button.js';
+import { CloseButton } from '../controls/close_button.js';
 import { useTranslation } from '../locale/locale.js';
 
 /** @brief Render inline code in the bundled usage documents without interpreting HTML. */
@@ -19,7 +19,7 @@ export function UsageDialog({ api, close }: { api: string; close: () => void }) 
     useEffect(() => { dialog.current?.showModal(); }, []);
 
     return <dialog ref={dialog} className="ts-management-dialog ts-usage-dialog" aria-labelledby={title} onClose={close}>
-        <header><h2 id={title}>{t('usage_guide')}</h2><ActionButton variant="ghost" title={t('close_hint')} onClick={close}>{t('close')}</ActionButton></header>
+        <header><h2 id={title}>{t('usage_guide')}</h2><CloseButton close={close} /></header>
         <article>{source.trim().split(/\n\s*\n/).map((block, index) => {
             if (block.startsWith('# ')) return null;
             if (block.startsWith('## ')) return <h3 key={index}>{block.slice(3)}</h3>;

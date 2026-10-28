@@ -160,3 +160,7 @@
 .ts-tool-sort-direction[aria-pressed=true] .ts-sort-arrow{transform:rotate(180deg)}
 .ts-tool-sort-direction[aria-pressed=true] .ts-sort-bars{transform:scaleY(-1)}
 @media(prefers-reduced-motion:reduce){.ts-tool-filter-menu{animation-duration:1ms}.ts-filter-funnel,.ts-filter-dot,.ts-sort-arrow,.ts-sort-bars,.ts-tool-filter-check path{transition:none}}
+
+/* Shared SVG close controls for dialog headers. */
+.ts-intellisense button.ts-close-button{display:inline-flex;align-items:center;justify-content:center;flex:0 0 28px;width:28px;height:28px;min-height:28px;padding:4px;border:0}
+.ts-close-button svg{display:block;flex-shrink:0}
