@@ -61,5 +61,5 @@ export function nextFixLevel(permissions: Permission, level: 0 | 1 | 2): 0 | 1 |
 
 /** @brief Validate structural identifiers without knowing any server-owned namespace names. */
 export function validateNodePath(path: string): void {
-    if (!path || path.split('.').some(part => !/^[A-Za-z_$][\w$]*$/.test(part) || ['__proto__', 'constructor', 'prototype', 'then'].includes(part) || part.startsWith('__dsh'))) throw new Error(`Invalid namespace path: ${path}`);
+    if (!path || path.split('.').some(part => !/^[A-Za-z_$][\w$]*$/.test(part) || ['__proto__', 'constructor', 'prototype', 'then'].includes(part) || part.startsWith('__dsh'))) throw new Error('invalid_namespace_path');
 }

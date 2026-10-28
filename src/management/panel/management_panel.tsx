@@ -231,7 +231,7 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
             toolPaths.some(p => p === path || path.startsWith(`${p}.`))) {
             setStatus('invalid_namespace'); return false;
         }
-        try { validatePath(`${path}.namespace_check`); } catch (error) { setStatus(String(error)); return false; }
+        try { validatePath(`${path}.namespace_check`); } catch (error) { setStatus(error instanceof Error ? error.message : String(error)); return false; }
         configureNamespace(path, {}); setOrder(current => [...current, path]);
         return true;
     }
@@ -255,7 +255,7 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
         const mapping = mappings.find(m => m.path === source);
         if (busyRef.current || !mapping || mapping.pinned) return false;
         const path = [...source.split('.').slice(0, -1), name].join('.');
-        try { validatePath(path); } catch (error) { setStatus(String(error)); return false; }
+        try { validatePath(path); } catch (error) { setStatus(error instanceof Error ? error.message : String(error)); return false; }
         if (!/^[a-zA-Z_$][\w$]*$/.test(name) || ['__proto__', 'prototype', 'constructor', 'then'].includes(name) || name.startsWith('__dsh') || occupied(path, source)) {
             setStatus('invalid_mapping'); return false;
         }

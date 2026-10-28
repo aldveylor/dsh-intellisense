@@ -1,5 +1,13 @@
 /** @brief Chinese interface dictionary. */
 export const zh = {
+    "session_profile_locked": "此模式已指定固定工具配置，无法切换。",
+    "invalid_profile_name": "配置名称无效：请使用不超过 80 个字符、无首尾空格且非保留名称的名称。",
+    "profile_name_exists": "配置名称已存在。",
+    "profile_required": "至少需要保留一个配置。",
+    "registry_revision_conflict": "配置已发生变化，请刷新后再保存。",
+    "invalid_namespace_path": "命名空间路径无效或使用了保留名称。",
+    "reserved_namespace_root": "命名空间根名称不能使用语言保留字。",
+    "invalid_session_profile_request": "会话配置选择请求无效。",
     "refresh_hint": "重新读取已保存的配置并更新工具列表，替换当前未保存的编辑。",
     "save_hint": "保存当前编辑内容；已有对话需重新选择配置才会应用。",
     "save_as_hint": "将当前编辑内容保存为新名称的配置，不改变默认配置。",

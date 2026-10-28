@@ -23,7 +23,7 @@ async function fixture(locked = false) {
         configurationChanged: async (agent: typeof agents[number]) => { changed.push(agent.id); },
     } as unknown as NamespaceComponent;
     registerSessionProfiles(ctx, catalog, namespaces);
-    return { catalog, profiles, changed, request: (session: string, body?: unknown, contentType = 'application/json') => fetch(new Request(`https://localhost/api/ts-intellisense-profile?session=${session}`, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': contentType }, body: JSON.stringify(body) })) };
+    return { catalog, profiles, changed, fetch, request: (session: string, body?: unknown, contentType = 'application/json') => fetch(new Request(`https://localhost/api/ts-intellisense-profile?session=${session}`, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': contentType }, body: JSON.stringify(body) })) };
 }
 
 test('profile selector loads native and PTC session namespaces independently from the catalog default', async () => {
@@ -77,5 +77,24 @@ test('a fixed presentation Profile remains visible and rejects session selector 
     assert.equal((await response.json()).locked, true);
     assert.equal((await request('native', { profile: 'Default' })).status, 403);
     assert.equal((await profiles.forSession('native')).snapshot().profile, 'Files');
+    assert.deepEqual(changed, []);
+});
+
+test('invalid session Profile requests return localized keys without changing the session', async () => {
+    const { profiles, changed, fetch } = await fixture();
+    for (const [body, key] of [
+        ['{', 'invalid_json_body'],
+        ['null', 'invalid_session_profile_request'],
+        ['{}', 'invalid_session_profile_request'],
+        ['{"profile":""}', 'invalid_session_profile_request'],
+        ['{"profile":"Files","activate":true}', 'invalid_session_profile_request'],
+    ]) {
+        const response = await fetch(new Request('https://localhost/api/ts-intellisense-profile?session=native', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body,
+        }));
+        assert.equal(response.status, 400);
+        assert.deepEqual(await response.json(), { error: key });
+    }
+    assert.equal((await profiles.forSession('native')).snapshot().profile, 'Default');
     assert.deepEqual(changed, []);
 });

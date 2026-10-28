@@ -1,5 +1,13 @@
 /** @brief English interface dictionary. */
 export const en = {
+    "session_profile_locked": "This mode specifies a fixed tool Profile that cannot be changed.",
+    "invalid_profile_name": "Invalid Profile name. Use at most 80 characters without surrounding spaces or reserved names.",
+    "profile_name_exists": "The Profile name already exists.",
+    "profile_required": "At least one Profile must be retained.",
+    "registry_revision_conflict": "The configuration has changed. Reload before saving.",
+    "invalid_namespace_path": "The namespace path is invalid or uses a reserved name.",
+    "reserved_namespace_root": "The namespace root cannot be a language keyword.",
+    "invalid_session_profile_request": "Invalid session Profile selection request.",
     "refresh_hint": "Reload the saved Profile and tool catalog, replacing unsaved edits.",
     "save_hint": "Save current edits. Existing conversations must select the Profile again to apply them.",
     "save_as_hint": "Save the current draft as a new named Profile without changing the default.",

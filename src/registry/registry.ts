@@ -259,20 +259,20 @@ export class SemanticRegistry {
 
     /** @brief Keep names usable as both dictionary keys and menu labels. */
     private validateProfileName(name: string): void {
-        if (typeof name !== 'string' || !name.trim() || name !== name.trim() || name.length > 80 || ['__proto__', 'constructor', 'prototype'].includes(name)) throw new Error('Invalid profile name');
+        if (typeof name !== 'string' || !name.trim() || name !== name.trim() || name.length > 80 || ['__proto__', 'constructor', 'prototype'].includes(name)) throw new Error('invalid_profile_name');
     }
 
     /** @brief Atomically manage named configurations under the same global revision as ordinary saves. */
     async manageProfile(action: 'create' | 'select' | 'rename' | 'delete', name: string, revision: number, newName?: string, activate = true): Promise<void> {
         await this.transaction(async () => {
-            if (revision !== this.state.revision) throw new Error('Registry revision conflict; reload before saving');
+            if (revision !== this.state.revision) throw new Error('registry_revision_conflict');
             this.validateProfileName(name);
             const active = this.state.profile ?? 'Default';
             const archive = this.state.save().inactiveProfiles ?? {};
             const exists = (name: string): boolean => name === active || Object.hasOwn(archive, name);
             let next: RegistryStateData = { ...this.state, revision: revision + 1, inactiveProfiles: archive };
             if (action === 'create') {
-                if (exists(name)) throw new Error('Profile name already exists');
+                if (exists(name)) throw new Error('profile_name_exists');
                 const empty = new RegistryConfiguration();
                 if (activate) {
                     archive[active] = this.configuration();
@@ -283,7 +283,7 @@ export class SemanticRegistry {
                 if (action === 'rename') {
                     this.validateProfileName(newName!);
                     if (newName === name) return;
-                    if (exists(newName!)) throw new Error('Profile name already exists');
+                    if (exists(newName!)) throw new Error('profile_name_exists');
                     if (name === active) next.profile = newName!;
                     else { archive[newName!] = archive[name]!; delete archive[name]; }
                 } else if (action === 'select') {
@@ -292,7 +292,7 @@ export class SemanticRegistry {
                     delete archive[name]; archive[active] = this.configuration();
                     next = { ...next, ...configuration, brief: configuration.brief, builtinDisabled: configuration.builtinDisabled ?? [], toolComments: configuration.toolComments ?? {}, namespaceVisible: configuration.namespaceVisible ?? {}, profile: name };
                 } else if (action === 'delete') {
-                    if (!Object.keys(archive).length) throw new Error('At least one profile is required');
+                    if (!Object.keys(archive).length) throw new Error('profile_required');
                     if (name === active) {
                         const fallback = Object.keys(archive)[0]!;
                         next = { ...next, ...archive[fallback]!, brief: archive[fallback]!.brief, builtinDisabled: archive[fallback]!.builtinDisabled ?? [], toolComments: archive[fallback]!.toolComments ?? {}, namespaceVisible: archive[fallback]!.namespaceVisible ?? {}, profile: fallback }; delete archive[fallback];
@@ -389,10 +389,10 @@ export class SemanticRegistry {
     async configure(mappings: Mapping[], revision: number, namespaces?: Namespace[], order?: string[], unmountedVisible?: CommandVisibility, profile?: string, toolComments?: Record<string, string>, builtinVisible?: CommandVisibility, namespaceVisible?: Record<string, boolean>, editingProfile?: string, activate = true, builtinDisabled?: string[], brief?: string): Promise<void> {
         const detached = structuredClone(mappings);
         await this.transaction(async () => {
-            if (revision !== this.state.revision) throw new Error('Registry revision conflict; reload before saving');
+            if (revision !== this.state.revision) throw new Error('registry_revision_conflict');
             if (profile !== undefined) {
                 this.validateProfileName(profile);
-                if (profile === (this.state.profile ?? 'Default') || Object.hasOwn(this.state.inactiveProfiles ?? {}, profile)) throw new Error('Profile name already exists');
+                if (profile === (this.state.profile ?? 'Default') || Object.hasOwn(this.state.inactiveProfiles ?? {}, profile)) throw new Error('profile_name_exists');
             }
             const base: RegistryConfigurationData = !activate && profile !== undefined && editingProfile === undefined
                 ? new RegistryConfiguration()

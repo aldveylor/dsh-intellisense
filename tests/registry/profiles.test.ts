@@ -29,16 +29,16 @@ test('profiles isolate all configuration fields and persist create, select, rena
     await restored.manageProfile('delete', 'Personal', 7);
     assert.equal(restored.snapshot().profile, 'Default');
     assert.deepEqual(restored.snapshot().mappings, [mapping]);
-    await assert.rejects(restored.manageProfile('delete', 'Default', 8), /At least one/);
+    await assert.rejects(restored.manageProfile('delete', 'Default', 8), /profile_required/);
 });
 
 test('invalid profile changes and failed persistence leave active configuration unchanged', async () => {
     const store = new MemoryStore(); const registry = new SemanticRegistry(store);
     await registry.manageProfile('create', 'Work', 0);
-    await assert.rejects(registry.manageProfile('create', 'Work', 1), /already exists/);
-    await assert.rejects(registry.manageProfile('rename', 'Work', 1, 'Default'), /already exists/);
-    await assert.rejects(registry.manageProfile('select', 'Default', 0), /revision conflict/);
-    await assert.rejects(registry.manageProfile('create', '__proto__', 1), /Invalid profile/);
+    await assert.rejects(registry.manageProfile('create', 'Work', 1), /profile_name_exists/);
+    await assert.rejects(registry.manageProfile('rename', 'Work', 1, 'Default'), /profile_name_exists/);
+    await assert.rejects(registry.manageProfile('select', 'Default', 0), /registry_revision_conflict/);
+    await assert.rejects(registry.manageProfile('create', '__proto__', 1), /invalid_profile_name/);
     const before = registry.snapshot();
     store.save = async () => { throw new Error('Disk failed'); };
     await assert.rejects(registry.manageProfile('select', 'Default', 1), /Disk failed/);
@@ -57,7 +57,7 @@ test('editor profile saves and copies preserve the default profile and enforce r
     await registry.configure([], 2, namespaces, [], {}, 'Copy', {}, {}, {}, 'Editor');
     assert.equal(registry.snapshot().profile, 'Default');
     assert.deepEqual(registry.configuration('Copy').namespaces, namespaces);
-    await assert.rejects(registry.configure([], 2, [], [], {}, undefined, {}, {}, {}, 'Editor'), /revision conflict/);
+    await assert.rejects(registry.configure([], 2, [], [], {}, undefined, {}, {}, {}, 'Editor'), /registry_revision_conflict/);
     await assert.rejects(registry.configure([], 3, [], [], {}, undefined, {}, {}, {}, 'Missing'), /does not exist/);
     assert.deepEqual(registry.configuration('Editor').namespaces, namespaces);
 });

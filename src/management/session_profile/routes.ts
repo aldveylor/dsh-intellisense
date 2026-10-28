@@ -23,7 +23,12 @@ export function registerSessionProfiles(ctx: Context, catalog: SemanticRegistry,
                 if (!request.headers.get('content-type')?.startsWith('application/json')) return Response.json({ error: 'expected_json' }, { status: 415, headers });
                 const text = await request.text();
                 if (text.length > 4096) return Response.json({ error: 'session_request_too_large' }, { status: 413, headers });
-                const { profile } = selection.parse(JSON.parse(text));
+                let input: unknown;
+                try { input = JSON.parse(text); }
+                catch { return Response.json({ error: 'invalid_json_body' }, { status: 400, headers }); }
+                const parsed = selection.safeParse(input);
+                if (!parsed.success) return Response.json({ error: 'invalid_session_profile_request' }, { status: 400, headers });
+                const { profile } = parsed.data;
                 await namespaces.profiles.load(agent.id, profile);
                 await namespaces.configurationChanged(agent);
             }

@@ -28,7 +28,7 @@ test('namespace rename migrates descendants, mappings, pin state and order witho
     assert.deepEqual(next.order.slice(0, 4), ['workspace', 'workspace.write', 'workspace.disk', 'workspace.disk.read']);
     assert.equal(original.mappings[0]!.path, 'files.disk.read');
     assert.throws(() => renameNamespace(original, 'files', 'other'), /namespace_name_conflict/);
-    assert.throws(() => renameNamespace(original, 'files', 'constructor'), /Invalid namespace path/);
+    assert.throws(() => renameNamespace(original, 'files', 'constructor'), /invalid_namespace_path/);
 });
 
 test('namespace deletion removes the subtree while retaining outside mappings and tool identity', () => {

@@ -5,11 +5,11 @@ const reserved = new Set(['tools', 'console', 'globalThis', 'Promise', 'Object',
 export function validatePath(path: string): void {
     const parts = path.split('.');
     if (parts.some(p => !/^[a-zA-Z_$][\w$]*$/.test(p) || forbidden.has(p) || p.startsWith('__dsh')) || reserved.has(parts[0]!)) {
-        throw new Error(`Invalid or reserved namespace path: ${path}`);
+        throw new Error('invalid_namespace_path');
     }
     // Root names must be valid namespace declaration identifiers.
     if (/^(?:const|let|var|function|class|new|delete|return|await|import|export|this|super|default|if|else|switch|case|try|catch|throw|while|for|do|break|continue|yield|void|typeof|instanceof|in|enum|extends|implements|interface|package|private|protected|public|static|with|debugger|null|true|false)$/.test(parts[0]!)) {
-        throw new Error(`Reserved namespace root: ${parts[0]}`);
+        throw new Error('reserved_namespace_root');
     }
 }
 

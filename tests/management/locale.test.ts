@@ -6,6 +6,11 @@ import { readFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { JSDOM, VirtualConsole } from 'jsdom';
 import { browserLanguage, translate } from '../../src/management/locale/locale.js';
+import { SemanticRegistry, validatePath } from '../../src/registry/registry.js';
+import { validateNodePath } from '../../src/namespace/node.js';
+import { MemoryStore } from '../../src/storage/store.js';
+import { zh } from '../../src/management/locale/zh.js';
+import { en } from '../../src/management/locale/en.js';
 import { managementHtml } from '../../src/management/server/page.js';
 
 /** @brief Wait for a committed browser render. */
@@ -101,4 +106,35 @@ test('host language switches update an open editor while preserving its unsaved 
         await until(() => document.querySelector('h1')?.textContent === '工具命名空间表');
         assert.equal(document.querySelector<HTMLInputElement>('.ts-namespace-profile .ts-profile-create input')?.value, 'Unsaved profile');
     } finally { dom.window.close(); }
+});
+
+test('Profile and namespace validation failures resolve through matching locale dictionaries', async () => {
+    assert.deepEqual(Object.keys(zh).sort(), Object.keys(en).sort());
+    for (const key of Object.keys(zh) as (keyof typeof zh)[]) {
+        const placeholders = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map(match => match[1]).sort();
+        assert.deepEqual(placeholders(zh[key]), placeholders(en[key]), key);
+    }
+    const registry = new SemanticRegistry(new MemoryStore());
+    const failures = [
+        () => registry.manageProfile('create', '__proto__', 0),
+        () => registry.manageProfile('create', 'Default', 0),
+        () => registry.manageProfile('delete', 'Default', 0),
+        () => registry.manageProfile('select', 'Default', 1),
+        () => validatePath('bad-name'),
+        () => validatePath('const.read'),
+        () => validateNodePath('files.constructor'),
+    ];
+    for (const fail of failures) {
+        await assert.rejects(async () => { await fail(); }, error => {
+            assert(error instanceof Error);
+            assert(Object.hasOwn(zh, error.message), error.message);
+            assert.notEqual(translate('zh')(error.message), error.message);
+            assert.notEqual(translate('en')(error.message), error.message);
+            return true;
+        });
+    }
+    for (const key of ['session_profile_locked', 'invalid_json_body', 'invalid_session_profile_request']) {
+        assert.notEqual(translate('zh')(key), key);
+        assert.notEqual(translate('en')(key), key);
+    }
 });
