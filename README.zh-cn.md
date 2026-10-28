@@ -8,6 +8,10 @@
 
 dsh-intellisense 帮助你在 DeepSeek Harness 中整理和查找工具。你可以为工具分组、设置清晰的名称与说明，并将配置保存为可复用的 Profile，适应不同任务。Agent 会按需查询所需工具。
 
+## 使用方法
+
+查看[使用文档](docs/zh-cn/usage.md)，了解工具分组、Agent 可见范围和界面操作；也可从插件配置页打开。
+
 ## 安装
 
 **官方 DSH 桌面端：** 打开应用中的 **设置 → 插件**，搜索 `@aldveylor/dsh-intellisense`，通过应用的插件管理器安装，无需使用命令行。
@@ -52,15 +56,6 @@ pnpm install --frozen-lockfile
 ```
 
 此方式使用独立的开发运行配置，方便在本地体验插件。
-
-## 开始使用
-
-1. 打开 **@aldveylor/dsh-intellisense** 插件的配置页。
-2. 添加需要的工具，整理分组、名称和说明。
-3. 保存 Profile，以便复用工具配置。
-4. 在会话中选择 **Intellisense PTC** 或 **Intellisense** 模式。
-
-两个模式共享工具 Profile。**Intellisense PTC** 让 Agent 通过代码组合调用工具；**Intellisense** 让 Agent 逐个调用工具，可按任务习惯选择。
 
 ## 工具管理
 

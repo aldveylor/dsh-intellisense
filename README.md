@@ -8,6 +8,10 @@ English | [简体中文](README.zh-cn.md)
 
 dsh-intellisense helps you organize and discover tools in DeepSeek Harness. Group tools, give them clear names and descriptions, and save reusable profiles for different tasks. The agent can look up the tools it needs on demand.
 
+## Usage
+
+Read the [usage guide](docs/en/usage.md) for tool grouping, agent visibility and interface operations. You can also open it from the plugin configuration page.
+
 ## Installation
 
 **Official DSH Desktop:** Open **Settings → Plugins** in the app, search for `@aldveylor/dsh-intellisense`, and install it through the app's plugin manager. No command line is needed.
@@ -52,15 +56,6 @@ pnpm install --frozen-lockfile
 ```
 
 This starts a separate development profile for trying the plugin locally.
-
-## Getting started
-
-1. Open the **@aldveylor/dsh-intellisense** plugin's configuration page.
-2. Add the tools you want, then organize their groups, names, and descriptions.
-3. Save a profile to reuse your setup.
-4. Select **Intellisense PTC** or **Intellisense** as the agent mode for a session.
-
-Both modes share your tool profiles. **Intellisense PTC** lets the agent combine tool calls in code; **Intellisense** lets it call tools individually. Choose the mode that fits your workflow.
 
 ## Tool management
 

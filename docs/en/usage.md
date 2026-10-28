@@ -1,31 +1,89 @@
-# Tool management guide
+# Usage guide
 
-Open the plugin's configuration page to manage reusable tool Profiles. The page's Usage guide button opens this document inside DSH. Screenshots use light mode; the interface follows your DSH theme.
+Open the @aldveylor/dsh-intellisense plugin configuration page in DSH to organize tools and save configurations. The Usage guide button at the top right opens this guide. Screenshots use light mode; the interface follows your DSH theme.
 
-## Choose and save a Profile
+## Namespaces: group tools by purpose
 
-The default Profile is used by new conversations. The Profile beside the namespace tree selects the configuration you are editing. Save commits that draft to the catalog; Save as creates a named copy. A star marks unsaved edits. Existing conversations keep their working configurations until you select another Profile for that conversation.
+A namespace is a group of tools, and can contain smaller groups like folders. It helps both you and the agent find tools by purpose. For example, put reading and writing tools in a files group, and search tools in a research group. Add subgroups when a group becomes crowded.
 
-![Namespace tree and Profile controls](../../assets/en/namespace_table.png)
+Groups expand and collapse; tools inside them represent individual operations. Names identify entries, and comments explain their purpose. Choose short, distinct names and a sentence describing each purpose. Keep tools used together in the same group and avoid unnecessary nesting.
 
-## Add tools
+## Profiles: save a complete tool arrangement
 
-Click the tool icon next to Namespace tree to add tools at the root, or the tool icon within a namespace to add them there. The unmounted count opens a filtered picker. Search names, paths or descriptions, choose a sort order, then click an available card. Built-in cards remain disabled. Adding a second mount of the same physical tool creates another independent path.
+A Profile saves your groups, names, comments, pin settings and enabled states. Prepare separate configurations for tasks such as coding or research. A Profile description explains its purpose and helps you choose it from menus.
 
-![Tool picker in light mode](../../assets/en/tools.png)
+The same tool can appear in multiple Profiles, or in several places within one Profile. Each placement has independent names, comments, pins and enabled states. Editing or removing one placement leaves the others intact and does not uninstall the tool.
 
-## Edit and discover
+## What the agent can see
 
-Expand groups, double-click ordinary names and descriptions to edit, and drag entries to organize the tree. Pin levels cycle through 0 (on demand), 1 (brief) and 2 (full definition). Disable retains configuration while removing a node and its descendants from discovery and execution. Protected members retain their server-owned names, locations and permissions.
+Select Intellisense or Intellisense PTC for a conversation to use its chosen tool configuration. Other modes use DSH's own tool presentation. Intellisense suits individual tool calls; Intellisense PTC suits combining several tool operations. Both share your Profiles.
 
-Hover a tool for its parameters, return type and call totals. Hold Alt to keep the tooltip in place, then hover a parameter type for its structure. The original command in a tree tooltip opens the physical tool's details.
+The management tool catalog is for choosing tools; it does not mean the current agent sees every listed tool. An ordinary tool outside the selected configuration is not automatically offered just because it appears in the catalog. The tool also needs to be available in the current conversation.
 
-![Tool details](../../assets/en/tooltip.png)
+Pin levels control how tools are introduced. Level 0 (unpinned) lets the agent look up a tool when needed; level 1 (brief) highlights its name and short purpose; level 2 (detailed) provides full calling information. Use detailed pins for frequent tools and discovery for occasional ones. Intellisense offers pinned tools as callable entries and adds other entries when the agent looks up a specific tool. Intellisense PTC presents tool hints according to their pin levels.
 
-## Save and apply through tools
+A namespace pin introduces the group without setting every tool inside to detailed. Expanding or collapsing a group only changes your view. Disabling a tool keeps its configuration but removes it from discovery and execution. Disabling a group affects all tools beneath it.
 
-Read `tools.profile.annotation` for the current write model. `save` accepts ProfileWrite: omit name and recursively omit permissions from loaded data. Pass the destination name as a separate argument. The anonymous root accepts only type and children; pin levels, disabled state and descriptions belong to its members. `apply` accepts a recursive partial write tree; null removes optional fields or named children. Rename or move a mount by deleting its old child key and adding the new one.
+Keep the built-in discovery entry enabled so the agent can find tools without detailed pins. If you disable discovery, the page advises when other tools need level 2 pins or should be disabled. You can still edit and save.
 
-Both operations save the catalog and preserve the conversation draft. Verify saved mounts with `load(name)`. `commands.paths` reports the current conversation's paths; explicitly `switch(name)` to update them. Calling apply without a name starts from the current conversation draft, so use a name for successive edits to a saved catalog tree.
+## Find your way around the page
 
-A full save defaults the tools namespace to disabled unless its disabled field is explicitly false. Apply preserves its existing state when omitted. Inspect may be disabled; if it is unavailable, every other enabled command should be pinned at level 2. A warning advises about incomplete pins without blocking persistence. Success returns null or a warning, with no change summary. Invalid or forbidden writes throw.
+The default Profile selector at the top chooses the configuration for new conversations. Generate organization proposal, to its right, asks an agent to help organize tools. The namespace tree occupies the main area. Its own Profile selector chooses what you are editing, followed by Refresh, Save, Save as, Download and Upload. Hover buttons to see what they do.
+
+The tool icon beside the tree heading opens the full tool picker. The unmounted-tools entry below the heading lists tools not yet added to this Profile; Edit Profile description changes its purpose summary. Each row has the permitted pin, enable/disable and removal controls. Protected built-in entries offer only allowed actions.
+
+![Namespace tree, default Profile and editing toolbar](../../assets/en/namespace_table.png)
+
+## Create, select and save a Profile
+
+Open the selector beside the namespace tree and choose a Profile to edit. For an empty configuration, enter a name at the bottom of the menu and press Enter. To start from the current arrangement, click Save as and enter a new name. Double-click an existing name in the menu to rename it, or use its delete button to remove an unwanted Profile. The last saved Profile cannot be deleted.
+
+A star beside the name marks unsaved edits. Save writes your arrangement to that Profile; Save as stores it under a different name. To describe its purpose, click Edit Profile description, enter a summary, click Apply, then save the Profile.
+
+Refresh reloads the saved configuration and updates the tool catalog, replacing unsaved edits. Save or download first to keep your changes. Changing the default Profile at the top does not switch the configuration you are editing.
+
+## Add tools and create groups
+
+Click the tool icon beside Namespace tree to add tools at the outermost level. To add inside a group, expand it and click its plus button. Search the picker by name, path or description, or sort by name, call count or query count. Click an available card to add it.
+
+The unmounted-tools entry shows only tools not yet added to the current Profile. Card footers show existing placements; adding a tool again creates another placement. Gray built-in cards cannot be added again.
+
+At the outermost level or inside a group, double-click the placeholder text offering to create a namespace. Enter a group name, then press Enter or move focus away to confirm; Escape cancels. Use the plus button to add tools, or drag existing tools into the group.
+
+![Search, sort and select tools](../../assets/en/tools.png)
+
+## Rename, describe and move entries
+
+Click a group's arrow to expand or collapse it. Double-click an ordinary group or tool name to rename it, or its comment to edit its purpose. In the tool comment dialog, Apply updates the draft, Reset restores the original tool description, and Cancel discards the current input. Save the Profile afterward.
+
+Drag tools or groups to reorder siblings or move them between groups. Drop in the middle of a group to move inside; drop in a gap before or after an entry to reorder. Built-in names and positions are protected, with unavailable actions locked.
+
+## Pin, disable and remove
+
+Click an ordinary tool's pin to cycle through unpinned, brief, detailed and back to unpinned. Detailed pins are solid yellow. A namespace pin only toggles whether to introduce that group. The built-in discovery tool's pin level is locked.
+
+An enabled entry shows a circled plus; click to disable it. A disabled entry shows a circled slash; click to enable it again. Disabled rows turn gray and retain their settings. When a parent group is disabled, enable it before changing its children's enabled states.
+
+The removal button deletes the current tool placement, or the group and its contents. Disable entries for temporary pauses and remove arrangements you no longer need. Save afterward to reuse either change.
+
+## View tool details
+
+Hover a group to see its name, full location and description. Hover a tool for its short comment, full documentation and statistics; hover its original tool name within that tooltip for more details. Cards in the picker also show details on hover.
+
+Details show required inputs, their types, what the tool returns, and call and query counts. Hover a parameter type to inspect its structure. Hold Alt to keep the tooltip in place, then move inside to scroll. Counts help identify frequent tools; placements of the same tool share tool statistics.
+
+![Tool details and parameter hints](../../assets/en/tooltip.png)
+
+## Download and upload configurations
+
+Download saves the current draft as a JSON file, including unsaved changes, for backup or sharing. Upload validates a selected configuration file and replaces the current draft while keeping its name and the default Profile selection. Click Save to persist the result. Invalid files display an error and leave the draft intact.
+
+## Use a Profile in a conversation
+
+Save your arrangement, open a blank conversation and select Intellisense or Intellisense PTC. Choose a Profile from the menu beside the mode on the conversation home screen, then start chatting. A grayed-out Profile button means the mode specifies a fixed configuration that cannot be changed there.
+
+New conversations without a specified configuration use the default Profile. Existing conversations retain their own working configurations, so saving a Profile with the same name or changing the default does not update them automatically. To apply saved edits, select that Profile again on the conversation home screen. The home-screen menu disappears once chatting begins; you can then ask the agent to switch to a Profile by name.
+
+## Ask the agent to organize tools
+
+Generate organization proposal opens a new conversation draft with suggested instructions. Review or edit the instructions and send them manually. The agent can organize groups, shorten comments and save several task-specific Profiles. Return to management, refresh and review the results, then choose your default Profile. This button is unavailable on standalone management pages that cannot open a DSH conversation.
