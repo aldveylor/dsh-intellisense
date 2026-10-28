@@ -17,3 +17,5 @@ Mapping 请求按单个挂载路径保存，移除 aliases 字段；同一物理
 状态接口从同一个全局统计快照返回 callsByTool、queriesByTool 和 namespaceQueriesByPath，供命令与命名空间详情展示，不返回会话查询统计。
 
 POST action=recover 在既有认证入口执行显式局部恢复，不受目录刷新失败阻塞；保留有效 Profile 和统计，丢弃无法加载的部分，完成后由客户端重新 GET 状态。插件即使数据初始化失败也保留这些管理路由，成功恢复后继续初始化命名空间。
+
+管理 GET 在 registry.generation 不变时复用工具列表、outputDeclaration 与 provided 树；需要重建时只读取一次 registry.tools() 深复制供两种投影共用。配置或物理契约版本变化时失效，统计和选中 Profile 状态仍按请求读取，不缓存整个响应。

@@ -3,8 +3,9 @@ import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
 import { profileConfiguration } from '../profile_picker/profile_json.js';
 import { returnTypeDeclaration } from './return_type.js';
-import type { SemanticRegistry } from '../../registry/registry.js';
+import type { PhysicalTool, SemanticRegistry } from '../../registry/registry.js';
 import { createNamespace } from '../../namespace/namespace.js';
+import type { SerializedNode } from '../../namespace/node.js';
 import type { NamespaceComponent } from '../../namespace/component.js';
 import '@deepseek-ai/dsh-client-connection';
 import { managementHtml } from './page.js';
@@ -27,6 +28,7 @@ const managementRequest = z.discriminatedUnion('action', [
 /** @brief Register management UI and APIs behind DSH owner-peer authentication and Host/Origin policy. */
 export function registerManagement(ctx: Context, globalRegistry: SemanticRegistry, adapter: Pick<NamespaceComponent, 'refresh'> & Partial<Pick<NamespaceComponent, 'statistics'>> & { recover?: () => Promise<void> }): void {
     const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
+    let catalog: { generation: string; tools: PhysicalTool[]; provided: SerializedNode[] } | undefined;
     ctx.connection.fetch.register({ path: '/api/ts-intellisense', methods: ['GET'], requestBody: 'buffered', fetch: async () => new Response(managementHtml, { headers: { ...headers, 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'" } }) });
     ctx.connection.fetch.register({ path: '/api/ts-intellisense-client', methods: ['GET'], requestBody: 'buffered', fetch: async () => new Response(await readFile(new URL('../standalone.js', import.meta.url), 'utf8'), { headers: { ...headers, 'Content-Type': 'text/javascript; charset=utf-8' } }) });
     ctx.connection.fetch.register({ path: '/api/ts-intellisense-state', methods: ['GET', 'POST'], requestBody: 'buffered', fetch: async request => {
@@ -37,7 +39,15 @@ export function registerManagement(ctx: Context, globalRegistry: SemanticRegistr
                 const state = registry.snapshot();
                 const statistics = await adapter.statistics?.snapshot();
                 const profile = new URL(request.url).searchParams.get('profile') ?? state.profile!;
-                return Response.json({ defaultProfile: state.profile, profileBriefs: registry.profileBriefs(), state: { ...state, ...registry.configuration(profile), profile }, tools: registry.tools().map(tool => ({ ...tool, outputDeclaration: returnTypeDeclaration(tool.output) })), callsByTool: statistics?.callsByTool ?? {}, queriesByTool: statistics?.queriesByTool ?? {}, namespaceQueriesByPath: statistics?.namespaceQueriesByPath ?? {}, provided: [...createNamespace({ tools: registry.tools(), includeUnavailable: true }).children.values()].map(node => node.serialize()), effective: registry.effective() }, { headers });
+                if (catalog?.generation !== registry.generation) {
+                    const tools = registry.tools();
+                    catalog = {
+                        generation: registry.generation,
+                        tools: tools.map(tool => ({ ...tool, outputDeclaration: returnTypeDeclaration(tool.output) })),
+                        provided: [...createNamespace({ tools, includeUnavailable: true }).children.values()].map(node => node.serialize()),
+                    };
+                }
+                return Response.json({ defaultProfile: state.profile, profileBriefs: registry.profileBriefs(), state: { ...state, ...registry.configuration(profile), profile }, tools: catalog.tools, callsByTool: statistics?.callsByTool ?? {}, queriesByTool: statistics?.queriesByTool ?? {}, namespaceQueriesByPath: statistics?.namespaceQueriesByPath ?? {}, provided: catalog.provided, effective: registry.effective() }, { headers });
             }
             if (!request.headers.get('content-type')?.startsWith('application/json')) return Response.json({ error: 'expected_json' }, { status: 415, headers });
             const bodyText = await request.text();

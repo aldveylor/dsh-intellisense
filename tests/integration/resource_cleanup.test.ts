@@ -110,3 +110,25 @@ test('shared preset capabilities retain independent native and PTC presentation 
     const capabilities = (preset: typeof presets[number]) => preset.plugins.filter(plugin => plugin.id !== 'intellisense-presentation');
     assert.deepEqual(capabilities(presets[0]!), capabilities(presets[1]!));
 });
+
+test('management reuses one tool projection until the registry contract changes', async () => {
+    const routes = new Map<string, (request: Request) => Promise<Response>>();
+    const ctx = { connection: { fetch: { register: (route: { path: string; fetch: (request: Request) => Promise<Response> }) => routes.set(route.path, route.fetch) } }, emit: () => {} } as unknown as Context;
+    const registry = new SemanticRegistry(new MemoryStore());
+    registry.refresh([{ id: 'read', description: 'Read', parameters: {}, output: { type: 'string' } }]);
+    const tools = registry.tools.bind(registry);
+    let reads = 0;
+    registry.tools = () => { reads++; return tools(); };
+    registerManagement(ctx, registry, { refresh: async () => {} });
+    const get = () => routes.get('/api/ts-intellisense-state')!(new Request('https://localhost/api/ts-intellisense-state'));
+    const first = await (await get()).json();
+    assert.equal(reads, 1);
+    assert.equal(first.tools[0].outputDeclaration, 'string');
+    assert.deepEqual(await (await get()).json(), first);
+    assert.equal(reads, 1);
+    registry.refresh([{ id: 'read', description: 'Updated', parameters: {}, output: { type: 'number' } }]);
+    const updated = await (await get()).json();
+    assert.equal(reads, 2);
+    assert.equal(updated.tools[0].outputDeclaration, 'number');
+    assert.equal(updated.tools[0].description, 'Updated');
+});
