@@ -84,9 +84,9 @@
     "dsh": ">=0.2.1-rc.2"
   },
   "scripts": {
-    "build": "node scripts/build/build.mjs",
-    "build:server": "node scripts/build/build.mjs server",
-    "build:client": "node scripts/build/build.mjs client",
+    "build": "node scripts/build.mjs",
+    "build:server": "node scripts/build.mjs server",
+    "build:client": "node scripts/build.mjs client",
     "typecheck": "tsc -p tsconfig.json",
     "test": "npm run build && tsx --test tests/**/*.test.ts",
     "lint": "eslint --config scripts/eslint_config.mjs src tests",
