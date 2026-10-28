@@ -4,7 +4,7 @@ import type { Permission } from '../namespace/node.js';
 export interface ProfileNode {
     type: string;
     name: string;
-    /** @brief Optional overrides of ordinary node permissions; server-owned restrictions remain authoritative. */
+    /** @brief Constraints on members retained and edited in the saved Profile, including original names and paths of protected members; these do not permit runtime namespace mutation. Optional overrides of ordinary node permissions; server-owned restrictions remain authoritative. */
     permissions?: Partial<Permission>;
     /** @brief Pin level, default 0; omitted when default. */
     fixedLevel?: number;

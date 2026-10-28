@@ -59,18 +59,18 @@ function profileNode(node: SerializedNode): ProfileTreeNode {
 
 /** @brief Validate shared permissions without trusting them as the server's authority. */
 const permissionSchema = z.strictObject({
-    commentable: z.boolean().optional().describe('Whether simplified descriptions may be edited; forbidden descriptions are ignored.'),
-    renamable: z.boolean().optional().describe('Whether this node may be renamed.'),
-    movable: z.boolean().optional().describe('Whether this node may be moved.'),
-    removable: z.boolean().optional().describe('Whether this node may be removed.'),
-    disableable: z.boolean().optional().describe('Whether disabled may be set to true.'),
-    acceptsChildren: z.boolean().optional().describe('Whether new children may be inserted.'),
-    availableFixLevels: z.array(z.union([z.literal(0), z.literal(1), z.literal(2)])).optional().describe('Supported pin levels; an empty list means preserve the existing level.'),
+    commentable: z.boolean().optional().describe('Whether description/command.doc may be edited in the saved Profile; when false, preserve the original description (submitted changes are ignored).'),
+    renamable: z.boolean().optional().describe('Whether this member may be renamed in the saved Profile; when false, preserve its original name.'),
+    movable: z.boolean().optional().describe('Whether this member may be moved in the saved Profile; when false, preserve its original parent and path.'),
+    removable: z.boolean().optional().describe('Whether this member may be omitted from the saved Profile; when false, retain it in the Profile tree even if unused (missing protected members are restored on save).'),
+    disableable: z.boolean().optional().describe('Whether this member may have disabled: true in the saved Profile; when false, keep it enabled.'),
+    acceptsChildren: z.boolean().optional().describe('Whether new members may be added to this namespace in the saved Profile; when false, preserve its existing membership.'),
+    availableFixLevels: z.array(z.union([z.literal(0), z.literal(1), z.literal(2)])).optional().describe('Allowed fixedLevel values in the saved Profile; an empty list means preserve the existing level.'),
 });
 
 /** @brief Shared editable node properties. */
 const nodeProperties = {
-    name: z.string(), permissions: permissionSchema.optional().describe('Optional permission overrides. Defaults: commentable, renamable, movable, removable and disableable true; acceptsChildren false for commands, true for namespaces; availableFixLevels [0,1,2] for commands, [0,1] for namespaces. Omitted fields use defaults; server restrictions remain authoritative.'),
+    name: z.string(), permissions: permissionSchema.optional().describe('Constraints on the saved Profile tree: retain protected members with their required names, paths and command identities. These constraints apply when editing Profile data for save, not only during tool execution. Optional permission overrides. Defaults: commentable, renamable, movable, removable and disableable true; acceptsChildren false for commands, true for namespaces; availableFixLevels [0,1,2] for commands, [0,1] for namespaces. Omitted fields use defaults; server restrictions remain authoritative.'),
     fixedLevel: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional().describe('Pin level (default 0, omitted): 0 none, 1 brief, 2 detailed; allowed values come from permissions.availableFixLevels.'),
     disabled: z.boolean().optional().describe('Default false (omitted), except tools.profile.save defaults the protected tools namespace to disabled unless explicitly set to false. Disabled nodes and descendants are excluded from discovery, runtime bindings, native tools, preloaded values and pinned prompts; configuration is retained for re-enabling. Disabling tools also removes tools.inspect guidance.'),
 };
@@ -91,7 +91,7 @@ const nodeSchema: z.ZodType<ProfileTreeNode> = z.lazy(() => z.union([
 ]));
 
 /** @brief Validate editable Profile input; server-owned permissions remain authoritative. */
-export const ProfileSchema: z.ZodType<ProfileData> = z.strictObject({ name: z.string(), brief: z.string().optional().describe('Short description of the Profile purpose.'), root: namespaceSchema.describe("Anonymous root. Missing protected descendants are restored recursively from the original Profile; submitted node settings are preserved. Server permissions govern edits, and forbidden descriptions are ignored.") });
+export const ProfileSchema: z.ZodType<ProfileData> = z.strictObject({ name: z.string(), brief: z.string().optional().describe('Short description of the Profile purpose.'), root: namespaceSchema.describe("Anonymous root of editable Profile data, separate from the live runtime namespace tree. Do not mutate the runtime namespace tree or assign, delete, rename or move its members; edit data returned by tools.profile.load(), save it, then switch to apply it. The saved Profile must retain protected members at their original names and paths with their original command identities. Missing protected descendants are restored recursively from the original Profile; submitted node settings are preserved. Server permissions govern edits, and forbidden descriptions are ignored.") });
 
 /** @brief Create protected children first, then add configured mappings without replacing existing nodes. */
 export function profileTree(name: string, configuration: RegistryConfigurationData): Profile {
@@ -211,24 +211,31 @@ export const profileAnnotation = `/** @brief Physical command identity, summary,
 interface CommandBrief { name: string; brief: string; paths: string[]; totalCalls: number; }
 /** @brief Available catalog Profile names and the current conversation selection. */
 interface Profiles { profiles: string[]; selected: string; }
-/** @brief Server-owned permissions. Each field governs its own operation: commentable controls simplified descriptions, removable controls removal, disableable controls disabled, and availableFixLevels controls fixedLevel. Omitted permissions or fields use their documented defaults. Only nondefault overrides are serialized. Submitted permissions cannot override server restrictions. */
+/** @brief Server-owned constraints on the saved Profile tree, not merely restrictions during tool execution. The Profile must retain protected members at their original names and paths with their original command identities, even if unused. Each field governs its own Profile edit: commentable controls simplified descriptions, removable controls removal, disableable controls disabled, and availableFixLevels controls fixedLevel. Omitted permissions or fields use their documented defaults. Only nondefault overrides are serialized. Submitted permissions cannot override server restrictions. */
 interface Permission {
+    /** @brief When false, preserve the original Profile description/command.doc; submitted changes are ignored. */
     /** @default true */
     commentable?: boolean;
+    /** @brief When false, retain this member under its original name in the saved Profile. */
     /** @default true */
     renamable?: boolean;
+    /** @brief When false, retain this member under its original parent and path in the saved Profile. */
     /** @default true */
     movable?: boolean;
+    /** @brief When false, retain this member in the saved Profile even if unused; missing protected members are restored on save. */
     /** @default true */
     removable?: boolean;
+    /** @brief When false, keep this member enabled in the saved Profile. */
     /** @default true */
     disableable?: boolean;
+    /** @brief When false, preserve existing namespace membership in the saved Profile; do not add members. */
     /** @default false for commands; true for namespaces */
     acceptsChildren?: boolean;
+    /** @brief Allowed fixedLevel values in the saved Profile; an empty list means preserve the existing level. */
     /** @default [0, 1, 2] for commands; [0, 1] for namespaces */
     availableFixLevels?: (0 | 1 | 2)[];
 }
-/** @brief Start from tools.profile.load(). Save recursively restores missing protected nodes from the existing Profile; submitted nodes retain their fixedLevel and other settings. Protected nodes still cannot be moved, renamed, replaced or extended. New commands may use any exact physical name from tools.profile.commands, even when absent from the loaded tree. A missing tree member is not a command template.
+/** @brief Edit the Profile data returned by tools.profile.load(), then save it and call tools.profile.switch(name) to apply it. The live runtime namespace tree must not be mutated: do not assign, delete, rename, move or add runtime namespace members, regardless of Profile permissions. Profile permissions govern the saved configuration tree. Save recursively restores missing protected nodes from the existing Profile; submitted nodes retain their fixedLevel and other settings. Protected nodes still cannot be moved, renamed, replaced or extended. New commands may use any exact physical name from tools.profile.commands, even when absent from the loaded tree. A missing tree member is not a command template.
  * The tools namespace is protected but defaults to disabled on save, including when omitted or when its disabled field is omitted. Set tools.disabled to false explicitly to enable it.
  * When inspect is unavailable, including when tools is disabled, fix all other commands at level 2 or disable them. This is advisory and does not block saving.
  * To mount a new command, append { type: 'command', name: 'cwd', command: { tool: '<exact physical name>', doc: '<one sentence>' } } to an ordinary namespace's children.
@@ -237,6 +244,7 @@ interface Permission {
 /** @brief Shared editable identity and visibility. Default values are omitted from serialization. disabled applies to the node and its subtree: they disappear from discovery, runtime bindings, native tools, preloaded values and pinned prompts, while their configuration is retained for re-enabling. Disabling tools also removes tools.inspect guidance. fixedLevel controls pinning (0: none, 1: brief, 2: detailed). */
 interface ProfileNode {
     type: string; name: string;
+    /** @brief Constraints for retaining and editing members in the saved Profile; they do not permit mutation of the live runtime namespace tree. */
     /** @default {} (ordinary node permissions) */
     permissions?: Permission;
     /** @default 0 */

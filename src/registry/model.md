@@ -52,3 +52,5 @@ ProfileSessions.forSession 可传入固定 profile 名称，首次创建快照�
 Profile save 覆盖目录树时，tools 仍为受保护命名空间，但默认禁用：省略 tools 节点或其 disabled 字段时写入 builtinDisabled，显式 disabled: false 时启用；不切换或修改当前会话。其它已提交设置保留，缺失保护节点继续递归补齐。save 的原生说明与 PTC 声明同步描述该规则。annotation 与 JSON Schema 说明禁用节点及后代从发现、运行时绑定、原生工具、预加载值和固定提示中排除，保留配置以供重新启用；禁用 tools 时移除 tools.inspect 指引。
 
 profileConfiguration 可选接收 onComplete(path) 回调，仅在实际补齐缺失受保护节点时调用，供工具 save 汇总补全信息；不改变普通调用的返回类型、导入规则及输入树。
+
+permissions 描述明确约束待保存的 Profile 树：受保护成员即使不使用也须保留原名称、父路径及物理命令身份，不能仅理解为运行时操作限制；各字段分别说明保存时应保留的内容。annotation 与 JSON Schema 同步强调运行时命名空间树不应直接赋值、增删、改名或移动成员，不受 Profile 编辑权限放宽；配置调整应编辑 load 返回的数据并 save，再 switch 应用。
