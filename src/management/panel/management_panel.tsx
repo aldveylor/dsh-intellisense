@@ -418,7 +418,7 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
                 }, 'organize')}>{t('generate_proposal')}</ActionButton>
             </div></div>
             <main><NamespaceSection loaded={!!view} busy={busy} editorPending={pending === 'editor'}
-                roots={namespaceTree.roots} tree={tree} inspectWarning={inspectWarning} unmountedCount={unmounted.length}
+                roots={namespaceTree.roots} tree={tree} inspectWarning={inspectWarning} unmountedCount={unmounted.length} brief={brief}
                 pickTools={unmountedOnly => setToolPicker({ parent: '', unmountedOnly })} editBrief={() => setBriefEditor(brief ?? '')}
                 profile={{
                     name: view?.state.profile ?? '',

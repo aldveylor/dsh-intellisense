@@ -1,6 +1,5 @@
 import type { ComponentProps } from 'react';
 import { HintButton } from '../../tooltip/action_hint.js';
-import { ActionButton } from '../../controls/action_button.js';
 import { useTranslation } from '../../locale/locale.js';
 import { ProfilePicker } from '../../profile_picker/profile_picker.js';
 import { NamespaceTreeView } from '../tree_view/namespace_tree_view.js';
@@ -16,13 +15,14 @@ interface NamespaceSectionProps {
     roots: TreeNode[];
     tree: TreeProps;
     unmountedCount: number;
+    brief?: string;
     inspectWarning: boolean;
     pickTools: (unmountedOnly: boolean) => void;
     editBrief: () => void;
 }
 
 /** @brief Compose the namespace region without owning drafts or issuing requests. */
-export function NamespaceSection({ loaded, busy, editorPending, profile, roots, tree, unmountedCount, inspectWarning, pickTools, editBrief }: NamespaceSectionProps) {
+export function NamespaceSection({ loaded, busy, editorPending, profile, roots, tree, unmountedCount, brief, inspectWarning, pickTools, editBrief }: NamespaceSectionProps) {
     const t = useTranslation();
     return <section className="ts-namespaces">
         <div className="ts-namespace-heading"><h2>{t('namespace_tree')}</h2>
@@ -36,13 +36,17 @@ export function NamespaceSection({ loaded, busy, editorPending, profile, roots, 
                 <ProfilePicker {...profile} />
             </div>
         </div>
-        {loaded && <div className="ts-profile-summary"><HintButton className="ts-unmounted-count" type="button" data-unmounted-count={unmountedCount} aria-live="polite" title={t('unmounted_hint')} disabled={!unmountedCount}
-            onClick={() => pickTools(true)}>{t('unmounted_count', { count: unmountedCount })}</HintButton>
-            <ActionButton type="button" title={t('edit_profile_brief_hint')} disabled={busy} onClick={editBrief}>{t('edit_profile_brief')}</ActionButton></div>}
+        {loaded && <div className="ts-profile-summary"><span className="ts-profile-brief" role="button" aria-label={t('profile_brief')} aria-disabled={busy} tabIndex={busy ? -1 : 0}
+            onDoubleClick={() => { if (!busy) editBrief(); }} onKeyDown={event => {
+                if (!busy && event.key === 'Enter') { event.preventDefault(); editBrief(); }
+            }}>{brief?.trim() ? brief : t('add_profile_brief')}</span></div>}
         <div aria-busy={editorPending || undefined} ref={element => { if (element) element.inert = editorPending; }}>
             <NamespaceTreeView roots={roots} tree={tree} />
         </div>
-        <small>{t('tree_hint')}</small>
+        <div className="ts-tree-guidance"><small>{t('tree_hint')}</small>
+            {loaded && <HintButton className="ts-unmounted-count" type="button" data-unmounted-count={unmountedCount} aria-live="polite" title={t('unmounted_hint')} disabled={!unmountedCount}
+                onClick={() => pickTools(true)}>{t('unmounted_count', { count: unmountedCount })}</HintButton>}
+        </div>
         {inspectWarning && <p className="ts-inspect-warning" role="status" aria-live="polite">{t('inspect_disabled_warning')}</p>}
     </section>;
 }
