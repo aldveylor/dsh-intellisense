@@ -1,15 +1,11 @@
 import { useTranslation } from '../../locale/locale.js';
 import type { TreeProps } from './tree_props.js';
-import { EditableText, type EditableTextWidthContext } from '../../controls/editable_text.js';
+import { EditableText } from '../../controls/editable_text.js';
 import { PinButton, RemoveButton, DisableButton } from './tree_controls.js';
 import { acceptTreeDrag, leaveTreeDrag } from './native_drag.js';
+import { nameWidth } from './name_width.js';
 import type { CommandTreeNode } from '../tree_node.js';
 import { CommandDetails, useTreeTooltip } from '../../tooltip/tree_details.js';
-
-/** @brief Fit the original command name with room for at least twenty monospace characters. */
-function commandNameWidth({ textWidth, measureText }: EditableTextWidthContext): number {
-    return Math.max(textWidth, measureText('0'.repeat(20)));
-}
 
 /** @brief Render commands with shared fixed, read-only and movement policies supplied by their data source. */
 export function CommandNode({ node, tree }: { node: CommandTreeNode; tree: TreeProps }) {
@@ -41,7 +37,7 @@ export function CommandNode({ node, tree }: { node: CommandTreeNode; tree: TreeP
         onDrop={event => { if (readOnly) { event.preventDefault(); event.stopPropagation(); } else tree.dropNode(event, path, false); }}>
         {readOnly ? <code>{path.split('.').at(-1)}</code> :
             <EditableText className="ts-node-name" value={path.split('.').at(-1)!} label={t('mapping_name', { path })} busy={tree.busy || !!mapping?.pinned}
-                calculateWidth={commandNameWidth} commit={name => tree.rename(path, name)} />}
+                calculateWidth={nameWidth} commit={name => tree.rename(path, name)} />}
         {id && <span className="ts-mapping-source"><span aria-hidden="true">→ </span>{id}{invalid && <span role="status"> · {t('unavailable')}</span>}</span>}
         <span className="ts-tool-preview" role={fixed ? undefined : 'button'} tabIndex={fixed ? undefined : tree.busy ? -1 : 0}
             onDoubleClick={() => { if (!fixed && id) tree.editDescription(path); }} onKeyDown={event => {

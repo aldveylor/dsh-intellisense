@@ -8,6 +8,7 @@ import type { NamespaceTreeNode } from '../tree_node.js';
 import { HintButton } from '../../tooltip/action_hint.js';
 import { NamespaceDetails, useTreeTooltip } from '../../tooltip/tree_details.js';
 import { TreeChildren } from './tree_children.js';
+import { nameWidth } from './name_width.js';
 
 /** @brief Fill the comment region up to the action buttons while preserving the row gap. */
 function namespaceCommentWidth({ element, textLeft }: EditableTextWidthContext): number {
@@ -34,7 +35,7 @@ export function NamespaceNode({ node, tree, children }: { node: NamespaceTreeNod
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
             </HintButton>
             {!node.permissions.renamable ? <span className="ts-node-name">{path.split('.').at(-1)}</span> : <EditableText className="ts-node-name" value={path.split('.').at(-1)!} label={t('namespace_path_name', { path })} busy={tree.busy}
-                commit={name => tree.renameNamespace(path, name)} />}
+                calculateWidth={nameWidth} commit={name => tree.renameNamespace(path, name)} />}
             <small className="ts-node-count" aria-label={t('command_count', { path })}>{count}</small>
             {fixed ? <span className="ts-node-preview">{node.description}</span> : <><EditableText className="ts-node-preview" value={config?.description ?? ''} label={t('namespace_comment', { path })} busy={tree.busy} placeholder={t('add_comment')} empty multiline calculateWidth={namespaceCommentWidth}
                 commit={description => { tree.configure(path, { description }); return true; }} />
