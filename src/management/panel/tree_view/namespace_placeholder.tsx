@@ -1,6 +1,6 @@
 import { useState, type DragEvent } from 'react';
-import { HintButton } from '../../../tooltip/action_hint.js';
-import { useTranslation } from '../../../locale/locale.js';
+import { HintButton } from '../../tooltip/action_hint.js';
+import { useTranslation } from '../../locale/locale.js';
 
 /** @brief Name a child namespace inline; empty names and Escape discard the pending entry. */
 export function NamespacePlaceholder({ parent = '', busy, create, drop, pick }: {

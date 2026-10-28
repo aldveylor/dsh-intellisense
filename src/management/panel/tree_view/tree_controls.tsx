@@ -1,6 +1,6 @@
-import { HintButton } from '../../../tooltip/action_hint.js';
-import { useTranslation } from '../../../locale/locale.js';
-import type { PinLevel } from '../../../../registry/registry.js';
+import { HintButton } from '../../tooltip/action_hint.js';
+import { useTranslation } from '../../locale/locale.js';
+import type { PinLevel } from '../../../registry/registry.js';
 
 /** @brief Shared always-visible pin control for namespace and command prompt exposure. */
 export function PinButton({ label, active, busy, locked = false, level, tooltip, toggle }: { tooltip?: string; label: string; active: boolean; busy: boolean; locked?: boolean; level?: PinLevel; toggle: () => void }) {

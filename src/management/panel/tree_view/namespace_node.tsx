@@ -1,13 +1,13 @@
-import { useTranslation } from '../../../locale/locale.js';
-import type { TreeProps } from '../tree_props.js';
-import { EditableText } from '../../../controls/editable_text.js';
-import { PinButton, RemoveButton, DisableButton } from '../tree_controls/tree_controls.js';
-import { acceptTreeDrag, leaveTreeDrag } from '../native_drag.js';
+import { useTranslation } from '../../locale/locale.js';
+import type { TreeProps } from './tree_props.js';
+import { EditableText } from '../../controls/editable_text.js';
+import { PinButton, RemoveButton, DisableButton } from './tree_controls.js';
+import { acceptTreeDrag, leaveTreeDrag } from './native_drag.js';
 import type { ReactNode } from 'react';
-import type { NamespaceTreeNode } from '../../tree_node.js';
-import { HintButton } from '../../../tooltip/action_hint.js';
-import { NamespaceDetails, useTreeTooltip } from '../../../tooltip/tree_details.js';
-import { TreeChildren } from '../tree_children/tree_children.js';
+import type { NamespaceTreeNode } from '../tree_node.js';
+import { HintButton } from '../../tooltip/action_hint.js';
+import { NamespaceDetails, useTreeTooltip } from '../../tooltip/tree_details.js';
+import { TreeChildren } from './tree_children.js';
 
 /** @brief Namespace row whose children toggle only through the leading disclosure button. */
 export function NamespaceNode({ node, tree, children }: { node: NamespaceTreeNode; tree: TreeProps; children: ReactNode }) {

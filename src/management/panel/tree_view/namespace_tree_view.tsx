@@ -2,9 +2,9 @@ import { memo } from 'react';
 import type { TreeNode } from '../tree_node.js';
 import type { TreeProps } from './tree_props.js';
 import { TooltipProvider } from '../../tooltip/tooltip.js';
-import { CommandNode } from './command_node/command_node.js';
-import { NamespaceNode } from './namespace_node/namespace_node.js';
-import { NamespacePlaceholder } from './namespace_placeholder/namespace_placeholder.js';
+import { CommandNode } from './command_node.js';
+import { NamespaceNode } from './namespace_node.js';
+import { NamespacePlaceholder } from './namespace_placeholder.js';
 
 /** @brief Render concrete node behavior through the tree renderer interface. */
 function TreeNodeView({ node, tree }: { node: TreeNode; tree: TreeProps }) {
