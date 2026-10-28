@@ -54,7 +54,8 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
                 assembled.sections = assembled.sections.filter(section => !section.name.startsWith('tool:') && !section.name.startsWith('tools:'));
                 assembled.tools = agent.ctx.tools.schemas(agent).filter(tool => tool.name === ptcToolName);
             }
-            assembled.sections.push({ name: 'namespaces:execution', text: executionInstructions(namespaces.isPtc(agent) ? 'ptc' : 'native', (await namespaces.entries(agent)).some(entry => entry.path === 'tools.inspect')), interpolate: false });
+            const instructions = executionInstructions(namespaces.isPtc(agent) ? 'ptc' : 'native', (await namespaces.entries(agent)).some(entry => entry.path === 'tools.inspect'));
+            if (instructions) assembled.sections.push({ name: 'namespaces:execution', text: instructions, interpolate: false });
         }
         return assembled;
     });

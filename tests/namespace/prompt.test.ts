@@ -37,6 +37,7 @@ test('namespace briefs decode HTML entities before formatting the prompt', () =>
 });
 
 test('unavailable discovery removes its instructions in both modes and the directory', () => {
+    assert.equal(executionInstructions('native', false), '');
     for (const mode of ['native', 'ptc'] as const) {
         const text = executionInstructions(mode, false);
         assert(!text.includes('inspect'));

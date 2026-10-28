@@ -118,6 +118,25 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
                 assert(Object.hasOwn(info.members[0], 'parameters'));
                 await send();
                 assert.deepEqual(model.requests[2]!.tools?.map(tool => tool.name).sort(), ['ns_std__fs__read', 'ns_tools__inspect']);
+                const registry = await namespaces.registryFor(agent);
+                const configuration = registry.configuration();
+                for (const path of ['tools.inspect', 'tools']) {
+                    await registry.replaceConfiguration({ ...configuration, builtinDisabled: [path], mappings: configuration.mappings.map(mapping => ({ ...mapping, alwaysVisible: 2 })) }, registry.snapshot().profile!);
+                    await namespaces.configurationChanged(agent);
+                    await send();
+                    const disabledRequest = model.requests.at(-1)!;
+                    const prompt = systemOf(disabledRequest);
+                    assert(!prompt.includes('Use tools.inspect'), prompt);
+                    assert(!prompt.includes('Query an exact command path'), prompt);
+                    assert(!prompt.includes('Mounted command names start with ns_'), prompt);
+                    assert(!prompt.includes('Call native DSML tools'), prompt);
+                    assert.deepEqual(disabledRequest.tools?.map(tool => tool.name), ['ns_std__fs__read']);
+                }
+                await registry.replaceConfiguration(configuration, registry.snapshot().profile!);
+                await namespaces.configurationChanged(agent);
+                await send();
+                assert(systemOf(model.requests.at(-1)!).includes('Use tools.inspect'));
+
             }
             assert(!agent.session.snapshotEvents().some(event => String(event.type) === 'plugin:ts_intellisense/rewrite'));
             await mounted.dispose();

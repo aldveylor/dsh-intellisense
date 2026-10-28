@@ -62,3 +62,5 @@ manifest 保留物理工具原始注释，精确 Inspect 函数查询（含 YAML
 全局 queriesByTool 按查询时解析出的物理工具 ID 累计精确命令查询次数，不按当前 Profile 反推历史归属；同一工具的不同别名共享计数，仅在全局快照提供，会话快照该字段为空。计数独立持久化到 command_statistics_tool_queries，重启后恢复。命名空间继续使用全局 namespaceQueriesByPath，成员查询不增加子命令查询数。
 
 `component.ts` 从最近 presentation 配置读取可选固定 profile；会话初始化时优先复制指定目录配置，读取时将不同名称的已有工作快照切换到指定 Profile，同名草稿保持独立。
+
+native 模式在 tools.inspect 不可用（自身禁用、tools 祖先禁用或未注册）时完全移除 namespaces:execution 提示段，包括 DSML 调用和 ns_/__ 命名约定，保留实际工具 schema；恢复 inspect 后重新生成发现说明。PTC 仍保留运行代码和 VM 语义，仅移除 inspect 指引。
