@@ -1,14 +1,14 @@
 import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from 'react';
 import type { TreeDragSource, TreeDropTarget } from './namespace_tree.js';
 
-/** @brief Resolve a visible row and its center/edge drop zones for both drag implementations. */
+/** @brief Require the central 20% of a namespace row for nesting in both drag implementations. */
 export function treeDropTarget(element: HTMLElement, clientY: number): TreeDropTarget {
     if (element.classList.contains('ts-drop-gap')) return { path: element.dataset.treePath!, position: element.dataset.dropPosition as 'before' | 'after' };
     const namespace = element.dataset.namespacePath;
     if (element.classList.contains('ts-namespace-placeholder')) return { path: namespace ?? '', position: 'inside' };
     const rect = element.getBoundingClientRect();
     const ratio = rect.height ? (clientY - rect.top) / rect.height : 0;
-    return { path: namespace ?? element.dataset.treePath ?? '', position: namespace !== undefined && ratio >= .25 && ratio <= .75 ? 'inside' : ratio > .5 ? 'after' : 'before' };
+    return { path: namespace ?? element.dataset.treePath ?? '', position: namespace !== undefined && ratio >= .4 && ratio <= .6 ? 'inside' : ratio > .5 ? 'after' : 'before' };
 }
 
 const feedbackAnimations = new WeakMap<HTMLElement, Animation>();
