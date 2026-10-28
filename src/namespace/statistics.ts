@@ -153,6 +153,13 @@ export class CommandStatistics {
         return this.update(session, delta, queries);
     }
 
+    /** @brief Copy one counter field without scanning unrelated counts or computing totals. */
+    async counterSnapshot(field: keyof CommandCounts, session?: string): Promise<Record<string, number>> {
+        await this.loading;
+        const counts = session === undefined ? this.global : this.sessions.get(session);
+        return structuredClone(counts?.[field] ?? {});
+    }
+
     /** @brief Return detached live counters, including dirty updates awaiting delayed persistence. */
     async snapshot(session?: string): Promise<CommandStatisticsSnapshot> {
         await this.loading;

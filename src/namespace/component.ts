@@ -153,7 +153,7 @@ export class NamespaceComponent {
             if (!mounted.has(tool)) continue;
             if (!paths.get(tool)!.includes(path)) paths.get(tool)!.push(path);
         }
-        const { callsByTool } = await this.statistics.snapshot();
+        const callsByTool = await this.statistics.counterSnapshot('callsByTool');
         return this.registry.tools().filter(tool => !reservedToolIds.includes(tool.id) && !pluginCommands.find(tool.id)).map(tool => ({
             name: tool.id, brief: tool.description, paths: paths.get(tool.id) ?? [], totalCalls: Object.hasOwn(callsByTool, tool.id) ? callsByTool[tool.id]! : 0,
         }));
