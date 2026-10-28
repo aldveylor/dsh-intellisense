@@ -105,6 +105,7 @@ export const zh = {
     "tree_hint": "箭头控制展开；双击名称或注释编辑，拖动节点可排序或跨命名空间移动，点击加号添加工具。",
     "prompt_comment": "命令提示注释",
     "apply": "应用",
+    "reset_failed_data": "仅重置加载失败的数据，保留有效配置和统计。",
     "reset": "重置",
     "cancel": "取消",
     "default_profile": "默认配置文件:",

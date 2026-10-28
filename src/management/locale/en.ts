@@ -105,6 +105,7 @@ export const en = {
     "tree_hint": "Use arrows to expand; double-click names or comments to edit, drag nodes to reorder or move between namespaces, and click plus to add tools.",
     "prompt_comment": "Command prompt comment",
     "apply": "Apply",
+    "reset_failed_data": "Reset only data that failed to load; keep valid settings and statistics.",
     "reset": "Reset",
     "cancel": "Cancel",
     "default_profile": "Default profile:",

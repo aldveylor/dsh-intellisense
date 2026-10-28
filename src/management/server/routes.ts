@@ -17,6 +17,7 @@ const configuration = {
     revision: z.number().int().nonnegative(),
 };
 const managementRequest = z.discriminatedUnion('action', [
+    z.strictObject({ action: z.literal('recover') }),
     z.strictObject({ action: z.literal('configure'), ...configuration }),
     z.strictObject({ action: z.literal('save_as'), profile: z.string().trim().min(1).max(80), ...configuration }),
     z.strictObject({ action: z.literal('profile'), revision: z.number().int().nonnegative(), operation: z.enum(['create', 'select', 'rename', 'delete']), name: z.string().min(1), newName: z.string().min(1).optional(), activate: z.boolean().optional() })
@@ -24,14 +25,14 @@ const managementRequest = z.discriminatedUnion('action', [
 ]);
 
 /** @brief Register management UI and APIs behind DSH owner-peer authentication and Host/Origin policy. */
-export function registerManagement(ctx: Context, globalRegistry: SemanticRegistry, adapter: Pick<NamespaceComponent, 'refresh'> & Partial<Pick<NamespaceComponent, 'statistics'>>): void {
+export function registerManagement(ctx: Context, globalRegistry: SemanticRegistry, adapter: Pick<NamespaceComponent, 'refresh'> & Partial<Pick<NamespaceComponent, 'statistics'>> & { recover?: () => Promise<void> }): void {
     const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
     ctx.connection.fetch.register({ path: '/api/ts-intellisense', methods: ['GET'], requestBody: 'buffered', fetch: async () => new Response(managementHtml, { headers: { ...headers, 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'" } }) });
     ctx.connection.fetch.register({ path: '/api/ts-intellisense-client', methods: ['GET'], requestBody: 'buffered', fetch: async () => new Response(await readFile(new URL('../standalone.js', import.meta.url), 'utf8'), { headers: { ...headers, 'Content-Type': 'text/javascript; charset=utf-8' } }) });
     ctx.connection.fetch.register({ path: '/api/ts-intellisense-state', methods: ['GET', 'POST'], requestBody: 'buffered', fetch: async request => {
         try {
-            await adapter.refresh();
             if (request.method === 'GET') {
+                await adapter.refresh();
                 const registry = globalRegistry;
                 const state = registry.snapshot();
                 const statistics = await adapter.statistics?.snapshot();
@@ -48,7 +49,14 @@ export function registerManagement(ctx: Context, globalRegistry: SemanticRegistr
             if (!parsed.success) return Response.json({ error: 'invalid_management_request' }, { status: 400, headers });
             const body = parsed.data;
             const registry = globalRegistry;
-            if (body.action === 'profile') await registry.manageProfile(body.operation, body.name, body.revision, body.newName, body.activate);
+            if (body.action === 'recover') {
+                if (adapter.recover) await adapter.recover();
+                else {
+                    await registry.load(true);
+                    await adapter.statistics?.load(true);
+                }
+            }
+            else if (body.action === 'profile') await registry.manageProfile(body.operation, body.name, body.revision, body.newName, body.activate);
             else await registry.configure(body.mappings, body.revision, body.namespaces, body.order, body.unmountedVisible, body.action === 'save_as' ? body.profile : undefined, body.toolComments, body.builtinVisible, body.namespaceVisible, body.editingProfile, body.activate, body.builtinDisabled, body.brief);
             ctx.emit('system-prompt/change');
             const state = registry.snapshot();

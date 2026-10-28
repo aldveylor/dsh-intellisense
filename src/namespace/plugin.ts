@@ -3,6 +3,7 @@ import { storageBackendServiceKey } from '@deepseek-ai/dsh-storage';
 import { readFile } from 'node:fs/promises';
 import { parse } from 'yaml';
 import { z } from 'zod';
+import { storageVersion } from '../storage/version.js';
 import { DshStore } from '../storage/store.js';
 import { SemanticRegistry } from '../registry/registry.js';
 import { ProfileSessions } from '../registry/profiles.js';
@@ -29,37 +30,60 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
     const aliases = Aliases.parse(config.aliasesFile ? parse(await readFile(config.aliasesFile, 'utf8')) : []);
     const backend = ctx.storage.backend.get('json');
     if (!backend.kv) throw new Error('DSH json backend does not support KV storage');
-    const unit = await backend.kv.open({ name: 'ts_intellisense', version: 1, tables: ['state'], hasGlobal: false, layout: 'per-record' });
+    const unit = await backend.kv.open({ name: 'ts_intellisense', version: storageVersion, compatibleVersions: [1], tables: ['state'], hasGlobal: false, layout: 'per-record' });
     ctx.effect(() => () => unit.close());
     const store = new DshStore(unit);
-    const registry = new SemanticRegistry(store); await registry.load();
+    const registry = new SemanticRegistry(store);
     const profiles = new ProfileSessions(registry, store);
-    const statistics = new CommandStatistics(store); await statistics.load();
-    const namespaces = new NamespaceComponent(ctx, registry, profiles, aliases, createSearchEngines(config.defaultSearchMethod), statistics);
-    ctx.provide('commandNamespaces', namespaces);
-    registerManagement(ctx, registry, namespaces);
-    registerSessionProfiles(ctx, registry, namespaces);
-    ctx.on('agent/created', async ({ agent }) => { await namespaces.configure(agent); });
-    ctx.on('agent/disposed', async ({ agent }) => { await namespaces.release(agent.id); });
-    ctx.on('system-prompt/assemble', async (_assembly, context, next) => {
-        const assembled = await next();
-        const agent = context.agent;
-        if (agent && namespaces.enabled(agent)) {
-            if (namespaces.isPtc(agent)) assembled.sections.push({ name: 'namespaces:directory', text: await namespaces.prompt(agent), interpolate: false });
-            if (!namespaces.isPtc(agent)) {
-                const names = new Set(await namespaces.syncNative(agent));
-                assembled.sections = assembled.sections.filter(section => !section.name.startsWith('tool:') && !section.name.startsWith('tools:'));
-                assembled.tools = agent.ctx.tools.schemas(agent).filter(tool => names.has(tool.name));
-            } else {
-                assembled.sections = assembled.sections.filter(section => !section.name.startsWith('tool:') && !section.name.startsWith('tools:'));
-                assembled.tools = agent.ctx.tools.schemas(agent).filter(tool => tool.name === ptcToolName);
-            }
-            const instructions = executionInstructions(namespaces.isPtc(agent) ? 'ptc' : 'native', (await namespaces.entries(agent)).some(entry => entry.path === 'tools.inspect'));
-            if (instructions) assembled.sections.push({ name: 'namespaces:execution', text: instructions, interpolate: false });
-        }
-        return assembled;
+    const statistics = new CommandStatistics(store);
+    let namespaces: NamespaceComponent | undefined;
+    let initialization: Promise<void> | undefined;
+
+    /** @brief Keep management recovery available when a persisted domain fails initialization. */
+    async function initialize(recover = false): Promise<void> {
+        if (!recover && initialization) return initialization;
+        const previous = initialization;
+        initialization = (async () => {
+            if (recover) await previous?.catch(() => {});
+            await registry.load(recover);
+            await statistics.load(recover);
+            if (namespaces) return;
+            const component = new NamespaceComponent(ctx, registry, profiles, aliases, createSearchEngines(config.defaultSearchMethod), statistics);
+            namespaces = component;
+            ctx.provide('commandNamespaces', component);
+            registerSessionProfiles(ctx, registry, component);
+            ctx.on('agent/created', async ({ agent }) => { await component.configure(agent); });
+            ctx.on('agent/disposed', async ({ agent }) => { await component.release(agent.id); });
+            ctx.on('system-prompt/assemble', async (_assembly, context, next) => {
+                const assembled = await next();
+                const agent = context.agent;
+                if (agent && component.enabled(agent)) {
+                    if (component.isPtc(agent)) assembled.sections.push({ name: 'namespaces:directory', text: await component.prompt(agent), interpolate: false });
+                    if (!component.isPtc(agent)) {
+                        const names = new Set(await component.syncNative(agent));
+                        assembled.sections = assembled.sections.filter(section => !section.name.startsWith('tool:') && !section.name.startsWith('tools:'));
+                        assembled.tools = agent.ctx.tools.schemas(agent).filter(tool => names.has(tool.name));
+                    } else {
+                        assembled.sections = assembled.sections.filter(section => !section.name.startsWith('tool:') && !section.name.startsWith('tools:'));
+                        assembled.tools = agent.ctx.tools.schemas(agent).filter(tool => tool.name === ptcToolName);
+                    }
+                    const instructions = executionInstructions(component.isPtc(agent) ? 'ptc' : 'native', (await component.entries(agent)).some(entry => entry.path === 'tools.inspect'));
+                    if (instructions) assembled.sections.push({ name: 'namespaces:execution', text: instructions, interpolate: false });
+                }
+                return assembled;
+            });
+            for (const agent of ctx.agents.list()) await component.configure(agent);
+        })();
+        return initialization;
+    }
+
+    registerManagement(ctx, registry, {
+        statistics,
+        refresh: async () => { await initialize(); await namespaces!.refresh(); },
+        recover: () => initialize(true),
     });
-    for (const agent of ctx.agents.list()) await namespaces.configure(agent);
+    try { await initialize(); }
+    catch (error) { ctx.logger.warn('Intellisense data could not be loaded; use Reset in the management panel to recover invalid portions.', error); }
 }
 
 export { SearchEngineRegistry } from '../search/engine_registry.js';

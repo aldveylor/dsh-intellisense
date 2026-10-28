@@ -15,3 +15,5 @@ Mapping 请求按单个挂载路径保存，移除 aliases 字段；同一物理
 管理写入成功时返回 ok、revision、defaultProfile、profiles，默认 Profile 选择可只更新返回的元数据，无需重新 GET 全部工具和配置。
 
 状态接口从同一个全局统计快照返回 callsByTool、queriesByTool 和 namespaceQueriesByPath，供命令与命名空间详情展示，不返回会话查询统计。
+
+POST action=recover 在既有认证入口执行显式局部恢复，不受目录刷新失败阻塞；保留有效 Profile 和统计，丢弃无法加载的部分，完成后由客户端重新 GET 状态。插件即使数据初始化失败也保留这些管理路由，成功恢复后继续初始化命名空间。

@@ -20,7 +20,7 @@ async function until(predicate: () => boolean): Promise<void> {
 const mapping = { id: 'read', path: 'file.read', pinned: false, alwaysVisible: 1 as const };
 
 /** @brief Mount the editor against real management routes and record browser requests. */
-async function fixture(prepare: (registry: SemanticRegistry) => Promise<void> = async () => {}, inspectLoading?: (document: Document) => void) {
+async function fixture(prepare: (registry: SemanticRegistry) => Promise<void> = async () => {}, inspectLoading?: (document: Document) => void, failInitialLoad = false) {
     const store = new MemoryStore();
     await store.save('registry', { version: 1, revision: 19, profile: 'Default', mappings: [{ ...mapping, enabled: true }] });
     const registry = new SemanticRegistry(store);
@@ -48,8 +48,11 @@ async function fixture(prepare: (registry: SemanticRegistry) => Promise<void> = 
     const requests: Request[] = [];
     dom.window.fetch = async (url, init) => {
         const request = new Request(new URL(String(url), dom.window.location.href), { ...init as RequestInit, signal: undefined });
-        requests.push(request);
-        if (requests.length === 1) inspectLoading?.(document);
+        requests.push(request.clone());
+        if (requests.length === 1) {
+            inspectLoading?.(document);
+            if (failInitialLoad) return Response.json({ error: 'Failed to load settings' }, { status: 400 });
+        }
         return routes.get('/api/ts-intellisense-state')!(request);
     };
     const button = (selector: string): HTMLButtonElement => {
@@ -59,7 +62,7 @@ async function fixture(prepare: (registry: SemanticRegistry) => Promise<void> = 
     };
     try {
         dom.window.eval(result.outputFiles[0]!.text);
-        await until(() => !!document.querySelector('.ts-default-profile button:not(:disabled)'));
+        await until(() => failInitialLoad ? !!document.querySelector('.ts-load-overlay button') : !!document.querySelector('.ts-default-profile button:not(:disabled)'));
         return { registry, dom, document, button, requests };
     } catch (error) { dom.window.close(); throw error; }
 }
@@ -246,5 +249,23 @@ test('profile brief edits appear in menus and persist or clear only after Save',
         button('.ts-namespace-profile .ts-profile-select>button').click();
         await until(() => !!document.querySelector('.ts-namespace-profile .ts-profile-option'));
         assert.equal(document.querySelector('.ts-namespace-profile .ts-profile-brief'), null);
+    } finally { dom.window.close(); }
+});
+
+
+test('loading error overlay places Reset after Refresh and recovers failed data before reloading', async () => {
+    const { registry, dom, document, requests } = await fixture(async registry => {
+        await registry.manageProfile('create', 'Other', registry.snapshot().revision, undefined, false);
+    }, undefined, true);
+    try {
+        const buttons = [...document.querySelectorAll<HTMLButtonElement>('.ts-load-overlay button')];
+        assert.deepEqual(buttons.map(button => button.textContent), ['Refresh', 'Reset']);
+        const before = registry.snapshot();
+        buttons[1]!.click();
+        await until(() => !document.querySelector('.ts-load-overlay'));
+        assert.deepEqual(await requests[1]!.json(), { action: 'recover' });
+        assert.equal(requests[2]!.method, 'GET');
+        assert.deepEqual(registry.snapshot(), before);
+        assert.deepEqual(registry.configuration('Other').mappings, []);
     } finally { dom.window.close(); }
 });

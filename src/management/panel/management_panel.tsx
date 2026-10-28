@@ -617,7 +617,13 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
         {!view && <div className="ts-load-overlay" aria-busy={status === 'loading'}>
             {status === 'loading' ? <p role="status" aria-live="polite">{t('loading')}</p>
                 : <><p className="ts-error-message" role="alert">{t(status)}</p>
-                    <button type="button" onClick={() => void action('loading', () => reload(undefined, null))}>{t('retry')}</button></>}
+                    <div className="ts-dialog-actions">
+                        <button type="button" disabled={busy} onClick={() => void action('loading', () => reload(undefined, null))}>{t('refresh')}</button>
+                        <button type="button" disabled={busy} title={t('reset_failed_data')} onClick={() => void action('loading', async () => {
+                            await request(api, { action: 'recover' });
+                            await reload(undefined, null);
+                        })}>{t('reset')}</button>
+                    </div></>}
         </div>}
         <div className="ts-panel-content" ref={element => { if (element) element.inert = !view; }}>
             <header><h1>{t('title')}</h1></header>
