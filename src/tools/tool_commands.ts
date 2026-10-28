@@ -1,5 +1,5 @@
 import { pluginCommands } from '../runtime/builtins.js';
-import { profileSaveInformation } from './profile_save.js';
+import { mergeProfilePatch, profileSaveInformation } from './profile_save.js';
 import { presentationConfigFor } from '../integration/presentation.js';
 import { registerBuiltin } from './builtin_trace.js';
 import { z } from 'zod';
@@ -9,7 +9,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import type { SemanticRegistry } from '../registry/registry.js';
 import type { ProfileSessions } from '../registry/profiles.js';
-import { type CommandBrief, ProfileSchema, profileConfiguration, profileTree, profileAnnotation } from '../registry/profile_tree.js';
+import { type CommandBrief, type ProfileData, ProfileSchema, profileConfiguration, profileTree, profileAnnotation } from '../registry/profile_tree.js';
 
 /** @brief Register Profile management commands and data access. */
 export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, profiles: ProfileSessions, registryFor: (agent: Agent) => Promise<SemanticRegistry>, changed: (agent: Agent) => Promise<void>, commands: (agent: Agent) => Promise<CommandBrief[]>): void {
@@ -27,6 +27,19 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         },
     });
     const output = { schema: { type: 'object', additionalProperties: true } as const, render: (_args: unknown, value: unknown) => [{ type: 'text' as const, text: typeof value === 'string' ? value : JSON.stringify(value) }] };
+    /** @brief Validate and publish a Profile without replacing the conversation draft. */
+    const save = async (agent: Agent, name: string | undefined, profile: ProfileData): Promise<string | null> => {
+        const registry = await registryFor(agent);
+        const target = name ?? registry.snapshot().profile!;
+        const original = catalog.snapshot().profiles?.includes(target) ? catalog.configuration(target) : registry.configuration();
+        let completed = false;
+        const configuration = profileConfiguration(profile, original, await commands(agent), () => { completed = true; });
+        if (profile.root.children?.find(node => node.name === 'tools')?.disabled !== false
+            && !configuration.builtinDisabled.includes('tools')) configuration.builtinDisabled.push('tools');
+        const information = profileSaveInformation(profileTree(target, configuration), registry.tools().map(tool => tool.id), completed);
+        await catalog.saveProfile(target, configuration);
+        return information;
+    };
     ctx.effect(() => register(defineTool({
         name: 'tools_profile_load', description: pluginCommands.find('tools_profile_load')!.description,
         parameters: { name: { type: 'string', description: pluginCommands.find('tools_profile_load')!.parameterDocs!.name } }, output,
@@ -68,16 +81,19 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         execute: async (args, execution) => {
             if (!execution.agent) throw new Error('A live conversation is required');
             const { name, profile } = z.strictObject({ name: z.string().optional(), profile: ProfileSchema }).parse(args);
-            const registry = await registryFor(execution.agent);
-            const target = name ?? registry.snapshot().profile!;
-            const original = catalog.snapshot().profiles?.includes(target) ? catalog.configuration(target) : registry.configuration();
-            let completed = false;
-            const configuration = profileConfiguration(profile, original, await commands(execution.agent), () => { completed = true; });
-            if (profile.root.children?.find(node => node.name === 'tools')?.disabled !== false
-                && !configuration.builtinDisabled.includes('tools')) configuration.builtinDisabled.push('tools');
-            const information = profileSaveInformation(profileTree(target, configuration), registry.tools().map(tool => tool.id), completed);
-            await catalog.saveProfile(target, configuration);
-            return information;
+            return save(execution.agent, name, profile);
+        },
+    })));
+    ctx.effect(() => register(defineTool({
+        name: 'tools_profile_apply', description: pluginCommands.find('tools_profile_apply')!.description,
+        parameters: { name: { type: 'string', description: pluginCommands.find('tools_profile_apply')!.parameterDocs!.name }, value: { type: 'object', additionalProperties: true, required: true, description: pluginCommands.find('tools_profile_apply')!.parameterDocs!.value } },
+        output: { ...output, schema: { oneOf: [{ type: 'string' }, { type: 'null' }] }, render: (_args, value) => [{ type: 'text', text: value ?? '' }] },
+        execute: async (args, execution) => {
+            if (!execution.agent) throw new Error('A live conversation is required');
+            const { name, value } = z.strictObject({ name: z.string().optional(), value: z.record(z.string(), z.json()) }).parse(args);
+            const registry = name === undefined ? await registryFor(execution.agent) : catalog;
+            const profile = JSON.parse(JSON.stringify(profileTree(name ?? registry.snapshot().profile!, registry.configuration(name))));
+            return save(execution.agent, name, ProfileSchema.parse(mergeProfilePatch(profile, value)));
         },
     })));
     ctx.effect(() => register(defineTool({

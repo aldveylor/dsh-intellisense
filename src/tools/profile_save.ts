@@ -23,3 +23,13 @@ export function profileSaveInformation(profile: ProfileData, tools: readonly str
     if (!canDiscover && incompletePins) information.push('warning: `inspect` is disabled when there are some commands not fixed with level 2.');
     return information.length ? information.join('\n') : null;
 }
+
+/** @brief Recursively merge object fields, delete null fields and replace arrays and scalar values. */
+export function mergeProfilePatch(target: unknown, patch: Record<string, unknown>): Record<string, unknown> {
+    const fields = new Map<string, unknown>(target !== null && typeof target === 'object' && !Array.isArray(target) ? Object.entries(target) : []);
+    for (const [key, value] of Object.entries(patch)) {
+        if (value === null) fields.delete(key);
+        else fields.set(key, typeof value === 'object' && !Array.isArray(value) ? mergeProfilePatch(fields.get(key), value as Record<string, unknown>) : value);
+    }
+    return Object.fromEntries(fields);
+}

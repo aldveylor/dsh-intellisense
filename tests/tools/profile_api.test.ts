@@ -37,7 +37,7 @@ async function fixture() {
 
 test('native Profile data tools and optional-name save/load use session defaults', async () => {
     const { definitions, call, registry, catalog } = await fixture();
-    assert.deepEqual([...definitions.keys()].sort(), ['tools_profile_annotation', 'tools_profile_commands', 'tools_profile_delete', 'tools_profile_load', 'tools_profile_profiles', 'tools_profile_save', 'tools_profile_setdefault', 'tools_profile_switch']);
+    assert.deepEqual([...definitions.keys()].sort(), ['tools_profile_annotation', 'tools_profile_apply', 'tools_profile_commands', 'tools_profile_delete', 'tools_profile_load', 'tools_profile_profiles', 'tools_profile_save', 'tools_profile_setdefault', 'tools_profile_switch']);
     assert.equal(await call('tools_profile_annotation'), profileAnnotation);
     assert.deepEqual(await call('tools_profile_profiles'), { profiles: ['Default'], selected: 'Default' });
     assert.deepEqual(await call('tools_profile_commands'), [{ name: 'read_file', brief: 'Read a file.', paths: ['files.read', 'files.cat'], totalCalls: 2 }, { name: 'outside_scope', brief: 'Outside this session.', paths: [], totalCalls: 0 }]);
@@ -65,15 +65,20 @@ test('manifest exposes only the new tools API and projects VM array arguments', 
         { id: 'tools_mount', description: 'Old command.', parameters: {}, output: {} },
     ]));
     const entries = manifest(registry, []);
-    assert.deepEqual(entries.commands().map(entry => entry.path).sort(), ['tools.inspect', 'tools.profile.annotation', 'tools.profile.commands', 'tools.profile.delete', 'tools.profile.load', 'tools.profile.profiles', 'tools.profile.save', 'tools.profile.setdefault', 'tools.profile.switch']);
+    assert.deepEqual(entries.commands().map(entry => entry.path).sort(), ['tools.inspect', 'tools.profile.annotation', 'tools.profile.apply', 'tools.profile.commands', 'tools.profile.delete', 'tools.profile.load', 'tools.profile.profiles', 'tools.profile.save', 'tools.profile.setdefault', 'tools.profile.switch']);
     const discovery = entries.commands().find(entry => entry.path === 'tools.inspect')!;
     assert.deepEqual(await positionalArguments(discovery, [['files.']]), { queries: ['files.'] });
     await assert.rejects(positionalArguments(discovery, ['files.']));
     assert.deepEqual(await positionalArguments(entries.commands().find(entry => entry.path === 'tools.profile.save')!, [{ name: 'Default', root: {} }]), { profile: { name: 'Default', root: {} } });
-    const vm = inspect(['tools.profile.', 'tools.profile.save', 'tools.inspect'], entries, true);
+    const vm = inspect(['tools.profile.', 'tools.profile.save', 'tools.profile.apply', 'tools.inspect'], entries, true);
     assert(vm.includes('readonly annotation: string'));
     assert(vm.includes('readonly profiles: Profiles'));
     assert(vm.includes('save(profile: Profile)'));
+    assert(vm.includes('apply(value: object)'));
+    const apply = entries.commands().find(entry => entry.path === 'tools.profile.apply')!;
+    assert.deepEqual(await positionalArguments(apply, [{ brief: null }]), { value: { brief: null } });
+    assert.deepEqual(await positionalArguments(apply, [undefined, { brief: 'Draft' }]), { value: { brief: 'Draft' } });
+    assert.deepEqual(await positionalArguments(apply, ['Copy', { root: {} }]), { name: 'Copy', value: { root: {} } });
     assert(vm.includes('function inspect(queries: string[])'));
     const native = inspect(['tools.profile.annotation'], entries, false);
     assert(native.includes('function annotation()'));
@@ -298,7 +303,7 @@ test('Profile save defaults protected tools to disabled and honors explicit enab
         assert.deepEqual(registry.snapshot(), before);
     }
     assert.deepEqual(changed, []);
-    assert(definitions.get('tools_profile_save')!.description.includes('tools namespace is protected and defaults to disabled'));
+    assert(definitions.get('tools_profile_save')!.description.includes('`tools` namespace is protected and defaults to disabled'));
     assert(profileAnnotation.includes('excluded from') || profileAnnotation.includes('disappear from discovery'));
     assert(profileAnnotation.includes('preloaded values and pinned prompts'));
 });
@@ -348,4 +353,51 @@ test('Profile save checks enabled descendants and requires callable inspect rega
         { type: 'command', name: 'read', command: { tool: 'read_file' } },
     ] });
     assert.equal(await call('tools_profile_save', { name: 'Discovery', profile }), null);
+});
+
+
+test('Profile apply recursively patches a named catalog tree and deletes null fields', async () => {
+    const { call, load, registry, changed } = await fixture();
+    const profile = await load();
+    profile.brief = 'Original';
+    profile.root.fixedLevel = 1;
+    profile.root.children!.push({ type: 'namespace', name: 'files', description: 'Files', children: [
+        { type: 'command', name: 'read', command: { tool: 'read_file' }, fixedLevel: 2 },
+    ] });
+    await call('tools_profile_save', { name: 'Copy', profile });
+    const before = registry.snapshot();
+    const original = await load({ name: 'Copy' });
+    await call('tools_profile_apply', { name: 'Copy', value: { brief: null, root: { fixedLevel: null } } });
+    const patched = await load({ name: 'Copy' });
+    assert.equal(patched.brief, undefined);
+    assert.equal(patched.root.fixedLevel, undefined);
+    assert.deepEqual(patched.root.children, original.root.children);
+    assert.deepEqual(registry.snapshot(), before);
+    assert.deepEqual(changed, []);
+    await call('tools_profile_apply', { name: 'Copy', value: { root: { children: [] } } });
+    assert(!(await load({ name: 'Copy' })).root.children!.some(node => node.name === 'files'));
+    assert((await load({ name: 'Copy' })).root.children!.some(node => node.name === 'tools'));
+});
+
+test('Profile apply without a name reads the conversation draft before saving', async () => {
+    const { call, load, registry, changed } = await fixture();
+    await call('tools_profile_apply', { value: { brief: 'Catalog edit', root: { fixedLevel: 1 } } });
+    assert.equal((await load({ name: 'Default' })).brief, 'Catalog edit');
+    assert.equal((await load()).brief, undefined);
+    await call('tools_profile_apply', { value: { brief: 'Draft edit' } });
+    const saved = await load({ name: 'Default' });
+    assert.equal(saved.brief, 'Draft edit');
+    assert.equal(saved.root.fixedLevel, undefined);
+    assert.equal(registry.snapshot().profile, 'Default');
+    assert.deepEqual(changed, []);
+});
+
+test('Profile apply rejects invalid patches and unknown targets without saving', async () => {
+    const { call, load } = await fixture();
+    const before = await load({ name: 'Default' });
+    for (const args of [{}, { value: null }, { value: [] }, { name: 1, value: {} }, { name: 'Missing', value: {} },
+        { value: { root: null } }, { value: { root: { fixedLevel: 2 } } }, { value: { unknown: true } }]) {
+        await assert.rejects(call('tools_profile_apply', args));
+    }
+    assert.deepEqual(await load({ name: 'Default' }), before);
 });

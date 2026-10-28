@@ -6,7 +6,7 @@
 
 `inspect.ts` 注册 tools_inspect，固定映射 tools.inspect。工具结果卡片使用代码块展示输入/输出 schema 和查询结果（PTC 为 TypeScript，native 为 JSON，错误为 text），原生命名空间代理沿用此展示及输出 schema。物理工具及 native 代理保留 { queries: string[] } 命名参数；PTC 接口为 function inspect(queries: string[]): Promise<string>，接收单个字符串数组，tools.inspect([""]) 查询根命名空间，派发时使用通用字段适配器生成物理工具的 queries 字段。两种模式查询时均忽略开头的 global. 前缀，global. 等同于根目录查询。尾点查询列出直接子项，精确路径展开签名和文档，PTC 多查询合并为 TypeScript global 命名空间树；命名空间成员查询仅显示命令的 Profile 简略注释（未配置时取原始文档首行），只有精确函数查询显示完整注释和签名。native 返回 JSON 直接成员列表，实际工具条目省略 description 和 tool 字段，增加 brief 简化注释（优先使用 Profile 简略注释，未配置时取原始文档首行）；精确查询仍附带命名参数 schema；仅精确函数路径查询将对应命令加入系统提示词工具集合，命名空间查询只列举成员，不挂载其中的命令。native 查询会更新会话发现集合、同步工具并发出 system-prompt/change，使下一次组装包含新增工具。结果作为普通工具响应进入原生历史，并保存查询审计。会话释放时清除发现集合。
 
-`tool_commands.ts` 注册 Profile load/save/delete/switch/setdefault/annotation/commands/profiles。save 支持显式名称或当前会话名称，验证递归树与物理命令身份，仅发布目录，保留当前会话配置和选择，显式 switch(name) 后应用保存的配置；load 无名称只返回当前会话草稿，有名称只从全局目录读取指定配置并返回可序列化的 Profile 数据，不替换会话快照、不刷新工具提示。`../namespace/runtime.ts` 将 annotation 和原始命令列表作为数据传给 VM init，不安装同名函数。
+`tool_commands.ts` 注册 Profile load/save/apply/delete/switch/setdefault/annotation/commands/profiles。save 支持显式名称或当前会话名称，验证递归树与物理命令身份，仅发布目录，保留当前会话配置和选择，显式 switch(name) 后应用保存的配置；load 无名称只返回当前会话草稿，有名称只从全局目录读取指定配置并返回可序列化的 Profile 数据，不替换会话快照、不刷新工具提示。`../namespace/runtime.ts` 将 annotation 和原始命令列表作为数据传给 VM init，不安装同名函数。
 
 Profile load/save/annotation 统一使用继承 ProfileNode 的 CommandNode（type: command）与 NamespaceTreeNode（type: namespace）；基类 fixedLevel 为可选 number，具体节点限制支持的等级。Profile 数据模型声明通过 tools.profile.annotation 按需读取；tools_inspect 查询结果不自动附加这些声明。
 
@@ -47,3 +47,5 @@ Profile save 覆盖目录树时，tools 仍为受保护命名空间，但默认�
 `profile_save.ts` 根据保存后 Profile 生成非阻断信息。save 返回 string | null，不转换原生结果；null 表示成功且无信息，字符串表示保存成功后的补全及建议。递归补齐 tools 或其后代时返回 “info: `tools` namespace is completed.”；inspect 禁用或缺失（含 tools 祖先禁用）且存在启用的其它命令未固定等级 2 时返回 “warning: `inspect` is disabled when there are some commands not fixed with level 2.”，两条信息同时出现时用换行连接。禁用节点及后代不参与固定等级检查。建议不阻止保存、不更改固定等级，save 说明强调inspect 无法调用时无法查询命名空间成员，应将其它命令固定等级 2 或者禁用。
 
 内置命令的功能说明与参数注释统一定义于 `runtime/builtins.ts`（源码根目录下）的 `PluginCommands` 契约表；原生注册、Inspect、固定提示及管理 UI 引用同一来源。native/PTC 的返回形式差异在共享说明中明确，依赖 inspect 的可选指引由契约的 discoveryHint 标记，禁用发现时按该标记移除。
+
+`tools.profile.apply(value: object)` / `apply(name: string | undefined, value: object)` 按 load(name?) 规则读取当前会话草稿或已有目录配置，递归合并部分对象 patch 后复用 save 的验证及持久化流程。未提交字段保留，null 删除对象字段，数组（包括 children）整体替换，不按索引或节点名合并。合并结果必须满足 ProfileSchema；受保护节点继续按 save 规则恢复，返回相同的 string | null 信息。显式名称必须已存在；省略名称读取会话草稿并保存到当前选择的目录名称。保存不更改会话工作快照或选择，不刷新提示，应用仍需显式 switch。`profile_save.ts` 提供对象 patch 合并及保存信息生成。
