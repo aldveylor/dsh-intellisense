@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 import { JSDOM } from 'jsdom';
 
-test('tooltips require pointer rest before hover retention and retain Ctrl controls', async () => {
+test('tooltips share the same fixed state for pointer rest and Ctrl', async () => {
     const result = await build({
         stdin: { resolveDir: process.cwd(), loader: 'tsx', contents: `
             import { createRoot } from 'react-dom/client';
@@ -107,20 +107,31 @@ test('tooltips require pointer rest before hover retention and retain Ctrl contr
         control(true);
         assert.equal(tooltip()!.style.pointerEvents, 'auto', 'Ctrl immediately enables pointer interaction');
         browser.run(() => browser.controls.move(80, 80, true));
-        show('blocked');
-        assert.equal(tooltip()!.textContent, 'first', 'Ctrl fixes content');
         assert.equal(tooltip()!.style.left, '36px', 'Ctrl fixes position');
+        control(false);
+        assert.equal(tooltip()!.style.pointerEvents, 'auto', 'Releasing Ctrl preserves the same fixed state as pointer rest');
+        browser.run(() => browser.controls.move(120, 120, false));
+        assert.equal(tooltip()!.style.left, '36px', 'The fixed tooltip stays in place after releasing Ctrl');
         leave();
+        advance(100);
         hover(true);
         advance(1000);
-        assert(tooltip(), 'Ctrl permits hovering without dwell');
+        assert(tooltip(), 'Ctrl fixes the tooltip immediately and permits hovering after release');
         hover(false);
-        advance(500);
-        assert(tooltip(), 'Ctrl keeps details open outside both regions');
-        control(false);
-        assert.equal(tooltip()!.style.pointerEvents, 'none', 'Releasing Ctrl restores hit testing for an unsettled tooltip');
         advance(200);
-        assert.equal(tooltip(), null, 'Releasing Ctrl resumes dismissal');
+        assert.equal(tooltip(), null, 'Ctrl-fixed tooltips dismiss on leaving just like dwell-fixed tooltips');
+
+        show();
+        control(true);
+        show('second');
+        assert.equal(tooltip()!.textContent, 'second', 'Switching anchors replaces a Ctrl-fixed tooltip just like a dwell-fixed tooltip');
+        assert.equal(tooltip()!.style.pointerEvents, 'none', 'A new tooltip starts with its own rest timer');
+        browser.run(() => browser.controls.move(80, 80, true));
+        assert.equal(tooltip()!.style.pointerEvents, 'auto', 'Moving with Ctrl held fixes the new tooltip immediately');
+        leave();
+        advance(200);
+        assert.equal(tooltip(), null, 'Holding Ctrl does not retain a tooltip outside both regions');
+        control(false);
 
         const root = dom.window.document.getElementById('root')!;
         /** @brief Model host shortcuts that consume keyboard events before they reach window bubbling. */
@@ -136,19 +147,20 @@ test('tooltips require pointer rest before hover retention and retain Ctrl contr
         hover(false);
         browser.run(() => root.dispatchEvent(new dom.window.KeyboardEvent('keyup', { key: 'Control', bubbles: true })));
         advance(200);
-        assert.equal(tooltip(), null, 'Consumed keyup must still release Ctrl retention');
+        assert.equal(tooltip(), null, 'Leaving a Ctrl-fixed tooltip dismisses even when keyup is consumed');
 
         show();
         leave();
         advance(100);
         browser.run(() => root.dispatchEvent(new dom.window.MouseEvent('pointermove', { bubbles: true, ctrlKey: true })));
         hover(true);
+        browser.run(() => root.dispatchEvent(new dom.window.MouseEvent('pointermove', { bubbles: true, ctrlKey: false })));
         advance(1000);
-        assert(tooltip(), 'Pointer modifiers recover a missed keydown and cancel pending dismissal');
+        assert(tooltip(), 'Pointer modifiers recover a missed keydown; losing Ctrl does not undo fixation');
         hover(false);
         browser.run(() => root.dispatchEvent(new dom.window.MouseEvent('pointermove', { bubbles: true, ctrlKey: false })));
         advance(200);
-        assert.equal(tooltip(), null, 'Pointer modifiers also recover a missed keyup');
+        assert.equal(tooltip(), null, 'Leaving the fixed tooltip resumes normal dismissal');
 
         show();
         browser.dispose();

@@ -69,7 +69,6 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
     const element = useRef<HTMLDivElement>(null);
     const point = useRef({ x: 0, y: 0 });
     const [content, setContent] = useState<ReactNode>();
-    const ctrl = useRef(false);
     const hovered = useRef<'anchor' | 'tooltip'>();
     const hideTimer = useRef<ReturnType<typeof setTimeout>>();
     const settleTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -77,7 +76,7 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
 
     /** @brief Keep following tooltips transparent to pointer hit testing until interaction is enabled. */
     function updateInteractivity(): void {
-        if (element.current) element.current.style.pointerEvents = settled.current || ctrl.current ? 'auto' : 'none';
+        if (element.current) element.current.style.pointerEvents = settled.current ? 'auto' : 'none';
     }
 
     /** @brief Cancel dismissal while crossing the gap into the tooltip. */
@@ -92,15 +91,20 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
         settleTimer.current = undefined;
     }
 
+    /** @brief Fix the current tooltip after pointer rest or an immediate Ctrl shortcut. */
+    function settle(): void {
+        cancelSettle();
+        if (!element.current) return;
+        settled.current = true;
+        updateInteractivity();
+        scheduleHide();
+    }
+
     /** @brief Fix the current tooltip after the pointer rests on its anchor for 500ms. */
     function scheduleSettle(): void {
         cancelSettle();
-        if (settled.current || ctrl.current || hovered.current !== 'anchor') return;
-        settleTimer.current = setTimeout(() => {
-            settleTimer.current = undefined;
-            settled.current = true;
-            updateInteractivity();
-        }, 500);
+        if (settled.current || hovered.current !== 'anchor') return;
+        settleTimer.current = setTimeout(settle, 500);
     }
 
     /** @brief Immediately dismiss for explicit actions such as selection or Escape. */
@@ -111,48 +115,34 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
         setContent(undefined);
     }
 
-    /** @brief Allow pointer transfer to the tooltip and keep Ctrl-held details open. */
+    /** @brief Allow pointer transfer into a fixed tooltip. */
     function scheduleHide(): void {
         cancelHide();
-        if (ctrl.current || hovered.current === 'anchor' || (settled.current && hovered.current === 'tooltip')) return;
+        if (hovered.current === 'anchor' || (settled.current && hovered.current === 'tooltip')) return;
         hideTimer.current = setTimeout(hide, 200);
     }
 
-    /** @brief Recover modifier changes even when key events were missed before mounting. */
-    function updateControl(held: boolean): void {
-        if (ctrl.current === held) return;
-        ctrl.current = held;
-        updateInteractivity();
-        if (held) { cancelSettle(); cancelHide(); }
-        else { scheduleSettle(); scheduleHide(); }
-    }
-
     useEffect(() => {
-        /** @brief Track Ctrl even when the pointer is outside the original card. */
+        /** @brief Trigger the same fixed state as completing the pointer rest timer. */
         function keydown(event: KeyboardEvent): void {
-            if (event.key === 'Control') updateControl(true);
-        }
-
-        /** @brief Resume normal dismissal when Ctrl is released outside both regions. */
-        function keyup(event: KeyboardEvent): void {
-            if (event.key === 'Control') updateControl(false);
+            if (event.key === 'Control') settle();
         }
 
         /** @brief Synchronize held Ctrl for newly mounted providers and outside-anchor movement. */
-        function pointermove(event: PointerEvent): void { updateControl(event.ctrlKey); }
+        function pointermove(event: PointerEvent): void {
+            if (event.ctrlKey && !settled.current) settle();
+        }
 
-        /** @brief Clear held modifiers and dismiss when the browser loses focus. */
-        function blur(): void { ctrl.current = false; hovered.current = undefined; hide(); }
+        /** @brief Dismiss when the browser loses focus. */
+        function blur(): void { hovered.current = undefined; hide(); }
 
         window.addEventListener('keydown', keydown, true);
-        window.addEventListener('keyup', keyup, true);
         window.addEventListener('pointermove', pointermove, true);
         window.addEventListener('blur', blur);
         return () => {
             cancelHide();
             cancelSettle();
             window.removeEventListener('keydown', keydown, true);
-            window.removeEventListener('keyup', keyup, true);
             window.removeEventListener('pointermove', pointermove, true);
             window.removeEventListener('blur', blur);
         };
@@ -172,14 +162,13 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
     return <TooltipContext.Provider value={{ id,
         show: (next, x, y) => {
             cancelHide(); hovered.current = 'anchor';
-            if (ctrl.current && element.current) return;
             settled.current = false;
             point.current = { x, y }; setContent(next);
             scheduleSettle();
         },
         move: (x, y, ctrlKey) => {
-            updateControl(ctrlKey);
-            if (ctrlKey || settled.current) return;
+            if (ctrlKey) settle();
+            if (settled.current) return;
             if (point.current.x === x && point.current.y === y) return;
             point.current = { x, y }; position();
             scheduleSettle();
