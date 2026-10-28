@@ -1,4 +1,4 @@
-import { Icon, type IconProps } from '../../controls/icon.js';
+import { Icon, useIconStyles, type IconProps } from '../../controls/icon.js';
 import { ChevronIcon } from '../../controls/icons.js';
 import type { ReactNode } from 'react';
 import styles from './animated_icons.css';
@@ -7,7 +7,8 @@ import styles from './animated_icons.css';
 function AnimatedIcon({ children, className, valid, open, value }: IconProps & {
     children: ReactNode; className: string; open: boolean; value?: string;
 }) {
-    return <><style>{styles}</style><Icon valid={valid} className={`ts-layout-animated-icon ${className}`} data-open={open} data-value={value} strokeWidth={1.8}>{children}</Icon></>;
+    useIconStyles(styles);
+    return <><Icon valid={valid} className={`ts-layout-animated-icon ${className}`} data-open={open} data-value={value} strokeWidth={1.8}>{children}</Icon></>;
 }
 
 /** @brief Sorting trigger with animated bars on hover and expansion. */

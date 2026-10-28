@@ -1,4 +1,5 @@
 .ts-filter-icon{overflow:visible}
+.ts-filter-icon[data-active=true]{color:var(--ts-border-focus)}
 .ts-filter-funnel{transform-origin:12px 12px;transition:transform .2s ease}
 .ts-filter-icon[data-valid=true]:hover .ts-filter-funnel{transform:translateY(-1px) rotate(-8deg)}
 .ts-filter-icon[data-open=true] .ts-filter-funnel{transform:rotate(12deg) scale(.9)}

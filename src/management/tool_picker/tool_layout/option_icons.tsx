@@ -1,8 +1,10 @@
-import { Icon, type IconProps } from '../../controls/icon.js';
+import { Icon, useIconStyles, type IconProps } from '../../controls/icon.js';
 import type { ReactNode } from 'react';
+import styles from './option_icons.css';
 
 /** @brief Shared SVG presentation for tool menu option icons. */
 function OptionIcon({ children, valid }: IconProps & { children: ReactNode }) {
+    useIconStyles(styles);
     return <Icon valid={valid} className="ts-layout-option-icon" size={22} strokeWidth={1.6}>{children}</Icon>;
 }
 

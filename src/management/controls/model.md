@@ -15,3 +15,5 @@ EditableText 通过 InlineEditorContext 使用宿主原生 DSH InlineEditor，cl
 浮层宽度额外包含左右 margin、边框和内边距；浮层高度包含编辑器边框高度及上下 margin，保证扣除两侧 offset 后仍覆盖目标内容区域。左右、上下 offset 始终分别求和，视口边界仍限制最大尺寸。
 
 `icon.tsx` 定义统一 IconProps.valid：只控制动画是否可用，不抹除已选、固定、禁用等静态状态。`icons.tsx` 提供关闭、添加、工具、帮助、箭头、固定和禁用图标；动态状态通过 open/active/level/disabled 参数显式传入，图标动画样式由 icons.css 管理，外部按钮不通过 aria/data 属性控制 SVG 动画。
+
+Icon 的 useIconStyles 在 document.head 按样式内容去重、计数挂载并在最后一个使用者卸载时移除，避免样式文本混入按钮内容。Icon 的 valid=false 停用动画与过渡，但保留静态状态；悬停选择器仅属于图标自身，不选择外层按钮。

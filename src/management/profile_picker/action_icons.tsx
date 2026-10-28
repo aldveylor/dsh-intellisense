@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Icon, type IconProps } from '../controls/icon.js';
+import { Icon, useIconStyles, type IconProps } from '../controls/icon.js';
 import styles from './action_icons.css';
 
 /** @brief Explicit asynchronous animation state and complete-cycle notification. */
@@ -10,7 +10,8 @@ export interface ActionIconProps extends IconProps {
 
 /** @brief Keep action animation and SVG cycle filtering inside the icon. */
 function ActionIcon({ valid, running, onCycle, action, children }: ActionIconProps & { action: string; children: ReactNode }) {
-    return <><style>{styles}</style><Icon valid={valid} className="ts-action-icon" data-action={action} data-running={running}
+    useIconStyles(styles);
+    return <><Icon valid={valid} className="ts-action-icon" data-action={action} data-running={running}
         onAnimationIteration={event => {
             if (valid && running && event.target === event.currentTarget) onCycle();
         }}>{children}</Icon></>;
