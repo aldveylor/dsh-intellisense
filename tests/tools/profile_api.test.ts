@@ -1,3 +1,4 @@
+import { ValidationError, CurrentProfileDeletionError, UnknownCommandError, ProfileNotFoundError, ConversationRequiredError } from '../../src/error.js';
 import { profileWrite } from '../../src/registry/profile_write.js';
 import { namespace, positionalArguments } from '../namespace/fixtures.js';
 import { test } from 'node:test';
@@ -271,7 +272,7 @@ test('PTC agents can load, edit, save and switch plain Profile trees across host
             profile.root.children['agent_draft'] = { type: 'namespace',
                 permissions: profile.root.permissions, children: {}, description: 'Agent draft' };
             const write = value => Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'permissions' && key !== 'name').map(([key, child]) => [key, child && typeof child === 'object' ? write(child) : child]));
-            await tools.profile.save('AgentCopy', write(profile));
+            await tools.profile.save('AgentCopy', write({ brief: profile.brief, root: { type: profile.root.type, children: profile.root.children } }));
             const catalog = await tools.profile.load('AgentCopy');
             const current = await tools.profile.load();
             await tools.profile.switch('AgentCopy');
@@ -387,7 +388,7 @@ test('Profile apply recursively patches a named catalog tree and deletes null fi
     await call('tools_profile_save', { name: 'Copy', profile: profileWrite(profile) });
     const before = registry.snapshot();
     const original = await load({ name: 'Copy' });
-    await call('tools_profile_apply', { name: 'Copy', value: { brief: null, root: { fixedLevel: null } } });
+    await call('tools_profile_apply', { name: 'Copy', value: { brief: null } });
     const patched = await load({ name: 'Copy' });
     assert.equal(patched.brief, undefined);
     assert.equal(patched.root.fixedLevel, undefined);
@@ -613,4 +614,37 @@ test('guest positional failures are typed ToolCallError subclasses with namespac
         assert.equal(result.error, undefined);
         assert.deepEqual(result.value, Array.from({ length: 2 }, () => [true, true, 'tools.profile.apply', 'invalid_argument_count']));
     } finally { await host.dispose(); }
+});
+
+
+test('save and apply reject anonymous root settings that have no persistent representation', async () => {
+    const { call, load, catalog, registry } = await fixture();
+    const write = profileWrite(await load());
+    const saved = catalog.snapshot();
+    const draft = registry.snapshot();
+    for (const [field, value] of [['disabled', true], ['disabled', false], ['fixedLevel', 1], ['fixedLevel', 0], ['description', 'Ignored']]) {
+        await assert.rejects(call('tools_profile_save', { profile: { ...write, root: { ...write.root, [field as string]: value } } }), /Unknown or read-only field/);
+        for (const patch of [value, null]) {
+            await assert.rejects(call('tools_profile_apply', { value: { root: { [field as string]: patch } } }), ValidationError);
+        }
+        assert.deepEqual(catalog.snapshot(), saved);
+        assert.deepEqual(registry.snapshot(), draft);
+    }
+});
+
+test('Profile failures use explicit domain error classes and save shares patch protection', async () => {
+    const { call, load, definitions, catalog } = await fixture();
+    await assert.rejects(call('tools_profile_delete', { name: 'Default' }), CurrentProfileDeletionError);
+    await assert.rejects(call('tools_profile_load', { name: 'Missing' }), ProfileNotFoundError);
+    await assert.rejects(call('tools_profile_apply', { value: { root: { children: { unknown: { type: 'command', command: { tool: 'missing_tool' } } } } } }), UnknownCommandError);
+    await assert.rejects(definitions.get('tools_profile_load')!.execute({}, { signal: new AbortController().signal } as ToolRunContext), ConversationRequiredError);
+    const write = profileWrite(await load());
+    const before = catalog.snapshot();
+    for (const permissions of [null, {}, { acceptsChildren: true }, { availableFixLevels: [9] }, { availableFixLevels: [] }]) {
+        const profile = structuredClone(write);
+        const tools = profile.root.children!['tools']!;
+        Object.assign(tools, { permissions });
+        await assert.rejects(call('tools_profile_save', { profile }), /Unknown or read-only field/);
+        assert.deepEqual(catalog.snapshot(), before);
+    }
 });

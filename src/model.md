@@ -91,3 +91,6 @@ Profile 写入模型使用 `registry/profile_write.ts` 的 ProfileWrite（从 Pr
 
 
 管理页提供内置“使用文档”入口，按当前语言显示 docs/en/usage.md 与 docs/zh-cn/usage.md，构建时通过 Markdown 文本 loader 纳入客户端。文档随 package.files 发布；图片复用 README 的 assets/en 与 assets/zh 浅色截图，经认证的 ts-intellisense-docs-image 路由按语言及图片名称枚举读取。截图脚本同时检查浅色对比、深色回退、DSH token 优先级和原卡片凸耳保留；不使用截图专用背景修补。
+
+
+ProfileRootWrite 的匿名根只允许 type/children，拒绝没有持久化表示的根级 disabled、fixedLevel、description（包括 apply 的 null 删除）；普通成员仍使用 NamespaceWrite/CommandWrite。ConversationRequiredError、ProfileLockedError、CurrentProfileDeletionError 与 UnknownCommandError 在 src/error.ts 定义，不再用普通 Error 或权限错误表达这些 Profile 失败；非法 patch 键使用 ValidationError。

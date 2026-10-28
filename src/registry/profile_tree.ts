@@ -1,4 +1,4 @@
-import { ProfilePermissionError } from '../error.js';
+import { ProfilePermissionError, UnknownCommandError } from '../error.js';
 import { z } from 'zod';
 import { RegistryConfiguration, type RegistryConfigurationData } from './configuration.js';
 import type { Saveable } from '../storage/saveable.js';
@@ -72,7 +72,7 @@ const permissionSchema = z.strictObject({
 
 /** @brief Shared editable node properties. */
 const nodeProperties = {
-    permissions: permissionSchema.optional().describe('Constraints on the saved Profile tree: retain protected members with their required names, paths and command identities. Protection belongs only to the plugin-owned tools subtree; ordinary mounted commands such as fs.* and bash are removable and are not restored when omitted. Optional permission overrides. Defaults: commentable, renamable, movable, removable and disableable true; acceptsChildren false for commands, true for namespaces; availableFixLevels [0,1,2] for commands, [0,1] for namespaces. Omitted permissions or fields use ordinary defaults and do not imply protection; server restrictions remain authoritative.'),
+    permissions: permissionSchema.optional().describe('Constraints on the saved Profile tree: retain protected members with their required names, paths and command identities. Protection belongs only to the plugin-owned tools subtree; ordinary mounted commands such as fs.* and bash are removable and are not restored when omitted. Read-only server rules returned by load; save/apply reject permissions. Defaults: commentable, renamable, movable, removable and disableable true; acceptsChildren false for commands, true for namespaces; availableFixLevels [0,1,2] for commands, [0,1] for namespaces. Omitted permissions or fields use ordinary defaults and do not imply protection; server restrictions remain authoritative.'),
     fixedLevel: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional().describe('Pin level (default 0, omitted): 0 none, 1 brief, 2 detailed; allowed values come from permissions.availableFixLevels.'),
     disabled: z.boolean().optional().describe('Default false (omitted). Disabled nodes and descendants are excluded from discovery, runtime bindings, native tools, preloaded values and pinned prompts; configuration is retained for re-enabling. Disabling tools also removes tools.inspect guidance.'),
 };
@@ -179,7 +179,7 @@ export function profileConfiguration(profile: ProfileData, current: RegistryConf
                 if (node.disabled) configuration.builtinDisabled!.push(path);
                 return;
             }
-            if (!commands.some(item => item.name === node.command!.tool)) throw new ProfilePermissionError(`Unknown command: ${node.command.tool}`);
+            if (!commands.some(item => item.name === node.command!.tool)) throw new UnknownCommandError(node.command.tool);
             configuration.mappings.push({ id: node.command.tool, path, pinned: false, disabled: node.disabled,
                 alwaysVisible: node.fixedLevel ?? 0, description: node.command.doc });
             return;
@@ -286,7 +286,9 @@ interface NamespaceWrite extends Omit<NamespaceTreeNode, 'permissions' | 'childr
     children?: Record<string, CommandWrite | NamespaceWrite>;
 }
 /** @brief save input. Target name is a separate argument; omit name and all permissions from load data. */
-interface ProfileWrite extends Omit<Profile, 'name' | 'root'> { root: NamespaceWrite; }
+/** @brief Anonymous root has no persisted visibility, pin or description settings. */
+interface ProfileRootWrite extends Omit<NamespaceWrite, 'fixedLevel' | 'disabled' | 'description'> {}
+interface ProfileWrite extends Omit<Profile, 'name' | 'root'> { root: ProfileRootWrite; }
 /** @brief apply input: recursively partial writable fields; null deletes optional fields or named children. Required fields cannot be deleted. */
 type ProfilePatch<T = ProfileWrite> = { [K in keyof T]?: T[K] extends object | undefined ? ProfilePatch<NonNullable<T[K]>> | null : T[K] | null };
 

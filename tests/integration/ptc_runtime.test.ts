@@ -50,7 +50,7 @@ async function fixture(store: Store = new MemoryStore(), mode: 'ptc' | 'native' 
     let sequence = 0;
     const run = (code: string, timeoutMs?: number, signal = new AbortController().signal) => ctx.tools.execute({
         agent, callId: ToolCallId(`parent-${++sequence}`), name: ptcToolName,
-        arguments: { code: `const writable = value => Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'permissions' && key !== 'name').map(([key, child]) => [key, child && typeof child === 'object' ? writable(child) : child]));\n${code}`, description: 'Test namespace execution', ...(timeoutMs === undefined ? {} : { timeoutMs }) }, signal,
+        arguments: { code: `const writable = profile => { const copy = value => { const {permissions, children, ...data} = value; return {...data, ...(children ? {children: Object.fromEntries(Object.entries(children).map(([key, child]) => [key, copy(child)]))} : {})}; }; const {type, children} = copy(profile.root); return {...(profile.brief === undefined ? {} : {brief: profile.brief}), root: {type, ...(children ? {children} : {})}}; };\n${code}`, description: 'Test namespace execution', ...(timeoutMs === undefined ? {} : { timeoutMs }) }, signal,
     });
     const dispose = async () => { await live.dispose(); await mounted.dispose(); await standing.dispose(); await ctx.fiber.dispose(); };
     return { ctx, agent, namespaces, run, dispose, standing, mounted, defaultRuntime, injected };

@@ -24,7 +24,7 @@
 
 ## 通过工具保存与应用
 
-先读取 `tools.profile.annotation` 中的写入模型。`save` 接收 ProfileWrite：从读取结果中移除 name，并递归移除 permissions，目标名称通过独立参数传入。`apply` 接收递归的部分写入树，null 删除可选字段或具名子节点。改名或移动时同时删除旧 children 键并添加新键。
+先读取 `tools.profile.annotation` 中的写入模型。`save` 接收 ProfileWrite：从读取结果中移除 name，并递归移除 permissions，目标名称通过独立参数传入。 匿名根仅接受 type 和 children；固定等级、禁用状态与描述应设置在其成员上。`apply` 接收递归的部分写入树，null 删除可选字段或具名子节点。改名或移动时同时删除旧 children 键并添加新键。
 
 两种操作都只保存目录，保留当前对话草稿。使用 `load(name)` 验证目录中的挂载；`commands.paths` 表示当前对话路径，显式 `switch(name)` 后才更新。不传名称的 apply 从当前对话草稿开始，连续编辑已保存的目录配置时应显式传入名称。
 

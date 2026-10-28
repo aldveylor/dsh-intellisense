@@ -24,6 +24,34 @@ export class ProfileNotFoundError extends Error {
     constructor(readonly profile: string) { super(`Profile does not exist: ${profile}`); this.name = 'ProfileNotFoundError'; }
 }
 
+/** @brief Profile tools require a live conversation context. */
+export class ConversationRequiredError extends Error {
+    readonly code = 'conversation_required';
+
+    constructor() { super('A live conversation is required'); this.name = 'ConversationRequiredError'; }
+}
+
+/** @brief A presentation-bound Profile cannot be switched by a tool. */
+export class ProfileLockedError extends Error {
+    readonly code = 'session_profile_locked';
+
+    constructor() { super('session_profile_locked'); this.name = 'ProfileLockedError'; }
+}
+
+/** @brief Deleting the active conversation Profile would invalidate its selection. */
+export class CurrentProfileDeletionError extends Error {
+    readonly code = 'current_profile_deletion';
+
+    constructor(readonly profile: string) { super(`Current Profile cannot be deleted: ${profile}`); this.name = 'CurrentProfileDeletionError'; }
+}
+
+/** @brief A submitted mount refers to no command in the physical catalog. */
+export class UnknownCommandError extends Error {
+    readonly code = 'unknown_command';
+
+    constructor(readonly tool: string) { super(`Unknown command: ${tool}`); this.name = 'UnknownCommandError'; }
+}
+
 /** @brief Namespace call failure with the invoked mount path, mirrored inside the guest realm. */
 export class ToolCallError extends Error {
     constructor(message: string, readonly toolName: string, readonly code = 'tool_call_failed') {

@@ -24,7 +24,7 @@ Hover a tool for its parameters, return type and call totals. Hold Alt to keep t
 
 ## Save and apply through tools
 
-Read `tools.profile.annotation` for the current write model. `save` accepts ProfileWrite: omit name and recursively omit permissions from loaded data. Pass the destination name as a separate argument. `apply` accepts a recursive partial write tree; null removes optional fields or named children. Rename or move a mount by deleting its old child key and adding the new one.
+Read `tools.profile.annotation` for the current write model. `save` accepts ProfileWrite: omit name and recursively omit permissions from loaded data. Pass the destination name as a separate argument. The anonymous root accepts only type and children; pin levels, disabled state and descriptions belong to its members. `apply` accepts a recursive partial write tree; null removes optional fields or named children. Rename or move a mount by deleting its old child key and adding the new one.
 
 Both operations save the catalog and preserve the conversation draft. Verify saved mounts with `load(name)`. `commands.paths` reports the current conversation's paths; explicitly `switch(name)` to update them. Calling apply without a name starts from the current conversation draft, so use a name for successive edits to a saved catalog tree.
 
