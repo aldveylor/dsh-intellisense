@@ -105,7 +105,8 @@ export function dropTree(draft: TreeDraft, source: TreeDragSource, target: TreeD
     const move = (p: string): string => previous && (source.namespace ? inNamespace(p, previous) : p === previous) ? path + p.slice(previous.length) : p;
     const all = orderedPaths([...namespacePaths(next), ...next.mappings.map(m => m.path)], draft.order.map(move));
     const moving = all.filter(p => source.namespace ? inNamespace(p, path) : p === path);
-    const rest = all.filter(p => !moving.includes(p));
+    const movingPaths = new Set(moving);
+    const rest = all.filter(p => !movingPaths.has(p));
     const index = target.position === 'inside' ? rest.length : rest.indexOf(target.path) + Number(target.position === 'after');
     rest.splice(index < 0 ? rest.length : index, 0, ...moving);
     return { ...next, order: rest };
