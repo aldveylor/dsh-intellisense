@@ -4,8 +4,8 @@ import { readFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { JSDOM } from 'jsdom';
 import type { Context } from '@deepseek-ai/cordis';
-import { registerManagement } from '../../src/management/server/routes.js';
-import { managementHtml } from '../../src/management/server/page.js';
+import { registerManagement } from '../../src/web/server/routes.js';
+import { managementHtml } from '../../src/web/server/page.js';
 import { CommandStatistics } from '../../src/namespace/statistics.js';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
@@ -50,7 +50,7 @@ test('picker and namespace details show global call and query counts', async () 
         window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
         window.structuredClone = structuredClone;
         window.fetch = async url => routes.get('/api/ts-intellisense-state')!(new Request(new URL(String(url), 'http://localhost')));
-        window.eval(await readFile(new URL('../../dist/management/standalone.js', import.meta.url), 'utf8'));
+        window.eval(await readFile(new URL('../../dist/web/standalone.js', import.meta.url), 'utf8'));
         await until(() => !!document.querySelector('[data-unmounted-count]'));
         const namespace = document.querySelector<HTMLElement>('[data-namespace-path="tools"]')!;
         namespace.dispatchEvent(new window.MouseEvent('pointerover', { bubbles: true, clientX: 100, clientY: 100 }));
@@ -198,7 +198,7 @@ test('tool category filter combines selections and keeps the picker open on Esca
         window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
         window.structuredClone = structuredClone;
         window.fetch = async url => routes.get('/api/ts-intellisense-state')!(new Request(new URL(String(url), 'http://localhost')));
-        window.eval(await readFile(new URL('../../dist/management/standalone.js', import.meta.url), 'utf8'));
+        window.eval(await readFile(new URL('../../dist/web/standalone.js', import.meta.url), 'utf8'));
         await until(() => document.querySelector<HTMLButtonElement>('.ts-open-tools')?.disabled === false);
         document.querySelector<HTMLButtonElement>('.ts-open-tools')!.click();
         await until(() => !!document.querySelector('dialog[open]'));

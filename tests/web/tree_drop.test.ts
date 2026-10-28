@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dropTree, namespacePaths, orderedPaths, type TreeDraft } from '../../src/management/panel/namespace_tree.js';
+import { dropTree, namespacePaths, orderedPaths, type TreeDraft } from '../../src/web/panel/namespace_tree.js';
 
 /** @brief A cross-namespace drag fixture with both existing commands and a nested namespace. */
 function draft(): TreeDraft {

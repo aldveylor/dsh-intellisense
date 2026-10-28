@@ -4,7 +4,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { build } from 'esbuild';
 import { JSDOM, VirtualConsole } from 'jsdom';
 import type { Context } from '@deepseek-ai/cordis';
-import { registerManagement } from '../../src/management/server/routes.js';
+import { registerManagement } from '../../src/web/server/routes.js';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
 
@@ -33,8 +33,8 @@ async function fixture(prepare: (registry: SemanticRegistry) => Promise<void> = 
     const result = await build({
         stdin: { resolveDir: process.cwd(), loader: 'tsx', contents: `
             import { createRoot } from 'react-dom/client';
-            import { ManagementPanel } from './src/management/panel/management_panel.js';
-            import { NativeProfileSelect } from './src/management/profile_picker/native_profile_select.js';
+            import { ManagementPanel } from './src/web/panel/management_panel.js';
+            import { NativeProfileSelect } from './src/web/profile_picker/native_profile_select.js';
             createRoot(document.getElementById('root')).render(<ManagementPanel api='/api/ts-intellisense-state' ProfileSelect={NativeProfileSelect} />);
         ` }, bundle: true, platform: 'browser', format: 'iife', jsx: 'automatic', loader: { '.css': 'text', '.md': 'text' }, write: false,
     });

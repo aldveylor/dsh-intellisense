@@ -5,7 +5,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent';
 import { SemanticRegistry, type Mapping, type PinLevel } from '../../src/registry/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
 import { NamespaceComponent } from '../../src/namespace/component.js';
-import { TreeProvider } from '../../src/management/panel/tree_provider.js';
+import { TreeProvider } from '../../src/web/panel/tree_provider.js';
 
 const tool = {
     id: 'read_file', description: 'Read a file.',

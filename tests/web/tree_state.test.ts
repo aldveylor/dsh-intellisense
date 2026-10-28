@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { NamespaceTree, NamespaceTreeNode } from '../../src/management/panel/tree_node.js';
-import { treeDisabledState } from '../../src/management/panel/tree_state.js';
-import { inNamespace } from '../../src/management/panel/namespace_tree.js';
-import { TreeProvider } from '../../src/management/panel/tree_provider.js';
+import { NamespaceTree, NamespaceTreeNode } from '../../src/web/panel/tree_node.js';
+import { treeDisabledState } from '../../src/web/panel/tree_state.js';
+import { inNamespace } from '../../src/web/panel/namespace_tree.js';
+import { TreeProvider } from '../../src/web/panel/tree_provider.js';
 import { createNamespace } from '../../src/namespace/namespace.js';
 
 test('indexed disable flags preserve ancestor, own command and provided node rules', () => {

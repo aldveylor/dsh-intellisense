@@ -1,16 +1,16 @@
 import type { Context } from '@deepseek-ai/cordis';
-import { registerManagement } from '../../src/management/server/routes.js';
+import { registerManagement } from '../../src/web/server/routes.js';
 import { createNamespace } from '../../src/namespace/namespace.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { JSDOM, VirtualConsole } from 'jsdom';
-import { TreeProvider, unmountedTools } from '../../src/management/panel/tree_provider.js';
+import { TreeProvider, unmountedTools } from '../../src/web/panel/tree_provider.js';
 import type { Mapping, PhysicalTool } from '../../src/registry/registry.js';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
-import { managementHtml } from '../../src/management/server/page.js';
+import { managementHtml } from '../../src/web/server/page.js';
 
 /** @brief Exercise the actual management API, including editor selection and permissions. */
 function managementFetch(registry: SemanticRegistry) {
@@ -48,7 +48,7 @@ test('unmounted count excludes unavailable identities and counts disabled mounte
 });
 
 test('unknown is absent; count follows mounting, unmounting, saving and profile switching in both languages', async () => {
-    const script = await readFile(new URL('../../dist/management/standalone.js', import.meta.url), 'utf8');
+    const script = await readFile(new URL('../../dist/web/standalone.js', import.meta.url), 'utf8');
     for (const language of ['en-US', 'zh-CN']) {
         const registry = new SemanticRegistry(new MemoryStore());
         registry.refresh(tools());
@@ -137,7 +137,7 @@ test('built-in namespace and command descriptions stay English in a Chinese inte
             state: { version: 1, revision: 0, mappings: [], namespaces: [], usage: {}, profile: 'Default', profiles: ['Default'] },
             tools: [], effective: [], provided: createNamespace({ tools: [], includeUnavailable: true }).serialize().children, declarations: '', sessions: [],
         });
-        window.eval(await readFile(new URL('../../dist/management/standalone.js', import.meta.url), 'utf8'));
+        window.eval(await readFile(new URL('../../dist/web/standalone.js', import.meta.url), 'utf8'));
         const { document } = window;
         await until(() => !!document.querySelector('[data-unmounted-count]'));
         assert.equal(document.querySelector('[data-unmounted-count]')!.textContent, '0 个工具未挂载');
@@ -170,7 +170,7 @@ test('built-in pins cycle through three levels, discovery stays detailed and pre
         Object.defineProperty(window.navigator, 'languages', { value: ['en-US'] });
         window.structuredClone = structuredClone;
         window.fetch = managementFetch(registry);
-        window.eval(await readFile(new URL('../../dist/management/standalone.js', import.meta.url), 'utf8'));
+        window.eval(await readFile(new URL('../../dist/web/standalone.js', import.meta.url), 'utf8'));
         const { document } = window;
         await until(() => !!document.querySelector('[data-unmounted-count]'));
         for (const path of ['tools']) document.querySelector<HTMLButtonElement>(`[data-namespace-path="${path}"] .ts-disclosure`)!.click();

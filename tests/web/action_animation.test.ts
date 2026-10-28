@@ -14,7 +14,7 @@ test('SVG actions wait for operation settlement and a full master cycle, includi
     const result = await build({
         stdin: { resolveDir: process.cwd(), loader: 'tsx', contents: `
             import { createRoot } from 'react-dom/client';
-            import { ProfilePicker } from './src/management/profile_picker/profile_picker.js';
+            import { ProfilePicker } from './src/web/profile_picker/profile_picker.js';
             window.calls = 0;
             const operation = () => {
                 window.calls++;

@@ -25,7 +25,7 @@
       "default": "./dist/index.js"
     },
     "./client": {
-      "types": "./dist/management/client.d.ts",
+      "types": "./dist/web/client.d.ts",
       "default": "./dist/client.js"
     },
     "./package.json": "./package.json",

@@ -26,7 +26,7 @@ async function buildClient() {
     const browser = { ...options, platform: 'browser', target: 'es2022', loader: { '.css': 'text', '.md': 'text' } };
     await build({
         ...browser,
-        entryPoints: ['src/management/client.ts'],
+        entryPoints: ['src/web/client.ts'],
         format: 'cjs', outfile: 'dist/client.js',
         external: ['react', 'react/jsx-runtime', '@deepseek-ai/dsh-client-ui-primitives', 'zod'],
         banner: { js: "window.__ModuleLoader__.load({id:'@aldveylor/dsh-intellisense',factory(require){const module={exports:{}};" },
@@ -34,8 +34,8 @@ async function buildClient() {
     });
     await build({
         ...browser,
-        entryPoints: ['src/management/standalone.tsx'],
-        format: 'iife', outfile: 'dist/management/standalone.js',
+        entryPoints: ['src/web/standalone.tsx'],
+        format: 'iife', outfile: 'dist/web/standalone.js',
     });
 }
 

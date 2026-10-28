@@ -3,7 +3,7 @@ import { positionalArguments } from '../namespace/fixtures.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Context } from '@deepseek-ai/cordis';
-import { registerManagement } from '../../src/management/server/routes.js';
+import { registerManagement } from '../../src/web/server/routes.js';
 import * as presetPlugin from '../../src/preset/index.js';
 import type { KvUnit } from '@deepseek-ai/dsh-storage';
 import { DshStore, MemoryStore } from '../../src/storage/store.js';

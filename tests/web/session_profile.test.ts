@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Context } from '@deepseek-ai/cordis';
 import type { NamespaceComponent } from '../../src/namespace/component.js';
-import { registerSessionProfiles } from '../../src/management/session_profile/routes.js';
+import { registerSessionProfiles } from '../../src/web/session_profile/routes.js';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { ProfileSessions } from '../../src/registry/profiles.js';
 import { MemoryStore } from '../../src/storage/store.js';

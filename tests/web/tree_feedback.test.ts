@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { showTreeDropFeedback, clearTreeDropFeedback, treeDropTarget } from '../../src/management/panel/tree_drag.js';
+import { showTreeDropFeedback, clearTreeDropFeedback, treeDropTarget } from '../../src/web/panel/tree_drag.js';
 
 test('insertion reserves a sibling slot after the complete subtree and inside drops clear the slot', () => {
     const dom = new JSDOM('<ul class="ts-tree"><li id="namespace"><div id="header" class="ts-node-block" data-namespace-path="files"></div><ul><li>child</li></ul></li><li id="next" class="ts-tree-tool" data-tree-path="read"></li></ul>');

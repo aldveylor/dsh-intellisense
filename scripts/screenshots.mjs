@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { SemanticRegistry } from '../dist/registry/registry.js';
 import { MemoryStore } from '../dist/storage/store.js';
-import { registerManagement } from '../dist/management/server/routes.js';
+import { registerManagement } from '../dist/web/server/routes.js';
 import { pluginCommands } from '../dist/runtime/builtins.js';
 
 /** @brief Create a deterministic documentation profile without reading or modifying user data. */

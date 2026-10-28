@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { namespacePaths, renameNamespace, deleteNamespace, orderedPaths, dropTree, type TreeDraft } from '../../src/management/panel/namespace_tree.js';
+import { namespacePaths, renameNamespace, deleteNamespace, orderedPaths, dropTree, type TreeDraft } from '../../src/web/panel/namespace_tree.js';
 
 /** @brief A mixed tree with nested namespaces and a tool also mapped outside its main namespace. */
 function draft(): TreeDraft {

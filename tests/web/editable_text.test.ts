@@ -9,7 +9,7 @@ test('inline editors retain their anchors and use a top-layer editor that follow
         stdin: { resolveDir: process.cwd(), loader: 'tsx', contents: `
             import { createRoot } from 'react-dom/client';
             import { flushSync } from 'react-dom';
-            import { EditableText, InlineEditorContext } from './src/management/controls/editable_text.js';
+            import { EditableText, InlineEditorContext } from './src/web/controls/editable_text.js';
             function NativeEditor({ value, label, onChange, className }) {
                 return <textarea className={className} data-native-renderer aria-label={label} value={value}
                     onChange={event => onChange(event.target.value)} />;
@@ -122,7 +122,7 @@ test('inline editors default to a single line and the original text width', asyn
         stdin: { resolveDir: process.cwd(), loader: 'tsx', contents: `
             import { createRoot } from 'react-dom/client';
             import { flushSync } from 'react-dom';
-            import { EditableText, InlineEditorContext } from './src/management/controls/editable_text.js';
+            import { EditableText, InlineEditorContext } from './src/web/controls/editable_text.js';
             function NativeEditor({ value, label, onChange }) {
                 return <textarea aria-label={label} value={value} onChange={event => onChange(event.target.value)} />;
             }

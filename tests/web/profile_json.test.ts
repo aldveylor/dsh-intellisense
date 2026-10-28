@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseProfileJson } from '../../src/management/profile_picker/profile_json.js';
+import { parseProfileJson } from '../../src/web/profile_picker/profile_json.js';
 
 test('Profile JSON round trip retains all configuration and unavailable tool mappings', () => {
     const profile = {

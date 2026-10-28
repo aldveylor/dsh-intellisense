@@ -14,10 +14,10 @@ test('icon state and animation validity work independently of surrounding button
     const result = await build({
         stdin: { resolveDir: process.cwd(), loader: 'tsx', contents: `
             import { createRoot } from 'react-dom/client';
-            import { ChevronIcon, DisableIcon, PinIcon } from './src/management/controls/icons.js';
-            import { FilterIcon, FilterCheckIcon } from './src/management/tool_picker/tool_filter/filter_icons.js';
-            import { SortDirectionIcon } from './src/management/tool_picker/sort_direction_icon.js';
-            import { ViewMenuIcon } from './src/management/tool_picker/tool_layout/animated_icons.js';
+            import { ChevronIcon, DisableIcon, PinIcon } from './src/web/controls/icons.js';
+            import { FilterIcon, FilterCheckIcon } from './src/web/tool_picker/tool_filter/filter_icons.js';
+            import { SortDirectionIcon } from './src/web/tool_picker/sort_direction_icon.js';
+            import { ViewMenuIcon } from './src/web/tool_picker/tool_layout/animated_icons.js';
             const root = createRoot(document.getElementById('root'));
             window.renderIcons = (active, valid) => root.render(<>
                 <ChevronIcon valid={valid} open={active} />

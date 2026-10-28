@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { codeBlock } from '../../src/management/trajectory/builtin_trace.js';
+import { codeBlock } from '../../src/web/trajectory/builtin_trace.js';
 
 test('builtin result code fences preserve declarations containing backticks', () => {
     assert.equal(codeBlock('plain', 'text'), '```text\nplain\n```');

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { outputSchema } from '../../src/output_schema.js';
 import { commandDeclaration } from '../../src/namespace/nodes/command_contract.js';
 import { nativeDiscovery } from '../../src/namespace/native_tools.js';
-import { returnTypeDeclaration } from '../../src/management/server/return_type.js';
+import { returnTypeDeclaration } from '../../src/web/server/return_type.js';
 import { namespace } from './fixtures.js';
 
 test('output projections omit nested descriptions while preserving fields, literals and source schemas', () => {

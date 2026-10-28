@@ -4,8 +4,8 @@ import { readFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { JSDOM } from 'jsdom';
 import type { Context } from '@deepseek-ai/cordis';
-import { registerManagement } from '../../src/management/server/routes.js';
-import { managementHtml } from '../../src/management/server/page.js';
+import { registerManagement } from '../../src/web/server/routes.js';
+import { managementHtml } from '../../src/web/server/page.js';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
 
@@ -53,7 +53,7 @@ test('the configuration page opens localized bundled usage documentation and scr
             window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
             window.structuredClone = structuredClone;
             window.fetch = async url => routes.get('/api/ts-intellisense-state')!(new Request(new URL(String(url), 'http://localhost')));
-            window.eval(await readFile(new URL('../../dist/management/standalone.js', import.meta.url), 'utf8'));
+            window.eval(await readFile(new URL('../../dist/web/standalone.js', import.meta.url), 'utf8'));
             await until(() => !!window.document.querySelector('.ts-panel-header button'));
             const help = window.document.querySelector<HTMLButtonElement>('.ts-panel-header button')!;
             assert.equal(help.previousElementSibling?.tagName, 'H1');

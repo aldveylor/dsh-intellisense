@@ -5,13 +5,13 @@ import { build } from 'esbuild';
 import { readFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { JSDOM, VirtualConsole } from 'jsdom';
-import { browserLanguage, translate } from '../../src/management/locale/locale.js';
+import { browserLanguage, translate } from '../../src/web/locale/locale.js';
 import { SemanticRegistry, validatePath } from '../../src/registry/registry.js';
 import { validateNodePath } from '../../src/namespace/node.js';
 import { MemoryStore } from '../../src/storage/store.js';
-import { zh } from '../../src/management/locale/zh.js';
-import { en } from '../../src/management/locale/en.js';
-import { managementHtml } from '../../src/management/server/page.js';
+import { zh } from '../../src/web/locale/zh.js';
+import { en } from '../../src/web/locale/en.js';
+import { managementHtml } from '../../src/web/server/page.js';
 
 /** @brief Wait for a committed browser render. */
 async function until(predicate: () => boolean): Promise<void> {
@@ -51,7 +51,7 @@ test('browser locale matching, interpolation and namespace errors use the reques
 });
 
 test('standalone page selects Chinese or American English and updates document metadata', async () => {
-    const script = await readFile(new URL('../../dist/management/standalone.js', import.meta.url), 'utf8');
+    const script = await readFile(new URL('../../dist/web/standalone.js', import.meta.url), 'utf8');
     for (const [language, title, lang] of [['zh-CN', '工具命名空间表', 'zh-CN'], ['en-US', 'Tool Namespace Table', 'en-US']]) {
         const dom = browser();
         try {
@@ -69,8 +69,8 @@ test('host language switches update an open editor while preserving its unsaved 
     const result = await build({
         stdin: { resolveDir: process.cwd(), sourcefile: 'locale_harness.tsx', loader: 'tsx', contents: `
             import { createRoot } from 'react-dom/client';
-            import { NativePanel } from './src/management/locale/native_panel.js';
-            import { translate } from './src/management/locale/locale.js';
+            import { NativePanel } from './src/web/locale/native_panel.js';
+            import { translate } from './src/web/locale/locale.js';
             let snapshot = { active: 'zh', revision: 1, locales: [] };
             const listeners = new Set();
             const locale = {
