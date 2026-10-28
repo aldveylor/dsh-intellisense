@@ -8,7 +8,7 @@
 
 `tool_commands.ts` 注册 Profile load/save/apply/delete/switch/setdefault/annotation/commands/profiles。save 支持显式名称或当前会话名称，验证递归树与物理命令身份，仅发布目录，保留当前会话配置和选择，显式 switch(name) 后应用保存的配置；load 无名称只返回当前会话草稿，有名称只从全局目录读取指定配置并返回可序列化的 Profile 数据，不替换会话快照、不刷新工具提示。`../namespace/runtime.ts` 将 annotation 和原始命令列表作为数据传给 VM init，不安装同名函数。
 
-Profile load/save/annotation 统一使用继承 ProfileNode 的 CommandNode（type: command）与 NamespaceTreeNode（type: namespace）；基类 fixedLevel 为可选 number，具体节点限制支持的等级。Profile 数据模型声明通过 tools.profile.annotation 按需读取；tools_inspect 查询结果不自动附加这些声明。
+Profile load/save/annotation 统一使用继承 ProfileNode 的 CommandNode（type: command）与 NamespaceTreeNode（type: namespace）；节点不含 name，命名空间 children 使用名称为键的 Record；apply 对 children 按键递归合并，null 删除对应成员。基类 fixedLevel 为可选 number，具体节点限制支持的等级。Profile 数据模型声明通过 tools.profile.annotation 按需读取；tools_inspect 查询结果不自动附加这些声明。
 
 `builtin_trace.ts` 在 presentation 作用域包装内置工具注册，保存实际参数/输出 schema、调用参数、返回值、错误与耗时到独立插件审计。结果保持原始模型内容，字符串结果不再额外 JSON 编码。审计和 Profile annotation 通过调用者上下文的 get() 获取命名空间服务，不要求调用者插件显式注入 commandNamespaces。
 

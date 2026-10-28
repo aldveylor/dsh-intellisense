@@ -15,7 +15,7 @@ export function profileSaveInformation(profile: ProfileData, tools: readonly str
             else if (node.fixedLevel !== 2) incompletePins = true;
             return;
         }
-        for (const child of node.children ?? []) visit(child, path ? `${path}.${child.name}` : child.name);
+        for (const [name, child] of Object.entries(node.children ?? {})) visit(child, path ? `${path}.${name}` : name);
     };
     visit(profile.root, '');
     const information: string[] = [];

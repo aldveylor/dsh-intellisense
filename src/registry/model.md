@@ -4,7 +4,7 @@
 
 命令固定等级统一为 0（不固定）、1（固定但简略）、2（固定且详细）。Mapping.alwaysVisible 保存等级；builtinVisible、unmountedVisible 为路径或物理 ID 到等级的映射，随 Profile 保存，挂载和移除映射时保留等级。命名空间 alwaysVisible 仍为布尔值。
 
-`profile_node.ts` 定义 load/save/annotation 共用的 Profile 节点模型：ProfileNode 包含 type: string、name、permissions、fixedLevel?: number 与 disabled；CommandNode 和 NamespaceTreeNode 继承该接口，type 分别为 command/namespace。命令 fixedLevel 限制为 0/1/2，命名空间限制为 0/1，实际可用等级由服务端 permissions.availableFixLevels 决定。Profile.root 为 NamespaceTreeNode，children 为命令与命名空间的联合数组；command 只保存 tool、可选 doc，description 为命名空间描述。disabled 表示节点自身显式禁用。`profile_tree.ts` 在运行时节点与 Profile 数据之间投影。创建 Profile 时先构建带上下文的普通匿名 NamespaceNode 及 tools 受保护子树，再添加配置映射；没有专门的根节点类型。导入先递归补齐缺少的受保护子对象，再由父节点对应的服务端策略拒绝替换、改名、移动及向受限命名空间添加成员；客户端提交的 permissions 不作为权限依据。每个挂载路径保存一条 Mapping，同一物理 ID 可重复挂载，各路径独立保存 fixedLevel、disabled 与 command.doc 描述偏好；不存在主路径或别名之分。
+`profile_node.ts` 定义 load/save/annotation 共用的 Profile 节点模型：ProfileNode 包含 type: string、permissions、fixedLevel?: number 与 disabled；CommandNode 和 NamespaceTreeNode 继承该接口，type 分别为 command/namespace。命令 fixedLevel 限制为 0/1/2，命名空间限制为 0/1，实际可用等级由服务端 permissions.availableFixLevels 决定。Profile.root 为 NamespaceTreeNode，children 为 Record<string, CommandNode | NamespaceTreeNode>，成员名称由键承载，节点自身不保存 name；command 只保存 tool、可选 doc，description 为命名空间描述。disabled 表示节点自身显式禁用。`profile_tree.ts` 在运行时节点与 Profile 数据之间投影。创建 Profile 时先构建带上下文的普通匿名 NamespaceNode 及 tools 受保护子树，再添加配置映射；没有专门的根节点类型。导入先递归补齐缺少的受保护子对象，再由父节点对应的服务端策略拒绝替换、改名、移动及向受限命名空间添加成员；客户端提交的 permissions 不作为权限依据。每个挂载路径保存一条 Mapping，同一物理 ID 可重复挂载，各路径独立保存 fixedLevel、disabled 与 command.doc 描述偏好；不存在主路径或别名之分。
 
 namespaceVisible 为随 Profile 保存的命名空间路径 → 固定提示布尔值映射，默认空对象；命令各自保留独立的提示等级。所有模式均不提供 console 命名空间及其命令、查询声明或管理节点；PTC 运行时原生 console 输出对象仍独立可用。
 
@@ -29,7 +29,7 @@ CommandBrief 与 profileAnnotation 中共享同一数据定义：name 为原始�
 
 Profile 仅包含 name 与 root；permissions 是唯一节点编辑限制说明，由服务端节点权限生成，输入不能覆盖服务端权限。annotation 与 JSON Schema 按字段独立说明节点权限：removable 控制移除，disableable 控制禁用，availableFixLevels 控制固定等级；不额外引入 tools 特殊限制。
 
-Profile 导入的重复成员错误包含完整 root 路径、同一父节点中双方 children 数组索引和物理工具来源。受保护节点按保留的相对子路径及物理命令身份识别改名和移动，分别报告 renamable/movable；省略受保护成员时递归恢复，恢复值取自保存目标原有目录配置；新名称取自当前会话配置，已提交成员的 fixedLevel/disabled 等设置优先。重复只针对同级同名成员。
+Profile 的 children 使用名称键唯一标识直接成员，不再包含同级重名数组及重复成员诊断。受保护节点按保留的相对子路径及物理命令身份识别改名和移动，分别报告 renamable/movable；省略受保护成员时递归恢复，恢复值取自保存目标原有目录配置；新名称取自当前会话配置，已提交成员的 fixedLevel/disabled 等设置优先。
 
 Profile annotation 说明可使用 load 返回的树作为编辑起点，缺少的受保护节点会自动补齐；新增命令节点使用 commands 中的精确物理名称、普通命令权限和自定义 command.doc，无需从已挂载节点复制。详细调用声明由运行时原生契约生成。command.doc 用一句话描述命令功能，不能修改命令原始注释或 schema；命名空间描述编辑 description。
 

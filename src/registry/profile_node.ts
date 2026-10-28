@@ -1,9 +1,8 @@
 import type { Permission } from '../namespace/node.js';
 
-/** @brief Shared editable identity, permissions and visibility settings. */
+/** @brief Shared editable type, permissions and visibility settings. */
 export interface ProfileNode {
     type: string;
-    name: string;
     /** @brief Constraints on members retained and edited in the saved Profile, including original names and paths of protected members; these do not permit runtime namespace mutation. Optional overrides of ordinary node permissions; server-owned restrictions remain authoritative. */
     permissions?: Partial<Permission>;
     /** @brief Pin level, default 0; omitted when default. */
@@ -25,11 +24,11 @@ export interface CommandNode extends ProfileNode {
     description?: never;
 }
 
-/** @brief Namespace containing directly nested Profile members. */
+/** @brief Namespace containing directly nested Profile members keyed by name. */
 export interface NamespaceTreeNode extends ProfileNode {
     type: 'namespace';
     fixedLevel?: 0 | 1;
-    children?: ProfileTreeNode[];
+    children?: Record<string, CommandNode | NamespaceTreeNode>;
     description?: string;
     command?: never;
 }

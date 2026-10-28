@@ -159,7 +159,7 @@ test('native commands rereads current global counts after each namespace dispatc
         assert.equal((await call('ns_std__read')).isError, false);
         const after = await call('ns_tools__profile__commands');
         assert.equal(after.isError, false, JSON.stringify(after));
-        const count = (value: unknown): number | undefined => (value as { name: string; totalCalls: number }[]).find(row => row.name === 'read_tool')?.totalCalls;
+        const count = (value: unknown): number | undefined => (value as { name: string; totalCalls: number }[])['read_tool']?.totalCalls;
         assert.equal(count(before.value), 0);
         assert.equal(count(after.value), 1);
         const unguard = ctx.tools.guard(execution => execution.name === 'read_tool' ? 'Denied' : undefined);
@@ -294,7 +294,7 @@ test('PTC projects results once, preserves void results and supports parallel na
         assert.deepEqual(result.value, { logs: [], result: [{ value: 'a' }, { value: 'b' }] });
         const children = agent.session.snapshotEvents().filter(event => event.type === 'tool/ptc-dispatch-start');
         assert.equal(new Set(children.map(event => event.data.subCallId)).size, 2);
-        const saved = await run('const profile = await tools.profile.load(); profile.root.children.find(node => node.name === "std").children.find(node => node.name === "read").fixedLevel = 2; return await tools.profile.save(profile);');
+        const saved = await run('const profile = await tools.profile.load(); profile.root.children["std"].children["read"].fixedLevel = 2; return await tools.profile.save(profile);');
         assert.equal(saved.isError, false, JSON.stringify(saved));
         assert.deepEqual(saved.value, { logs: [], result: null });
     } finally { await dispose(); }
@@ -486,7 +486,7 @@ test('Profile cleanup steps serialize void values and preserve per-step errors',
     try {
         const setup = await run(`
             const profile = await tools.profile.load();
-            profile.root.children.find(node => node.name === 'tools').disabled = false;
+            profile.root.children['tools'].disabled = false;
             for (const name of ['TMP_ProfileTest2', 'TMP_FromDefault', 'TMP_ProfileTest', 'TMP_Leftover']) {
                 await tools.profile.save(name, profile);
             }
@@ -537,20 +537,20 @@ test('Profile organization mounts catalog commands and applies briefs without mu
         }
         const result = await run(`
             const profile = await tools.profile.load();
-            profile.root.children.find(node => node.name === 'tools').disabled = false;
+            profile.root.children['tools'].disabled = false;
             const permissions = { renamable: true, movable: true, removable: true, disableable: true, acceptsChildren: true, availableFixLevels: [0, 1] };
             const names = ['read', 'write', 'edit', 'glob', 'grep', 'working_directory', 'tools_external'];
-            if (names.some(name => !tools.profile.commands.some(command => command.name === name))) throw new Error('Missing catalog command');
-            profile.root.children.push({ type: 'namespace', name: 'files', description: 'File operations', permissions,
-                children: names.map(name => ({ type: 'command', name, permissions: { ...permissions, acceptsChildren: false, availableFixLevels: [0, 1, 2] },
-                    command: { tool: name, doc: 'Brief ' + name } })) });
+            if (names.some(name => !tools.profile.commands.some(node => node.name === name))) throw new Error('Missing catalog command');
+            profile.root.children['files'] = { type: 'namespace', description: 'File operations', permissions,
+                children: Object.fromEntries(names.map(name => [name, { type: 'command', permissions: { ...permissions, acceptsChildren: false, availableFixLevels: [0, 1, 2] },
+                    command: { tool: name, doc: 'Brief ' + name } }])) };
             await tools.profile.save('Organized', profile);
             const invalid = JSON.parse(JSON.stringify(profile));
-            invalid.root.children.find(child => child.name === 'tools').children.find(child => child.name === 'inspect').command.tool = 'read';
+            invalid.root.children['tools'].children['inspect'].command.tool = 'read';
             let rejected = 0;
             try { await tools.profile.save('Organized', invalid); } catch { rejected++; }
             try { await tools.profile.delete('Missing'); } catch { rejected++; }
-            return [rejected, tools.profile.profiles.selected, (await tools.profile.load('Organized')).root.children.find(child => child.name === 'files').description];
+            return [rejected, tools.profile.profiles.selected, (await tools.profile.load('Organized')).root.children['files'].description];
         `);
         assert.equal(result.isError, false, JSON.stringify(result));
         assert.deepEqual(result.value, { logs: [], result: [2, 'Default', 'File operations'] });
@@ -581,21 +581,21 @@ test('Profile save merges omitted protected members from the target without chan
     try {
         const result = await run(`
             const original = await tools.profile.load();
-            const group = original.root.children.find(node => node.name === 'tools').children.find(node => node.name === 'profile');
-            group.children.find(node => node.name === 'load').fixedLevel = 2;
+            const group = original.root.children['tools'].children['profile'];
+            group.children['load'].fixedLevel = 2;
             await tools.profile.save('Merged', original);
-            const save = group.children.find(node => node.name === 'save');
+            const save = group.children['save'];
             save.fixedLevel = 1;
             save.command.doc = 'Ignored protected comment';
-            group.children = [save];
-            original.root.children = original.root.children.filter(node => node.name === 'tools');
+            group.children = { save };
+            original.root.children = { tools: original.root.children.tools };
             await tools.profile.save('Merged', original);
             const merged = await tools.profile.load('Merged');
-            const members = merged.root.children.find(node => node.name === 'tools').children.find(node => node.name === 'profile').children;
-            return [members.find(node => node.name === 'load').fixedLevel,
-                members.find(node => node.name === 'save').fixedLevel,
-                merged.root.children.some(node => node.name === 'console'),
-                members.find(node => node.name === 'save').command.doc.includes('Ignored protected comment'),
+            const members = merged.root.children['tools'].children['profile'].children;
+            return [members['load'].fixedLevel,
+                members['save'].fixedLevel,
+                Object.hasOwn(merged.root.children, 'console'),
+                members['save'].command.doc.includes('Ignored protected comment'),
                 tools.profile.profiles.selected];
         `);
         assert.equal(result.isError, false, JSON.stringify(result));
@@ -609,13 +609,13 @@ test('PTC Profile save preserves native null or informational strings through di
         const result = await run(`
             const profile = await tools.profile.load();
             const clean = await tools.profile.save('Info', profile);
-            const toolsNode = profile.root.children.find(node => node.name === 'tools');
+            const toolsNode = profile.root.children['tools'];
             toolsNode.disabled = false;
-            toolsNode.children.find(node => node.name === 'inspect').disabled = true;
-            toolsNode.children.find(node => node.name === 'search').disabled = true;
+            toolsNode.children['inspect'].disabled = true;
+            toolsNode.children['search'].disabled = true;
             const advisory = await tools.profile.save('Info', profile);
-            const group = toolsNode.children.find(node => node.name === 'profile');
-            group.children = [];
+            const group = toolsNode.children['profile'];
+            group.children = {};
             const both = await tools.profile.save('Info', profile);
             return [clean, advisory, both, (await tools.profile.load('Info')).name];
         `);
