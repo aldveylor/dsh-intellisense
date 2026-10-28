@@ -53,4 +53,6 @@ Profile save 覆盖目录树时，tools 仍为受保护命名空间，但默认�
 
 profileConfiguration 可选接收 onComplete(path) 回调，仅在实际补齐缺失受保护节点时调用，供工具 save 汇总补全信息；不改变普通调用的返回类型、导入规则及输入树。
 
-permissions 描述明确约束待保存的 Profile 树：受保护成员即使不使用也须保留原名称、父路径及物理命令身份，不能仅理解为运行时操作限制；各字段分别说明保存时应保留的内容。annotation 与 JSON Schema 同步强调运行时命名空间树不应直接赋值、增删、改名或移动成员，不受 Profile 编辑权限放宽；配置调整应编辑 load 返回的数据并 save，再 switch 应用。
+permissions 描述明确约束待保存的 Profile 树：受保护成员即使不使用也须保留原名称、父路径及物理命令身份，不能仅理解为运行时操作限制；各字段分别说明保存时应保留的内容。仅 PTC annotation 强调运行时命名空间树不应直接赋值、增删、改名或移动成员，native JSON Schema 不附加此说明，不受 Profile 编辑权限放宽；配置调整应编辑 load 返回的数据并 save，再 switch 应用。
+
+保护树仅包含插件自身的 tools 子树（inspect、search、profile 及其成员）；宿主提供的 file.*、bash 等普通物理工具及其挂载不属于保护树，保存省略后不会恢复。annotation、JSON Schema 与 native/PTC save 说明明确此范围；permissions 省略代表普通默认权限（包含 removable=true），不能据此推断受保护。
