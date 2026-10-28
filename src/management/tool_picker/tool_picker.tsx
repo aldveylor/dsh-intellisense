@@ -1,5 +1,5 @@
 import { useTranslation } from '../locale/locale.js';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { TooltipProvider, useTooltip } from '../tooltip/tooltip.js';
 import { NativeProfileSelect } from '../profile_picker/native_profile_select.js';
 import { ToolDetails } from './tool_details.js';
@@ -25,8 +25,10 @@ function ToolCard({ tool, mappings, builtinPath, calls, queries, busy, select }:
     </button>;
 }
 
+const emptyProtectedTools: Array<{ tool: PhysicalTool; path: string }> = [];
+
 /** @brief Modal tool blocks that mount the selected physical tool into the requested namespace. */
-export function ToolPicker({ parent, tools, mappings, protectedTools = [], callsByTool = {}, queriesByTool = {}, busy, select, close }: {
+export function ToolPicker({ parent, tools, mappings, protectedTools = emptyProtectedTools, callsByTool = {}, queriesByTool = {}, busy, select, close }: {
     parent: string; tools: PhysicalTool[]; mappings: Mapping[]; protectedTools?: Array<{ tool: PhysicalTool; path: string }>; callsByTool?: Record<string, number>; queriesByTool?: Record<string, number>; busy: boolean;
     select: (tool: PhysicalTool) => void; close: () => void;
 }) {
@@ -36,11 +38,21 @@ export function ToolPicker({ parent, tools, mappings, protectedTools = [], calls
     const [sort, setSort] = useState('default');
     const totalCalls = Object.values(callsByTool).reduce((total, count) => total + count, 0);
     const filter = search.trim().toLowerCase();
-    const protectedIds = new Set(protectedTools.map(entry => entry.tool.id));
-    const matches = [...tools.filter(tool => !protectedIds.has(tool.id) && !reservedToolIds.includes(tool.id)), ...protectedTools.map(entry => entry.tool)].filter(tool => {
-        const mounts = mappings.filter(mapping => mapping.id === tool.id);
-        return `${tool.id} ${mounts.map(mapping => mapping.path).join(' ')} ${tool.description} ${mounts.map(mapping => mapping.description ?? '').join(' ')}`.toLowerCase().includes(filter);
-    });
+    const { cards, mappingsByTool, protectedPaths } = useMemo(() => {
+        const mappingsByTool = new Map<string, Mapping[]>();
+        for (const mapping of mappings) {
+            const group = mappingsByTool.get(mapping.id);
+            if (group) group.push(mapping);
+            else mappingsByTool.set(mapping.id, [mapping]);
+        }
+        const protectedPaths = new Map(protectedTools.map(entry => [entry.tool.id, entry.path]));
+        const cards = [...tools.filter(tool => !protectedPaths.has(tool.id) && !reservedToolIds.includes(tool.id)), ...protectedTools.map(entry => entry.tool)].map(tool => {
+            const mounts = mappingsByTool.get(tool.id) ?? [];
+            return { tool, search: `${tool.id} ${mounts.map(mapping => mapping.path).join(' ')} ${tool.description} ${mounts.map(mapping => mapping.description ?? '').join(' ')}`.toLowerCase() };
+        });
+        return { cards, mappingsByTool, protectedPaths };
+    }, [tools, mappings, protectedTools]);
+    const matches = cards.filter(card => card.search.includes(filter)).map(card => card.tool);
     if (sort !== 'default') matches.sort((a, b) => {
         const byName = a.id.localeCompare(b.id);
         if (sort === 'name_asc') return byName;
@@ -68,7 +80,7 @@ export function ToolPicker({ parent, tools, mappings, protectedTools = [], calls
                 disabled={busy} readOnly closeOnSelect onChange={setSort} /></div>
         </div>
         <div className="ts-blocks">{matches.map(tool => <ToolCard key={tool.id} tool={tool}
-            mappings={mappings.filter(mapping => mapping.id === tool.id)} builtinPath={protectedTools.find(entry => entry.tool.id === tool.id)?.path} calls={callsByTool[tool.id] ?? 0} queries={queriesByTool[tool.id] ?? 0} busy={busy} select={select} />)}</div>
+            mappings={mappingsByTool.get(tool.id) ?? []} builtinPath={protectedPaths.get(tool.id)} calls={callsByTool[tool.id] ?? 0} queries={queriesByTool[tool.id] ?? 0} busy={busy} select={select} />)}</div>
         {!matches.length && <p>{filter ? t('no_matches') : t('no_tools')}</p>}
         <footer className="ts-tool-picker-footer">
             <small>{t('tool_count', { count: matches.length })}</small>

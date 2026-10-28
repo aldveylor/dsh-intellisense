@@ -11,3 +11,5 @@
 ToolStatistics 按物理工具 ID 展示全局累计调用次数，复用于树节点详情；工具选择器底部展示目录中的所有命令总调用次数。
 
 ToolStatistics 增加全局总查询次数；工具卡片及树命令详情读取 queriesByTool，同一物理工具的别名共享累计值。命名空间复用该表格，仅显示 namespaceQueriesByPath 对应路径的查询次数。
+
+工具选择器按输入 tools、mappings 和 protectedTools 缓存工具 ID 到挂载列表及受保护路径的索引，同时预计算小写搜索文本；输入搜索词和切换排序时复用索引，避免逐工具重复扫描全部映射。
