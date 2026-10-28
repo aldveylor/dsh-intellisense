@@ -159,7 +159,7 @@ test('native commands rereads current global counts after each namespace dispatc
         assert.equal((await call('ns_std__read')).isError, false);
         const after = await call('ns_tools__profile__commands');
         assert.equal(after.isError, false, JSON.stringify(after));
-        const count = (value: unknown): number | undefined => (value as { name: string; totalCalls: number }[])['read_tool']?.totalCalls;
+        const count = (value: unknown): number | undefined => (value as { name: string; totalCalls: number }[]).find(row => row.name === 'read_tool')?.totalCalls;
         assert.equal(count(before.value), 0);
         assert.equal(count(after.value), 1);
         const unguard = ctx.tools.guard(execution => execution.name === 'read_tool' ? 'Denied' : undefined);
