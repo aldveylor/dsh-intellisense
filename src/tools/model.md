@@ -52,6 +52,6 @@ Profile save 覆盖目录树时，tools 仍为受保护命名空间，但默认�
 
 apply 不使用 save 对 tools 的默认禁用规则：未提交禁用字段时保留 tools 及其内部命名空间、命令的原状态，显式 disabled 仍可切换状态，null 删除字段后使用节点默认值 false。save 的整树替换默认规则保持不变。
 
-Profile 成员键必须为非空标识符，不能以 $ 或 __ 开头；禁止 Object.prototype 自有名称、prototype、then 等 JS 约定键。children 在 record 解析前校验，显式拒绝 JSON __proto__；apply 在合并前校验所有 patch 键，包括 null 删除项。普通路径继续使用 validatePath 校验运行时全局和语言保留名。普通命名空间的名称不得占用保护树中的任何成员名（如 inspect、profile、save），即使位于其它父路径；原位置的受保护命令也不能替换为命名空间。
+Profile 成员键必须为非空标识符，不能以 $ 或 __ 开头；禁止 Object.prototype 自有名称、prototype、then 等 JS 约定键。children 在 record 解析前校验，显式拒绝 JSON __proto__；apply 在合并前校验所有 patch 键，包括 null 删除项。普通路径继续使用 validatePath 校验运行时全局和语言保留名。普通命名空间可在其它路径使用与受保护成员相同的名称（如 inspect、profile、save）；仅禁止在受保护对象原路径覆盖或替换该对象，原位置的受保护命令不能替换为命名空间。
 
 apply 的命令说明明确改名或移动普通挂载时，需要将原 children 键设为 null 并新增目标键；仅新增键会保留两个挂载。save 和 apply 共用校验，失败不写入目录或改变会话草稿。

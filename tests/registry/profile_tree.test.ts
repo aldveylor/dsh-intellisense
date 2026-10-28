@@ -119,12 +119,14 @@ test('Profile schema rejects empty, invalid and JavaScript convention keys befor
 });
 
 
-test('ordinary namespaces cannot shadow protected member names or replace protected commands', () => {
+test('ordinary namespaces may share protected member names without replacing protected objects', () => {
     const { current, profile, commands } = fixture();
     for (const name of ['inspect', 'save', 'load', 'tools', 'profile']) {
         const input = profile.save();
         input.root.children!['custom'] = { type: 'namespace', children: { [name]: { type: 'namespace' } } };
-        assert.throws(() => profileConfiguration(input, current, commands), /reserved|Invalid/);
+        const configuration = profileConfiguration(input, current, commands);
+        assert(configuration.namespaces.some(node => node.path === `custom.${name}`));
+        assert.deepEqual(profileTree('Work', configuration).root.children!['tools'], profile.root.children!['tools']);
     }
     const input = profile.save();
     input.root.children!['tools'].children!['inspect'] = { type: 'namespace' };

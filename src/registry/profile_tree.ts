@@ -148,15 +148,6 @@ export function profileConfiguration(profile: ProfileData, current: RegistryConf
     const submitted: { node: ProfileTreeNode; path: string }[] = [];
     const root = structuredClone(profile.root);
     const baseline = profileTree(profile.name, current).root;
-    const protectedNames = new Set<string>();
-    /** @brief Reserve server-owned member names against ordinary namespace shadowing. */
-    const reserve = (node: NamespaceNode): void => {
-        for (const child of node.children.values()) {
-            protectedNames.add(child.name);
-            if (child instanceof NamespaceNode) reserve(child);
-        }
-    };
-    reserve(protectedRoot);
     /** @brief Index submitted nodes by paths derived from member keys. */
     const collect = (node: ProfileTreeNode, path: string): void => {
         submitted.push({ node, path });
@@ -170,10 +161,7 @@ export function profileConfiguration(profile: ProfileData, current: RegistryConf
     };
     collect(root, '');
     const visit = (node: ProfileTreeNode, path: string, expected?: NamespaceNode | CommandNode, original?: ProfileTreeNode): void => {
-        if (path && !expected) {
-            validatePath(path);
-            if (node.type === 'namespace' && protectedNames.has(path.split('.').at(-1)!)) throw new Error(`Namespace name is reserved for a protected member: ${path}`);
-        }
+        if (path && !expected) validatePath(path);
         if (expected && (node.type === 'command') !== (expected instanceof CommandNode)) throw new Error(`Protected node cannot be replaced: ${path}`);
         if (expected) {
             const level = node.fixedLevel ?? 0;

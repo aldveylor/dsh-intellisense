@@ -470,7 +470,7 @@ test('Profile save and apply reject forbidden writes atomically, including raw J
         { root: { children: { tools: { children: { inspect: null } } } } },
         { root: { children: { tools: { children: { inspect: { type: 'namespace', command: null } } } } } },
         { root: { children: { tools: { children: { inspect: { command: { doc: 'Forged' } } } } } } },
-        ...['', '$evil', '__proto__', 'constructor', 'prototype', 'then', 'toString', 'inspect', 'save'].map(name =>
+        ...['', '$evil', '__proto__', 'constructor', 'prototype', 'then', 'toString'].map(name =>
             JSON.parse(JSON.stringify({ root: { children: { [name]: { type: 'namespace' } } } }))),
     ];
     for (const value of patches) {
@@ -478,7 +478,7 @@ test('Profile save and apply reject forbidden writes atomically, including raw J
         assert.deepEqual(catalog.snapshot(), before);
         assert.deepEqual(registry.snapshot(), draft);
     }
-    for (const name of ['', '$evil', '__proto__', 'constructor', 'prototype', 'then', 'toString', 'inspect', 'save']) {
+    for (const name of ['', '$evil', '__proto__', 'constructor', 'prototype', 'then', 'toString']) {
         const profile = structuredClone(original);
         Object.defineProperty(profile.root.children!, name, { value: { type: 'namespace' }, enumerable: true, configurable: true });
         await assert.rejects(call('tools_profile_save', { profile: JSON.parse(JSON.stringify(profile)) }));
@@ -502,4 +502,29 @@ test('Profile apply renames ordinary mounts only when the original key is explic
     profile = await load({ name: 'Default' });
     assert(!Object.hasOwn(profile.root.children!, 'bash'));
     assert(profile.root.children!['bash2']);
+});
+
+
+test('Profile save and apply allow namespaces sharing protected names at different paths', async () => {
+    const { call, load } = await fixture();
+    const profile = await load();
+    const names = ['inspect', 'save', 'load', 'profile'];
+    for (const name of names) profile.root.children![name] = { type: 'namespace' };
+    profile.root.children!['custom'] = { type: 'namespace', children: { tools: { type: 'namespace' } } };
+    await call('tools_profile_save', { name: 'Copy', profile });
+    const saved = await load({ name: 'Copy' });
+    for (const name of names) assert.equal(saved.root.children![name].type, 'namespace');
+    assert.equal(saved.root.children!['tools'].children!['inspect'].type, 'command');
+    await call('tools_profile_apply', { name: 'Copy', value: { root: { children: {
+        custom: { children: { inspect: { type: 'namespace' } } },
+    } } } });
+    const applied = await load({ name: 'Copy' });
+    assert.equal(applied.root.children!['custom'].children!['inspect'].type, 'namespace');
+    assert.deepEqual(applied.root.children!['tools'], saved.root.children!['tools']);
+    await assert.rejects(call('tools_profile_apply', { name: 'Copy', value: { root: { children: {
+        tools: { children: { inspect: { type: 'namespace', command: null, fixedLevel: null } } },
+    } } } }), /Protected node cannot be replaced/);
+    saved.root.children!['tools'].children!['inspect'] = { type: 'namespace' };
+    await assert.rejects(call('tools_profile_save', { name: 'Copy', profile: saved }), /Protected node cannot be replaced/);
+    assert.deepEqual(await load({ name: 'Copy' }), applied);
 });

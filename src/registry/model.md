@@ -61,6 +61,6 @@ profile.apply 增量保存时不应用 tools.profile.save 的 tools 缺省禁用
 
 Profile annotation 专注数据结构、字段语义、权限和运行时树不可直接修改的约束；保存默认禁用、拒绝受保护树违规修改、显式 switch 及发现不可用时的建议等命令说明仅由 tools.profile.* 契约提供，不在 annotation 重复。native JSON Schema 同样省略根节点和 disabled 字段中的命令流程强调。
 
-Profile 成员键必须为非空标识符，不能以 $ 或 __ 开头；禁止 Object.prototype 自有名称、prototype、then 等 JS 约定键。children 在 record 解析前校验，显式拒绝 JSON __proto__；apply 在合并前校验所有 patch 键，包括 null 删除项。普通路径继续使用 validatePath 校验运行时全局和语言保留名。普通命名空间的名称不得占用保护树中的任何成员名（如 inspect、profile、save），即使位于其它父路径；原位置的受保护命令也不能替换为命名空间。
+Profile 成员键必须为非空标识符，不能以 $ 或 __ 开头；禁止 Object.prototype 自有名称、prototype、then 等 JS 约定键。children 在 record 解析前校验，显式拒绝 JSON __proto__；apply 在合并前校验所有 patch 键，包括 null 删除项。普通路径继续使用 validatePath 校验运行时全局和语言保留名。普通命名空间可在其它路径使用与受保护成员相同的名称（如 inspect、profile、save）；仅禁止在受保护对象原路径覆盖或替换该对象，原位置的受保护命令不能替换为命名空间。
 
 apply 的命令说明明确改名或移动普通挂载时，需要将原 children 键设为 null 并新增目标键；仅新增键会保留两个挂载。save 和 apply 共用校验，失败不写入目录或改变会话草稿。
