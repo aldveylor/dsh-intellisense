@@ -16,7 +16,7 @@ function NativeProfileItem({ value, label, brief, selected, disabled, removable,
     return <div className="ts-profile-item" data-selected={selected} data-profile-value={value}>
         <EditableText value={value} label={t('rename_profile')} busy={disabled} readOnly={readOnly} maxLength={80} selectOnFocus
             commit={onRename} renderDisplay={beginEdit => <HintButton type="button" className="ts-profile-option" action={label} aria-pressed={selected} aria-disabled={disabled} title={readOnly ? hint : t('edit_profile_hint')}
-                onClick={() => { if (!disabled) onChange(); }} onDoubleClick={event => beginEdit(event.currentTarget)}>
+                onClick={() => { if (!disabled) onChange(); }} onDoubleClick={event => beginEdit(event.currentTarget, event.currentTarget.querySelector<HTMLElement>('.ts-profile-text > span') ?? event.currentTarget)}>
                 <span className="ts-profile-check" aria-hidden="true">{selected ? '✓' : ''}</span><ProfileLabel label={label} brief={brief} />
             </HintButton>} />
         {!readOnly && <HintButton type="button" className="ts-profile-delete" aria-label={`${t('delete_profile')} ${value}`} title={t('delete_profile_hint')}

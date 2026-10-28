@@ -15,23 +15,47 @@ export interface EditableTextProps {
     placeholder?: string;
     maxLength?: number;
     selectOnFocus?: boolean;
-    renderDisplay?: (beginEdit: (element: HTMLElement) => void) => ReactNode;
+    renderDisplay?: (beginEdit: (element: HTMLElement, textElement?: HTMLElement) => void) => ReactNode;
     commit: (value: string) => boolean | void;
+}
+
+/** @brief Locate the first rendered text line, including nested labels and source padding. */
+function textStart(element: HTMLElement): { left: number; top: number } {
+    const document = element.ownerDocument;
+    const style = document.defaultView!.getComputedStyle(element);
+    const walker = document.createTreeWalker(element, 4);
+    for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+        if (!text.textContent?.trim()) continue;
+        const range = document.createRange();
+        range.setStart(text, 0);
+        range.setEnd(text, 1);
+        const rect = range.getBoundingClientRect?.();
+        if (rect?.height) {
+            const lineHeight = parseFloat(style.lineHeight) || rect.height;
+            return { left: rect.left, top: rect.top - (lineHeight - rect.height) / 2 };
+        }
+    }
+    const rect = element.getBoundingClientRect();
+    return {
+        left: rect.left + (parseFloat(style.borderLeftWidth) || 0) + (parseFloat(style.paddingLeft) || 0),
+        top: rect.top + (parseFloat(style.borderTopWidth) || 0) + (parseFloat(style.paddingTop) || 0),
+    };
 }
 
 /** @brief Display text until double-click or Enter, commit on Enter/blur and cancel on Escape. */
 export function EditableText({ value, label, className, busy = false, readOnly = false, empty = false, placeholder,
     maxLength, selectOnFocus = false, renderDisplay, commit }: EditableTextProps) {
     const NativeEditor = useContext(InlineEditorContext);
-    const [draft, setDraft] = useState<{ value: string; element: HTMLElement; style: CSSProperties }>();
+    const [draft, setDraft] = useState<{ value: string; element: HTMLElement; textElement: HTMLElement; style: CSSProperties }>();
     const overlay = useRef<HTMLSpanElement>(null);
     const input = useRef<HTMLTextAreaElement | null>(null);
     const anchor = draft?.element;
+    const textAnchor = draft?.textElement;
     const fit = useRef<() => void>();
 
     useLayoutEffect(() => {
         const node = overlay.current;
-        if (!node || !anchor) return;
+        if (!node || !anchor || !textAnchor) return;
         const view = anchor.ownerDocument.defaultView!;
 
         /** @brief Follow the anchor in viewport coordinates without inheriting ancestor clipping. */
@@ -58,8 +82,13 @@ export function EditableText({ value, label, className, busy = false, readOnly =
             const height = Math.min(Math.max(minimumHeight, editor.scrollHeight + border), availableHeight);
             editor.style.height = `${height}px`;
             node.style.height = `${height}px`;
-            node.style.left = `${Math.max(4, Math.min(bounds.left + insetLeft, view.innerWidth - width - 4))}px`;
-            node.style.top = `${Math.max(4, Math.min(rect.top, view.innerHeight - height - 4))}px`;
+            const start = textStart(textAnchor!);
+            const editorBounds = editor.getBoundingClientRect();
+            const overlayBounds = node.getBoundingClientRect();
+            const offsetLeft = editorBounds.left - overlayBounds.left + (parseFloat(style.borderLeftWidth) || 0) + (parseFloat(style.paddingLeft) || 0);
+            const offsetTop = editorBounds.top - overlayBounds.top + (parseFloat(style.borderTopWidth) || 0) + (parseFloat(style.paddingTop) || 0);
+            node.style.left = `${Math.max(4, Math.min(start.left - offsetLeft, view.innerWidth - width - 4))}px`;
+            node.style.top = `${Math.max(4, Math.min(start.top - offsetTop, view.innerHeight - height - 4))}px`;
         }
 
         fit.current = position;
@@ -69,6 +98,7 @@ export function EditableText({ value, label, className, busy = false, readOnly =
         input.current?.focus({ preventScroll: true });
         const observer = view.ResizeObserver ? new view.ResizeObserver(position) : undefined;
         observer?.observe(anchor);
+        if (textAnchor !== anchor) observer?.observe(textAnchor);
         if (anchor.parentElement) observer?.observe(anchor.parentElement);
         view.addEventListener('resize', position);
         view.addEventListener('scroll', position, true);
@@ -79,7 +109,7 @@ export function EditableText({ value, label, className, busy = false, readOnly =
             view.removeEventListener('scroll', position, true);
             node.hidePopover?.();
         };
-    }, [anchor]);
+    }, [anchor, textAnchor]);
 
     useLayoutEffect(() => {
         const editor = input.current;
@@ -93,10 +123,10 @@ export function EditableText({ value, label, className, busy = false, readOnly =
     }, [draft, busy, readOnly, maxLength]);
 
     /** @brief Start editing only when the caller permits changes. */
-    function beginEdit(element: HTMLElement): void {
+    function beginEdit(element: HTMLElement, textElement = element): void {
         if (busy || readOnly) return;
-        const display = element.ownerDocument.defaultView!.getComputedStyle(element);
-        setDraft({ value, element, style: {
+        const display = element.ownerDocument.defaultView!.getComputedStyle(textElement);
+        setDraft({ value, element, textElement, style: {
             fontFamily: display.fontFamily, fontSize: display.fontSize, fontWeight: display.fontWeight,
             fontStyle: display.fontStyle, lineHeight: display.lineHeight, letterSpacing: display.letterSpacing,
             textTransform: display.textTransform as CSSProperties['textTransform'], color: display.color,

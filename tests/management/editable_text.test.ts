@@ -28,13 +28,19 @@ test('inline editors retain their anchors and use a top-layer editor that follow
             </>));
         ` }, bundle: true, platform: 'browser', format: 'iife', jsx: 'automatic', write: false,
     });
-    const dom = new JSDOM('<div id="root" style="overflow:hidden;height:20px"></div>', { runScripts: 'outside-only', pretendToBeVisual: true });
+    const dom = new JSDOM('<style>textarea{margin:3px 5px;padding:6px 8px;border:1px solid}</style><div id="root" style="overflow:hidden;height:20px"></div>', { runScripts: 'outside-only', pretendToBeVisual: true });
     const window = dom.window;
     const document = window.document;
     let containerWidth = 400;
     document.getElementById('root')!.getBoundingClientRect = () => ({ left: 10, width: containerWidth }) as DOMRect;
     const shown = new Set<HTMLElement>();
-    window.HTMLElement.prototype.showPopover = function () { shown.add(this); };
+    window.HTMLElement.prototype.showPopover = function () {
+        shown.add(this);
+        const overlay = document.querySelector<HTMLElement>('.ts-inline-editor-overlay')!;
+        overlay.getBoundingClientRect = () => ({ left: parseFloat(overlay.style.left) || 0, top: parseFloat(overlay.style.top) || 0 }) as DOMRect;
+        const editor = overlay.querySelector('textarea')!;
+        editor.getBoundingClientRect = () => ({ left: overlay.getBoundingClientRect().left + 5, top: overlay.getBoundingClientRect().top + 3 }) as DOMRect;
+    };
     window.HTMLElement.prototype.hidePopover = function () { shown.delete(this); };
     try {
         window.eval(bundle.outputFiles[0]!.text);
@@ -61,8 +67,8 @@ test('inline editors retain their anchors and use a top-layer editor that follow
             assert.equal(sized.style.position, 'fixed');
             assert.equal(sized.style.width, '400px');
             assert.equal(sized.style.height, '32px', 'Input can extend beyond the 18px source block');
-            assert.equal(sized.style.left, '10px');
-            assert.equal(sized.style.top, '40px');
+            assert.equal(sized.style.left, '6px', 'Text start must compensate 5px margin, 1px border and 8px padding');
+            assert.equal(sized.style.top, '30px', 'Text start must compensate 3px margin, 1px border and 6px padding');
             assert.equal(sized.style.fontFamily, 'monospace');
             assert.equal(sized.style.fontSize, '12px');
             assert.equal(sized.style.fontWeight, '600');
@@ -70,9 +76,9 @@ test('inline editors retain their anchors and use a top-layer editor that follow
             assert.equal(sized.style.letterSpacing, '0.5px');
             top = 70;
             window.dispatchEvent(new window.Event('scroll'));
-            assert.equal(sized.style.top, '70px');
+            assert.equal(sized.style.top, '60px');
             const setValue = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')!.set!;
-            Object.defineProperty(input, 'scrollHeight', { get: () => input.value.length > 100 ? 128 : 18 });
+            Object.defineProperty(input, 'scrollHeight', { get: () => input.value.length > 100 ? 126 : 16 });
             setValue.call(input, 'Long wrapped content '.repeat(20));
             window.flush(() => input.dispatchEvent(new window.Event('input', { bubbles: true })));
             assert.equal(sized.style.width, '400px', 'Content must not expand the container-based width');
