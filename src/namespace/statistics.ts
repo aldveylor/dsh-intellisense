@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import type { Store } from '../storage/store.js';
 
 /** @brief Per-tool dispatch counts and per-path Inspect query counts. */
@@ -25,21 +24,17 @@ export class CommandStatistics {
     private queriesByTool: Record<string, number> = {};
     private sessions = new Map<string, CommandCounts>();
     private pending: Promise<void> = Promise.resolve();
+    private batch?: { changes: Array<{ session: string; change: (counts: CommandCounts) => void; targets: readonly QueryTarget[] }>; work: Promise<void> };
 
     constructor(private store: Store) {}
 
     /** @brief Restore counters before exposing the namespace service. */
     async load(): Promise<void> {
-        this.queriesByTool = await this.store.load<Record<string, number>>('command_statistics_tool_queries') ?? {};
-        const sessions = await this.store.load<string[]>('command_statistics_sessions') ?? [];
-        const keys = sessions.map(session => this.key(session));
-        const records = this.store.loadMany ? await this.store.loadMany<CommandCounts>(keys) : await Promise.all(keys.map(key => this.store.load<CommandCounts>(key)));
-        this.sessions.clear();
+        const saved = await this.store.load<{ sessions: [string, CommandCounts][]; queriesByTool: Record<string, number> }>('command_statistics');
+        this.queriesByTool = saved?.queriesByTool ?? {};
+        this.sessions = new Map(saved?.sessions ?? []);
         this.global = this.empty();
-        for (const [index, session] of sessions.entries()) {
-            const counts = records[index];
-            if (!counts) continue;
-            this.sessions.set(session, counts);
+        for (const counts of this.sessions.values()) {
             for (const field of ['callsByTool', 'namespaceQueriesByPath', 'commandQueriesByPath'] as const) {
                 for (const [key, count] of Object.entries(counts[field])) this.increment(this.global[field], key, count);
             }
@@ -69,24 +64,32 @@ export class CommandStatistics {
 
     /** @brief Commit both scopes atomically without losing concurrent dispatches or queries. */
     private update(session: string, change: (counts: CommandCounts) => void, targets: readonly QueryTarget[] = []): Promise<void> {
+        if (this.batch) {
+            this.batch.changes.push({ session, change, targets });
+            return this.batch.work;
+        }
+        const changes = [{ session, change, targets }];
         const work = this.pending.then(async () => {
-            const next = structuredClone(this.sessions.get(session) ?? this.empty());
-            change(next);
+            this.batch = undefined;
+            const sessions = new Map(this.sessions);
+            const global = structuredClone(this.global);
             const queriesByTool = structuredClone(this.queriesByTool);
-            for (const target of targets) if (!target.namespace && target.tool) this.increment(queriesByTool, target.tool);
-            if (targets.some(target => !target.namespace && target.tool)) await this.store.save('command_statistics_tool_queries', queriesByTool);
-            if (!this.sessions.has(session)) await this.store.save('command_statistics_sessions', [...this.sessions.keys(), session]);
-            await this.store.save(this.key(session), next);
-            this.sessions.set(session, next);
-            change(this.global);
+            for (const { session, change, targets } of changes) {
+                const next = structuredClone(sessions.get(session) ?? this.empty());
+                change(next);
+                sessions.set(session, next);
+                change(global);
+                for (const target of targets) if (!target.namespace && target.tool) this.increment(queriesByTool, target.tool);
+            }
+            await this.store.save('command_statistics', { sessions: [...sessions], queriesByTool });
+            this.sessions = sessions;
+            this.global = global;
             this.queriesByTool = queriesByTool;
         });
+        this.batch = { changes, work };
         this.pending = work.catch(() => {});
         return work;
     }
-
-    /** @brief Persist each session independently; global counts are derived when loading. */
-    private key(session: string): string { return `command_statistics_${createHash('sha256').update(session).digest('hex')}`; }
 
     /** @brief Create independent counters for a new scope. */
     private empty(): CommandCounts { return { callsByTool: {}, namespaceQueriesByPath: {}, commandQueriesByPath: {} }; }

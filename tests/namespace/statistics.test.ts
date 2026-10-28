@@ -101,3 +101,69 @@ test('global tool query totals follow physical identities across aliases and sur
     await restored.load();
     assert.deepEqual((await restored.snapshot()).queriesByTool, { read: 3 });
 });
+
+test('failed statistics batches leave durable and live counters unchanged and permit recovery', async () => {
+    /** @brief Fail one atomic statistics snapshot before it reaches storage. */
+    class FailingStore extends MemoryStore {
+        fail = false;
+        writes = 0;
+
+        override async save<T>(key: string, value: T): Promise<void> {
+            this.writes++;
+            if (this.fail) throw new Error('injected write failure');
+            await super.save(key, value);
+        }
+    }
+    const store = new FailingStore();
+    const statistics = new CommandStatistics(store);
+    await statistics.load();
+    await statistics.recordCall('existing', 'read');
+    const before = await statistics.snapshot();
+    store.fail = true;
+    const outcomes = await Promise.allSettled([
+        statistics.recordQueries('new', [{ path: 'std.read', namespace: false, tool: 'read' }]),
+        statistics.recordCall('existing', 'write'),
+    ]);
+    assert(outcomes.every(outcome => outcome.status === 'rejected'));
+    assert.equal(store.writes, 2);
+    assert.deepEqual(await statistics.snapshot(), before);
+    const restored = new CommandStatistics(store);
+    await restored.load();
+    assert.deepEqual(await restored.snapshot(), before);
+    assert.equal((await restored.snapshot('new')).commandsQueried, 0);
+    store.fail = false;
+    await Promise.all(Array.from({ length: 30 }, () => statistics.recordCall('existing', 'read')));
+    assert.equal(store.writes, 3);
+    await restored.load();
+    assert.equal((await restored.snapshot()).calls, 31);
+});
+
+test('updates arriving during persistence form a subsequent durable batch', async () => {
+    let started!: () => void;
+    let finish!: () => void;
+    const writing = new Promise<void>(resolve => { started = resolve; });
+    const gate = new Promise<void>(resolve => { finish = resolve; });
+    /** @brief Hold the first save to exercise updates queued during storage IO. */
+    class DelayedStore extends MemoryStore {
+        writes = 0;
+
+        override async save<T>(key: string, value: T): Promise<void> {
+            if (++this.writes === 1) { started(); await gate; }
+            await super.save(key, value);
+        }
+    }
+    const store = new DelayedStore();
+    const statistics = new CommandStatistics(store);
+    const first = statistics.recordCall('first', 'read');
+    await writing;
+    const second = statistics.recordCall('second', 'read');
+    const third = statistics.recordQueries('first', [{ path: 'std.read', namespace: false, tool: 'read' }]);
+    finish();
+    await Promise.all([first, second, third]);
+    assert.equal(store.writes, 2);
+    const restored = new CommandStatistics(store);
+    await restored.load();
+    assert.deepEqual(await restored.snapshot(), await statistics.snapshot());
+    assert.equal((await restored.snapshot()).calls, 2);
+    assert.equal((await restored.snapshot()).queriesByTool.read, 1);
+});

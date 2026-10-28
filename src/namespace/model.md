@@ -2,7 +2,7 @@
 
 `statistics.ts` 的 CommandStatistics 通过 `NamespaceComponent.statistics` 提供统计服务，管理 UI 通过状态接口读取全局 callsByTool，供工具卡片、详情浮层与排序使用。`dispatchTool` 每次派发前按物理 tool ID 计一次调用，包含失败派发，native 与 PTC 共用入口；原生物理工具调用、tools_run_code 外层执行、console 等环境接口和预加载数据读取不计入。`snapshot()` 返回全局统计，`snapshot(sessionId)` 返回指定会话统计；快照含 calls、namespacesQueried、commandsQueried 总数以及 callsByTool、namespaceQueriesByPath、commandQueriesByPath 明细。总数由明细求和，读取返回独立副本。
 
-`tools/inspect.ts` 内部按请求中的实际查询目标计数：去掉 global. 前缀和命名空间尾点，根目录路径为 ""；重复目标分别计数，命名空间查询不展开为所有后代的查询次数。不存在、禁用、无效命令尾点不计数，非法路径请求整体拒绝。统计按会话和全局一起串行更新，使用现有 Store 的独立会话记录持久化，重启和会话释放均保留计数。
+`tools/inspect.ts` 内部按请求中的实际查询目标计数：去掉 global. 前缀和命名空间尾点，根目录路径为 ""；重复目标分别计数，命名空间查询不展开为所有后代的查询次数。不存在、禁用、无效命令尾点不计数，非法路径请求整体拒绝。统计按会话和全局一起串行更新，使用现有 Store 的单条原子快照持久化，重启和会话释放均保留计数。
 
 `plugin.ts` 装配共享 Profile、管理 UI、tools_inspect、命名空间树和模式提示。主入口 index.ts 提供运行时配置；仅 PTC presentation 创建 codeRuntime 与 NamespaceRuntime；独立入口 ./namespace 不创建 JS 运行时。主插件和命名空间服务仅配置运行预算与别名；执行模式由 presentation 配置决定。
 
@@ -55,11 +55,11 @@ manifest 保留物理工具原始注释，精确 Inspect 函数查询（含 YAML
 
 挂载路径无主次之分，各路径的固定等级、禁用状态与简化描述独立生效。commands.paths 从会话 Profile 配置汇总挂载路径，包含禁用路径与已挂载工具的 YAML 配置路径；不从过滤禁用项的执行 manifest 推导。
 
-命名参数与声明直接使用物理工具原始字段，不支持参数别名。目录按 tools/change 及会话生命周期失效，重复读取复用目录；单次原生同步共享 registry 和 manifest，有效映射按路径索引。统计以 command_statistics_sessions 保存会话目录，每个会话独立持久化，加载时聚合全局计数；每次派发仅写入当前会话，仍在确认持久化后执行物理工具，不兼容旧统计存档。
+命名参数与声明直接使用物理工具原始字段，不支持参数别名。目录按 tools/change 及会话生命周期失效，重复读取复用目录；单次原生同步共享 registry 和 manifest，有效映射按路径索引。统计以 command_statistics 单条记录保存全部会话计数及物理工具查询计数，加载时聚合全局计数；同一轮等待期间到达的更新合并写入一次，写入成功后才发布内存状态并执行物理工具，失败时整批拒绝且后续批次可重试。不兼容旧统计存档。单次快照大小随历史会话计数增长。
 
 原生同步以 registry.generation 和已发现路径集标识输入；配置、物理契约及发现集合未变时直接复用已注册工具名称，跳过 manifest 和注册指纹构建。物理目录内容未变时不重新克隆工具 schema。
 
-全局 queriesByTool 按查询时解析出的物理工具 ID 累计精确命令查询次数，不按当前 Profile 反推历史归属；同一工具的不同别名共享计数，仅在全局快照提供，会话快照该字段为空。计数独立持久化到 command_statistics_tool_queries，重启后恢复。命名空间继续使用全局 namespaceQueriesByPath，成员查询不增加子命令查询数。
+全局 queriesByTool 按查询时解析出的物理工具 ID 累计精确命令查询次数，不按当前 Profile 反推历史归属；同一工具的不同别名共享计数，仅在全局快照提供，会话快照该字段为空。计数与会话统计在 command_statistics 中一起原子持久化，重启后恢复。命名空间继续使用全局 namespaceQueriesByPath，成员查询不增加子命令查询数。
 
 `component.ts` 从最近 presentation 配置读取可选固定 profile；会话初始化时优先复制指定目录配置，读取时将不同名称的已有工作快照切换到指定 Profile，同名草稿保持独立。
 
