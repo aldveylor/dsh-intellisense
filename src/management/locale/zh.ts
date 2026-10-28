@@ -66,7 +66,7 @@ export const zh = {
     "tool_total_calls": "总调用次数",
     "tool_total_queries": "总查询次数",
     "tool_statistics": "统计",
-    "tool_all_calls_label": "所有命令总调用次数：{count}",
+    "tool_all_calls_label": "工具总调用次数：{count}",
     "tool_no_description": "暂无描述",
     "tool_calls_label": "总调用次数：{count}",
     "tool_filter": "筛选工具",
