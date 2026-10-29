@@ -1,4 +1,4 @@
-import { Button, CodeBlock, InlineEditor } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button, CodeBlock, InlineEditor, Toast } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { Context } from '@deepseek-ai/cordis';
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client';
 import type {} from '@deepseek-ai/dsh-client-ui-plugin-manager/client';
@@ -43,6 +43,6 @@ export function apply(ctx: Context): void {
                 if (ctx.conversation.input.requestDraftInitialization(binding, { prompt }) === 'blocked') throw new Error('draft_initialization_failed');
                 ctx.uiWorkspace.openSession(id);
             });
-        }, locale: ctx.locale, Button, CodeBlock, InlineEditor, DefaultProfileSelect: HostProfileSelect, api: new URL('api/ts-intellisense-state', document.baseURI).href }),
+        }, locale: ctx.locale, Button, CodeBlock, InlineEditor, Toast, DefaultProfileSelect: HostProfileSelect, api: new URL('api/ts-intellisense-state', document.baseURI).href }),
     }, NativePanel));
 }
