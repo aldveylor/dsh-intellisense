@@ -13,6 +13,7 @@ export interface ProfileCheckContext {
 export interface ProfileNode {
     readonly type: string;
     readonly permissions: Permission;
+    readonly disabled: boolean;
     /** @brief Merge explicit permission overrides. */
     setPermissions(value: Partial<Permission>): this;
     /** @brief Set this node's explicit disabled state. */
@@ -58,6 +59,8 @@ export abstract class EditableNode implements ProfileNode {
     abstract readonly type: string;
 
     get permissions(): Permission { return nodePermissions(this.type === 'command' ? 'leaf' : 'tree', structuredClone(this.settings.permissions)); }
+
+    get disabled(): boolean { return !!this.settings.disabled; }
 
     /** @brief Merge explicit permission overrides without changing unspecified fields. */
     setPermissions(value: Partial<Permission>): this {

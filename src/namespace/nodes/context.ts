@@ -1,4 +1,4 @@
-import type { ToolAddition } from '../service.js';
+import type { ToolAddition } from '../tool_addition.js';
 import type { NamespaceTreeNode } from '../../registry/profile_node.js';
 import type { ProfileNodeSettings } from '../../registry/profile/node_settings.js';
 import type { PresentationMode } from '../../integration/presentation.js';

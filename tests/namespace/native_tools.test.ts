@@ -6,7 +6,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { nativeBindings, nativeDiscovery } from '../../src/namespace/native_tools.js';
-import { AgentSessionAddition } from '../../src/integration/agent_session_addition.js';
+import { NamespaceIntegration } from '../../src/integration/namespace_integration.js';
 import type { ManifestEntry } from '../../src/namespace/namespace.js';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { ProfileSessions } from '../../src/registry/profiles.js';
@@ -37,7 +37,7 @@ test('native aliases publish callable names, preserve native arguments and revok
     const physical = [{ id: 'read_file', description: 'Read file\nFull file documentation.', parameters: { type: 'object', properties: { file: { type: 'string' } }, required: ['file'] }, output: { type: 'string' } }];
     registry.refresh(physical);
     await registry.configure([{ id: 'read_file', path: 'fs.read', pinned: false }], 0);
-    const component = new AgentSessionAddition(ctx, new NamespaceComponent(ctx, registry, [{ path: 'fs.open', tool: 'read_file' }]), new ProfileSessions(registry, store));
+    const component = new NamespaceIntegration(ctx, new NamespaceComponent(ctx, registry), new ProfileSessions(registry, store), [{ path: 'fs.open', tool: 'read_file' }]);
     component.physical = () => physical;
     const agent = { id: 'native-test', ctx } as Agent;
     assert.deepEqual(await component.syncNative(agent), []);
@@ -106,7 +106,7 @@ test('native discovery stays detailed when enabled and is revoked by command or 
     } } as unknown as Context;
     const registry = new SemanticRegistry(new MemoryStore());
     registry.refresh([{ id: 'tools_inspect', description: '', parameters: {}, output: {} }]);
-    const component = new AgentSessionAddition(ctx, new NamespaceComponent(ctx, registry, []), new ProfileSessions(registry, new MemoryStore()));
+    const component = new NamespaceIntegration(ctx, new NamespaceComponent(ctx, registry), new ProfileSessions(registry, new MemoryStore()));
     component.registryFor = async () => registry;
     const agent = { id: 'discovery-disable', ctx } as Agent;
     for (const disabled of [[], ['tools.inspect'], [], ['tools'], []]) {
@@ -127,7 +127,7 @@ test('native brief pins publish JSON hints and become callable only after exact 
         { id: 'read_file', description: 'Read file', parameters: { type: 'object', properties: { file: { type: 'string' } } }, output: {} },
         { id: 'tools_profile_load', description: 'Load profile', parameters: {}, output: {} },
     ]);
-    const component = new AgentSessionAddition(ctx, new NamespaceComponent(ctx, registry, []), new ProfileSessions(registry, store));
+    const component = new NamespaceIntegration(ctx, new NamespaceComponent(ctx, registry), new ProfileSessions(registry, store));
     component.registryFor = async () => registry;
     component.isPtc = () => false;
     const agent = { id: 'native-pins', ctx } as Agent;

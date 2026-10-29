@@ -2,12 +2,13 @@ import { EditableSnapshot } from '../registry/profile/snapshot.js';
 import type { ProfileData } from '../registry/profile_tree.js';
 import type { ProfileFactory, ProfileSnapshot } from '../registry/profile/profile.js';
 import type { NamespaceTreeNode } from '../registry/profile_node.js';
-import type { ProfileSaveEffect, ProfileSaveEvent, ToolAddition, ToolsNamespace } from './service.js';
+import type { ToolAddition } from './tool_addition.js';
+import type { ProfileSaveEffect, ProfileSaveEvent, ToolsNamespace } from './service.js';
 import type { NamespaceImplementation } from './nodes/context.js';
 import { registerBuiltinDefinitions } from './builtin_profile.js';
 
 /** @brief Own shared recursive node definitions and reversible physical-tool registrations. */
-export class NamespaceDefinitions implements Pick<ToolsNamespace, 'setToolAddition' | 'setNamespaceImplementation' | 'createInitialProfile' | 'effect'> {
+export class NamespaceDefinitions implements Pick<ToolsNamespace, 'createInitialProfile' | 'effect'> {
     private implementations = new Map<string, Map<object, NamespaceImplementation>>();
     private saveEffects = new Set<ProfileSaveEffect>();
     private additions = new Map<string, Map<object, ToolAddition>>();

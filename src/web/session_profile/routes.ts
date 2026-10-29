@@ -1,11 +1,11 @@
 import type { Context } from '@deepseek-ai/cordis';
 import type { SemanticRegistry } from '../../registry/registry.js';
-import type { AgentSessionAddition } from '../../integration/agent_session_addition.js';
+import type { NamespaceIntegration } from '../../integration/namespace_integration.js';
 import type { SessionProfileState } from './state.js';
 import { z } from 'zod';
 
 /** @brief Load a named namespace into one live session without changing the deployment default. */
-export function registerSessionProfiles(ctx: Context, catalog: SemanticRegistry, namespaces: AgentSessionAddition): void {
+export function registerSessionProfiles(ctx: Context, catalog: SemanticRegistry, namespaces: NamespaceIntegration): void {
     const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
     const selection = z.strictObject({ profile: z.string().min(1).max(80) });
     ctx.connection.fetch.register({ path: '/api/ts-intellisense-profile', methods: ['GET', 'POST'], requestBody: 'buffered', fetch: async request => {

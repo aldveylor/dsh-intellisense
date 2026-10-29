@@ -6,7 +6,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
 import { MemoryStore } from '../../src/storage/store.js';
 import { CommandStatistics } from '../../src/namespace/statistics.js';
-import { AgentSessionAddition } from '../../src/integration/agent_session_addition.js';
+import { NamespaceIntegration } from '../../src/integration/namespace_integration.js';
 import { inspectQueryTargets, registerInspect } from '../../src/tools/inspect.js';
 import { namespace } from './fixtures.js';
 
@@ -42,7 +42,7 @@ test('query targets count normalized occurrences without expanding members or ru
 
 test('dispatch counts physical tools once for both entry and direct dispatch, including failures', async () => {
     const statistics = new CommandStatistics(new MemoryStore());
-    const component = Object.assign(Object.create(AgentSessionAddition.prototype) as AgentSessionAddition, { statistics });
+    const component = Object.assign(Object.create(NamespaceIntegration.prototype) as NamespaceIntegration, { statistics, profiles: { addition: async (session: string) => ({ statistics: { recordCall: (tool: string) => statistics.recordCall(session, tool) } }) } });
     const events: string[] = [];
     let fail = false;
     const agent = { id: 'session', session: { append: (event: string) => events.push(event) }, ctx: { tools: {
@@ -64,7 +64,7 @@ for (const ptc of [false, true]) test(`physical Inspect records query targets in
     const namespaces = {
         statistics, registryFor: async () => ({ effective: () => [], description: () => undefined, disabled: () => false, revision: 0, snapshot: () => ({ revision: 0 }) }),
         tree: async () => root, isPtc: () => ptc, discover: async () => '{}', position: () => ({ turn: 0, step: 0 }),
-    } as unknown as AgentSessionAddition;
+    } as unknown as NamespaceIntegration;
     let definition!: ToolDefinition;
     const ctx = { effect: (callback: () => unknown) => callback(), tools: {
         register: (value: ToolDefinition) => { definition = value; return () => {}; },
@@ -72,7 +72,7 @@ for (const ptc of [false, true]) test(`physical Inspect records query targets in
     registerInspect(ctx, namespaces);
     const execution = {
         callId: 'query', signal: new AbortController().signal,
-        agent: { id: 'session', session: Session.create(SessionId('statistics-query')), ctx: { get: (key: string) => key === 'toolsNamespace' ? namespaces : undefined } },
+        agent: { id: 'session', session: Session.create(SessionId('statistics-query')), ctx: { get: (key: string) => key === 'namespaceIntegration' ? namespaces : undefined } },
     } as unknown as ToolRunContext;
     await definition.execute({ queries: ['global.std.', 'std.read', 'console.log'] }, execution);
     const counts = await statistics.snapshot('session');

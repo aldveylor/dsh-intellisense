@@ -1,15 +1,13 @@
 # 命名空间模型
 
-`service.ts` 定义不依赖 Agent 的 ToolsNamespace，`component.ts` 实现共享 Profile 目录与命令名称解析。ProfileCollection 提供 list/get/create/getOrCreate/remove/edit；get 和 edit 只接受目录名称，返回独立匿名快照。edit 原子发布回调返回的树，Profile 编辑接口不直接调用工具。createInitialProfile 为无参数工厂，默认创建 RootNamespace；具体类型和权限由节点实现保持。
+`service.ts` 的 ToolsNamespace 仅继承 ProfileCollection，并提供保存事件 effect；`component.ts` 实现具名 Profile 创建、读取、编辑和删除。get/edit 只接受目录名称，返回独立匿名快照；edit 原子发布回调返回的树。createInitialProfile 为无参数工厂，默认创建 RootNamespace。该服务不提供命令查询、执行、搜索引擎、统计、工具属性或命名空间实现注册。
 
-`resolve(path, profile?)` 将启用的命令路径解析为物理工具名称；省略 Profile 使用当前全局选择，支持 global. 前缀。不存在的 Profile、命名空间、禁用及不可用命令返回 undefined。解析不执行工具、不修改选择、不登记发现状态。会话、呈现、审计和派发由 `../integration/agent_session_addition.ts` 的 AgentSessionAddition 处理。
+命令名称解析属于 ProfileSnapshot.resolve(path)，只遍历快照内的节点，支持 global. 前缀并检查命令及祖先禁用状态。返回物理名称或 undefined，不查询工具目录、不调用工具、不统计 inspect 查询；无关的未绑定成员不影响目标解析。物理可用性和执行权限交给调用层及 DSH。
 
-`definitions.ts` 管理可撤销的 ToolAddition、命名空间实现、Profile 工厂和保存事件。fixed 禁止外部新增挂载，hidden 排除目录和发现，ptcDescription 覆盖 PTC 说明；project 投影契约，value 生产只读预加载值，只接收命名空间服务和当前 registry。builtin_profile.ts 通过统一接口注册内置定义。`setNamespaceImplementation` 扩展执行投影，不替代 Profile 节点权限实现。
+`tool_addition.ts` 独立定义物理工具附加属性，`definitions.ts` 管理可撤销的工具属性、命名空间实现、Profile 工厂和保存事件。builtin_profile.ts 直接通过定义注册内置工具契约，与 ToolsNamespace 的 Profile 目录 API 分离。ProfileSaveEffect 只通知提交后的 name/time/type，返回值不参与工具反馈；校验和提示由 tools/profile_save.ts 处理。
 
-`namespace.ts` 从当前 registry、Profile 和别名创建确定性的 manifest。不可用映射保留配置但不参与投影；别名仅为已经挂载的物理工具提供额外路径。`nodes/` 实现匿名 NamespaceNode、CommandNode 和执行投影，Profile 编辑节点在 `../tools/profile_nodes/`。命令绑定包含物理名称及参数/结果适配器，节点自身不执行工具。`node.ts` 提供共享 Permission 和无父引用的 SerializedNode，权限由服务端具体节点执行。
+`namespace.ts` 将 ProfileSnapshot 与实际物理目录投影成 manifest，通过快照 resolve 取得命令名称，再生成绑定与别名。不可用命令保留 Profile 数据但不参与执行投影。`nodes/` 实现 NamespaceNode、CommandNode，Profile 编辑节点在 tools/profile_nodes/；权限由具体服务端节点执行。declaration.ts、prompt.ts 与 native_tools.ts 分别提供声明、呈现和原生名称适配。
 
-`declaration.ts` 统一渲染声明，`prompt.ts` 生成 native/PTC 说明与固定目录，`native_tools.ts` 负责渐进发现和 ns_ 调用名称映射。具体会话状态由集成层持有。
+AgentSessionAddition 仅持有 profile: ProfileSnapshot 和会话调用 statistics.recordCall(tool)，不提供查询、执行或目录接口。inspect 查询统计保留在 tools/inspect.ts。会话快照持久化及内部配置投影位于 registry/profiles.ts；NamespaceIntegration 在 integration/namespace_integration.ts 内部管理作用域目录、搜索、发现、呈现和 DSH 派发，不作为 AgentSessionAddition 暴露。
 
-`statistics.ts` 增量维护全局、会话、物理工具计数，通过 JournalStore 延迟批量保存；读取返回独立副本，释放时刷新。管理目录刷新由集成层汇总全局、预设及活动会话作用域，运行时目录只使用当前 Agent 的实际工具。
-
-`plugin.ts` 注册 toolsNamespace 和 agentSessionAddition 两个服务，挂载管理路由及 Agent 生命周期。存储加载失败时保留恢复管理入口。`runtime.ts` 仅在 PTC presentation 中注册 tools_run_code，通过 AgentSessionAddition 获取绑定和派发工具，隔离运行时取消后等待真实子调用结束。
+plugin.ts 注册 toolsNamespace 和内部 namespaceIntegration 服务，挂载管理、恢复路由及生命周期。runtime.ts 仅在 PTC presentation 注册 tools_run_code，使用内部集成层编译绑定和派发；取消后等待真实子调用结束。statistics.ts 仍通过 JournalStore 批量保存全局、会话、物理工具计数，与 Profile 服务分离。

@@ -6,7 +6,7 @@ import { AgentRegistry, type Agent } from '@deepseek-ai/dsh-agent';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
 import { createScope } from '@deepseek-ai/dsh-scope';
 import * as presentation from '../../src/integration/presentation.js';
-import { AgentSessionAddition } from '../../src/integration/agent_session_addition.js';
+import { NamespaceIntegration } from '../../src/integration/namespace_integration.js';
 import { ProfileSessions } from '../../src/registry/profiles.js';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
@@ -16,9 +16,9 @@ test('runtime child ownership inherits the nearest parent working profile withou
     const mounted = await ctx.plugin(AgentRegistry);
     const catalog = new SemanticRegistry(new MemoryStore());
     const profiles = new ProfileSessions(catalog, new MemoryStore());
-    const namespaces = new AgentSessionAddition(ctx, new NamespaceComponent(ctx, catalog, []), profiles);
+    const namespaces = new NamespaceIntegration(ctx, new NamespaceComponent(ctx, catalog), profiles);
     ctx.provide('tools', { schemas: () => [], presentAs: () => {} } as unknown as Context['tools']);
-    ctx.provide('agentSessionAddition', { register: () => {} } as unknown as AgentSessionAddition);
+    ctx.provide('namespaceIntegration', { register: () => {} } as unknown as NamespaceIntegration);
     const scopes: ReturnType<typeof createScope>[] = [];
     const detach: (() => void)[] = [];
 
@@ -53,11 +53,12 @@ test('runtime child ownership inherits the nearest parent working profile withou
         const child = await agent('child', parent);
         const childRegistry = await namespaces.registryFor(child);
         assert.equal(childRegistry.snapshot().profile, 'Work');
-        assert.deepEqual(childRegistry.configuration(), parentRegistry.configuration());
+        assert.deepEqual((await profiles.addition(child.id)).profile.serialize(), (await profiles.addition(parent.id)).profile.serialize());
         await profiles.load(parent.id, 'Default');
         assert.equal((await namespaces.registryFor(child)).snapshot().profile, 'Work');
         const grandchild = await agent('grandchild', child);
-        assert.deepEqual((await namespaces.registryFor(grandchild)).configuration(), childRegistry.configuration());
+        await namespaces.registryFor(grandchild);
+        assert.deepEqual((await profiles.addition(grandchild.id)).profile.serialize(), (await profiles.addition(child.id)).profile.serialize());
         const root = await agent('root');
         assert.equal((await namespaces.registryFor(root)).snapshot().profile, 'Default');
         const standard = await agent('standard', undefined, false);

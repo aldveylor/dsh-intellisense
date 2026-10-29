@@ -3,12 +3,12 @@ import type { Context } from '@deepseek-ai/cordis';
 import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools';
 import { SearchCorpus, searchParameters } from '../search/search.js';
 import { pluginCommands, projectBuiltin } from '../runtime/builtins.js';
-import type { AgentSessionAddition } from '../integration/agent_session_addition.js';
+import type { NamespaceIntegration } from '../integration/namespace_integration.js';
 import { registerBuiltin } from './builtin_trace.js';
 import type { SemanticRegistry } from '../registry/registry.js';
 
 /** @brief Build the search contract directly from the current registered engine selector. */
-export function searchDefinition(namespaces: Pick<AgentSessionAddition, 'entries' | 'registryFor' | 'searchEngines'>, mode: PresentationMode = 'native'): ToolDefinition {
+export function searchDefinition(namespaces: Pick<NamespaceIntegration, 'entries' | 'registryFor' | 'searchEngines'>, mode: PresentationMode = 'native'): ToolDefinition {
     const selector = namespaces.searchEngines.selector();
     const corpora = new WeakMap<SemanticRegistry, { generation: string; corpus: SearchCorpus }>();
     return defineTool({
@@ -34,7 +34,7 @@ export function searchDefinition(namespaces: Pick<AgentSessionAddition, 'entries
 }
 
 /** @brief Refresh scoped search contracts whenever registered methods or the default change. */
-export function registerSearch(ctx: Context, namespaces: AgentSessionAddition): void {
+export function registerSearch(ctx: Context, namespaces: NamespaceIntegration): void {
     ctx.effect(() => {
         let dispose = registerBuiltin(ctx, searchDefinition(namespaces));
         const unsubscribe = namespaces.searchEngines.subscribe(() => {

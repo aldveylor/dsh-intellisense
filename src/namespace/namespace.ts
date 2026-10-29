@@ -1,3 +1,5 @@
+import { profileTree } from '../registry/profile_tree.js';
+import type { ProfileSnapshot } from '../registry/profile/profile.js';
 import { EditableNamespace } from '../registry/profile/namespace.js';
 import { EditableCommand } from '../registry/profile/command.js';
 import type { ProfileCommand } from '../registry/profile/command.js';
@@ -99,12 +101,13 @@ export function queryNodes(root: NamespaceNode, queries: readonly string[]): (Na
 }
 
 /** @brief Build deterministic, scoped aliases from the current Profile and physical tool catalog. */
-export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Aliases>, mode: PresentationMode = 'ptc'): NamespaceNode {
+export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Aliases>, mode: PresentationMode = 'ptc', profile?: ProfileSnapshot): NamespaceNode {
     const tools = registry.tools();
     const byId = new Map(tools.map(tool => [tool.id, tool]));
     const state = registry.snapshot();
+    profile ??= registry.definitions.profile(profileTree(state.profile ?? 'Default', registry.configuration(), registry.definitions).save());
     const template = state.providedRoot ?? registry.definitions.tree(state.profile);
-    const definition = new EditableNamespace('', template);
+    const definition = new EditableNamespace('', profile.serialize());
     const nodeFor = (parts: string[]): ProfileNamespace => parts.reduce((parent, name) => {
         const node = parent.getOrCreate(name, () => new EditableNamespace(name));
         if (node.type !== 'namespace') throw new Error(`Expected namespace: ${name}`);
@@ -128,7 +131,8 @@ export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Ali
     for (const mapping of effective) {
         // Unmounted tools have no namespace mount until a plugin or Profile adds one.
         if (!state.mappings.some(saved => saved.path === mapping.path && saved.id === mapping.id)) continue;
-        insert(mapping.path, mapping.id);
+        const tool = profile.resolve(mapping.path);
+        if (tool) insert(mapping.path, tool);
     }
     const mounted = new Set(effective.map(mapping => mapping.id));
     for (const alias of aliases) if (byId.has(alias.tool) && mounted.has(alias.tool)) insert(alias.path, alias.tool);

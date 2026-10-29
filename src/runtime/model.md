@@ -18,7 +18,7 @@
 
 `protocol.ts` 的 CommandBinding 定义初始化命令契约：命名空间路径、物理 tool 名称、参数适配器（字段、重载或对象别名）与返回值适配器。worker 在 VM realm 内以 NamespaceCommand 类将这些契约编译为可调用函数，调用前直接生成底层命名参数对象；可选字段 undefined 被省略，显式 null 保留。IPC call 只发送物理 tool 与命名参数 args，不传命名空间路径或位置参数元组。返回值通过存在标志保留 undefined，VM 命令对象完成单字段解包或丢弃结果。
 
-插件自有 tools_run_code 通过 namespace/runtime.ts 使用本运行时。命名空间在初始化时解析一次；宿主收到 IPC 后通过 AgentSessionAddition.dispatchTool 直接调用 DSH 原生 tools.execute，保留父子审计和上下文。插件不逐次解析 manifest 或自行判定权限，权限及底层参数校验交给 DSH，不依赖全局 ptcRuntime。worker 内的 ToolCallError 属于 guest realm，包含失败命名空间路径 toolName。
+插件自有 tools_run_code 通过 namespace/runtime.ts 使用本运行时。命名空间在初始化时解析一次；宿主收到 IPC 后通过 内部 NamespaceIntegration.dispatchTool 直接调用 DSH 原生 tools.execute，保留父子审计和上下文。插件不逐次解析 manifest 或自行判定权限，权限及底层参数校验交给 DSH，不依赖全局 ptcRuntime。worker 内的 ToolCallError 属于 guest realm，包含失败命名空间路径 toolName。
 
 init 消息携带 data-only values，VM realm 内解析并递归冻结，执行前预加载 tools.profile.annotation 与 tools.profile.commands；不传递宿主对象。每次运行刷新这些值，工具仍通过原生 PTC 闭包派发。
 
@@ -26,7 +26,7 @@ tools.profile.commands 中各项 totalCalls 使用 VM 内只读 getter，从预�
 
 `builtins.ts` 的 `PluginCommands` 持有插件命令契约表，通过共享实例 `pluginCommands` 提供物理命令查找、搜索签名、默认提示等级及运行时/UI 投影所需的命令分组。
 
-exec、run_code 与插件自有执行入口通过 toolsNamespace.setToolAddition 注册 hidden: true，物理目录、manifest 和管理选择器统一读取该属性；不再使用 reservedToolIds 静态过滤表。
+exec、run_code 与插件自有执行入口通过 NamespaceDefinitions.setToolAddition 注册 hidden: true，物理目录、manifest 和管理选择器统一读取该属性；不再使用 reservedToolIds 静态过滤表。
 
 PTC 初始化先建立运行时环境（包括 console 输出对象），再安装生成的命令与预加载数据。每次初始化移除上次生成的命名空间根，再部署当前命令和值；生成的根属性可配置但不可赋值，子树冻结。部署只写入环境中不存在的根属性，不覆盖已有 console、标准对象或其它运行时全局。生成树内重复命令或命令/值冲突会明确拒绝，不以后写覆盖先写。运行时全局对象不作为命名空间节点参与 Inspect 查询。
 

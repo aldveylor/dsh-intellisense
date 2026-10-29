@@ -3,6 +3,9 @@ import { mergeProfilePatch } from './patch.js';
 import { compareProfile } from './compare.js';
 import type { ProfileData } from '../profile_tree.js';
 import { EditableNamespace } from './namespace.js';
+import type { ProfileNamespace } from './namespace.js';
+import type { ProfileCommand } from './command.js';
+import type { ProfileNode } from './node.js';
 import type { ProfileSnapshot } from './profile.js';
 
 /** @brief Internal anonymous snapshot implementation with no persistence or catalog identity. */
@@ -10,6 +13,18 @@ export class EditableSnapshot extends EditableNamespace implements ProfileSnapsh
     brief: string | undefined;
 
     constructor(data?: Pick<ProfileData, 'root' | 'brief'>) { super('', data?.root); this.brief = data?.brief; }
+
+    /** @brief Resolve only explicit command bindings, respecting disabled ancestors. */
+    resolve(path: string): string | undefined {
+        if (this.disabled) return undefined;
+        const [first, ...parts] = path.replace(/^global\./, '').split('.');
+        let node: ProfileNode | undefined = this.children.get(first!);
+        for (const name of parts) {
+            if (!node || node.disabled || node.type !== 'namespace') return undefined;
+            node = (node as ProfileNamespace).children.get(name);
+        }
+        return node?.type === 'command' && !node.disabled ? (node as ProfileCommand).tool : undefined;
+    }
 
     /** @brief Clone stored data using this concrete root implementation. */
     clone(value: Pick<ProfileData, 'root' | 'brief'> = { root: this.serialize(), brief: this.brief }): ProfileSnapshot {

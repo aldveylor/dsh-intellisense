@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import { SemanticRegistry, type Mapping } from '../../src/registry/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
-import { AgentSessionAddition } from '../../src/integration/agent_session_addition.js';
+import { NamespaceIntegration } from '../../src/integration/namespace_integration.js';
 import { manifest } from '../../src/namespace/namespace.js';
 import { inspect } from '../../src/tools/inspect.js';
 
@@ -11,10 +11,10 @@ test('custom pinned briefs preserve original Inspect documentation at every pin 
     const registry = new SemanticRegistry(new MemoryStore());
     registry.refresh([{ id: 'read', description: 'Original command documentation', parameters: { type: 'object', properties: { path: { type: 'string', description: 'Absolute path' } }, required: ['path'] }, output: { type: 'string' } }]);
     const mapping: Mapping = { id: 'read', path: 'files.read', pinned: false };
-    const component = { registryFor: async () => registry, aliases: [], isPtc: () => true } as unknown as AgentSessionAddition;
+    const component = { registryFor: async () => registry, aliases: [], isPtc: () => true } as unknown as NamespaceIntegration;
     for (const level of [0, 1, 2] as const) {
         await registry.configure([{ ...mapping, alwaysVisible: level, description: 'Custom prompt note' }], registry.snapshot().revision);
-        const hint = await AgentSessionAddition.prototype.prompt.call(component, {} as Agent);
+        const hint = await NamespaceIntegration.prototype.prompt.call(component, {} as Agent);
         assert.equal(hint.includes('namespace files'), level > 0);
         if (level === 1) {
             assert.match(hint, /Custom prompt note/);
@@ -29,5 +29,5 @@ test('custom pinned briefs preserve original Inspect documentation at every pin 
         assert(!info.includes('Custom prompt note'));
     }
     registry.refresh([]);
-    assert(!(await AgentSessionAddition.prototype.prompt.call(component, {} as Agent)).includes('namespace files'));
+    assert(!(await NamespaceIntegration.prototype.prompt.call(component, {} as Agent)).includes('namespace files'));
 });

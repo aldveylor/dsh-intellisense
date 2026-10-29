@@ -6,7 +6,7 @@ import { returnTypeDeclaration } from './return_type.js';
 import type { PhysicalTool, SemanticRegistry } from '../../registry/registry.js';
 import { createNamespace } from '../../namespace/namespace.js';
 import type { SerializedNode } from '../../namespace/node.js';
-import type { NamespaceComponent } from '../../namespace/component.js';
+import type { CommandStatistics } from '../../namespace/statistics.js';
 import '@deepseek-ai/dsh-client-connection';
 import { managementHtml } from './page.js';
 
@@ -26,7 +26,7 @@ const managementRequest = z.discriminatedUnion('action', [
 ]);
 
 /** @brief Register management UI and APIs behind DSH owner-peer authentication and Host/Origin policy. */
-export function registerManagement(ctx: Context, globalRegistry: SemanticRegistry, adapter: Pick<NamespaceComponent, 'refresh'> & Partial<Pick<NamespaceComponent, 'statistics'>> & { recover?: () => Promise<void> }): void {
+export function registerManagement(ctx: Context, globalRegistry: SemanticRegistry, adapter: { refresh: () => Promise<void>; statistics?: CommandStatistics; recover?: () => Promise<void> }): void {
     const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
     let catalog: { generation: string; tools: PhysicalTool[]; physical: PhysicalTool[]; provided: Map<string, SerializedNode[]> } | undefined;
     ctx.connection.fetch.register({ path: '/api/ts-intellisense', methods: ['GET'], requestBody: 'buffered', fetch: async () => new Response(managementHtml, { headers: { ...headers, 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'" } }) });

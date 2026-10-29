@@ -23,13 +23,13 @@ async function fixture() {
 
 test('children inherit the complete working snapshot and detach subsequent changes', async () => {
     const { catalog, profiles, parent } = await fixture();
-    const expected = parent.configuration();
+    const expected = (await profiles.addition('parent')).profile.serialize();
     const child = await profiles.forSession('child', async () => parent);
     assert.equal(child.snapshot().profile, 'Work');
     assert.equal(child.snapshot().revision, 0);
-    assert.deepEqual(child.configuration(), expected);
+    assert.deepEqual((await profiles.addition('child')).profile.serialize(), expected);
     await profiles.load('parent', 'Default');
-    assert.deepEqual(child.configuration(), expected);
+    assert.deepEqual((await profiles.addition('child')).profile.serialize(), expected);
     await child.replaceConfiguration({ ...child.configuration(), namespaces: [] }, 'Child');
     assert.equal(parent.snapshot().profile, 'Default');
     assert.equal(catalog.snapshot().profile, 'Default');
@@ -43,11 +43,32 @@ test('persisted child working copies take priority over a changed parent when re
     const { catalog, store, profiles, parent } = await fixture();
     const child = await profiles.forSession('child', async () => parent);
     await child.replaceConfiguration({ ...child.configuration(), namespaces: [{ path: 'child', description: '', alwaysVisible: false }] }, 'Child');
-    const expected = child.configuration();
+    const expected = (await profiles.addition('child')).profile.serialize();
     const restored = new ProfileSessions(catalog, store);
     const own = await restored.forSession('child', async () => { throw new Error('Saved child must not resolve its parent'); });
     assert.equal(own.snapshot().profile, 'Child');
-    assert.deepEqual(own.configuration(), expected);
+    assert.deepEqual((await restored.addition('child')).profile.serialize(), expected);
     await profiles.dispose();
     await restored.dispose();
+    await profiles.statistics.dispose();
+});
+
+
+test('session additions contain a snapshot and call statistics while edits synchronize internal projections', async () => {
+    const { catalog, store, profiles } = await fixture();
+    const addition = await profiles.addition('parent');
+    assert.deepEqual(Object.keys(addition).sort(), ['profile', 'statistics']);
+    assert.equal(addition.profile.resolve('draft.read'), undefined);
+    await addition.statistics.recordCall('read');
+    assert.equal((await profiles.statistics.snapshot('parent')).callsByTool.read, 1);
+    assert.equal('recordQueries' in addition.statistics, false);
+    addition.profile.setBrief('Direct snapshot edit');
+    const projected = await profiles.forSession('parent');
+    assert.equal(projected.configuration().brief, 'Direct snapshot edit');
+    const restored = new ProfileSessions(catalog, store);
+    assert.equal((await restored.addition('parent')).profile.brief, 'Direct snapshot edit');
+    assert.deepEqual(Object.keys(await restored.addition('parent')).sort(), ['profile', 'statistics']);
+    await profiles.dispose();
+    await restored.dispose();
+    await profiles.statistics.dispose();
 });

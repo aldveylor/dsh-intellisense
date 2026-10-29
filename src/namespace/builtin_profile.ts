@@ -1,10 +1,10 @@
 import { pluginCommands, projectBuiltin, ptcToolName } from '../runtime/builtins.js';
-import type { ToolsNamespace } from './service.js';
+import type { NamespaceDefinitions } from './definitions.js';
 import { profileAnnotation } from '../registry/profile_tree.js';
 import { RootNamespace } from '../tools/profile_nodes/root_namespace.js';
 
 /** @brief Define plugin tools exclusively through the portable namespace registration API. */
-export function registerBuiltinDefinitions(service: Pick<ToolsNamespace, 'setToolAddition' | 'createInitialProfile'>): void {
+export function registerBuiltinDefinitions(service: Pick<NamespaceDefinitions, 'setToolAddition' | 'createInitialProfile'>): void {
     service.createInitialProfile = () => new RootNamespace();
     for (const tool of ['exec', 'run_code', ptcToolName]) service.setToolAddition(tool, { hidden: true });
     for (const command of pluginCommands.builtinTools) service.setToolAddition(command.tool, {

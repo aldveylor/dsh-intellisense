@@ -1,4 +1,4 @@
-import { AgentSessionAddition } from '../../src/integration/agent_session_addition.js';
+import { NamespaceIntegration } from '../../src/integration/namespace_integration.js';
 import { EditableCommand } from '../../src/registry/profile/command.js';
 import { EditableNamespace } from '../../src/registry/profile/namespace.js';
 import type { ProfileNamespace } from '../../src/registry/profile/namespace.js';
@@ -38,9 +38,9 @@ function fixture() {
     const store = new MemoryStore();
     const registry = new SemanticRegistry(store);
     registry.refresh([{ id: 'read', description: 'Native read documentation', parameters: { type: 'object', properties: {} }, output: {} }]);
-    const component = new NamespaceComponent(ctx, registry, []);
+    const component = new NamespaceComponent(ctx, registry);
     const service: ToolsNamespace = component;
-    const sessions = new AgentSessionAddition(ctx, component, new ProfileSessions(registry, store));
+    const sessions = new NamespaceIntegration(ctx, component, new ProfileSessions(registry, store));
     return { store, registry, component, service, sessions };
 }
 
@@ -149,19 +149,18 @@ test('failed modifiers, validation and persistence leave the entire Profile unch
 test('conversation snapshot modification stays independent from its named catalog Profile', async () => {
     const { service, registry, sessions } = fixture();
     await service.create('Work');
-    const session = new SemanticRegistry(new MemoryStore(), 'session', registry.definitions);
-    await session.replaceConfiguration(registry.configuration('Work'), 'Work');
+    const session = await sessions.profiles.load('session', 'Work');
     sessions.registryFor = async () => session;
     sessions.configurationChanged = async () => {};
-    await sessions.edit({} as Agent, snapshot => { snapshot.create('read', () => new EditableCommand('read')).setTool('read'); return snapshot; });
+    await sessions.edit({ id: 'session' } as Agent, snapshot => { snapshot.create('read', () => new EditableCommand('read')).setTool('read'); return snapshot; });
     assert.equal(session.configuration().mappings.length, 1);
     assert.equal(registry.configuration('Work').mappings.length, 0);
 });
 
 test('fixed tools reject user mounts but allow plugin-owned mounts and reversible attribute layers', async () => {
     const { service, registry } = fixture();
-    const unregister = service.setToolAddition('read', { fixed: true });
-    const extra = service.setToolAddition('read', { ptcDescription: 'PTC read documentation' });
+    const unregister = registry.definitions.setToolAddition('read', { fixed: true });
+    const extra = registry.definitions.setToolAddition('read', { ptcDescription: 'PTC read documentation' });
     assert.equal(registry.definitions.addition('read').fixed, true);
     await assert.rejects(registry.configure([{ id: 'read', path: 'files.read', pinned: false }], registry.revision), /Fixed tool cannot be mounted/);
     await service.create('Plugin');
@@ -176,10 +175,10 @@ test('fixed tools reject user mounts but allow plugin-owned mounts and reversibl
 });
 
 test('hidden transports and custom hidden tools disappear without hiding fixed discovery tools', async () => {
-    const { service, registry } = fixture();
+    const { registry } = fixture();
     registry.refresh(['read', 'tools_inspect', 'exec', 'run_code', 'tools_run_code'].map(id => ({ id, description: id, parameters: {}, output: {} })));
     assert.deepEqual(registry.tools().map(tool => tool.id), ['read', 'tools_inspect']);
-    const unregister = service.setToolAddition('read', { hidden: true });
+    const unregister = registry.definitions.setToolAddition('read', { hidden: true });
     assert.deepEqual(registry.tools().map(tool => tool.id), ['tools_inspect']);
     await assert.rejects(registry.configure([{ id: 'read', path: 'files.read', pinned: false }], registry.revision), /cannot be mounted/);
     unregister();
@@ -187,9 +186,9 @@ test('hidden transports and custom hidden tools disappear without hiding fixed d
 });
 
 test('PTC comments override physical documentation only in PTC and restore after disposal', async () => {
-    const { service, registry } = fixture();
+    const { registry } = fixture();
     await registry.configure([{ id: 'read', path: 'files.read', pinned: false }], registry.revision);
-    const unregister = service.setToolAddition('read', { ptcDescription: 'PTC read documentation' });
+    const unregister = registry.definitions.setToolAddition('read', { ptcDescription: 'PTC read documentation' });
     assert.equal(manifest(registry, [], 'ptc').commands()[0]!.doc, 'PTC read documentation');
     assert.equal(manifest(registry, [], 'native').commands()[0]!.doc, 'Native read documentation');
     unregister();
@@ -217,8 +216,8 @@ test('builtin namespaces are explicitly installed with edit and custom permissio
 });
 
 test('ordinary providers register callable projections and preloaded values at arbitrary paths', async () => {
-    const { service, component, registry } = fixture();
-    const dispose = service.setToolAddition('read', {
+    const { registry, sessions } = fixture();
+    const dispose = registry.definitions.setToolAddition('read', {
         project: () => ({ signature: '(value: string) => Promise<void>', description: 'Provider projection', positional: [['value']], discardResult: true }),
         value: { read: async () => ({ source: 'provider' }), refresh: 'call' },
     });
@@ -230,14 +229,14 @@ test('ordinary providers register callable projections and preloaded values at a
     assert.deepEqual(command.binding().parameters, { kind: 'overloads', layouts: [['value']] });
     assert.deepEqual(command.binding().result, { kind: 'discard' });
     assert.equal(command.result('discarded'), undefined);
-    const restoreDescription = service.setToolAddition('read', { ptcDescription: 'Layered PTC description' });
+    const restoreDescription = registry.definitions.setToolAddition('read', { ptcDescription: 'Layered PTC description' });
     assert.equal(manifest(registry, [], 'ptc').commands()[0]!.doc, 'Layered PTC description');
     assert.equal(manifest(registry, [], 'native').commands()[0]!.doc, 'Provider projection');
     restoreDescription();
     assert.equal(manifest(registry, [], 'ptc').commands()[0]!.doc, 'Provider projection');
-    assert.deepEqual(await component.values(), { 'external.data': { source: 'provider' } });
+    assert.deepEqual(await sessions.values(), { 'external.data': { source: 'provider' } });
     dispose();
-    assert.deepEqual(await component.values(), {});
+    assert.deepEqual(await sessions.values(), {});
 });
 
 
@@ -333,27 +332,29 @@ test('RootNamespace cannot alias its tools node or move its protected descendant
 });
 
 
-test('resolve returns only physical names and preserves Profile selection and tool execution', async () => {
-    const { service, registry, component } = fixture();
-    component.refresh = async () => {};
+test('snapshot resolve returns only enabled physical names without service execution interfaces', async () => {
+    const { service, registry } = fixture();
     await service.create('Work');
     await service.edit('Work', snapshot => {
         snapshot.create('files', () => new EditableNamespace('files')).create('read', () => new EditableCommand('read')).setTool('read');
         return snapshot;
     });
-    assert.equal(await service.resolve('files.read', 'Work'), 'read');
-    assert.equal(await service.resolve('global.files.read', 'Work'), 'read');
-    assert.equal(await service.resolve('files', 'Work'), undefined);
-    assert.equal(await service.resolve('files.read'), undefined);
-    assert.equal(await service.resolve('files.read', 'Missing'), undefined);
+    const snapshot = (await service.get('Work'))!;
+    assert.equal(snapshot.resolve('files.read'), 'read');
+    assert.equal(snapshot.resolve('global.files.read'), 'read');
+    for (const path of ['files', '', 'files.', 'files.read.', 'files.missing', '__proto__.read']) assert.equal(snapshot.resolve(path), undefined);
     assert.equal(registry.profileSelection().selected, 'Default');
     assert.equal('dispatch' in service, false);
     assert.equal('dispatchTool' in service, false);
     assert.equal('registryFor' in service, false);
-    assert.deepEqual((await component.statistics.snapshot()).callsByTool, {});
-    await service.edit('Work', snapshot => { namespaceNode(snapshot.get('files')).setDisabled(true); return snapshot; });
-    assert.equal(await service.resolve('files.read', 'Work'), undefined);
-    await service.edit('Work', snapshot => { namespaceNode(snapshot.get('files')).setDisabled(false); return snapshot; });
-    registry.refresh([]);
-    assert.equal(await service.resolve('files.read', 'Work'), undefined);
+    for (const member of ['resolve', 'searchEngines', 'statistics', 'setToolAddition', 'setNamespaceImplementation', 'values', 'commandBriefs', 'profileNames']) assert.equal(member in service, false);
+    namespaceNode(snapshot.get('files')).setDisabled(true);
+    assert.equal(snapshot.resolve('files.read'), undefined);
+    namespaceNode(snapshot.get('files')).setDisabled(false);
+    commandNode(namespaceNode(snapshot.get('files')).get('read')).setDisabled(true);
+    assert.equal(snapshot.resolve('files.read'), undefined);
+    const editable = (await service.get('Work'))!;
+    editable.create('unbound', () => new EditableCommand('unbound'));
+    assert.equal(editable.resolve('files.read'), 'read');
+    assert.equal(editable.resolve('unbound'), undefined);
 });

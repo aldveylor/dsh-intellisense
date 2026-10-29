@@ -20,7 +20,7 @@ export async function apply(ctx: Context, options: Config = {}): Promise<void> {
 
 export { RuntimeHost } from './runtime/host.js';
 export { SemanticRegistry, RegistryConfiguration, RegistryState } from './registry/registry.js';
-export { AgentSessionAddition } from './integration/agent_session_addition.js';
+export type { AgentSessionAddition } from './integration/agent_session_addition.js';
 export { NamespaceComponent } from './namespace/component.js';
 export { NamespaceNode, CommandNode } from './namespace/namespace.js';
 export type { NamespaceInitialization, NamespaceImplementation } from './namespace/nodes/context.js';
@@ -31,7 +31,8 @@ export type { Profile, ProfileSnapshot, ProfileCollection, ProfileFactory } from
 export type { ProfileNode } from './registry/profile/node.js';
 export type { ProfileNamespace } from './registry/profile/namespace.js';
 export type { ProfileCommand } from './registry/profile/command.js';
-export type { ToolAddition, ToolsNamespace, ProfileSaveEvent, ProfileSaveEffect } from './namespace/service.js';
+export type { ToolAddition } from './namespace/tool_addition.js';
+export type { ToolsNamespace, ProfileSaveEvent, ProfileSaveEffect } from './namespace/service.js';
 export type { ProfileData, Profiles, CommandBrief, CommandName } from './registry/profile_tree.js';
 export type { CommandBinding, ExecutionResult } from './runtime/protocol.js';
 export type { Store } from './storage/store.js';

@@ -1,7 +1,7 @@
 import { profileTree, ProfileSchema } from './profile_tree.js';
 import { validateProfileEdit } from './profile/validate_edit.js';
 import { NamespaceDefinitions } from '../namespace/definitions.js';
-import type { ToolAddition } from '../namespace/service.js';
+import type { ToolAddition } from '../namespace/tool_addition.js';
 import { settingsAt, ProfileNodeSettingsSchema } from './profile/node_settings.js';
 import { ProfileNotFoundError } from '../error.js';
 import { CommandNode, NamespaceNode, createNamespace } from '../namespace/namespace.js';

@@ -18,7 +18,7 @@ import { manifest } from '../../src/namespace/namespace.js';
 import { nodePermissions } from '../../src/namespace/node.js';
 import { inspect } from '../../src/tools/inspect.js';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
-import { AgentSessionAddition } from '../../src/integration/agent_session_addition.js';
+import { NamespaceIntegration } from '../../src/integration/namespace_integration.js';
 import { RuntimeHost } from '../../src/runtime/host.js';
 
 /** @brief Exercise native command handlers using a real catalog and session references. */
@@ -34,12 +34,12 @@ async function fixture() {
     registry.refresh([physical]);
     const changed: string[] = [];
     const serviceContext = new Context();
-    const namespaces = new AgentSessionAddition(serviceContext, new NamespaceComponent(serviceContext, catalog, []), profiles);
+    const namespaces = new NamespaceIntegration(serviceContext, new NamespaceComponent(serviceContext, catalog), profiles);
     namespaces.registryFor = async () => registry;
     namespaces.commandBriefs = async () => [{ name: physical.id, brief: physical.description, paths: ['files.read', 'files.cat'], totalCalls: 2 }, { name: 'outside_scope', brief: 'Outside this session.', paths: [], totalCalls: 0 }];
     registerToolCommands(ctx, catalog, profiles, async () => registry, async agent => { changed.push(agent.id); }, agent => namespaces.commandBriefs(agent), namespaces);
     const agentContext = new Context();
-    agentContext.provide('agentSessionAddition', { isPtc: () => true } as unknown as Context['agentSessionAddition']);
+    agentContext.provide('namespaceIntegration', { isPtc: () => true } as unknown as Context['namespaceIntegration']);
     const execution = { agent: { id: 'session', inject: () => {}, ctx: agentContext, session: Session.create(SessionId('session')) }, signal: new AbortController().signal } as unknown as ToolRunContext;
     const call = (name: string, args: unknown = {}) => definitions.get(name)!.execute(args, execution);
     const load = async (args: unknown = {}) => ProfileSchema.parse(await call('tools_profile_load', args));
@@ -272,7 +272,7 @@ test('PTC agents can load, edit, save and switch plain Profile trees across host
     const { registry, catalog, definitions, call } = await fixture();
     registry.refresh([...definitions.values()].map(tool => ({ id: tool.name, description: tool.description, parameters: tool.parameters, output: tool.output.schema })));
     const host = new RuntimeHost({ timeoutMs: 3000 });
-    const before = registry.configuration();
+    const before = profileTree('Default', registry.configuration(), catalog.definitions).root;
     const commands = manifest(registry, []).commands().filter(node => !node.preload).map(node => node.binding());
     try {
         const result = await host.execute('profile_classes', 'roundtrip', `
@@ -293,7 +293,7 @@ test('PTC agents can load, edit, save and switch plain Profile trees across host
         assert.equal(result.error, undefined);
         assert.deepEqual(result.value, [true, 'AgentCopy', 'Default', 'AgentCopy', true, false]);
         assert(registry.configuration().namespaces.some(node => node.path === 'agent_draft'));
-        assert.deepEqual(catalog.configuration('Default'), before);
+        assert.deepEqual(profileTree('Default', catalog.configuration('Default'), catalog.definitions).root, before);
     } finally { await host.dispose(); }
 });
 

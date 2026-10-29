@@ -1,5 +1,5 @@
 import type { Agent } from '@deepseek-ai/dsh-agent';
-import type { AgentSessionAddition } from '../integration/agent_session_addition.js';
+import type { NamespaceIntegration } from '../integration/namespace_integration.js';
 import type { ProfileSaveEvent } from '../namespace/service.js';
 import type { ProfilePatch, ProfileWrite } from '../registry/profile_write.js';
 import { profileTree } from '../registry/profile_tree.js';
@@ -33,7 +33,7 @@ export function profileSaveInformation(profile: ProfileData, tools: readonly str
 
 
 /** @brief Validate save/apply in the tool layer, persist atomically and return validation information. */
-export async function writeProfile(sessions: AgentSessionAddition, agent: Agent, name: string | undefined, input: ProfileWrite | ProfilePatch, operation: 'save' | 'apply'): Promise<string | null> {
+export async function writeProfile(sessions: NamespaceIntegration, agent: Agent, name: string | undefined, input: ProfileWrite | ProfilePatch, operation: 'save' | 'apply'): Promise<string | null> {
     const namespace = sessions.namespace;
     const saved = await namespace.profileTransaction(async () => {
         const session = await sessions.registryFor(agent);

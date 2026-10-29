@@ -11,12 +11,12 @@ import type { Agent } from '@deepseek-ai/dsh-agent';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import type { SemanticRegistry } from '../registry/registry.js';
-import type { AgentSessionAddition } from '../integration/agent_session_addition.js';
+import type { NamespaceIntegration } from '../integration/namespace_integration.js';
 import type { ProfileSessions } from '../registry/profiles.js';
 import { type CommandBrief, profileTree, profileAnnotation } from '../registry/profile_tree.js';
 
 /** @brief Register Profile management commands and data access. */
-export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, profiles: ProfileSessions, registryFor: (agent: Agent) => Promise<SemanticRegistry>, changed: (agent: Agent) => Promise<void>, commands: (agent: Agent) => Promise<CommandBrief[]>, namespace?: AgentSessionAddition): void {
+export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, profiles: ProfileSessions, registryFor: (agent: Agent) => Promise<SemanticRegistry>, changed: (agent: Agent) => Promise<void>, commands: (agent: Agent) => Promise<CommandBrief[]>, namespace?: NamespaceIntegration): void {
     /** @brief Resolve mode-specific comments in the registration scope. */
     const contract = (tool: string) => projectBuiltin(pluginCommands.find(tool)!, 'native');
     const lock = new ProfileLock();
@@ -72,7 +72,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
             if (!execution.agent) throw new ConversationRequiredError();
             const { name, profile } = z.strictObject({ name: z.string().optional(), profile: ProfileWriteSchema }).parse(args);
             const target = name ?? (await registryFor(execution.agent)).snapshot().profile!;
-            return writeProfile(namespace ?? execution.agent.ctx.get('agentSessionAddition')!, execution.agent, name ?? target, profile, 'save');
+            return writeProfile(namespace ?? execution.agent.ctx.get('namespaceIntegration')!, execution.agent, name ?? target, profile, 'save');
         },
     })));
     ctx.effect(() => register(defineTool({
@@ -83,7 +83,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
             if (!execution.agent) throw new ConversationRequiredError();
             const { name, value } = z.strictObject({ name: z.string().optional(), value: z.custom<Record<string, unknown>>(value => value !== null && typeof value === 'object' && !Array.isArray(value), 'Expected a Profile object patch') }).parse(args);
             validateProfilePatch(value);
-            return writeProfile(namespace ?? execution.agent.ctx.get('agentSessionAddition')!, execution.agent, name, value as ProfilePatch, 'apply');
+            return writeProfile(namespace ?? execution.agent.ctx.get('namespaceIntegration')!, execution.agent, name, value as ProfilePatch, 'apply');
         },
     })));
     ctx.effect(() => register(defineTool({
@@ -112,7 +112,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
     ctx.effect(() => register(defineTool({
         name: 'tools_profile_annotation', description: contract('tools_profile_annotation').description, parameters: {},
         output: { ...output, schema: { type: 'string' } },
-        execute: async (_args, execution) => execution.agent && !execution.agent.ctx.get('agentSessionAddition')!.isPtc(execution.agent)
+        execute: async (_args, execution) => execution.agent && !execution.agent.ctx.get('namespaceIntegration')!.isPtc(execution.agent)
             ? JSON.stringify(ProfileWriteSchema.toJSONSchema()) : profileAnnotation,
     })));
     ctx.effect(() => register(defineTool({

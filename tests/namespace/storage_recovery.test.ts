@@ -89,7 +89,7 @@ test('plugin teardown flushes delayed statistics before closing their storage ba
         provide: (name: string, value: unknown) => { Object.assign(ctx, { [name]: value }); },
     } as unknown as Context;
     await apply(ctx);
-    await ctx.toolsNamespace.statistics.recordCall('last', 'read');
+    await ctx.namespaceIntegration.statistics.recordCall('last', 'read');
     assert.equal(records.command_statistics, undefined);
     for (const dispose of cleanup.reverse()) await dispose();
     assert(closed);
