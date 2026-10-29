@@ -1,7 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis';
 import { storageBackendServiceKey } from '@deepseek-ai/dsh-storage';
 import { DshStore, type Store } from '../storage/store.js';
-import { storageVersion } from '../storage/version.js';
+import { snapshotVersion, storageVersion } from '../storage/version.js';
 import { SemanticRegistry } from './catalog/registry.js';
 import { NamespaceComponent } from './component.js';
 
@@ -17,7 +17,7 @@ export async function apply(ctx: Context): Promise<void> {
     if (!backend.kv) throw new Error('DSH json backend does not support KV storage');
     const unit = await backend.kv.open({ name: 'ts_intellisense', version: storageVersion, compatibleVersions: [1, 2], tables: ['state'], hasGlobal: false, layout: 'per-record' });
     const store = new DshStore(unit);
-    const snapshotUnit = await backend.kv.open({ name: 'intellisense_profile_snapshots', version: 1, tables: ['state'], hasGlobal: false, layout: 'per-record' });
+    const snapshotUnit = await backend.kv.open({ name: 'intellisense_profile_snapshots', version: snapshotVersion, tables: ['state'], hasGlobal: false, layout: 'per-record' });
     const catalog = new SemanticRegistry(store, 'global', undefined, new DshStore(snapshotUnit));
     let loading: Promise<void> | undefined;
     const initialize = (recover = false): Promise<void> => {

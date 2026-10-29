@@ -1,10 +1,34 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { NamespaceTree, NamespaceTreeNode } from '../../src/web/panel/tree_node.js';
-import { treeDisabledState } from '../../src/web/panel/tree_state.js';
+import { treeDisabledState, treeInspectWarning } from '../../src/web/panel/tree_state.js';
 import { inNamespace } from '../../src/web/panel/namespace_tree.js';
 import { TreeProvider } from '../../src/web/panel/tree_provider.js';
 import { createNamespace } from '../namespace/fixtures.js';
+
+test('inspect warning checks provided and mapped draft commands independently of physical tools', () => {
+    const mappings = [{ id: 'read', path: 'files.read', pinned: false }];
+    const provided = TreeProvider([...createNamespace({ tools: [], includeUnavailable: true }).children.values()].map(node => node.serialize()));
+    const trees = [
+        new NamespaceTree({ namespaces: [], mappings, order: [] }, provided, []),
+        new NamespaceTree({ namespaces: [], mappings: [...mappings, { id: 'tools_inspect', path: 'tools.inspect', pinned: false, alwaysVisible: 2 }], order: [] }, [], []),
+    ];
+    for (const tree of trees) {
+        const warning = (disabled: string[] = []): boolean => {
+            const states = treeDisabledState(tree.roots, disabled, [], []);
+            return treeInspectWarning(tree.roots, path => states.get(path)?.disabled ?? false);
+        };
+        assert.equal(warning(), false);
+        assert.equal(warning(['tools.inspect']), true);
+        assert.equal(warning(['tools']), true);
+        assert.equal(warning(), false);
+    }
+    const fixedMappings = [...mappings.map(mapping => ({ ...mapping, alwaysVisible: 2 as const })),
+        { id: 'read', path: 'files.hidden', pinned: false, disabled: true }];
+    const tree = new NamespaceTree({ namespaces: [], mappings: fixedMappings, order: [] }, [], []);
+    const states = treeDisabledState(tree.roots, [], [], fixedMappings);
+    assert.equal(treeInspectWarning(tree.roots, path => states.get(path)?.disabled ?? false), false);
+});
 
 test('indexed disable flags preserve ancestor, own command and provided node rules', () => {
     const namespaces = [{ path: 'files', disabled: true, description: '', alwaysVisible: false }];
