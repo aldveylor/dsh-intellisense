@@ -15,3 +15,7 @@ discover 在当前会话快照上解析精确路径，只将显式查询的可�
 plugin.ts 是命名空间执行集成装配入口，依赖已挂载的 toolsNamespace 和 共享存储基础设施，不创建或发布 Profile 服务。默认根入口先挂载 profile/plugin.ts，再挂载 integration/plugin.ts。ProfileSessionCollection 隔离会话实现；Profile 服务存储的关闭晚于集成层统计刷新。
 
 tool_catalog.ts 的 PhysicalToolCatalog 单独拥有物理工具契约与 ToolAdditions，不持有 Profile 存储或目录。plugin.ts 只消费 toolsNamespace 接口以及内部 intellisenseStorage；不存在额外的 profileBackend 业务入口。ctx.intellisense 保持独立，profiles 仅保留对 toolsNamespace 的同一对象引用。
+
+DSH 0.2.2-alpha.2 将批次执行交给 ToolExecutor。configure 为每个启用会话安装独立 NativeToolExecutor 代理：native 模式只声明当前 syncNative 导出的名称，PTC 模式只声明 tools_run_code。工具声明由执行器 describe 生成；system-prompt/assemble 仅修改文本，不修改工具声明。会话 release 同时撤销执行器。
+
+命名空间子调用使用 dsh-tools/pipeline 的 prepare/dispatch/complete，传播父调用 token、rootCallId、toolSet 和 signal；保留配对子调用事件、结构化错误和包括 false 在内的 meta。PTC 审计事件类型由 dsh-tool-executor-ptc 扩展，返回上下文和结束回合标志继续传递到父调用。

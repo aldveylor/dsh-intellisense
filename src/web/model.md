@@ -13,3 +13,5 @@ package.json 的 dsh.client.inject 显式声明客户端服务提供包 ui-rende
 `ui/` 集中可复用的展示辅助组件，包含 controls、icons、animation、tooltip 和 code_block；业务专用图标保留在所属功能目录。`profile/profile_json.ts` 提供前后端共用的 Profile JSON 校验，不依赖选择器组件。
 
 浏览器权限查询依赖 ../profile/node_settings.ts 的普通数据查询函数；递归权限 schema 单独位于 ../profile/catalog/node_settings_schema.ts，由服务端目录写入消费，避免引入未使用的 Zod 初始化及语言包。
+
+client.ts 显式导入 ui-layout/client 与 ui-conversation/client 的类型扩展，并将对应宿主包声明为开发依赖，以保证 ctx.layout 和 ctx.conversation 使用当前 DSH 接口。server/return_type.ts 从 dsh-tool-executor-ptc 获取 JSON Schema 的 TypeScript 类型投影。

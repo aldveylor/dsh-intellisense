@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
-import type { Context } from '@deepseek-ai/cordis';
+import { Context } from '@deepseek-ai/cordis';
+import { createUserMessage } from '@deepseek-ai/dsh-llm';
+import Tools, { defineTool } from '@deepseek-ai/dsh-tools';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
 import { MemoryStore } from '../../src/storage/store.js';
 import { CommandStatistics } from '../../src/statistics/command_statistics.js';
@@ -29,19 +31,57 @@ test('query targets count normalized occurrences without expanding members or ru
 test('dispatch counts physical tools once for both entry and direct dispatch, including failures', async () => {
     const statistics = new CommandStatistics(new MemoryStore());
     const component = Object.assign(Object.create(NamespaceIntegration.prototype) as NamespaceIntegration, { statistics, profiles: { addition: async (session: { id: string }) => ({ statistics: statistics.calls.scope(session.id) }) } });
-    const events: string[] = [];
+    const ctx = new Context();
+    ctx.provide('systemPrompt', { tools: () => () => {}, section: () => () => {} });
+    await ctx.plugin(Tools);
+    const events: { type: string; data: unknown }[] = [];
     let fail = false;
-    const agent = { id: 'session', session: { id: 'session', append: (event: string) => events.push(event) }, ctx: { tools: {
-        execute: async () => fail ? { isError: true, error: { message: 'denied' }, content: [] } : { isError: false, value: 'ok', content: [] },
-    } } } as unknown as Agent;
-    const parent = { callId: 'parent', rootCallId: 'root', deferContext: () => {} } as unknown as ToolRunContext;
-    const entry = namespace([{ path: 'std.read', tool: 'read', doc: '', schema: {}, output: {} }]).commands().find(node => node.path === 'std.read')!;
-    assert.equal(await component.dispatch(agent, entry, {}, parent, 1), 'ok');
-    fail = true;
-    await assert.rejects(component.dispatchTool(agent, 'read', {}, parent, 2), /denied/);
-    assert.equal((await statistics.calls.snapshot('session')).read, 2);
-    assert.equal((await statistics.calls.snapshot()).read, 2);
-    assert.deepEqual(events, ['tool/ptc-dispatch-start', 'tool/ptc-dispatch', 'tool/ptc-dispatch-start', 'tool/ptc-dispatch']);
+    ctx.tools.register(defineTool({
+        name: 'read', description: 'Read', parameters: {},
+        output: { schema: { type: 'string' }, render: () => [], presentationMeta: () => false },
+        execute: async () => { if (fail) throw new Error('denied'); return 'ok'; },
+    }));
+    const agent = { id: 'session', session: { id: 'session', append: (type: string, data: unknown) => events.push({ type, data }) }, ctx } as unknown as Agent;
+    const parent = { callId: 'parent', rootCallId: 'root', signal: new AbortController().signal, deferContext: () => {} } as unknown as ToolRunContext;
+    try {
+        const entry = namespace([{ path: 'std.read', tool: 'read', doc: '', schema: {}, output: {} }]).commands().find(node => node.path === 'std.read')!;
+        assert.equal(await component.dispatch(agent, entry, {}, parent, 1), 'ok');
+        fail = true;
+        await assert.rejects(component.dispatchTool(agent, 'read', {}, parent, 2), /denied/);
+        assert.equal((await statistics.calls.snapshot('session')).read, 2);
+        assert.equal((await statistics.calls.snapshot()).read, 2);
+        assert.deepEqual(events.map(event => event.type), ['tool/ptc-dispatch-start', 'tool/ptc-dispatch', 'tool/ptc-dispatch-start', 'tool/ptc-dispatch']);
+        assert.equal((events[1]!.data as { meta: unknown }).meta, false);
+    } finally { await ctx.fiber.dispose(); }
+});
+
+test('nested dispatch forwards step admission, deferred context and turn completion', async () => {
+    const ctx = new Context();
+    ctx.provide('systemPrompt', { tools: () => () => {}, section: () => () => {} });
+    await ctx.plugin(Tools);
+    const statistics = new CommandStatistics(new MemoryStore());
+    const component = Object.assign(Object.create(NamespaceIntegration.prototype) as NamespaceIntegration, { profiles: { addition: async () => ({ statistics: statistics.calls.scope('session') }) } });
+    const context = createUserMessage({ content: [{ type: 'text', text: 'Follow-up context' }], source: { kind: 'user' } });
+    const definition = defineTool({
+        name: 'finish', description: 'Finish', parameters: {},
+        output: { schema: { type: 'null' }, render: () => [] },
+        execute: async (_args, execution) => { execution.deferContext(context); execution.concludeTurn(); return null; },
+    });
+    ctx.tools.register(definition, { when: () => true });
+    const agent = { id: 'session', session: { append: () => {} }, ctx } as unknown as Agent;
+    const deferred: unknown[] = [];
+    let concluded = false;
+    const parent = {
+        callId: 'parent', rootCallId: 'root', token: Symbol('parent'), signal: new AbortController().signal,
+        deferContext: (value: unknown) => deferred.push(value), concludeTurn: () => { concluded = true; },
+    } as unknown as ToolRunContext;
+    try {
+        await assert.rejects(component.dispatchTool(agent, 'finish', {}, parent, 1), /unknown tool/i);
+        const toolSet = { view: () => new Map([['finish', definition]]), dispose: () => {} };
+        assert.equal(await component.dispatchTool(agent, 'finish', {}, { ...parent, toolSet }, 2), null);
+        assert.deepEqual(deferred, [context]);
+        assert.equal(concluded, true);
+    } finally { await ctx.fiber.dispose(); }
 });
 
 for (const ptc of [false, true]) test(`physical Inspect records query targets internally in ${ptc ? 'PTC' : 'native'} mode`, async () => {

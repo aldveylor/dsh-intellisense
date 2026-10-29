@@ -1,3 +1,4 @@
+import { executeTool } from './tool_execution.js';
 import { configureSession } from '../registry/session_fixture.js';
 import { NamespaceComponent } from '../../src/profile/component.js';
 import { test } from 'node:test';
@@ -28,7 +29,7 @@ import { createSearchEngines } from '../../src/search/search.js';
 async function fixture(store: Store = new MemoryStore(), mode: 'ptc' | 'native' = 'ptc') {
     const ctx = new Context();
     ctx.provide('systemPrompt', { tools: () => () => {}, section: () => () => {}, getSectionOrder: () => 1 });
-    await ctx.plugin(ToolRuntime, { mode: 'ptc' });
+    await ctx.plugin(ToolRuntime);
     const defaultRuntime = { language: 'typescript', run: () => { throw new Error('Default runtime selected'); } };
     ctx.provide('ptcRuntime', defaultRuntime as unknown as Context['ptcRuntime']);
     const agents: Agent[] = [];
@@ -49,8 +50,9 @@ async function fixture(store: Store = new MemoryStore(), mode: 'ptc' | 'native' 
     const live = createScope(toolContext, agent, { parent: key });
     Object.assign(agent, { ctx: live.ctx });
     agents.push(agent);
+    await namespaces.configure(agent);
     let sequence = 0;
-    const run = (code: string, timeoutMs?: number, signal = new AbortController().signal) => ctx.tools.execute({
+    const run = (code: string, timeoutMs?: number, signal = new AbortController().signal) => executeTool(ctx.tools, {
         agent, callId: ToolCallId(`parent-${++sequence}`), name: ptcToolName,
         arguments: { code: `const writable = profile => { const copy = value => { const {permissions, children, ...data} = value; return {...data, ...(children ? {children: Object.fromEntries(Object.entries(children).map(([key, child]) => [key, copy(child)]))} : {})}; }; const {type, children} = copy(profile.root); return {...(profile.brief === undefined ? {} : {brief: profile.brief}), root: {type, ...(children ? {children} : {})}}; };\n${code}`, description: 'Test namespace execution', ...(timeoutMs === undefined ? {} : { timeoutMs }) }, signal,
     });
@@ -152,7 +154,7 @@ test('native commands rereads current global counts after each namespace dispatc
         await configureSession(namespaces, agent, [{ id: 'read_tool', path: 'std.read', pinned: false }]);
         await namespaces.discover(agent, ['std.read', 'tools.profile.tools']);
         let sequence = 0;
-        const call = (name: string) => ctx.tools.execute({ agent, callId: ToolCallId(`native-statistics-${++sequence}`), name, arguments: {}, signal: new AbortController().signal });
+        const call = (name: string) => executeTool(ctx.tools, { agent, callId: ToolCallId(`native-statistics-${++sequence}`), name, arguments: {}, signal: new AbortController().signal });
         const before = await call('ns_tools__profile__tools');
         assert.equal(before.isError, false, JSON.stringify(before));
         assert.equal((await call('ns_std__read')).isError, false);
@@ -177,7 +179,7 @@ test('PTC discovery uses namespace execution instead of the deployment Node runt
         assert.equal(ctx.tools.get('run_code', agent), undefined);
         assert(ctx.tools.get(ptcToolName, agent));
         assert(!ctx.tools.get(ptcToolName));
-        assert(ctx.tools.get('run_code'));
+        assert.equal(ctx.tools.get('run_code'), undefined);
         const secondKey = {};
         const second = createScope(ctx, secondKey);
         try {
@@ -427,7 +429,7 @@ test('native configuration refresh and load stay silent while switch injects a P
     try {
         await namespaces.configurationChanged(agent);
         assert.equal(injected.length, 0);
-        const call = (name: string, profile: string) => ctx.tools.execute({
+        const call = (name: string, profile: string) => executeTool(ctx.tools, {
             agent, callId: ToolCallId(`native-${name}-${profile}`), name, arguments: { name: profile }, signal: new AbortController().signal,
         });
         assert.equal((await call('tools_profile_load', 'Default')).isError, false);

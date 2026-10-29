@@ -9,3 +9,5 @@ namespace.ts 的 profileMembers/queryNodes 直接遍历 ProfileNode 或调用 Pr
 本目录不含插件装配入口。../plugin.ts 独立发布 toolsNamespace 并管理 Profile 存储；../../integration/plugin.ts 消费服务并发布 intellisense 和内部 namespaceIntegration，管理统计、路由与执行生命周期。native_tools.ts 处理扁平原生工具命名和直接节点发现；prompt.ts/declaration.ts 只生成显示文本。runtime.ts 将原节点导出的扁平绑定接入隔离 RuntimeHost，取消后等待真实子调用完成。
 
 内置行为由 tools/profile_nodes/ 的具体类拥有。definitions.ts 只维护初始 Profile 工厂、其序列化默认声明及保存观察者；builtin_profile.ts 仅选择 RootNamespace，不注册工具附加属性。
+
+DSH 0.2.2-alpha.2 的 jsonSchemaToTs 与 CodeRunFailedError 从 dsh-tool-executor-ptc 导入；工具定义、JSON Schema 校验和单次调用流水线仍由 dsh-tools 提供。

@@ -1,3 +1,5 @@
+import * as nativeExecutor from '@deepseek-ai/dsh-tool-executor-native';
+import { executeTool } from './tool_execution.js';
 import { configureSession, publishSessionFixture } from '../registry/session_fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -46,7 +48,7 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
         try {
             await ctx.plugin(LlmRuntime); await ctx.plugin(SessionStore); await ctx.plugin(SessionProjectionRegistry);
             await ctx.plugin(SystemPrompt, { personaPrefix: 'Preserve the original persona.' });
-            await ctx.plugin(ToolRuntime); await ctx.plugin(AgentRegistry); await ctx.plugin(AgentLoop, { agents: [] });
+            await ctx.plugin(ToolRuntime); await ctx.plugin(nativeExecutor); await ctx.plugin(AgentRegistry); await ctx.plugin(AgentLoop, { agents: [] });
             await ctx.plugin(Storage); await ctx.plugin(JsonStorage, { root: directory });
             const routes = new Map<string, ConnectionFetchRoute>();
             ctx.provide('connection', { fetch: { register: (route: ConnectionFetchRoute) => { routes.set(route.path, route); return () => { routes.delete(route.path); }; } } });
@@ -92,7 +94,7 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
                 assert(systemOf(request).includes('globalThis'));
                 assert(systemOf(request).includes('function inspect('));
                 assert(systemOf(request).includes('namespace tools {  // Tool discovery and Profile management'));
-                const execution = await agent.ctx.tools.execute({ agent, callId: ToolCallId('integration-code'), name: 'tools_run_code', arguments: { code: 'return 42;', description: 'Check scoped runtime' }, signal: new AbortController().signal });
+                const execution = await executeTool(agent.ctx.tools, { agent, callId: ToolCallId('integration-code'), name: 'tools_run_code', arguments: { code: 'return 42;', description: 'Check scoped runtime' }, signal: new AbortController().signal });
                 assert.equal(execution.isError, false, JSON.stringify(execution));
                 assert.deepEqual(execution.value, { logs: [], result: 42 });
             } else {
@@ -101,7 +103,7 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
                 assert(!systemOf(request).includes('TypeScript/JavaScript'));
                 let discoverySequence = 0;
                 const discover = async (queries: string[]) => {
-                    const result = await agent.ctx.tools.execute({ agent, callId: ToolCallId(`integration-discovery-${++discoverySequence}`), name: 'ns_tools__inspect', arguments: { queries }, signal: new AbortController().signal });
+                    const result = await executeTool(agent.ctx.tools, { agent, callId: ToolCallId(`integration-discovery-${++discoverySequence}`), name: 'ns_tools__inspect', arguments: { queries }, signal: new AbortController().signal });
                     assert.equal(result.isError, false, JSON.stringify(result));
                     return JSON.parse(result.value as string);
                 };

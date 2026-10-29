@@ -1,6 +1,7 @@
 import { decodeHTML } from 'entities';
 import { outputSchema } from '../../../output_schema.js';
-import { jsonSchemaToTs, validateJsonSchemaValue, type JsonSchemaNode } from '@deepseek-ai/dsh-tools';
+import { validateJsonSchemaValue, type JsonSchemaNode } from '@deepseek-ai/dsh-tools';
+import { jsonSchemaToTs } from '@deepseek-ai/dsh-tool-executor-ptc';
 import type { ManifestEntry } from '../namespace.js';
 
 /** @brief One positional parameter projected from a native object contract. */

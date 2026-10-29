@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Context } from '@deepseek-ai/cordis';
 import { AgentRegistry, type Agent } from '@deepseek-ai/dsh-agent';
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
 import { createScope } from '@deepseek-ai/dsh-scope';
 import * as presentation from '../../src/integration/presentation.js';
@@ -13,11 +14,12 @@ import { MemoryStore } from '../../src/storage/store.js';
 
 test('runtime child ownership inherits the nearest parent working profile without changing new root defaults', async () => {
     const ctx = new Context();
+    await ctx.plugin(SessionProjectionRegistry);
     const mounted = await ctx.plugin(AgentRegistry);
     const catalog = new SemanticRegistry(new MemoryStore());
     const profiles = new ProfileSessions(new NamespaceComponent(new Context(), catalog), new MemoryStore());
     const namespaces = new NamespaceIntegration(ctx, new NamespaceComponent(ctx, catalog), catalog, profiles);
-    ctx.provide('tools', { schemas: () => [], presentAs: () => {} } as unknown as Context['tools']);
+    ctx.provide('tools', { schemas: () => [], setExecutor: () => {} } as unknown as Context['tools']);
     ctx.provide('namespaceIntegration', { register: () => {} } as unknown as NamespaceIntegration);
     const scopes: ReturnType<typeof createScope>[] = [];
     const detach: (() => void)[] = [];
