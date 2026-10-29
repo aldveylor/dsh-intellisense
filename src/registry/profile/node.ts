@@ -11,7 +11,7 @@ export interface ProfileCheckContext {
 
 /** @brief Portable node contract shared by namespace and command interfaces. */
 export interface ProfileNode {
-    readonly type: 'command' | 'namespace';
+    readonly type: string;
     readonly permissions: Permission;
     /** @brief Merge explicit permission overrides. */
     setPermissions(value: Partial<Permission>): this;
@@ -33,9 +33,19 @@ export interface ProfileNode {
 export abstract class EditableNode implements ProfileNode {
     protected settings: Pick<ProfileTreeNode, 'permissions' | 'disabled' | 'fixedLevel'> = {};
 
-    constructor(protected readonly memberName = '') {}
+    constructor(protected memberName = '') {}
 
-    abstract readonly type: 'command' | 'namespace';
+    /** @brief Copy a concrete implementation without losing its prototype or provider-owned constructor state. */
+    copyNode(value: ProfileTreeNode): this {
+        const node = Object.assign(Object.create(Object.getPrototypeOf(this)), this) as this;
+        node.restore({ ...value, permissions: { ...this.permissions, ...value.permissions } });
+        return node;
+    }
+
+    /** @brief Bind diagnostic paths when a concrete node is installed under a new parent key. */
+    bindName(path: string): void { this.memberName = path; }
+
+    abstract readonly type: string;
 
     get permissions(): Permission { return nodePermissions(this.type === 'command' ? 'leaf' : 'tree', structuredClone(this.settings.permissions)); }
 

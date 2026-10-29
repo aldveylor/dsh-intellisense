@@ -1,5 +1,5 @@
 import { profileWrite, ProfileWriteSchema, validateProfilePatch, type ProfilePatch, type ProfileWrite } from '../profile_write.js';
-import { mergeProfilePatch } from '../../tools/profile_save.js';
+import { mergeProfilePatch } from './patch.js';
 import { compareProfile } from './compare.js';
 import type { ProfileData } from '../profile_tree.js';
 import { EditableNamespace } from './namespace.js';
@@ -13,8 +13,9 @@ export class EditableSnapshot extends EditableNamespace implements ProfileSnapsh
 
     /** @brief Clone stored data using this concrete root implementation. */
     clone(value: Pick<ProfileData, 'root' | 'brief'> = { root: this.serialize(), brief: this.brief }): ProfileSnapshot {
-        const Constructor = this.constructor as new (value?: Pick<ProfileData, 'root' | 'brief'>) => EditableSnapshot;
-        return new Constructor(value);
+        const node = this.copyNode(value.root);
+        node.brief = value.brief;
+        return node;
     }
 
     /** @brief Base patch operation dispatches the root object to namespace-level validation. */

@@ -17,6 +17,9 @@ export class ImplToolsNamespace extends ImplBuiltinNamespace {
             children: { ...children, profile: new ImplToolsProfileNamespace().serialize(), ...data?.children } });
     }
 
+    /** @brief Stored values do not change the tools namespace's fixed level. */
+    override copyNode(value: ProfileTreeNode): this { return super.copyNode({ ...value, fixedLevel: 0 } as NamespaceTreeNode); }
+
     override get permissions(): Permission { return nodePermissions('tree', { ...super.permissions, availableFixLevels: [] }); }
 
     /** @brief Direct members use their own specialized implementation or shared identical policy. */
@@ -24,7 +27,7 @@ export class ImplToolsNamespace extends ImplBuiltinNamespace {
         if (name === 'profile' && data.type === 'namespace') return new ImplToolsProfileNamespace(data);
         const command = [pluginCommands.discoveryCommand, pluginCommands.searchCommand].find(command => command.path.split('.').at(-1) === name);
         if (!command || data.type !== 'command') throw new Error(`Invalid builtin tools member: ${name}`);
-        const value = { ...data, command: { ...data.command, tool: command.tool } };
+        const value = { ...data, command: { tool: command.tool, doc: projectBuiltin(command, 'ptc').description } };
         return name === 'inspect' ? new ImplToolsInspectCommand(`tools.${name}`, command.tool, value) : new ImplToolsCommand(`tools.${name}`, command.tool, value);
     }
 

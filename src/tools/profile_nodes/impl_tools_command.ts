@@ -8,6 +8,12 @@ import { ProfilePermissionError } from '../../error.js';
 export class ImplToolsCommand extends EditableCommand {
     constructor(name: string, private readonly physicalTool: string, data: CommandNode) { super(name, data); }
 
+    /** @brief Stored snapshots cannot replace the provider's immutable physical identity or documentation. */
+    override copyNode(value: ProfileTreeNode): this {
+        if (value.type !== 'command') throw new ProfilePermissionError(`Protected command cannot be replaced: ${this.memberName}`);
+        return super.copyNode({ ...value, command: this.serialize().command });
+    }
+
     /** @brief Builtin instances retain their provider-owned physical identity even when unavailable in this scope. */
     override check(_context: ProfileCheckContext): void {
         if (this.tool !== this.physicalTool) throw new ProfilePermissionError(`Protected command cannot be replaced: ${this.memberName}`);

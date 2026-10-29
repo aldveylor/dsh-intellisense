@@ -1,4 +1,6 @@
 import { EditableNamespace } from '../registry/profile/namespace.js';
+import { EditableCommand } from '../registry/profile/command.js';
+import type { ProfileCommand } from '../registry/profile/command.js';
 import type { ProfileNamespace } from '../registry/profile/namespace.js';
 import type { PresentationMode } from '../integration/presentation.js';
 import { NamespaceNode } from './nodes/node.js';
@@ -103,7 +105,11 @@ export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Ali
     const state = registry.snapshot();
     const template = state.providedRoot ?? registry.definitions.tree(state.profile);
     const definition = new EditableNamespace('', template);
-    const nodeFor = (parts: string[]): ProfileNamespace => parts.reduce((parent, name) => parent.getOrCreate(name), definition as ProfileNamespace);
+    const nodeFor = (parts: string[]): ProfileNamespace => parts.reduce((parent, name) => {
+        const node = parent.getOrCreate(name, () => new EditableNamespace(name));
+        if (node.type !== 'namespace') throw new Error(`Expected namespace: ${name}`);
+        return node as ProfileNamespace;
+    }, definition as ProfileNamespace);
     for (const item of state.namespaces ?? []) nodeFor(item.path.split('.')).setDescription(item.description);
     const insert = (path: string, tool: string): void => {
         const parts = path.split('.');
@@ -111,10 +117,12 @@ export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Ali
         const name = parts.at(-1)!;
         const previous = parent.get(name);
         if (previous) {
-            if (previous.type === 'command' && parent.get(name, 'command')!.tool === tool) return;
+            if (previous.type === 'command' && (previous as ProfileCommand).tool === tool) return;
             throw new Error(`Conflicting tool alias: ${path}`);
         }
-        parent.create(name, 'command').setTool(tool);
+        const node = parent.create(name, () => new EditableCommand(name));
+        if (node.type !== 'command') throw new Error(`Expected command: ${name}`);
+        (node as ProfileCommand).setTool(tool);
     };
     const effective = registry.effective().filter(mapping => !mapping.disabled && !registry.definitions.addition(mapping.id).hidden);
     for (const mapping of effective) {

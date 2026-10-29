@@ -23,6 +23,12 @@ export class RootNamespace extends EditableSnapshot {
         return super.makeChild(name, data);
     }
 
+    /** @brief Root insertion and replacement explicitly protect the owned tools instance. */
+    override set(name: string, node: ProfileNode): this {
+        if (name === 'tools') throw new ProfilePermissionError('Protected node cannot be replaced: tools');
+        return super.set(name, node);
+    }
+
     /** @brief The root protects tools even if a caller changes the displayed permission declaration. */
     override remove(name: string): boolean {
         if (name === 'tools') throw new ProfilePermissionError('Node cannot be removed: tools');

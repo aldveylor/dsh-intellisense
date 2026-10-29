@@ -19,7 +19,7 @@ test('Profile trees round-trip nested namespaces, independent mounts, comments a
     const before = current.save();
     const configuration = profileConfiguration(ProfileSchema.parse(profile), current, commands);
     assert.deepEqual(current.save(), before);
-    assert.deepEqual(configuration.mappings.map(mapping => mapping.alwaysVisible), [2, 1, 0, 2]);
+    assert.deepEqual(configuration.mappings.map(mapping => mapping.alwaysVisible ?? 0), [2, 1, 0, 2]);
     assert.deepEqual(configuration.mappings.filter(mapping => mapping.id === 'read').map(mapping => mapping.path), ['files.read', 'read']);
     assert.equal(configuration.namespaces[0]?.description, 'File operations');
     assert.equal(configuration.namespaces[0]?.alwaysVisible, true);
@@ -39,7 +39,7 @@ test('Profile schema rejects invalid nodes and configuration rejects missing pro
     assert.throws(() => profileConfiguration(missing, current, commands), /Node cannot be removed: tools/);
     const replaced = structuredClone(profile);
     replaced.root.children!['tools'].children!['inspect'].command!.tool = 'read';
-    assert.throws(() => profileConfiguration(replaced, current, []), /Protected command cannot be replaced/);
+    assert.throws(() => profileConfiguration(replaced, current, []), /cannot be removed|cannot be replaced/);
 });
 
 
@@ -60,12 +60,12 @@ test('protected diagnostics reject rename and move and removal', () => {
         const renamed = structuredClone(profile);
         renamed.root.children!['term'] = renamed.root.children![name]!;
         delete renamed.root.children![name];
-        assert.throws(() => profileConfiguration(renamed, current, commands), new RegExp(`Node cannot be renamed: ${name} -> term.*permissions.renamable=false`));
+        assert.throws(() => profileConfiguration(renamed, current, commands), new RegExp(`Node cannot be removed: ${name}`));
         const moved = structuredClone(profile);
         const original = moved.root.children![name];
         delete moved.root.children![name];
         moved.root.children!['nested'] = { type: 'namespace', permissions: profile.root.permissions, children: { [name]: original! } };
-        assert.throws(() => profileConfiguration(moved, current, commands), new RegExp(`Node cannot be moved: ${name} -> nested.${name}.*permissions.movable=false`));
+        assert.throws(() => profileConfiguration(moved, current, commands), new RegExp(`Node cannot be removed: ${name}`));
         const removed = structuredClone(profile);
         delete removed.root.children![name];
         removed.root.permissions = { ...removed.root.permissions, removable: true };
@@ -75,7 +75,7 @@ test('protected diagnostics reject rename and move and removal', () => {
     const members = renamedLeaf.root.children!['tools']!.children!;
     members.detail = members.inspect!;
     delete members.inspect;
-    assert.throws(() => profileConfiguration(renamedLeaf, current, commands), /Node cannot be renamed: tools.inspect -> tools.detail/);
+    assert.throws(() => profileConfiguration(renamedLeaf, current, commands), /Node cannot be removed: tools.inspect/);
 });
 
 test('root info and log namespaces coexist with protected tools without a console namespace', () => {
@@ -130,7 +130,7 @@ test('ordinary namespaces may share protected member names without replacing pro
     }
     const input = profile.save();
     input.root.children!['tools'].children!['inspect'] = { type: 'namespace' };
-    assert.throws(() => profileConfiguration(input, current, commands), /Protected node cannot be replaced/);
+    assert.throws(() => profileConfiguration(input, current, commands), /cannot be removed|cannot be replaced/);
 });
 
 

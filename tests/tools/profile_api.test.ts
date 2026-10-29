@@ -1,3 +1,5 @@
+import { EditableCommand } from '../../src/registry/profile/command.js';
+import { EditableNamespace } from '../../src/registry/profile/namespace.js';
 import { ValidationError, CurrentProfileDeletionError, UnknownCommandError, ProfileNotFoundError, ConversationRequiredError } from '../../src/error.js';
 import { profileWrite } from '../../src/registry/profile_write.js';
 import { namespace, positionalArguments } from '../namespace/fixtures.js';
@@ -755,7 +757,7 @@ test('agent save and apply run ordered disposable namespace effects and return t
 test('save effect failures and provider-independent permission failures never publish partial changes', async () => {
     const { namespaces, call, load, catalog, registry } = await fixture();
     await namespaces.edit('Default', snapshot => {
-        snapshot.create('external').create('read', 'command').setTool('read_file').setPermissions({ removable: false, commentable: false });
+        snapshot.create('external', () => new EditableNamespace('external')).create('read', () => new EditableCommand('read')).setTool('read_file').setPermissions({ removable: false, commentable: false });
         return snapshot;
     });
     const before = catalog.snapshot();
@@ -775,7 +777,7 @@ test('save effect failures and provider-independent permission failures never pu
     assert((await load({ name: 'Default' })).root.children!.external);
 });
 
-test('builtin save effects repair command identities, documentation, missing nodes and fixed values', async () => {
+test('builtin nodes normalize differential saves and reject explicit deletion during apply', async () => {
     const { call, load } = await fixture();
     const profile = profileWrite(await load());
     const tools = profile.root.children!.tools!;
@@ -790,7 +792,8 @@ test('builtin save effects repair command identities, documentation, missing nod
     assert.equal(saved.root.children!.tools.children!.inspect.command!.tool, 'tools_inspect');
     assert.notEqual(saved.root.children!.tools.children!.inspect.command!.doc, 'Edited discovery');
     assert(saved.root.children!.tools.children!.profile.children!.save);
-    await call('tools_profile_apply', { name: 'Repaired', value: { root: { children: { tools: { disabled: false, children: { inspect: null } } } } } });
+    await assert.rejects(call('tools_profile_apply', { name: 'Repaired', value: { root: { children: { tools: { disabled: false, children: { inspect: null } } } } } }), /cannot be removed: tools.inspect/);
+    await call('tools_profile_apply', { name: 'Repaired', value: { root: { children: { tools: { disabled: false } } } } });
     const applied = await load({ name: 'Repaired' });
     assert.equal(applied.root.children!.tools.disabled ?? false, false);
     assert.equal(applied.root.children!.tools.children!.inspect.fixedLevel, 2);

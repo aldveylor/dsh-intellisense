@@ -1,21 +1,24 @@
-import { EditableNamespace, type ProfileNamespace } from '../../registry/profile/namespace.js';
+import { EditableNamespace } from '../../registry/profile/namespace.js';
 import type { ProfileNode } from '../../registry/profile/node.js';
-import type { ProfileCommand } from '../../registry/profile/command.js';
 import type { NamespaceTreeNode, ProfileTreeNode } from '../../registry/profile_node.js';
 import { nodePermissions, type Permission } from '../../namespace/node.js';
 import { ProfilePermissionError } from '../../error.js';
 
 /** @brief Common builtin namespace policy protects its declared direct children and documentation. */
 export class ImplBuiltinNamespace extends EditableNamespace {
+    /** @brief Hydration preserves the namespace documentation owned by its implementation. */
+    override copyNode(value: ProfileTreeNode): this {
+        if (value.type !== 'namespace') throw new ProfilePermissionError(`Protected node cannot be replaced: ${this.memberName}`);
+        return super.copyNode({ ...value, description: this.description });
+    }
+
     override get permissions(): Permission { return nodePermissions('tree', { renamable: false, movable: false, removable: false, commentable: false, acceptsChildren: false }); }
 
-    override create(name: string, kind?: 'namespace'): ProfileNamespace;
-    override create(name: string, kind: 'command'): ProfileCommand;
-    /** @brief Builtin members are installed during construction, never by external insertion. */
-    override create(_name: string, _kind: 'namespace' | 'command' = 'namespace'): ProfileNode { throw new ProfilePermissionError(`Namespace does not accept children: ${this.memberName}`); }
+    /** @brief Builtin members are installed during construction; set rejects both insertion and replacement. */
+    override set(_name: string, _node: ProfileNode): this { throw new ProfilePermissionError(`Namespace does not accept children: ${this.memberName}`); }
 
     /** @brief A builtin container does not permit direct member deletion. */
-    override remove(_name: string): boolean { throw new ProfilePermissionError(`Namespace members cannot be removed: ${this.memberName}`); }
+    override remove(name: string): boolean { throw new ProfilePermissionError(`Node cannot be removed: ${this.memberName}.${name} (permissions.removable=false)`); }
 
     /** @brief Permissions describe this implementation and cannot weaken its methods. */
     override setPermissions(_value: Partial<Permission>): this { throw new ProfilePermissionError(`Node permissions cannot be changed: ${this.memberName}`); }

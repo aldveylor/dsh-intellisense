@@ -28,6 +28,15 @@ export class EditableCommand extends EditableNode implements ProfileCommand {
 
     get tool(): string | undefined { return this.binding; }
 
+    /** @brief Hydrate command data while retaining the actual provider implementation class. */
+    override copyNode(value: ProfileTreeNode): this {
+        if (value.type !== 'command') throw new ProfilePermissionError(`Protected command cannot be replaced: ${this.memberName}`);
+        const node = super.copyNode(value);
+        node.binding = value.command.tool;
+        node.description = value.command.doc;
+        return node;
+    }
+
     /** @brief Ordinary command validation checks physical identity, hidden/fixed attributes and existing bindings. */
     check(context: ProfileCheckContext, _path = '', original?: ProfileTreeNode): void {
         const existing = original?.type === 'command' && original.command.tool === this.tool;

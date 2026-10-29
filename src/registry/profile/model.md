@@ -1,8 +1,8 @@
 # Profile 便携接口模型
 
-Profile 是匿名命名空间快照接口，ProfileSnapshot 为同义类型。ProfileCollection 提供 list/get/create/getOrCreate/remove/edit，并持有无参数函数指针 createInitialProfile；默认函数直接返回 RootNamespace 及其内置子节点，替换函数可提供其它根实现。clone(data?) 用实际根类型复制或恢复数据，不会将具体子节点退化为通用对象。
+Profile 是匿名命名空间快照接口，ProfileSnapshot 为同义类型。ProfileCollection 提供 list/get/create/getOrCreate/remove/edit，并持有无参数函数指针 createInitialProfile；默认函数直接返回 RootNamespace 及其内置子节点，替换函数可提供其它根实现。clone(data?) 按初始工厂声明的实际根及子节点原型复制或恢复数据，不会将自定义子节点退化为通用对象。
 
-EditableNode、EditableNamespace、EditableCommand、EditableSnapshot 是普通节点实现。内置类位于 tools/profile_nodes/。permissions 继续提供给 agent 与前端；操作方法通过虚方法分派，由当前节点实际阻止非法变化。命名空间删除还须经过后代自身的删除检查。
+EditableNode、EditableNamespace、EditableCommand、EditableSnapshot 是普通节点实现。ProfileNode.type 为 string，具体类分别声明 namespace/command 等类型值。get(name) 返回 ProfileNode，set(name, node) 接收 ProfileNode；调用方检查 type 后再 as。create/getOrCreate 的参数为 (name, factory: () => T)，T extends ProfileNode，返回 T；create 先调用无参数工厂取得实例再通过 set 安装，getOrCreate 命中时不执行工厂。内置类位于 tools/profile_nodes/。permissions 继续提供给 agent 与前端；操作方法通过虚方法分派，由当前节点实际阻止非法变化。命名空间删除还须经过后代自身的删除检查。
 
 apply 是根级基础操作：先检查补丁字段与合并后形状，再对独立快照递归分派操作，全部成功后才发布快照内容。save 对目标树调用节点 normalize，比较当前值与完整目标，生成递归 patch，再复用 apply；省略普通成员会删除，必需内置成员由其节点策略保留或修正。compare.ts 仅生成差异，不处理内置名称或权限。
 

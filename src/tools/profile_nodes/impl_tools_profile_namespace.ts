@@ -18,6 +18,6 @@ export class ImplToolsProfileNamespace extends ImplBuiltinNamespace {
     protected override makeChild(name: string, data: ProfileTreeNode): ProfileNode {
         const command = [...pluginCommands.managementCommands, ...pluginCommands.profileValues].find(command => command.path.split('.').at(-1) === name);
         if (!command || data.type !== 'command') throw new Error(`Invalid builtin Profile member: ${name}`);
-        return new ImplToolsCommand(`tools.profile.${name}`, command.tool, { ...data, command: { ...data.command, tool: command.tool } });
+        return new ImplToolsCommand(`tools.profile.${name}`, command.tool, { ...data, command: { tool: command.tool, doc: projectBuiltin(command, 'ptc').description } });
     }
 }

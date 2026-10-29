@@ -1,4 +1,6 @@
 import { EditableNamespace } from './profile/namespace.js';
+import { EditableCommand } from './profile/command.js';
+import type { ProfileCommand } from './profile/command.js';
 import type { ProfileNamespace } from './profile/namespace.js';
 import { compareProfile } from './profile/compare.js';
 import { editedConfiguration } from './profile/configuration.js';
@@ -115,13 +117,19 @@ export const ProfileSchema: z.ZodType<ProfileData> = z.strictObject({ name: z.st
 /** @brief Create protected children first, then add configured mappings without replacing existing nodes. */
 export function profileTree(name: string, configuration: RegistryConfigurationData, definitions: NamespaceDefinitions = defaultNamespaceDefinitions): ProfileDocument {
     const definition = new EditableNamespace('', configuration.providedRoot ?? definitions.tree(name));
-    const nodeFor = (parts: string[]): ProfileNamespace => parts.reduce((parent, name) => parent.getOrCreate(name), definition as ProfileNamespace);
+    const nodeFor = (parts: string[]): ProfileNamespace => parts.reduce((parent, name) => {
+        const node = parent.getOrCreate(name, () => new EditableNamespace(name));
+        if (node.type !== 'namespace') throw new Error(`Expected namespace: ${name}`);
+        return node as ProfileNamespace;
+    }, definition as ProfileNamespace);
     for (const item of configuration.namespaces) nodeFor(item.path.split('.')).setDescription(item.description);
     for (const mapping of configuration.mappings) {
         const parts = mapping.path.split('.');
         const parent = nodeFor(parts.slice(0, -1));
         if (parent.get(parts.at(-1)!)) continue;
-        const command = parent.create(parts.at(-1)!, 'command').setTool(mapping.id);
+        const node = parent.create(parts.at(-1)!, () => new EditableCommand(parts.at(-1)!));
+        if (node.type !== 'command') throw new Error(`Expected command: ${mapping.path}`);
+        const command = (node as ProfileCommand).setTool(mapping.id);
         const description = mapping.description ?? configuration.toolComments?.[mapping.id];
         if (description !== undefined) command.setDescription(description);
     }

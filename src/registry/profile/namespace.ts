@@ -7,16 +7,14 @@ import type { NamespaceTreeNode, ProfileTreeNode } from '../profile_node.js';
 export interface ProfileNamespace extends ProfileNode {
     readonly type: 'namespace';
     readonly children: ReadonlyMap<string, ProfileNode>;
-    /** @brief Read one direct member, optionally requiring its node kind. */
+    /** @brief Read one direct member; inspect type before casting to a specialized interface. */
     get(name: string): ProfileNode | undefined;
-    get(name: string, kind: 'namespace'): ProfileNamespace | undefined;
-    get(name: string, kind: 'command'): ProfileCommand | undefined;
-    /** @brief Create a direct child; the default kind is namespace. */
-    create(name: string, kind?: 'namespace'): ProfileNamespace;
-    create(name: string, kind: 'command'): ProfileCommand;
-    /** @brief Read or create a direct child of the specified kind. */
-    getOrCreate(name: string, kind?: 'namespace'): ProfileNamespace;
-    getOrCreate(name: string, kind: 'command'): ProfileCommand;
+    /** @brief Install a supplied node through this namespace's mutation policy. */
+    set(name: string, node: ProfileNode): this;
+    /** @brief Construct a fresh node and install it through set. */
+    create<T extends ProfileNode>(name: string, factory: () => T): T;
+    /** @brief Read a direct node or construct a matching one through create and set. */
+    getOrCreate<T extends ProfileNode>(name: string, factory: () => T): T;
     /** @brief Remove one direct child in the editing copy. */
     remove(name: string): boolean;
     /** @brief Set the namespace description. */
@@ -29,7 +27,7 @@ export interface ProfileNamespace extends ProfileNode {
 /** @brief Class implementation returning portable interfaces for all child operations. */
 export class EditableNamespace extends EditableNode implements ProfileNamespace {
     readonly type = 'namespace';
-    protected readonly members = new Map<string, ProfileNode>();
+    protected members = new Map<string, ProfileNode>();
     protected description?: string;
 
     constructor(name = '', data?: NamespaceTreeNode) {
@@ -45,6 +43,29 @@ export class EditableNamespace extends EditableNode implements ProfileNamespace 
     }
 
     get children(): ReadonlyMap<string, ProfileNode> { return new Map(this.members); }
+
+    /** @brief Restore data recursively using the actual node prototypes declared by the initial factory. */
+    override copyNode(value: ProfileTreeNode): this {
+        if (value.type !== 'namespace') throw new ProfilePermissionError(`Protected node cannot be replaced: ${this.memberName}`);
+        const node = super.copyNode(value);
+        node.members = new Map();
+        node.description = value.description;
+        for (const [name, data] of Object.entries(value.children ?? {})) {
+            this.validateName(name);
+            const original = this.members.get(name);
+            node.members.set(name, original instanceof EditableNode && original.type === data.type ? original.copyNode(data) : this.makeChild(name, data));
+        }
+        for (const [name, child] of this.members) {
+            if (!node.members.has(name) && !child.permissions.removable) node.members.set(name, child instanceof EditableNode ? child.copyNode(child.serialize()) : child);
+        }
+        return node;
+    }
+
+    /** @brief Diagnostic paths follow a node when it is installed under a different parent key. */
+    override bindName(path: string): void {
+        super.bindName(path);
+        for (const [name, child] of this.members) if (child instanceof EditableNode) child.bindName(path ? `${path}.${name}` : name);
+    }
 
     /** @brief Hydration installs declared members without invoking external mutation methods. */
     protected makeChild(name: string, data: ProfileTreeNode): ProfileNode {
@@ -79,7 +100,7 @@ export class EditableNamespace extends EditableNode implements ProfileNamespace 
                         && (child.command as { tool: string }).tool !== (previous as ProfileCommand).tool));
                 if (replacing) this.remove(name);
                 if (!previous || replacing) {
-                    const created = child.type === 'command' ? this.create(name, 'command') : this.create(name);
+                    const created = child.type === 'command' ? this.create(name, () => new EditableCommand(name)) : this.create(name, () => new EditableNamespace(name));
                     created.apply(child);
                 } else previous.apply(child);
             }
@@ -97,35 +118,33 @@ export class EditableNamespace extends EditableNode implements ProfileNamespace 
         return result;
     }
 
-    /** @brief Read one direct member and reject kind mismatches. */
-    get(name: string): ProfileNode | undefined;
-    get(name: string, kind: 'namespace'): ProfileNamespace | undefined;
-    get(name: string, kind: 'command'): ProfileCommand | undefined;
-    get(name: string, kind?: 'namespace' | 'command'): ProfileNode | undefined {
-        this.validateName(name);
-        const node = this.members.get(name);
-        if (node && kind && node.type !== kind) throw new Error(`Profile node type mismatch: ${name}`);
-        return node;
-    }
+    /** @brief Read a direct member without inferring a subtype from caller arguments. */
+    get(name: string): ProfileNode | undefined { this.validateName(name); return this.members.get(name); }
 
-    /** @brief Create a new direct member without exposing implementation constructors. */
-    create(name: string, kind?: 'namespace'): ProfileNamespace;
-    create(name: string, kind: 'command'): ProfileCommand;
-    create(name: string, kind: 'namespace' | 'command' = 'namespace'): ProfileNode {
+    /** @brief Direct insertion and replacement share one overridable mutation boundary. */
+    set(name: string, node: ProfileNode): this {
         this.validateName(name);
         if (!this.permissions.acceptsChildren) throw new ProfilePermissionError(`Namespace does not accept children: ${this.memberName}`);
-        if (this.members.has(name)) throw new Error(`Profile member already exists: ${name}`);
-        const path = this.memberName ? `${this.memberName}.${name}` : name;
-        const node = kind === 'namespace' ? new EditableNamespace(path) : new EditableCommand(path);
+        const previous = this.members.get(name);
+        if (previous !== node) previous?.assertRemovable();
+        if (node instanceof EditableNode) node.bindName(this.memberName ? `${this.memberName}.${name}` : name);
         this.members.set(name, node);
+        return this;
+    }
+
+    /** @brief Construct the factory's exact node type and install it through the shared set boundary. */
+    create<T extends ProfileNode>(name: string, factory: () => T): T {
+        this.validateName(name);
+        if (this.members.has(name)) throw new Error(`Profile member already exists: ${name}`);
+        const node = factory();
+        this.set(name, node);
         return node;
     }
 
-    /** @brief Read or create a matching direct member. */
-    getOrCreate(name: string, kind?: 'namespace'): ProfileNamespace;
-    getOrCreate(name: string, kind: 'command'): ProfileCommand;
-    getOrCreate(name: string, kind: 'namespace' | 'command' = 'namespace'): ProfileNode {
-        return kind === 'namespace' ? this.get(name, kind) ?? this.create(name, kind) : this.get(name, kind) ?? this.create(name, kind);
+    /** @brief Existing keys retain their node identity; the caller's factory supplies the concrete return type. */
+    getOrCreate<T extends ProfileNode>(name: string, factory: () => T): T {
+        const node = this.get(name);
+        return node ? node as T : this.create(name, factory);
     }
 
     /** @brief Remove a direct member in this trusted editing copy. */

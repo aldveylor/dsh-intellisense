@@ -159,7 +159,8 @@ export class NamespaceComponent implements ToolsNamespace {
             const input = this.registry.definitions.profile(profileTree(name, current, registry.definitions).save());
             const output = modifier(input);
             if (!output || typeof output.serialize !== 'function') throw new Error('Profile modifier must return a snapshot');
-            const value = { name, brief: output.brief, root: output.serialize() };
+            const published = registry.definitions.profile({ brief: output.brief, root: output.serialize() });
+            const value = { name, brief: published.brief, root: published.serialize() };
             const configuration = editedConfiguration(value, current, registry.definitions);
             await registry.saveProfile(name, configuration, { trusted: true, revision });
             if (typeof target !== 'string') await this.configurationChanged(target.agent);
