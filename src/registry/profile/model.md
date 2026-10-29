@@ -10,4 +10,4 @@ profileConfiguration 和 validate_edit.ts 是转换兼容入口，均委托实�
 
 NamespaceComponent 的 saveProfile/applyProfile 使用同一串行写事务。apply 读取基线、应用及持久化在锁内完成，避免增量更新丢失。事件只在持久化成功后发出，基础字段仅为 name、ISO 时间 time 和 string 类型 type，可用接口继承扩展描述。处理器只通知事件，不处理返回值；校验提示由 save/apply 工具处理；观察器异常发生在提交后，不回滚已保存配置。构造、修复、检查属于节点实现。目录保存不更新已有会话，显式 switch 后才应用。
 
-ProfileSnapshot.resolve(path) 在当前快照中解析启用命令的物理名称，不执行工具或访问目录；祖先禁用时返回 undefined。AgentSessionAddition 只保存当前快照及会话调用次数提交接口，inspect 查询统计独立。
+ProfileSnapshot.resolve(path) 在当前快照中解析启用命令的物理名称，不执行工具或访问目录；祖先禁用时返回 undefined。Session.intellisense 中的 AgentSessionAddition 持有当前快照、会话调用次数提交接口及显式持久化快照的异步 save()，inspect 查询统计独立。

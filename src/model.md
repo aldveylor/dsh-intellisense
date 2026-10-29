@@ -8,7 +8,7 @@
 
 `integration/presentation.ts` 通过 config.mode 选择 native/ptc 工具呈现与初始提示词，按作用域继承 preset 配置。仅显式挂载 presentation 的 Intellisense / Intellisense PTC 模式启用命名空间；标准模式及其它模式保持原生工具与提示词。执行模式仅由 presentation 配置选择，主插件和独立入口不声明默认模式，也不自动为会话挂载模式。
 
-`namespace/component.ts` 仅管理共享具名 Profile；`integration/namespace_integration.ts` 内部管理工具目录、发现与执行集成。AgentSessionAddition 只持有 ProfileSnapshot 和会话工具调用统计接口。Intellisense 模式按会话渐进注册原生工具，初始仅提供 tools.inspect 和固定等级 2 的命令；等级 1 仅在 JSON 提示目录中显示路径和摘要，并保留父命名空间描述，仅精确查询函数路径后添加对应命令；挂载命令名称添加 ns_ 前缀，并以双下划线 __ 替换点号。命名空间通过普通匿名 NamespaceNode 及直接子节点引用表达，NodeType 仅为 leaf/tree。服务端 ToolsNamespaceNode 等节点管理受保护子树，Permission 描述编辑和固定等级限制，父节点删除成员前检查 removable；命令路径从父节点链派生，序列化不带父引用。命令通过 CommandNode 对象表达，调用时使用已绑定的物理 tool 与命名参数，经 DSH 原生执行流水线派发，权限由 DSH 处理。代理不进入物理工具目录，卸载时清理。
+`namespace/component.ts` 仅管理共享具名 Profile；`integration/namespace_integration.ts` 内部管理工具目录、发现与执行集成。AgentSessionAddition 挂载于 Session.intellisense，持有 ProfileSnapshot、会话工具调用统计接口及异步 save()。会话快照初始化及修改时保存，恢复只重建快照，不修改共享具名 Profile 表；运行时资源依靠对象生命周期释放。Intellisense 模式按会话渐进注册原生工具，初始仅提供 tools.inspect 和固定等级 2 的命令；等级 1 仅在 JSON 提示目录中显示路径和摘要，并保留父命名空间描述，仅精确查询函数路径后添加对应命令；挂载命令名称添加 ns_ 前缀，并以双下划线 __ 替换点号。命名空间通过普通匿名 NamespaceNode 及直接子节点引用表达，NodeType 仅为 leaf/tree。服务端 ToolsNamespaceNode 等节点管理受保护子树，Permission 描述编辑和固定等级限制，父节点删除成员前检查 removable；命令路径从父节点链派生，序列化不带父引用。命令通过 CommandNode 对象表达，调用时使用已绑定的物理 tool 与命名参数，经 DSH 原生执行流水线派发，权限由 DSH 处理。代理不进入物理工具目录，卸载时清理。
 
 Intellisense PTC 模式仅向模型提供插件自有 tools_run_code 工具。`namespace/runtime.ts` 将已有受限 RuntimeHost 和 manifest 命名空间接入作用域执行入口，避免原生共享 run_code 选择部署的全局后端。两个模式在原生工具层均呈现 native，由插件组装器选择模型工具集合。PTC 初始化时将命令编译为 VM 函数绑定，VM 直接转换参数并通过 IPC 发送物理 tool 名称和底层参数；宿主不重复解析命名空间，不自行判定权限。子调用通过 DSH 原生执行流水线派发，保留父子审计、附加上下文和普通工具结果历史。本插件不拦截模型流，不解析代码围栏或提供源码续写。
 
@@ -22,7 +22,7 @@ Intellisense PTC 模式仅向模型提供插件自有 tools_run_code 工具。`n
 
 tools.inspect 固定映射到内置 tools_inspect，启用时固定等级为 2，允许禁用。tools 包含 inspect、search 和 profile：profile.load(name?) 只读取当前会话草稿或目录中的具名 Profile 数据，不切换会话或刷新提示；profile.save(name, profile) 仅保存目录中的树，省略名称时使用当前 Profile 名称，也支持 save(profile)；profile.apply(name?, value) 按 load 规则读取后递归合并部分对象 patch，再复用 save；null 删除字段，数组整体替换。保存不更新当前会话配置或选择，显式 switch(name) 后应用保存的配置。profile.profiles 返回目录名称列表与当前会话选择（Profiles），native 下为无参数命令，PTC 下为随工具成功回复刷新的只读字段；profile.annotation 与 profile.commands 在 VM 执行前预加载为冻结常量，在 DSML 中为可直接调用的无参数工具，分别返回模型文档（DSML 为 JSON Schema）与排除插件内置命令的完整目录中的原始命令摘要、当前会话 Profile 的挂载路径 paths（包含被禁用的路径，未挂载时为空数组）及全局总调用次数 totalCalls（含当前上下文没有的命令）；其余旧 tools 管理命令移除。未配置物理工具需挂载或提供自定义别名后调用；不生成 unknown 命名空间。路径保留名称、重复和树碰撞检查。失效工具保留配置，但不进入实际 manifest、补全或执行环境。builtinVisible 记录内置固定提示偏好，按 Profile 保存；默认仅固定 tools.inspect。unmountedVisible 保存未挂载工具的固定提示偏好，不兼容旧字段名。
 
-`storage/store.ts` 通过 DSH JSON backend 保存工具目录、具名 Profile 和会话工作快照；MemoryStore/FileStore 用于独立使用。`storage/journal_store.ts` 按存储前缀绑定可恢复写日志。统计只增量更新目标会话及全局计数，通过唯一计时器将 30 秒窗口内的脏记录合并保存；NamespaceComponent 释放时及插件关闭存储前均主动刷新。运行时不保存可执行状态或重放工具。
+`storage/store.ts` 通过 DSH JSON backend 保存工具目录、具名 Profile 和会话工作快照；MemoryStore/FileStore 用于独立使用。`storage/journal_store.ts` 按存储前缀绑定可恢复写日志。statistics/ 的通用 Statistics 按名称与作用域增量计数，不定义业务动作。命令调用、工具查询、inspect 路径查询分别保存；前两项按会话及工具名累计，inspect 按 Profile 名称及路径累计。每个集合用单一计时器合并 30 秒内的脏记录，集成层释放及插件关闭存储前主动刷新。运行时不保存可执行状态或重放工具。
 
 ## Web UI
 
@@ -107,4 +107,6 @@ ProfileRootWrite 的匿名根只允许 type/children，拒绝没有持久化表�
 
 Profile 操作模型详见 registry/profile/model.md 与 tools/profile_nodes/model.md。ProfileCollection.createInitialProfile 是无参数初始生成函数；节点 create/getOrCreate 使用 (name, factory: () => T)，T extends ProfileNode，返回 T；get/set 使用 ProfileNode，type 基础声明为 string。apply 为基础操作，save 比较完整目标再 apply 差异，普通省略节点删除。effect 仅通知保存事件，不处理返回值。
 
-ToolsNamespace 仅提供 ProfileCollection 和保存事件。ProfileSnapshot.resolve(path) 只返回启用命令的物理名称；AgentSessionAddition.statistics.recordCall(tool) 统计调用，inspect 独立统计查询。搜索、工具属性和执行接口不属于 ToolsNamespace 或 AgentSessionAddition。
+ToolsNamespace 仅提供 ProfileCollection 和保存事件。ProfileSnapshot.resolve(path) 只返回启用命令的物理名称；AgentSessionAddition.statistics.increment([tool]) 统计调用，inspect 独立统计查询。搜索、工具属性和执行接口不属于 ToolsNamespace 或 AgentSessionAddition。
+
+全局 `ctx.intellisense` 提供 profiles（共享具名目录）、statistics.calls / statistics.queries（按工具名累计）以及 inspectStatistics（按 Profile 名称隔离的路径查询统计）、searchEngines。服务类型定义在 integration/intellisense.ts，根入口导出 Intellisense；统计实现位于 statistics/，namespace 仅负责在插件装配时挂载服务。

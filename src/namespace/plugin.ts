@@ -16,7 +16,7 @@ import { registerSessionProfiles } from '../web/session_profile/routes.js';
 import { registerManagement } from '../web/server/routes.js';
 import { ptcToolName } from '../runtime/builtins.js';
 import { executionInstructions } from './prompt.js';
-import { CommandStatistics } from './statistics.js';
+import { CommandStatistics } from '../statistics/command_statistics.js';
 
 export const name = 'command-namespaces';
 export const inject = ['tools', 'agents', 'systemPrompt', 'storage', storageBackendServiceKey('json'), 'connection'];
@@ -37,7 +37,7 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
     const registry = new SemanticRegistry(store);
     const statistics = new CommandStatistics(store, { onError: error => ctx.logger.warn('Statistics persistence failed; dirty data will be retried.', error) });
     const profiles = new ProfileSessions(registry, store, statistics);
-    ctx.effect(() => async () => { try { await statistics.dispose(); } finally { await unit.close(); } });
+    ctx.effect(() => async () => { try { await statistics.dispose(); await profiles.inspectStatistics.dispose(); } finally { await unit.close(); } });
     let namespaces: NamespaceIntegration | undefined;
     let initialization: Promise<void> | undefined;
 
@@ -49,10 +49,12 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
             if (recover) await previous?.catch(() => {});
             await registry.load(recover);
             await statistics.load(recover);
+            await profiles.inspectStatistics.load(recover);
             if (namespaces) return;
             const namespace = new NamespaceComponent(ctx, registry);
             const component = new NamespaceIntegration(ctx, namespace, profiles, aliases, createSearchEngines(config.defaultSearchMethod), statistics);
             namespaces = component;
+            ctx.provide('intellisense', component.intellisense);
             ctx.provide('toolsNamespace', namespace);
             ctx.provide('namespaceIntegration', component);
             registerSessionProfiles(ctx, registry, component);
@@ -84,6 +86,7 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
 
     registerManagement(ctx, registry, {
         statistics,
+        inspectStatistics: profiles.inspectStatistics,
         refresh: async () => { await initialize(); await namespaces!.refresh(); },
         recover: () => initialize(true),
     });
@@ -93,5 +96,3 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
 
 export { SearchEngineRegistry } from '../search/engine_registry.js';
 export type { SearchEngine, SearchSelection, SearchDocument, SearchSelector, SearchField } from '../search/engine_registry.js';
-export { CommandStatistics } from './statistics.js';
-export type { CommandCounts, CommandStatisticsSnapshot, QueryTarget } from './statistics.js';

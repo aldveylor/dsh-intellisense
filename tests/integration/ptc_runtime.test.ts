@@ -20,7 +20,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { JsonStorageBackend } from '@deepseek-ai/dsh-storage-json';
 import { DshStore, type Store } from '../../src/storage/store.js';
-import { CommandStatistics } from '../../src/namespace/statistics.js';
+import { CommandStatistics } from '../../src/statistics/command_statistics.js';
 import { createSearchEngines } from '../../src/search/search.js';
 
 /** @brief Mount a scoped presentation beside a deployment-default runtime that must never execute namespace code. */
@@ -88,21 +88,20 @@ test('PTC worker dispatches and discovery persist session and global statistics 
                 assert.equal(denied.isError, true);
                 assert.match(JSON.stringify(denied), /Denied for statistics test/);
             } finally { unguard(); }
-            expected = await namespaces.statistics.snapshot();
-            assert.equal(expected.calls, 5);
-            assert.deepEqual(expected.callsByTool, { tools_inspect: 1, read_tool: 3, fail_tool: 1 });
-            assert.deepEqual(expected.namespaceQueriesByPath, { std: 1 });
-            assert.deepEqual(expected.commandQueriesByPath, { 'std.read': 1 });
-            assert.deepEqual(await namespaces.statistics.snapshot(agent.id), { ...expected, queriesByTool: {} });
-            assert.equal(agent.session.snapshotEvents().filter(event => event.type === 'tool/ptc-dispatch-start').length, expected.calls);
+            expected = await namespaces.statistics.calls.snapshot();
+            assert.deepEqual(expected, { tools_inspect: 1, read_tool: 3, fail_tool: 1 });
+            assert.deepEqual(await namespaces.inspectStatistics.snapshot(registry.profileSelection().selected), { std: 1, 'std.read': 1 });
+            assert.deepEqual(await namespaces.statistics.queries.snapshot(), { read_tool: 1 });
+            assert.deepEqual(await namespaces.statistics.calls.snapshot(agent.id), expected);
+            assert.equal(agent.session.snapshotEvents().filter(event => event.type === 'tool/ptc-dispatch-start').length, 5);
             await namespaces.release(agent.id);
         } finally { await dispose(); }
         await backend.close();
         backend = new JsonStorageBackend(directory);
         const restored = new CommandStatistics(new DshStore(await backend.kv.open(descriptor)));
         await restored.load();
-        assert.deepEqual(await restored.snapshot(), expected);
-        assert.deepEqual(await restored.snapshot(agent.id), { ...expected, queriesByTool: {} });
+        assert.deepEqual(await restored.calls.snapshot(), expected);
+        assert.deepEqual(await restored.calls.snapshot(agent.id), expected);
     } finally {
         await backend.close();
         await rm(directory, { recursive: true, force: true });
@@ -131,7 +130,7 @@ test('PTC command counts update within a program and refresh from host counts on
         `);
         assert.equal(result.isError, false, JSON.stringify(result));
         assert.deepEqual(result.value, { logs: [], result: [0, 1, 2] });
-        assert.equal((await namespaces.statistics.snapshot()).callsByTool.read_tool, 2);
+        assert.equal((await namespaces.statistics.calls.snapshot()).read_tool, 2);
         const next = await run(`
             const row=tools.profile.commands.find(row=>row.name==='read_tool');
             const before=row.totalCalls;
@@ -140,7 +139,7 @@ test('PTC command counts update within a program and refresh from host counts on
         `);
         assert.equal(next.isError, false, JSON.stringify(next));
         assert.deepEqual(next.value, { logs: [], result: [2, 3] });
-        assert.equal((await namespaces.statistics.snapshot()).callsByTool.read_tool, 3);
+        assert.equal((await namespaces.statistics.calls.snapshot()).read_tool, 3);
     } finally { await dispose(); }
 });
 
@@ -169,7 +168,7 @@ test('native commands rereads current global counts after each namespace dispatc
         const latest = await call('ns_tools__profile__commands');
         assert.equal(latest.isError, false, JSON.stringify(latest));
         assert.equal(count(latest.value), 2);
-        assert.equal((await namespaces.statistics.snapshot(agent.id)).callsByTool.read_tool, 2);
+        assert.equal((await namespaces.statistics.calls.snapshot(agent.id)).read_tool, 2);
     } finally { await dispose(); }
 });
 

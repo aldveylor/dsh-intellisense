@@ -30,7 +30,7 @@ interface View {
     tools: PhysicalTool[];
     callsByTool?: Record<string, number>;
     queriesByTool?: Record<string, number>;
-    namespaceQueriesByPath?: Record<string, number>;
+    queriesByPath?: Record<string, number>;
     effective: Array<Mapping & { tool: PhysicalTool }>;
 }
 
@@ -103,7 +103,7 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
         setView(current => current ? { ...snapshot,
             tools: retain(current.tools, snapshot.tools), provided: retain(current.provided, snapshot.provided),
             effective: retain(current.effective, snapshot.effective), callsByTool: retain(current.callsByTool, snapshot.callsByTool),
-            queriesByTool: retain(current.queriesByTool, snapshot.queriesByTool), namespaceQueriesByPath: retain(current.namespaceQueriesByPath, snapshot.namespaceQueriesByPath),
+            queriesByTool: retain(current.queriesByTool, snapshot.queriesByTool), queriesByPath: retain(current.queriesByPath, snapshot.queriesByPath),
         } : snapshot);
         applyDraft(snapshot.state, snapshot.provided);
         setStatus('');
@@ -352,7 +352,7 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
             }
         },
         namespaceVisible, toggleProvidedNamespace: path => setNamespaceVisible(current => ({ ...current, [path]: !current[path] })),
-        expanded, toolsById, callsByTool: view?.callsByTool ?? {}, queriesByTool: view?.queriesByTool ?? {}, namespaceQueriesByPath: view?.namespaceQueriesByPath ?? {}, busy: !view,
+        expanded, toolsById, callsByTool: view?.callsByTool ?? {}, queriesByTool: view?.queriesByTool ?? {}, queriesByPath: view?.queriesByPath ?? {}, busy: !view,
         pinBuiltin: path => {
             const node = namespaceTree.root.resolve(path.split('.'));
             if (busyRef.current || !node || node.permissions.availableFixLevels.length <= 1) return;
@@ -367,7 +367,7 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
         pinTool: mapping => setMappings(current => current.map(m => m.path === mapping.path ? { ...m, alwaysVisible: nextPinLevel(m.alwaysVisible ?? 0) } : m)),
         renameNamespace: (path, name) => editNamespace(path, name), deleteNamespace: path => { editNamespace(path); },
         toggle: path => setExpanded(current => ({ ...current, [path]: !(current[path] ?? false) })), dropNode: (event) => nativeDrop(event, treeDropTarget(event.currentTarget, event.clientY)),
-    }), [disabledStates, namespaceTree, mappings, namespaces, order, paths, provided, expanded, namespaceVisible, builtinDisabled, toolComments, unmountedVisible, toolsById, view?.tools, view?.callsByTool, view?.queriesByTool, view?.namespaceQueriesByPath, view?.effective]);
+    }), [disabledStates, namespaceTree, mappings, namespaces, order, paths, provided, expanded, namespaceVisible, builtinDisabled, toolComments, unmountedVisible, toolsById, view?.tools, view?.callsByTool, view?.queriesByTool, view?.queriesByPath, view?.effective]);
 
     const inspectWarning = useMemo(() => {
         let inspectAvailable = false;

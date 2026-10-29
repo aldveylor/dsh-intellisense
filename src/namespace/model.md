@@ -8,6 +8,6 @@
 
 `namespace.ts` 将 ProfileSnapshot 与实际物理目录投影成 manifest，通过快照 resolve 取得命令名称，再生成绑定与别名。不可用命令保留 Profile 数据但不参与执行投影。`nodes/` 实现 NamespaceNode、CommandNode，Profile 编辑节点在 tools/profile_nodes/；权限由具体服务端节点执行。declaration.ts、prompt.ts 与 native_tools.ts 分别提供声明、呈现和原生名称适配。
 
-AgentSessionAddition 仅持有 profile: ProfileSnapshot 和会话调用 statistics.recordCall(tool)，不提供查询、执行或目录接口。inspect 查询统计保留在 tools/inspect.ts。会话快照持久化及内部配置投影位于 registry/profiles.ts；NamespaceIntegration 在 integration/namespace_integration.ts 内部管理作用域目录、搜索、发现、呈现和 DSH 派发，不作为 AgentSessionAddition 暴露。
+Session.intellisense 持有 AgentSessionAddition，包含 profile: ProfileSnapshot、会话调用 statistics.increment([tool]) 和异步 save()（仅保存会话快照），不提供查询、执行或目录接口。inspect 查询统计保留在 tools/inspect.ts。会话快照持久化及内部配置投影位于 registry/profiles.ts；NamespaceIntegration 在 integration/namespace_integration.ts 内部管理作用域目录、搜索、发现、呈现和 DSH 派发，不作为 AgentSessionAddition 暴露。
 
-plugin.ts 注册 toolsNamespace 和内部 namespaceIntegration 服务，挂载管理、恢复路由及生命周期。runtime.ts 仅在 PTC presentation 注册 tools_run_code，使用内部集成层编译绑定和派发；取消后等待真实子调用结束。statistics.ts 仍通过 JournalStore 批量保存全局、会话、物理工具计数，与 Profile 服务分离。
+plugin.ts 注册 toolsNamespace 和内部 namespaceIntegration 服务，挂载管理、恢复路由及生命周期。runtime.ts 仅在 PTC presentation 注册 tools_run_code，使用内部集成层编译绑定和派发；取消后等待真实子调用结束。统计实现在 ../statistics/，不属于 namespace；调用与物理工具查询分别持有独立计数集合，inspect 查询按 Profile 名称与路径单独累计。

@@ -12,13 +12,13 @@ Profile load/save/annotation 统一使用继承 ProfileNode 的 CommandNode（ty
 
 `builtin_trace.ts` 在 presentation 作用域包装内置工具注册，保存实际参数/输出 schema、调用参数、返回值、错误与耗时到独立插件审计。结果保持原始模型内容，字符串结果不再额外 JSON 编码。审计和 Profile annotation 通过调用者上下文的 get() 获取命名空间服务，不要求调用者插件显式注入内部 namespaceIntegration。
 
-`inspect.ts` 在物理 tools_inspect 执行内调用 CommandStatistics.recordQueries，使用 inspectQueryTargets 解析有效查询目标；native/PTC 共享计数口径，不在 UI 或声明渲染器中计数。命名空间成员查询只计目标命名空间，精确命令查询计该命令路径，重复参数分别累计。详见 namespace/model.md。
+`inspect.ts` 在物理 tools_inspect 执行内使用 inspectQueryTargets 解析有效目标；native/PTC 共享计数口径。inspectStatistics 按当前 Profile 名称累计路径查询，跨会话共享，同名路径在不同 Profile 中隔离；命名空间成员查询只计目标路径，精确命令查询计命令路径，重复参数分别累计。命令查询同时按物理工具名计入独立的 CommandStatistics.queries，别名共享工具计数。底层 Statistics 仅提供 increment/snapshot/scope，不定义调用或查询行为。
 
 `tool_search.ts` 将 tools_search 注册到 presentation 作用域并映射 tools.search。搜索参数直接由 SearchEngineRegistry.selector 生成；引擎注册、卸载或默认方法变更后重新注册工具并通知提示重组。searchEngines 由内部 NamespaceIntegration 持有，与 ToolsNamespace 的 Profile 目录分离；主插件和 namespace 独立入口均接受 defaultSearchMethod。搜索只返回当前有效树中的完整命令路径，提示使用 tools.inspect 获取详细信息。声明、PTC 位置参数和 UI 提示共同读取实际物理 schema 中的方法枚举。
 
-tools.profile.commands 返回排除插件内置命令的完整命令目录，字段为 name、brief、paths、totalCalls；paths 来自当前会话 Profile 配置的挂载路径，包含被禁用的路径（含祖先禁用）、当前作用域不可用的配置路径及已挂载工具的 YAML 配置路径，未挂载时为空数组；totalCalls 复用命名空间全局统计，供 AI 整理 Profile 时判断调用频率。运行时提示不描述统计更新时机。 commands 提示明确说明 tools.inspect 无法按原始物理命令名获取信息，应查询当前会话可用且启用的挂载路径。
+tools.profile.commands 返回排除插件内置命令的完整命令目录，字段为 name、brief、paths、totalCalls；paths 来自当前会话 Profile 配置的挂载路径，包含被禁用的路径（含祖先禁用）、当前作用域不可用的配置路径及已挂载工具的 YAML 配置路径，未挂载时为空数组；totalCalls 读取独立命令调用统计，供 AI 整理 Profile 时判断调用频率。运行时提示不描述统计更新时机。 commands 提示明确说明 tools.inspect 无法按原始物理命令名获取信息，应查询当前会话可用且启用的挂载路径。
 
-PTC 在每次执行前预加载 commands，并由 VM 命令包装同步更新本次执行内对应物理工具的 totalCalls，只更新 VM 视图，不额外通知宿主。native 的 tools.profile.commands 是实际工具函数，每次调用均重新读取 CommandStatistics 全局快照，返回该次读取时的最新累计值，不复用上次返回的数组。
+PTC 在每次执行前预加载 commands，并由 VM 命令包装同步更新本次执行内对应物理工具的 totalCalls，只更新 VM 视图，不额外通知宿主。native 的 tools.profile.commands 是实际工具函数，每次调用均重新读取 CommandStatistics.calls 全局快照，返回该次读取时的最新累计值，不复用上次返回的数组。
 
 命名空间成员同样保留注释：native 命名空间条目返回 brief；PTC 对直接命中的命名空间、显式查询的命名空间及返回成员的父命名空间链输出描述注释。Profile 自定义描述与内置 tools 等节点描述均从共享运行时树读取。
 

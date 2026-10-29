@@ -24,7 +24,7 @@ export function NamespaceNode({ node, tree, children }: { node: NamespaceTreeNod
     const t = useTranslation();
     const { path, fixed, metadata: config, count } = node;
     const open = tree.expanded[path] ?? false;
-    const tooltip = useTreeTooltip(<NamespaceDetails path={path} description={node.description} queries={tree.namespaceQueriesByPath[path] ?? 0} />);
+    const tooltip = useTreeTooltip(<NamespaceDetails path={path} description={node.description} queries={tree.queriesByPath[path] ?? 0} />);
     return <li data-tree-path={path} data-disabled={tree.disabled(path) || undefined}>
         <div {...tooltip} className={`ts-node-block${fixed ? ' ts-fixed-node' : ''}`} data-namespace-path={path} data-drop-disabled={!node.permissions.acceptsChildren || undefined} draggable={!tree.busy && node.permissions.movable} onDragStart={event => {
             if (!node.permissions.movable) { event.preventDefault(); return; }

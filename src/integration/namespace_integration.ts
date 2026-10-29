@@ -1,3 +1,4 @@
+import type { Intellisense } from './intellisense.js';
 import type { ProfileSnapshot } from '../registry/profile/profile.js';
 import { editedConfiguration } from '../registry/profile/configuration.js';
 import { outputSchema } from '../output_schema.js';
@@ -26,6 +27,8 @@ import { NamespaceComponent } from '../namespace/component.js';
 
 /** @brief Own Agent session Profiles, discovery, presentation and native execution integration. */
 export class NamespaceIntegration {
+    readonly intellisense: Intellisense;
+
     private refreshedRevision = '';
     private refreshing?: Promise<void>;
     private generatedTools = new WeakSet<ToolDefinition>();
@@ -37,8 +40,9 @@ export class NamespaceIntegration {
     private catalogRevision = 0;
     private get catalogVersion(): string { return `${this.catalogRevision}:${this.registry.definitions.revision}`; }
 
-    constructor(private ctx: Context, readonly namespace: NamespaceComponent, readonly profiles: ProfileSessions, private aliases: z.infer<typeof Aliases> = [], readonly searchEngines = createSearchEngines(), readonly statistics = profiles.statistics) {
-        ctx.effect(() => async () => { await Promise.all([...new Set([...this.nativeTools.keys(), ...this.positions.keys(), ...this.discovered.keys()])].map(id => this.release(id))); await this.profiles.dispose(); await this.statistics.dispose(); });
+    constructor(private ctx: Context, readonly namespace: NamespaceComponent, readonly profiles: ProfileSessions, private aliases: z.infer<typeof Aliases> = [], readonly searchEngines = createSearchEngines(), readonly statistics = profiles.statistics, readonly inspectStatistics = profiles.inspectStatistics) {
+        this.intellisense = { profiles: namespace, statistics, inspectStatistics, searchEngines };
+        ctx.effect(() => async () => { await Promise.all([...new Set([...this.nativeTools.keys(), ...this.positions.keys(), ...this.discovered.keys()])].map(id => this.release(id))); await this.statistics.dispose(); await this.inspectStatistics.dispose(); });
         ctx.on('tools/change', () => { this.catalogRevision++; });
         ctx.on('agent/request', async (payload, next) => {
             if (this.enabled(payload.agent)) this.positions.set(payload.agent.id, { turn: payload.turn, step: payload.step });
@@ -51,7 +55,7 @@ export class NamespaceIntegration {
     /** @brief Read the current conversation snapshot. */
     async get(agent: Agent): Promise<ProfileSnapshot> {
         await this.registryFor(agent);
-        return (await this.profiles.addition(agent.id)).profile;
+        return (await this.profiles.addition(agent.session)).profile;
     }
 
     /** @brief Publish a conversation edit without changing its catalog Profile. */
@@ -84,7 +88,7 @@ export class NamespaceIntegration {
             if (!mounted.has(tool)) continue;
             if (!paths.get(tool)!.includes(path)) paths.get(tool)!.push(path);
         }
-        const callsByTool = await this.statistics.counterSnapshot('callsByTool');
+        const callsByTool = await this.statistics.calls.snapshot();
         return this.registry.tools().filter(tool => !this.registry.definitions.addition(tool.id).hidden && !this.registry.definitions.addition(tool.id).fixed).map(tool => ({
             name: tool.id, brief: tool.description, paths: paths.get(tool.id) ?? [], totalCalls: Object.hasOwn(callsByTool, tool.id) ? callsByTool[tool.id]! : 0,
         }));
@@ -184,11 +188,11 @@ export class NamespaceIntegration {
     async registryFor(agent?: Agent): Promise<SemanticRegistry> {
         if (!agent) { await this.refresh(); return this.registry; }
         const profile = this.fixedProfile(agent);
-        const registry = await this.profiles.forSession(agent.id, async () => {
+        const registry = await this.profiles.forSession(agent.session, async () => {
             const parent = this.ctx.agents.list().find(candidate => candidate !== agent && this.ctx.agents.isOwnedBy(agent.id, candidate));
             return parent && this.enabled(parent) ? this.registryFor(parent) : this.registry;
         }, profile);
-        if (profile !== undefined && registry.profileSelection().selected !== profile) await this.profiles.load(agent.id, profile);
+        if (profile !== undefined && registry.profileSelection().selected !== profile) await this.profiles.load(agent.session, profile);
         const chain = scopeChainOf(agent);
         const tools: object = Reflect.get(agent.ctx.tools, symbols.original) ?? agent.ctx.tools;
         const previous = this.physicalSources.get(agent);
@@ -340,7 +344,7 @@ export class NamespaceIntegration {
         const callId = ToolCallId(`${parent.callId}:tool:${sequence}`);
         const ids = { rootCallId: parent.rootCallId, parentCallId: parent.callId, subCallId: callId, name: tool, arguments: args };
         agent.session.append('tool/ptc-dispatch-start', ids);
-        await (await this.profiles.addition(agent.id)).statistics.recordCall(tool);
+        await (await this.profiles.addition(agent.session)).statistics.increment([tool]);
         const settled = await agent.ctx.tools.execute({ agent, callId, rootCallId: parent.rootCallId, parent: parent.token, name: tool, arguments: args, signal: parent.signal });
         agent.session.append('tool/ptc-dispatch', { ...ids, isError: settled.isError, content: settled.content, ...(settled.meta ? { meta: settled.meta } : {}) });
         for (const context of settled.additionalContexts ?? []) parent.deferContext(context);
@@ -349,13 +353,12 @@ export class NamespaceIntegration {
         return settled.value;
     }
 
-    /** @brief Release scoped aliases and the live Profile reference. */
+    /** @brief Release scoped aliases and presentation caches. */
     async release(owner: string): Promise<void> {
         this.catalogRevision++;
         for (const dispose of this.nativeTools.get(owner)?.disposers ?? []) dispose();
         this.nativeTools.delete(owner);
         this.positions.delete(owner);
         this.discovered.delete(owner);
-        await this.profiles.release(owner);
     }
 }

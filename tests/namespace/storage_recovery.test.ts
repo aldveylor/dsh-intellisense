@@ -7,7 +7,7 @@ import { storageVersion } from '../../src/storage/version.js';
 test('startup loading failures keep management available and reset preserves valid portions', async () => {
     const records: Record<string, unknown> = {
         registry: { version: storageVersion, revision: 3, mappings: [{ id: 'read', path: 'files.read', pinned: false }] },
-        command_statistics: { version: storageVersion, sessions: {}, queriesByTool: { read: 4, broken: -1 } },
+        command_queries: { version: storageVersion, counts: { read: 4, broken: -1 } },
     };
     const routes = new Map<string, (request: Request) => Promise<Response>>();
     const descriptors: unknown[] = [];
@@ -50,13 +50,13 @@ test('KV version upgrade retains compatible records for domain-level partial rec
     const { join } = await import('node:path');
     const { DshStore } = await import('../../src/storage/store.js');
     const { SemanticRegistry } = await import('../../src/registry/registry.js');
-    const { CommandStatistics } = await import('../../src/namespace/statistics.js');
+    const { CommandStatistics } = await import('../../src/statistics/command_statistics.js');
     const directory = await mkdtemp(join(tmpdir(), 'intellisense-storage-'));
     const backend = new JsonStorageBackend(directory);
     try {
         const old = await backend.kv.open({ name: 'ts_intellisense', version: 1, tables: ['state'], hasGlobal: false, layout: 'per-record' });
         await old.putRecord('state', 'registry', { version: 1, revision: 3, mappings: [{ id: 'read', path: 'files.read', pinned: false }, null] });
-        await old.putRecord('state', 'command_statistics', { sessions: {}, queriesByTool: { read: 4 } });
+        await old.putRecord('state', 'command_queries', { counts: { read: 4 } });
         await old.close();
         const current = await backend.kv.open({ name: 'ts_intellisense', version: storageVersion, compatibleVersions: [1], tables: ['state'], hasGlobal: false, layout: 'per-record' });
         const store = new DshStore(current);
@@ -66,7 +66,7 @@ test('KV version upgrade retains compatible records for domain-level partial rec
         await statistics.load();
         assert.equal(registry.snapshot().version, storageVersion);
         assert.deepEqual(registry.snapshot().mappings, [{ id: 'read', path: 'files.read', pinned: false }]);
-        assert.deepEqual((await statistics.snapshot()).queriesByTool, { read: 4 });
+        assert.deepEqual((await statistics.queries.snapshot()), { read: 4 });
     } finally { await backend.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
@@ -89,10 +89,16 @@ test('plugin teardown flushes delayed statistics before closing their storage ba
         provide: (name: string, value: unknown) => { Object.assign(ctx, { [name]: value }); },
     } as unknown as Context;
     await apply(ctx);
-    await ctx.namespaceIntegration.statistics.recordCall('last', 'read');
-    assert.equal(records.command_statistics, undefined);
+    assert.strictEqual(ctx.intellisense.profiles, ctx.toolsNamespace);
+    assert.strictEqual(ctx.intellisense.statistics, ctx.namespaceIntegration.statistics);
+    assert.strictEqual(ctx.intellisense.inspectStatistics, ctx.namespaceIntegration.inspectStatistics);
+    assert.strictEqual(ctx.intellisense.searchEngines, ctx.namespaceIntegration.searchEngines);
+    await ctx.intellisense.statistics.calls.increment('last', ['read']);
+    await ctx.intellisense.inspectStatistics.increment('Default', ['std.read']);
+    assert.equal(records.command_calls, undefined);
     for (const dispose of cleanup.reverse()) await dispose();
     assert(closed);
-    assert.equal((records.command_statistics as unknown as { counts: { callsByTool: { read: number } } }).counts.callsByTool.read, 1);
-    assert.equal(records.command_statistics_journal, undefined);
+    assert.equal((records.command_calls as unknown as { counts: { read: number } }).counts.read, 1);
+    assert.equal(records.command_calls_journal, undefined);
+    assert.deepEqual((records.inspect_statistics as { counts: Record<string, number> }).counts, { 'std.read': 1 });
 });

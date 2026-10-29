@@ -1,3 +1,4 @@
+import { Session, SessionId } from '@deepseek-ai/dsh-session';
 import { NamespaceComponent } from '../../src/namespace/component.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -49,7 +50,7 @@ test('editor discovers standing preset tools without live agents and keeps execu
         assert.deepEqual(registry.tools().map(tool => tool.id).sort(), ['read_file', 'working_directory', 'write_file']);
         assert.deepEqual(released, ['first', 'second']);
         assert.deepEqual(component.physical().map(tool => tool.id), ['working_directory']);
-        const agent = { id: 'first-session' } as Agent;
+        const agent = { id: 'first-session', session: Session.create(SessionId('first-session')) } as Agent;
         Object.assign(agent, { ctx: createScope(toolContext, agent, { parent: first }).ctx });
         const scoped = await component.registryFor(agent);
         assert.deepEqual(scoped.tools().map(tool => tool.id).sort(), ['read_file', 'working_directory']);
@@ -95,7 +96,7 @@ test('command briefs expose current session mount paths including disabled paths
             { id: 'read_file', path: 'fs.cat', pinned: false },
             { id: 'write_file', path: 'fs.write', pinned: false },
         ], 0);
-        const agent = { id: 'session', ctx } as Agent;
+        const agent = { id: 'session', ctx, session: Session.create(SessionId('session')) } as Agent;
         const session = await component.registryFor(agent);
         await session.configure([
             { id: 'read_file', path: 'files.read', pinned: false },
@@ -103,7 +104,7 @@ test('command briefs expose current session mount paths including disabled paths
             { id: 'read_file', path: 'hidden.read', pinned: false },
             { id: 'write_file', path: 'files.write', pinned: false, disabled: true },
         ], session.snapshot().revision, [{ path: 'hidden', description: '', alwaysVisible: false, disabled: true }]);
-        await component.statistics.recordCall(agent.id, 'read_file');
+        await component.statistics.calls.increment(agent.id, ['read_file']);
         const expected = [
             { name: 'read_file', brief: 'read_file', paths: ['files.read', 'files.cat', 'hidden.read', 'text.read'], totalCalls: 1 },
             { name: 'write_file', brief: 'write_file', paths: ['files.write'], totalCalls: 0 },
@@ -131,7 +132,7 @@ test('session catalogs skip unchanged projection and invalidate tool changes, sc
         const store = new MemoryStore();
         const catalog = new SemanticRegistry(store);
         const component = new NamespaceIntegration(ctx, new NamespaceComponent(ctx, catalog), new ProfileSessions(catalog, store));
-        const agent = { id: 'cached', ctx } as Agent;
+        const agent = { id: 'cached', ctx, session: Session.create(SessionId('cached')) } as Agent;
         const binding = bindScopeParent(agent, firstKey);
         const physical = component.physical.bind(component);
         let reads = 0;
@@ -151,7 +152,7 @@ test('session catalogs skip unchanged projection and invalidate tool changes, sc
         assert(!registry.tools().some(tool => tool.id === 'first_only'));
         await component.release(agent.id);
         const reopened = await component.registryFor(agent);
-        assert.notEqual(reopened, registry);
+        assert.equal(reopened, registry);
         assert(reopened.tools().some(tool => tool.id === 'second_only'));
         assert.equal(reads, 4);
         await first.dispose();

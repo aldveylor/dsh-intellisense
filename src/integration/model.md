@@ -8,6 +8,8 @@
 
 `intellisense-presentation.config.profile` 可选指定已有具名 Profile。与 mode 一起按最近 presentation 作用域继承，显式子作用域未配置 profile 时不继承外层锁定。指定后会话以目录快照初始化，优先于父会话草稿和全局默认；已有会话选择不同名称时切换到指定配置，同名工作快照保留。缺失名称报错。
 
-`agent_session_addition.ts` 仅声明 AgentSessionAddition：profile 为当前 ProfileSnapshot，statistics.recordCall(tool) 只提交本会话工具调用次数。命令名称解析位于快照 resolve；inspect 查询次数由 inspect 工具独立记录。
+`agent_session_addition.ts` 声明 AgentSessionAddition 并扩展 Session.intellisense 可选字段，由 session 直接持有，外部通过 agent.session.intellisense 访问，不额外清理资源。save() 显式保存当前会话快照（包括外部直接编辑），不修改具名 Profile 表；profile 为当前 ProfileSnapshot，statistics.increment([tool]) 只提交本会话工具调用次数。命令名称解析位于快照 resolve；inspect 查询次数由 inspect 工具独立记录。
 
 `namespace_integration.ts` 的 NamespaceIntegration 是内部编排层，持有作用域工具目录缓存、请求位置、原生发现集合、搜索引擎及代理生命周期。presentation、工具、Profile 下拉框和 PTC runtime 使用该内部层；它不作为 AgentSessionAddition 对外暴露。原生和 PTC 工具均经 DSH tools.execute 派发，保留 guard、调用计数、父子审计、附加上下文和结束回合语义。ToolsNamespace 仅负责共享具名 Profile 目录。
+
+`intellisense.ts` 定义全局 ctx.intellisense，插件初始化成功后发布，子作用域继承同一服务。profiles 指向共享 ToolsNamespace 目录，statistics 指向命令统计（calls/queries），inspectStatistics 提供按 Profile 名称隔离的路径计数，searchEngines 为共享搜索引擎注册器。内部 NamespaceIntegration 与该服务引用同一批对象，不复制计数或目录。此全局服务与 session.intellisense 的会话快照状态分开。

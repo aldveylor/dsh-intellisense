@@ -1,3 +1,4 @@
+import type { Statistics } from '../../statistics/statistics.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
@@ -6,7 +7,7 @@ import { returnTypeDeclaration } from './return_type.js';
 import type { PhysicalTool, SemanticRegistry } from '../../registry/registry.js';
 import { createNamespace } from '../../namespace/namespace.js';
 import type { SerializedNode } from '../../namespace/node.js';
-import type { CommandStatistics } from '../../namespace/statistics.js';
+import type { CommandStatistics } from '../../statistics/command_statistics.js';
 import '@deepseek-ai/dsh-client-connection';
 import { managementHtml } from './page.js';
 
@@ -26,7 +27,7 @@ const managementRequest = z.discriminatedUnion('action', [
 ]);
 
 /** @brief Register management UI and APIs behind DSH owner-peer authentication and Host/Origin policy. */
-export function registerManagement(ctx: Context, globalRegistry: SemanticRegistry, adapter: { refresh: () => Promise<void>; statistics?: CommandStatistics; recover?: () => Promise<void> }): void {
+export function registerManagement(ctx: Context, globalRegistry: SemanticRegistry, adapter: { refresh: () => Promise<void>; statistics?: CommandStatistics; inspectStatistics?: Statistics; recover?: () => Promise<void> }): void {
     const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
     let catalog: { generation: string; tools: PhysicalTool[]; physical: PhysicalTool[]; provided: Map<string, SerializedNode[]> } | undefined;
     ctx.connection.fetch.register({ path: '/api/ts-intellisense', methods: ['GET'], requestBody: 'buffered', fetch: async () => new Response(managementHtml, { headers: { ...headers, 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'" } }) });
@@ -46,8 +47,10 @@ export function registerManagement(ctx: Context, globalRegistry: SemanticRegistr
                 await adapter.refresh();
                 const registry = globalRegistry;
                 const state = registry.snapshot();
-                const statistics = await adapter.statistics?.snapshot();
                 const profile = new URL(request.url).searchParams.get('profile') ?? state.profile!;
+                const callsByTool = await adapter.statistics?.calls.snapshot() ?? {};
+                const queriesByTool = await adapter.statistics?.queries.snapshot() ?? {};
+                const queriesByPath = await adapter.inspectStatistics?.snapshot(profile) ?? {};
                 if (catalog?.generation !== registry.generation) {
                     const tools = registry.tools();
                     catalog = {
@@ -64,7 +67,7 @@ export function registerManagement(ctx: Context, globalRegistry: SemanticRegistr
                     }).children.values()].map(node => node.serialize());
                     catalog.provided.set(profile, provided);
                 }
-                return Response.json({ defaultProfile: state.profile, profileBriefs: registry.profileBriefs(), state: { ...state, ...selected, profile }, tools: catalog.tools, callsByTool: statistics?.callsByTool ?? {}, queriesByTool: statistics?.queriesByTool ?? {}, namespaceQueriesByPath: statistics?.namespaceQueriesByPath ?? {}, provided, effective: registry.effective() }, { headers });
+                return Response.json({ defaultProfile: state.profile, profileBriefs: registry.profileBriefs(), state: { ...state, ...selected, profile }, tools: catalog.tools, callsByTool, queriesByTool, queriesByPath, provided, effective: registry.effective() }, { headers });
             }
             if (!request.headers.get('content-type')?.startsWith('application/json')) return Response.json({ error: 'expected_json' }, { status: 415, headers });
             const bodyText = await request.text();
@@ -81,6 +84,7 @@ export function registerManagement(ctx: Context, globalRegistry: SemanticRegistr
                 else {
                     await registry.load(true);
                     await adapter.statistics?.load(true);
+                    await adapter.inspectStatistics?.load(true);
                 }
             }
             else if (body.action === 'profile') await registry.manageProfile(body.operation, body.name, body.revision, body.newName, body.activate);

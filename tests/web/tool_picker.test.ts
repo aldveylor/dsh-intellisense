@@ -1,3 +1,4 @@
+import { Statistics } from '../../src/statistics/statistics.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -6,7 +7,7 @@ import { JSDOM } from 'jsdom';
 import type { Context } from '@deepseek-ai/cordis';
 import { registerManagement } from '../../src/web/server/routes.js';
 import { managementHtml } from '../../src/web/server/page.js';
-import { CommandStatistics } from '../../src/namespace/statistics.js';
+import { CommandStatistics } from '../../src/statistics/command_statistics.js';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
 
@@ -26,22 +27,16 @@ test('picker and namespace details show global call and query counts', async () 
         output: { type: 'object', properties: { content: { type: 'string', description: 'File content' } } },
     })));
     const statistics = new CommandStatistics(new MemoryStore());
-    await statistics.recordCall('first', 'alpha');
-    await statistics.recordCall('second', 'alpha');
-    await statistics.recordCall('first', 'beta');
-    await statistics.recordQueries('first', [
-        { path: 'std.alpha', namespace: false, tool: 'alpha' },
-        { path: 'tools', namespace: true },
-    ]);
-    await statistics.recordQueries('second', [
-        { path: 'other.alpha', namespace: false, tool: 'alpha' },
-        { path: 'std.beta', namespace: false, tool: 'beta' },
-        { path: 'std.beta', namespace: false, tool: 'beta' },
-        { path: 'tools', namespace: true },
-    ]);
+    await statistics.calls.increment('first', ['alpha']);
+    await statistics.calls.increment('second', ['alpha']);
+    await statistics.calls.increment('first', ['beta']);
+    const inspectStatistics = new Statistics(new MemoryStore(), 'inspect_statistics');
+    await statistics.queries.increment('first', ['alpha']);
+    await statistics.queries.increment('second', ['alpha', 'beta', 'beta']);
+    await inspectStatistics.increment(registry.profileSelection().selected, ['std.alpha', 'other.alpha', 'std.beta', 'std.beta', 'tools', 'tools']);
     const routes = new Map<string, (request: Request) => Promise<Response>>();
     const ctx = { connection: { fetch: { register: (route: { path: string; fetch: (request: Request) => Promise<Response> }) => routes.set(route.path, route.fetch) } } } as unknown as Context;
-    registerManagement(ctx, registry, { refresh: async () => {}, statistics });
+    registerManagement(ctx, registry, { refresh: async () => {}, statistics, inspectStatistics });
     const dom = new JSDOM(managementHtml, { url: 'http://localhost/api/ts-intellisense', runScripts: 'outside-only', pretendToBeVisual: true });
     try {
         const { window } = dom;

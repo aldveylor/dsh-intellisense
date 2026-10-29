@@ -20,6 +20,7 @@ export async function apply(ctx: Context, options: Config = {}): Promise<void> {
 
 export { RuntimeHost } from './runtime/host.js';
 export { SemanticRegistry, RegistryConfiguration, RegistryState } from './registry/registry.js';
+export type { Intellisense } from './integration/intellisense.js';
 export type { AgentSessionAddition } from './integration/agent_session_addition.js';
 export { NamespaceComponent } from './namespace/component.js';
 export { NamespaceNode, CommandNode } from './namespace/namespace.js';
@@ -42,8 +43,9 @@ export type { ToolDefinition } from '@deepseek-ai/dsh-tools';
 export { SearchEngineRegistry } from './search/engine_registry.js';
 export type { SearchEngine, SearchSelection, SearchDocument, SearchSelector, SearchField } from './search/engine_registry.js';
 
-export { CommandStatistics } from './namespace/statistics.js';
-export type { CommandCounts, CommandStatisticsSnapshot, QueryTarget } from './namespace/statistics.js';
+export { CommandStatistics } from './statistics/command_statistics.js';
+export { Statistics } from './statistics/statistics.js';
+export type { Counts, Counter } from './statistics/statistics.js';
 
 export { profileWrite } from './registry/profile_write.js';
 export type { ProfileWrite, ProfileRootWrite, ProfilePatch, CommandWrite, NamespaceWrite } from './registry/profile_write.js';

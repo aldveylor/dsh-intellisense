@@ -7,7 +7,8 @@ import { codeBlock } from '../protocol/code_block.js';
 import { appendPluginRecord } from '@deepseek-ai/dsh-session';
 import { declaration, normalizeInspectQueries, queryNodes, NamespaceNode } from '../namespace/namespace.js';
 import type { NamespaceIntegration } from '../integration/namespace_integration.js';
-import type { QueryTarget } from '../namespace/statistics.js';
+/** @brief A valid query target resolved against the active Profile tree. */
+export interface QueryTarget { path: string; namespace: boolean; tool?: string }
 
 /** @brief Resolve each query target, excluding disabled and missing members. */
 export function inspectQueryTargets(queries: readonly string[], root: NamespaceNode): QueryTarget[] {
@@ -76,7 +77,9 @@ export function registerInspect(ctx: Context, namespaces: NamespaceIntegration):
             const registry = await namespaces.registryFor(agent);
             if (registry.disabled('tools.inspect')) throw new Error('Execution denied: tools.inspect');
             const root = await namespaces.tree(agent, registry);
-            await namespaces.statistics.recordQueries(agent.id, inspectQueryTargets(queries, root));
+            const targets = inspectQueryTargets(queries, root);
+            await namespaces.inspectStatistics.increment(registry.profileSelection().selected, targets.map(target => target.path));
+            await namespaces.statistics.queries.increment(agent.session.id, targets.flatMap(target => target.tool ? [target.tool] : []));
             let info: string;
             if (namespaces.isPtc(agent)) {
                 info = inspect(queries, root, true, (tool, path) => registry.description(path, tool));

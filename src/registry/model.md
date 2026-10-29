@@ -79,4 +79,4 @@ SemanticRegistry.revision 只读配置版本，不构造快照；generation 继�
 
 Profile 操作模型详见 registry/profile/model.md 与 tools/profile_nodes/model.md。ProfileCollection.createInitialProfile 是无参数初始生成函数；节点 create/getOrCreate 使用 (name, factory: () => T)，T extends ProfileNode，返回 T；get/set 使用 ProfileNode，type 基础声明为 string。apply 为基础操作，save 比较完整目标再 apply 差异，普通省略节点删除。effect 仅通知保存事件，不处理返回值。
 
-会话以 AgentSessionAddition 持有 ProfileSnapshot 和 statistics.recordCall(tool)，持久化只保存所选名称与快照数据。ProfileSessions 将快照转换为内部 registry 投影以供现有配置消费者使用，直接编辑快照后会同步投影；会话对外不暴露 registry、发现或执行接口。
+Session.intellisense 直接持有 AgentSessionAddition（ProfileSnapshot、statistics.increment([tool]) 和异步 save()），持久化只保存所选名称与快照数据，初始化即保存，运行时释放不删除；恢复不修改共享配置表。ProfileSessions 使用 Session 对象及弱引用缓存，不按 ID 强持有会话。ProfileSessions 将快照转换为内部 registry 投影以供现有配置消费者使用，直接编辑快照后会同步投影；会话对外不暴露 registry、发现或执行接口。
