@@ -6,7 +6,7 @@ import { UsageButton } from '../documentation/usage_button.js';
 import { ActionButton } from '../ui/controls/action_button.js';
 import { useTranslation } from '../locale/locale.js';
 import styles from './management_panel.css';
-import { ErrorDialog } from './error_dialog.js';
+import { ErrorToast } from './error_toast.js';
 import { useLayoutMotion } from '../ui/animation/layout_motion.js';
 import { NamespaceTree } from './tree_node.js';
 import { useEffect, useMemo, useRef, useState, type ComponentType, type DragEvent } from 'react';
@@ -86,10 +86,16 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
     const [toolComments, setToolComments] = useState<Record<string, string>>({});
     const [descriptionEditor, setDescriptionEditor] = useState<{ id: string; path: string; text?: string }>();
     const [toolPicker, setToolPicker] = useState<{ parent: string; unmountedOnly?: boolean }>();
-    const [status, setStatus] = useState('loading');
+    const [feedback, setFeedback] = useState({ message: 'loading', generation: 0 });
+    const status = feedback.message;
     const [pending, setPending] = useState<'editor' | 'default' | 'organize'>();
     const busy = pending !== undefined;
     const busyRef = useRef(false);
+
+    /** @brief Restart notification lifetime even when an identical error repeats. */
+    function setStatus(message: string): void {
+        setFeedback(current => ({ message, generation: current.generation + 1 }));
+    }
 
     /** @brief Replace drafts only after a successful snapshot load. */
     async function reload(signal?: AbortSignal, profile: string | null = view?.state.profiles?.includes(view.state.profile!) ? view.state.profile! : null): Promise<void> {
@@ -389,7 +395,7 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
             {showUsage && <UsageDialog api={api} close={() => setShowUsage(false)} />}
             {view && status && (['loading', 'updating_profile', 'organizing'].includes(status)
                 ? <p role="status" aria-live="polite">{t(status)}</p>
-                : <ErrorDialog message={t(status)} close={() => setStatus('')} />)}
+                : <ErrorToast key={feedback.generation} message={t(status)} close={() => setStatus('')} />)}
             <div className="ts-toolbar"><div className="ts-actions">
                 <div className="ts-default-profile" aria-busy={pending === 'default' || undefined} ref={element => { if (element) element.inert = pending === 'default'; }}><span>{t('default_profile')}</span>
                     <div className="ts-default-profile-control"><Select value={view?.defaultProfile ?? ''} options={(view?.state.profiles ?? []).map(name => ({ value: name, label: name, brief: view?.profileBriefs?.[name] }))}
