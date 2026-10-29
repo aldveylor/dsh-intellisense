@@ -1,3 +1,4 @@
+import { sessionFor } from '../registry/session_fixture.js';
 import { namespace } from '../namespace/fixtures.js';
 import { positionalArguments } from '../namespace/fixtures.js';
 import assert from 'node:assert/strict';
@@ -24,24 +25,23 @@ test('optional Profile names are omitted and both save overloads retain the Prof
     assert.match(declaration(namespace([entry]).commands().find(node => node.path === entry.path)!), /function save\(profile: ProfileWrite\)/);
 });
 
-test('session edits overwrite one working record and release removes it without changing other sessions', async () => {
+test('session edits overwrite one working record and remain available after the live session is replaced', async () => {
     const store = new MemoryStore();
     const records = new Map<string, unknown>();
-    const save = store.save.bind(store), remove = store.remove.bind(store);
+    const save = store.save.bind(store);
     store.save = async (key, value) => { records.set(key, value); await save(key, value); };
-    store.remove = async key => { records.delete(key); await remove(key); };
     const catalog = new SemanticRegistry(store);
     const profiles = new ProfileSessions(catalog, store);
-    const first = await profiles.forSession('first');
-    const second = await profiles.forSession('second');
-    for (let revision = 0; revision < 20; revision++) await first.configure([], revision, [], [], {}, undefined, {}, {}, { console: true });
-    assert.equal(records.size, 1);
-    assert.equal(second.snapshot().namespaceVisible?.console ?? false, false);
+    const first = await profiles.forSession(sessionFor(profiles, 'first'));
+    const second = await profiles.forSession(sessionFor(profiles, 'second'));
+    for (let revision = 0; revision < 20; revision++) await first.replaceConfiguration({ ...first.configuration(), brief: `Revision ${revision}` }, 'Default');
+    assert.equal(records.size, 2);
+    assert.equal(second.configuration().brief, undefined);
     assert.equal(catalog.snapshot().revision, 0);
-    await profiles.release('first');
-    assert.equal(records.size, 0);
-    assert.equal((await profiles.forSession('first')).snapshot().revision, 0);
-    await profiles.dispose();
+    const restoredProfiles = new ProfileSessions(catalog, store);
+    const restored = await restoredProfiles.forSession(sessionFor(restoredProfiles, 'first'));
+    assert.equal(restored.configuration().brief, 'Revision 19');
+    assert.equal(records.size, 2);
 });
 
 test('DSH store observes external updates and deletes through the KV backend', async () => {

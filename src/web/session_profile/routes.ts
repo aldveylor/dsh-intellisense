@@ -29,7 +29,7 @@ export function registerSessionProfiles(ctx: Context, catalog: SemanticRegistry,
                 const parsed = selection.safeParse(input);
                 if (!parsed.success) return Response.json({ error: 'invalid_session_profile_request' }, { status: 400, headers });
                 const { profile } = parsed.data;
-                await namespaces.profiles.load(agent.id, profile);
+                await namespaces.profiles.load(agent.session, profile);
                 await namespaces.configurationChanged(agent);
             }
             const registry = await namespaces.registryFor(agent);

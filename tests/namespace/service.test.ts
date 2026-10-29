@@ -1,3 +1,4 @@
+import { sessionFor } from '../registry/session_fixture.js';
 import { NamespaceIntegration } from '../../src/integration/namespace_integration.js';
 import { EditableCommand } from '../../src/registry/profile/command.js';
 import { EditableNamespace } from '../../src/registry/profile/namespace.js';
@@ -149,10 +150,10 @@ test('failed modifiers, validation and persistence leave the entire Profile unch
 test('conversation snapshot modification stays independent from its named catalog Profile', async () => {
     const { service, registry, sessions } = fixture();
     await service.create('Work');
-    const session = await sessions.profiles.load('session', 'Work');
+    const session = await sessions.profiles.load(sessionFor(sessions.profiles, 'session'), 'Work');
     sessions.registryFor = async () => session;
     sessions.configurationChanged = async () => {};
-    await sessions.edit({ id: 'session' } as Agent, snapshot => { snapshot.create('read', () => new EditableCommand('read')).setTool('read'); return snapshot; });
+    await sessions.edit({ id: 'session', session: sessionFor(sessions.profiles, 'session') } as Agent, snapshot => { snapshot.create('read', () => new EditableCommand('read')).setTool('read'); return snapshot; });
     assert.equal(session.configuration().mappings.length, 1);
     assert.equal(registry.configuration('Work').mappings.length, 0);
 });

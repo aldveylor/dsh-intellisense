@@ -37,14 +37,14 @@ test('runtime child ownership inherits the nearest parent working profile withou
     try {
         await catalog.saveProfile('Work', { ...catalog.configuration(), namespaces: [{ path: 'saved', description: '', alwaysVisible: false }] });
         const parent = await agent('parent');
-        await profiles.load(parent.id, 'Work');
+        await profiles.load(parent.session, 'Work');
         const parentRegistry = await namespaces.registryFor(parent);
         await parentRegistry.replaceConfiguration({ ...parentRegistry.configuration(), namespaces: [{ path: 'draft', description: 'Not saved to catalog', alwaysVisible: true }] }, 'Work');
         const fixed = await agent('fixed', parent, true, 'Work');
         const fixedRegistry = await namespaces.registryFor(fixed);
         assert.equal(fixedRegistry.snapshot().profile, 'Work');
         assert.equal(fixedRegistry.configuration().namespaces[0]?.path, 'saved');
-        await profiles.load(fixed.id, 'Default');
+        await profiles.load(fixed.session, 'Default');
         assert.equal((await namespaces.registryFor(fixed)).snapshot().profile, 'Work');
         const fixedRoot = await agent('fixed_root', undefined, true, 'Work');
         assert.equal((await namespaces.registryFor(fixedRoot)).snapshot().profile, 'Work');
@@ -53,22 +53,21 @@ test('runtime child ownership inherits the nearest parent working profile withou
         const child = await agent('child', parent);
         const childRegistry = await namespaces.registryFor(child);
         assert.equal(childRegistry.snapshot().profile, 'Work');
-        assert.deepEqual((await profiles.addition(child.id)).profile.serialize(), (await profiles.addition(parent.id)).profile.serialize());
-        await profiles.load(parent.id, 'Default');
+        assert.deepEqual((await profiles.addition(child.session)).profile.serialize(), (await profiles.addition(parent.session)).profile.serialize());
+        await profiles.load(parent.session, 'Default');
         assert.equal((await namespaces.registryFor(child)).snapshot().profile, 'Work');
         const grandchild = await agent('grandchild', child);
         await namespaces.registryFor(grandchild);
-        assert.deepEqual((await profiles.addition(grandchild.id)).profile.serialize(), (await profiles.addition(child.id)).profile.serialize());
+        assert.deepEqual((await profiles.addition(grandchild.session)).profile.serialize(), (await profiles.addition(child.session)).profile.serialize());
         const root = await agent('root');
         assert.equal((await namespaces.registryFor(root)).snapshot().profile, 'Default');
         const standard = await agent('standard', undefined, false);
-        await profiles.load(standard.id, 'Work');
+        await profiles.load(standard.session, 'Work');
         const standalone = await agent('standalone', standard);
         assert.equal((await namespaces.registryFor(standalone)).snapshot().profile, 'Default');
         assert.equal(catalog.configuration('Work').namespaces[0]?.path, 'saved');
     } finally {
         for (const remove of detach.reverse()) remove();
-        await profiles.dispose();
         for (const scope of scopes.reverse()) await scope.dispose();
         await mounted.dispose();
     }

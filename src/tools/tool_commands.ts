@@ -47,7 +47,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
             if (!execution.agent) throw new ConversationRequiredError();
             const { name } = z.strictObject({ name: z.string().min(1) }).parse(args);
             if (presentationConfigFor(execution.agent.ctx)?.profile !== undefined) throw new ProfileLockedError();
-            await profiles.load(execution.agent.id, name);
+            await profiles.load(execution.agent.session, name);
             await changed(execution.agent);
             const text = `Profile updated to ${name}`;
             execution.agent.inject(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'intellisense-profile', form: 'notice', summary: text } }));

@@ -1,3 +1,4 @@
+import { sessionFor } from './session_fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { SemanticRegistry } from '../../src/registry/registry.js';
@@ -87,13 +88,12 @@ test('session hydration reads plain Profile data without registry version metada
     store.save = async <T>(_key: string, value: T) => { values.push(value); };
     const catalog = new SemanticRegistry(new MemoryStore());
     const sessions = new ProfileSessions(catalog, store);
-    const addition = await sessions.addition('existing');
+    const addition = await sessions.addition(sessionFor(sessions, 'existing'));
     assert.equal(addition.profile.resolve('files.read'), 'read');
-    const registry = await sessions.forSession('existing');
+    const registry = await sessions.forSession(sessionFor(sessions, 'existing'));
     assert.equal(registry.profileSelection().selected, 'Work');
     assert.deepEqual(registry.configuration().mappings, [mapping]);
     assert.equal(values.length, 0);
-    await sessions.dispose();
 });
 
 test('explicit recovery discards invalid current-version entries and preserves other profiles', async () => {

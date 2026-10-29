@@ -1,3 +1,4 @@
+import { sessionFor } from './session_fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -73,24 +74,21 @@ test('session snapshots persist plain data and restore classes without sharing c
     const catalog = new SemanticRegistry(new MemoryStore());
     const store = new MemoryStore();
     const profiles = new ProfileSessions(catalog, store);
-    const session = await profiles.forSession('session');
+    const session = await profiles.forSession(sessionFor(profiles, 'session'));
     await session.replaceConfiguration(new RegistryConfiguration({ namespaces: [{ path: 'draft', description: '', alwaysVisible: true }] }), 'Draft');
     const key = `profile_session_${createHash('sha256').update('session').digest('hex')}`;
     const persisted = await store.load<ProfileData>(key);
     assert.equal(Object.getPrototypeOf(persisted), Object.prototype);
     assert.equal(persisted!.name, 'Draft');
     const restoredProfiles = new ProfileSessions(catalog, store);
-    try {
-        const restored = await restoredProfiles.forSession('session');
+    {
+        const restored = await restoredProfiles.forSession(sessionFor(restoredProfiles, 'session'));
         assert(restored.snapshot() instanceof RegistryState);
         assert(restored.configuration() instanceof RegistryConfiguration);
-        assert.deepEqual((await restoredProfiles.addition('session')).profile.serialize(), (await profiles.addition('session')).profile.serialize());
+        assert.deepEqual((await restoredProfiles.addition(sessionFor(restoredProfiles, 'session'))).profile.serialize(), (await profiles.addition(sessionFor(profiles, 'session'))).profile.serialize());
         await restored.replaceConfiguration(new RegistryConfiguration(), 'Default');
         assert.equal(session.configuration().namespaces[0]!.path, 'draft');
         assert.deepEqual(catalog.configuration().namespaces, []);
-    } finally {
-        await profiles.dispose();
-        await restoredProfiles.dispose();
     }
-    assert.equal(await store.load(key), undefined);
+    assert.equal((await store.load<ProfileData>(key))!.name, 'Default');
 });

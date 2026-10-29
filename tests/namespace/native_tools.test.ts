@@ -1,3 +1,4 @@
+import { Session, SessionId } from '@deepseek-ai/dsh-session';
 import { NamespaceComponent } from '../../src/namespace/component.js';
 import { namespace } from '../namespace/fixtures.js';
 import { test } from 'node:test';
@@ -39,7 +40,7 @@ test('native aliases publish callable names, preserve native arguments and revok
     await registry.configure([{ id: 'read_file', path: 'fs.read', pinned: false }], 0);
     const component = new NamespaceIntegration(ctx, new NamespaceComponent(ctx, registry), new ProfileSessions(registry, store), [{ path: 'fs.open', tool: 'read_file' }]);
     component.physical = () => physical;
-    const agent = { id: 'native-test', ctx } as Agent;
+    const agent = { id: 'native-test', ctx, session: Session.create(SessionId('native-test')) } as Agent;
     assert.deepEqual(await component.syncNative(agent), []);
     const discovery = JSON.parse(await component.discover(agent, ['fs.']));
     assert.deepEqual(discovery.members.map((item: { path: string }) => item.path).sort(), ['fs.open', 'fs.read']);
@@ -108,7 +109,7 @@ test('native discovery stays detailed when enabled and is revoked by command or 
     registry.refresh([{ id: 'tools_inspect', description: '', parameters: {}, output: {} }]);
     const component = new NamespaceIntegration(ctx, new NamespaceComponent(ctx, registry), new ProfileSessions(registry, new MemoryStore()));
     component.registryFor = async () => registry;
-    const agent = { id: 'discovery-disable', ctx } as Agent;
+    const agent = { id: 'discovery-disable', ctx, session: Session.create(SessionId('discovery-disable')) } as Agent;
     for (const disabled of [[], ['tools.inspect'], [], ['tools'], []]) {
         await registry.replaceConfiguration({ ...registry.configuration(), builtinVisible: {}, builtinDisabled: disabled }, 'Default');
         assert.deepEqual(await component.syncNative(agent), disabled.length ? [] : ['ns_tools__inspect']);
@@ -130,7 +131,7 @@ test('native brief pins publish JSON hints and become callable only after exact 
     const component = new NamespaceIntegration(ctx, new NamespaceComponent(ctx, registry), new ProfileSessions(registry, store));
     component.registryFor = async () => registry;
     component.isPtc = () => false;
-    const agent = { id: 'native-pins', ctx } as Agent;
+    const agent = { id: 'native-pins', ctx, session: Session.create(SessionId('native-pins')) } as Agent;
     for (const level of [0, 1, 2] as const) {
         await registry.replaceConfiguration({ ...registry.configuration(),
             mappings: [{ id: 'read_file', path: 'files.library.read', pinned: false, alwaysVisible: level, description: 'Custom brief' }],
