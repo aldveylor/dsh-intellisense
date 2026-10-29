@@ -260,7 +260,7 @@ export class SemanticRegistry {
             if (!options.trusted) {
                 const original = exists ? this.configuration(name) : new RegistryConfiguration();
                 this.validateFixedMappings(detached.mappings, original.mappings);
-                validateProfileEdit(profileTree(name, original, this.definitions).root, profileTree(name, detached, this.definitions).root);
+                validateProfileEdit(profileTree(name, original, this.definitions).root, profileTree(name, detached, this.definitions).root, this.definitions);
             }
             ProfileNodeSettingsSchema.parse(detached.nodeSettings);
             if (detached.providedRoot) ProfileSchema.parse({ name: 'Validated', root: detached.providedRoot });
@@ -465,7 +465,7 @@ export class SemanticRegistry {
                 unmountedVisible: Object.fromEntries(Object.entries(selected).filter(([id]) => !detached.some(mapping => mapping.id === id))),
             };
             const targetName = profile ?? editingProfile ?? this.state.profile;
-            validateProfileEdit(profileTree(targetName, base, this.definitions).root, profileTree(targetName, configuration, this.definitions).root);
+            validateProfileEdit(profileTree(targetName, base, this.definitions).root, profileTree(targetName, configuration, this.definitions).root, this.definitions);
             let next: RegistryStateData = { ...this.state, revision: this.state.revision + 1 };
             if (editingProfile !== undefined || !activate) {
                 const target = profile ?? editingProfile ?? this.state.profile ?? 'Default';

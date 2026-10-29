@@ -8,7 +8,6 @@ import { DshStore } from '../storage/store.js';
 import { SemanticRegistry } from '../registry/registry.js';
 import { ProfileSessions } from '../registry/profiles.js';
 import { createSearchEngines } from '../search/search.js';
-import { registerBuiltinProfile } from './builtin_profile.js';
 import { NamespaceComponent } from './component.js';
 import type { ToolsNamespace } from './service.js';
 import { Aliases } from './namespace.js';
@@ -51,9 +50,6 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
             await statistics.load(recover);
             if (namespaces) return;
             const component = new NamespaceComponent(ctx, registry, profiles, aliases, createSearchEngines(config.defaultSearchMethod), statistics);
-            for (const name of registry.profileSelection().profiles) {
-                if (registry.configuration(name).providedRoot === undefined) await registerBuiltinProfile(component, name);
-            }
             namespaces = component;
             ctx.provide('toolsNamespace', component);
             registerSessionProfiles(ctx, registry, component);

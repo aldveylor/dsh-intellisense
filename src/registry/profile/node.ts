@@ -1,5 +1,13 @@
 import { nodePermissions, type Permission } from '../../namespace/node.js';
+import { ProfilePermissionError } from '../../error.js';
 import type { ProfileTreeNode } from '../profile_node.js';
+
+/** @brief Per-tree physical catalog information consumed by node implementations. */
+export interface ProfileCheckContext {
+    commands: ReadonlySet<string>;
+    addition: (tool: string) => { fixed?: boolean; hidden?: boolean };
+    original?: ProfileTreeNode;
+}
 
 /** @brief Portable node contract shared by namespace and command interfaces. */
 export interface ProfileNode {
@@ -9,6 +17,14 @@ export interface ProfileNode {
     setPermissions(value: Partial<Permission>): this;
     /** @brief Set this node's explicit disabled state. */
     setDisabled(value: boolean): this;
+    /** @brief Check this node and its descendants against a physical catalog. */
+    check(context: ProfileCheckContext, path?: string, original?: ProfileTreeNode): void;
+    /** @brief Validate deletion or replacement of this node. */
+    assertRemovable(): void;
+    /** @brief Apply a node-local JSON patch through its concrete setters. */
+    apply(patch: Record<string, unknown>): this;
+    /** @brief Normalize a target node for differential saving. */
+    normalize(value: ProfileTreeNode): ProfileTreeNode;
     /** @brief Export recursive transport data. */
     serialize(): ProfileTreeNode;
 }
@@ -29,8 +45,22 @@ export abstract class EditableNode implements ProfileNode {
         return this;
     }
 
+    /** @brief Check deletion using the node's own declared policy. */
+    assertRemovable(): void {
+        if (!this.permissions.removable) throw new ProfilePermissionError(`Node cannot be removed: ${this.memberName} (permissions.removable=false)`);
+    }
+
+    /** @brief Ordinary nodes preserve supplied values during differential saving. */
+    normalize(value: ProfileTreeNode): ProfileTreeNode { return structuredClone(value); }
+
+    /** @brief Concrete nodes own their final validation and descendant dispatch. */
+    abstract check(context: ProfileCheckContext, path?: string, original?: ProfileTreeNode): void;
+
+    /** @brief Concrete nodes apply their own writable fields. */
+    abstract apply(patch: Record<string, unknown>): this;
+
     /** @brief Set this node's own disabled state. */
-    setDisabled(value: boolean): this { this.settings.disabled = value; return this; }
+    setDisabled(value: boolean): this { if (value && !this.permissions.disableable) throw new ProfilePermissionError(`Node cannot be disabled: ${this.memberName}`); this.settings.disabled = value; return this; }
 
     /** @brief Restore settings from transport data without retaining caller-owned objects. */
     protected restore(value: ProfileTreeNode): void {

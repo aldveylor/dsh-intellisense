@@ -87,3 +87,6 @@ ToolAddition 定义 fixed、hidden、ptcDescription 可选属性。fixed 禁止�
 agent 的 tools.profile.save/apply 统一调用 toolsNamespace.saveProfile，经过 effect('save', handler) 顺序处理独立的 ProfileSaveEvent，由提供者修复与检查后原子持久化；通用保存入口不再通过 profileConfiguration 对内置树执行额外权限判断。事件提供 profile、baseline 可编辑快照、operation、tools 和可修改的 result；异常不写入目录。内置插件自行注册修复 effect，恢复 tools 子树、工具绑定、权限及 inspect 固定等级；save 仍默认禁用 tools，apply 保留原禁用状态。插件侧 edit 是可信编辑入口，不触发 agent 保存 effect；新建 Profile 仍为空。
 
 `setNamespaceImplementation(path, factory)` 为具体路径注册可撤销的命名空间构造器。通用树构建不判断内置名称；插件通过同一接口为 tools 与 tools.profile 安装 `tools/impl_tools_namespace.ts` 的 ImplToolsNamespace。该类自行拒绝 add/remove，并通过 children 的独立 Map 副本阻止外部修改内部集合；初始化安装已有子节点不走外部变更入口。permissions 继续完整提供给 agent 和 UI。
+
+
+当前 Profile 权限实现以 tools/profile_nodes/model.md 为准：默认工厂直接生成 RootNamespace 及全部内置节点类，ProfileCollection.createInitialProfile 是无参数可替换函数。apply 是基础节点操作，save 比较完整目标并应用差异（普通省略成员删除）。检查与修正下沉到根及各子节点，effect 只处理事件和返回信息；不再在 effect 中补装 tools。

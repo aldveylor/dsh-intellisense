@@ -1,6 +1,5 @@
-import type { ProfileSnapshot } from '../registry/profile/profile.js';
-import { EditableSnapshot } from '../registry/profile/snapshot.js';
-import { ProfileWriteSchema, type ProfileWrite } from '../registry/profile_write.js';
+import type { ProfileFactory, ProfileSnapshot } from '../registry/profile/profile.js';
+import { ProfileWriteSchema, validateProfilePatch, type ProfilePatch, type ProfileWrite } from '../registry/profile_write.js';
 import { RegistryConfiguration } from '../registry/configuration.js';
 import { editedConfiguration } from '../registry/profile/configuration.js';
 import { profileTree } from '../registry/profile_tree.js';
@@ -27,9 +26,8 @@ import { registerInspect } from '../tools/inspect.js';
 import { registerToolCommands } from '../tools/tool_commands.js';
 import { nativeBindings, nativeDiscovery, nativeQueryEntries } from './native_tools.js';
 import { CommandStatistics } from './statistics.js';
+import { ProfileNotFoundError } from '../error.js';
 import type { NamespaceImplementation } from './nodes/context.js';
-import { UnknownCommandError } from '../error.js';
-import type { ProfileTreeNode } from '../registry/profile_node.js';
 import { MemoryStore } from '../storage/store.js';
 
 /** @brief Profile-backed namespace discovery, independent of any execution runtime. */
@@ -53,35 +51,47 @@ export class NamespaceComponent implements ToolsNamespace {
         });
     }
 
+    /** @brief The collection's constructor creates the default typed tree and rehydrates stored Profiles. */
+    get createInitialProfile(): ProfileFactory { return this.registry.definitions.createInitialProfile; }
+
+    set createInitialProfile(factory: ProfileFactory) { this.registry.definitions.createInitialProfile = factory; }
+
     /** @brief Register disposable provider processing for agent save and apply. */
     effect(event: 'save', handler: ProfileSaveEffect): () => void { return this.registry.definitions.effect(event, handler); }
 
-    /** @brief Process a detached agent save through provider effects and publish only after all processors succeed. */
-    saveProfile(agent: Agent, name: string | undefined, input: ProfileWrite, operation: 'save' | 'apply' = 'save'): Promise<string | null> {
+    /** @brief Save compares the target against the selected baseline and delegates actual mutations to node apply methods. */
+    saveProfile(agent: Agent, name: string | undefined, value: ProfileWrite): Promise<string | null> {
+        return this.writeProfile(agent, name, ProfileWriteSchema.parse(value), 'save');
+    }
+
+    /** @brief Apply is the primitive patch operation; reading and writing share one transaction. */
+    applyProfile(agent: Agent, name: string | undefined, patch: ProfilePatch): Promise<string | null> {
+        validateProfilePatch(patch as Record<string, unknown>);
+        return this.writeProfile(agent, name, patch, 'apply');
+    }
+
+    /** @brief Node-owned validation completes before event processing and one atomic persistent write. */
+    private writeProfile(agent: Agent, name: string | undefined, input: ProfileWrite | ProfilePatch, operation: 'save' | 'apply'): Promise<string | null> {
         return this.profileTransaction(async () => {
-            const profile = ProfileWriteSchema.parse(input);
             const session = await this.registryFor(agent);
             const target = name ?? session.profileSelection().selected;
             const catalog = this.registry;
             const revision = catalog.revision;
+            if (operation === 'apply' && name !== undefined && !catalog.profileSelection().profiles.includes(target)) throw new ProfileNotFoundError(target);
             const original = catalog.profileSelection().profiles.includes(target) ? catalog.configuration(target) : session.configuration();
-            const baseline = new EditableSnapshot(profileTree(target, original, catalog.definitions).save());
-            const event: ProfileSaveEvent = { name: target, operation, agent, tools: session.tools().map(tool => tool.id),
-                profile: new EditableSnapshot(profile), baseline, result: null };
+            const source = operation === 'apply' && name === undefined ? session.configuration() : original;
+            const baseline = this.registry.definitions.profile(profileTree(target, original, catalog.definitions).save());
+            const snapshot = this.registry.definitions.profile(profileTree(target, source, catalog.definitions).save());
+            if (operation === 'save') snapshot.save(input as ProfileWrite);
+            else snapshot.apply(input as ProfilePatch);
+            snapshot.check({ commands: new Set((await this.commandBriefs(agent)).map(command => command.name)),
+                addition: tool => catalog.definitions.addition(tool), original: baseline.serialize() });
+            const event: ProfileSaveEvent = { name: target, operation, agent, tools: session.tools().map(tool => tool.id), profile: snapshot, baseline, result: null };
             await catalog.definitions.processSave(event);
-            const current = editedConfiguration({ name: target, brief: event.baseline.brief, root: event.baseline.serialize() }, original, catalog.definitions);
+            event.profile.check({ commands: new Set((await this.commandBriefs(agent)).map(command => command.name)),
+                addition: tool => catalog.definitions.addition(tool), original: baseline.serialize() });
             const value = { name: target, brief: event.profile.brief, root: event.profile.serialize() };
-            const known = new Set((await this.commandBriefs(agent)).map(command => command.name));
-            const validateCommands = (node: ProfileTreeNode, previous?: ProfileTreeNode): void => {
-                if (node.type === 'command') {
-                    const existing = previous?.type === 'command' && previous.command.tool === node.command.tool;
-                    const addition = catalog.definitions.addition(node.command.tool);
-                    if (!existing && (!known.has(node.command.tool) || addition.fixed || addition.hidden)) throw new UnknownCommandError(node.command.tool);
-                }
-                for (const [name, child] of Object.entries(node.children ?? {})) validateCommands(child, previous?.children?.[name]);
-            };
-            validateCommands(value.root, event.baseline.serialize());
-            const configuration = editedConfiguration(value, current, catalog.definitions);
+            const configuration = editedConfiguration(value, original, catalog.definitions);
             await catalog.saveProfile(target, configuration, { trusted: true, revision });
             this.ctx.emit('system-prompt/change');
             return event.result;
@@ -116,7 +126,7 @@ export class NamespaceComponent implements ToolsNamespace {
         const registry = typeof target === 'string' ? this.registry : await this.registryFor(target.agent);
         const name = typeof target === 'string' ? target : registry.profileSelection().selected;
         if (!registry.profileSelection().profiles.includes(name)) return undefined;
-        return new EditableSnapshot(profileTree(name, registry.configuration(name), registry.definitions).save());
+        return this.registry.definitions.profile(profileTree(name, registry.configuration(name), registry.definitions).save());
     }
 
     /** @brief Create an empty Profile and return a separate anonymous snapshot. */
@@ -146,7 +156,7 @@ export class NamespaceComponent implements ToolsNamespace {
             const name = typeof target === 'string' ? target : registry.profileSelection().selected;
             const current = registry.configuration(name);
             const revision = registry.revision;
-            const input = new EditableSnapshot(profileTree(name, current, registry.definitions).save());
+            const input = this.registry.definitions.profile(profileTree(name, current, registry.definitions).save());
             const output = modifier(input);
             if (!output || typeof output.serialize !== 'function') throw new Error('Profile modifier must return a snapshot');
             const value = { name, brief: output.brief, root: output.serialize() };
@@ -154,13 +164,13 @@ export class NamespaceComponent implements ToolsNamespace {
             await registry.saveProfile(name, configuration, { trusted: true, revision });
             if (typeof target !== 'string') await this.configurationChanged(target.agent);
             else this.ctx.emit('system-prompt/change');
-            return new EditableSnapshot(value);
+            return this.registry.definitions.profile(value);
         });
     }
 
     /** @brief Create one empty catalog entry in the registry's atomic name transaction. */
     private async createProfile(name: string): Promise<ProfileSnapshot> {
-        const snapshot = new EditableSnapshot();
+        const snapshot = this.createInitialProfile();
         const configuration = editedConfiguration({ name, root: snapshot.serialize() }, new RegistryConfiguration(), this.registry.definitions);
         await this.registry.saveProfile(name, configuration, { trusted: true, create: true });
         this.ctx.emit('system-prompt/change');

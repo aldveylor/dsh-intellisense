@@ -1,5 +1,6 @@
-import { EditableNode, type ProfileNode } from './node.js';
-import type { CommandNode } from '../profile_node.js';
+import { EditableNode, type ProfileNode, type ProfileCheckContext } from './node.js';
+import { ProfilePermissionError, UnknownCommandError } from '../../error.js';
+import type { CommandNode, ProfileTreeNode } from '../profile_node.js';
 
 /** @brief Portable command editing contract. */
 export interface ProfileCommand extends ProfileNode {
@@ -27,6 +28,26 @@ export class EditableCommand extends EditableNode implements ProfileCommand {
 
     get tool(): string | undefined { return this.binding; }
 
+    /** @brief Ordinary command validation checks physical identity, hidden/fixed attributes and existing bindings. */
+    check(context: ProfileCheckContext, _path = '', original?: ProfileTreeNode): void {
+        const existing = original?.type === 'command' && original.command.tool === this.tool;
+        const addition = context.addition(this.tool!);
+        if (!existing && (!context.commands.has(this.tool!) || addition.fixed || addition.hidden)) throw new UnknownCommandError(this.tool!);
+    }
+
+    /** @brief Apply command changes through virtual setters so subclasses own enforcement. */
+    apply(patch: Record<string, unknown>): this {
+        if (patch.type !== undefined && patch.type !== 'command') throw new ProfilePermissionError(`Protected node cannot be replaced: ${this.memberName}`);
+        if (patch.command && typeof patch.command === 'object') {
+            const command = patch.command as Record<string, unknown>;
+            if (command.tool !== undefined) this.setTool(command.tool as string);
+            if (Object.hasOwn(command, 'doc')) this.setDescription(command.doc === null ? undefined : command.doc as string);
+        }
+        if (Object.hasOwn(patch, 'fixedLevel')) this.setFixedLevel((patch.fixedLevel ?? 0) as 0 | 1 | 2);
+        if (Object.hasOwn(patch, 'disabled')) this.setDisabled(!!patch.disabled);
+        return this;
+    }
+
     /** @brief Bind an exact physical tool identity, including plugin-owned fixed tools. */
     setTool(tool: string): this {
         if (!tool.trim()) throw new Error('Invalid physical tool identity');
@@ -35,10 +56,10 @@ export class EditableCommand extends EditableNode implements ProfileCommand {
     }
 
     /** @brief Set the Profile-specific command summary. */
-    setDescription(value: string): this { this.description = value; return this; }
+    setDescription(value: string | undefined): this { if (!this.permissions.commentable && value !== this.description) throw new ProfilePermissionError(`Node documentation cannot be changed: ${this.memberName}`); this.description = value; return this; }
 
     /** @brief Set the command's requested prompt visibility. */
-    setFixedLevel(value: 0 | 1 | 2): this { this.settings.fixedLevel = value; return this; }
+    setFixedLevel(value: 0 | 1 | 2): this { if (!this.permissions.availableFixLevels.includes(value)) throw new ProfilePermissionError(`Node fixed level cannot be changed: ${this.memberName}`); this.settings.fixedLevel = value; return this; }
 
     serialize(): CommandNode {
         if (!this.binding) throw new Error(`Command has no physical tool: ${this.memberName}`);

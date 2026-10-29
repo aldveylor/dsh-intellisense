@@ -107,3 +107,6 @@ ProfileRootWrite 的匿名根只允许 type/children，拒绝没有持久化表�
 工具节点统一为 CommandNode；permissions 保留为 agent 和前端可读的权限声明，实际阻止由保存 effect 与具体节点实现负责。工具提供者通过 setToolAddition 注册 project（模式契约、签名、参数布局、返回策略）、discovery 标记及 value 生产器/刷新策略；通用树构建不识别内置命令表。默认固定等级由节点定义提供，RegistryConfiguration 不假设 tools.inspect。
 
 agent 的 tools.profile.save/apply 统一调用 toolsNamespace.saveProfile，经过 effect('save', handler) 顺序处理独立的 ProfileSaveEvent，由提供者修复与检查后原子持久化；通用保存入口不再通过 profileConfiguration 对内置树执行额外权限判断。事件提供 profile、baseline 可编辑快照、operation、tools 和可修改的 result；异常不写入目录。内置插件自行注册修复 effect，恢复 tools 子树、工具绑定、权限及 inspect 固定等级；save 仍默认禁用 tools，apply 保留原禁用状态。插件侧 edit 是可信编辑入口，不触发 agent 保存 effect；新建 Profile 仍为空。
+
+
+当前 Profile 权限实现以 tools/profile_nodes/model.md 为准：默认工厂直接生成 RootNamespace 及全部内置节点类，ProfileCollection.createInitialProfile 是无参数可替换函数。apply 是基础节点操作，save 比较完整目标并应用差异（普通省略成员删除）。检查与修正下沉到根及各子节点，effect 只处理事件和返回信息；不再在 effect 中补装 tools。

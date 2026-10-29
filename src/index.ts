@@ -26,7 +26,7 @@ export type { NamespaceInitialization, NamespaceImplementation } from './namespa
 export type { ManifestEntry, NamespaceContext } from './namespace/namespace.js';
 export type { Node, NodeType, Permission, SerializedNode, CommandContract, CommandPresentation } from './namespace/node.js';
 export type { PhysicalTool, Mapping, Namespace, RegistryConfigurationData, RegistryStateData, PinLevel, CommandVisibility } from './registry/registry.js';
-export type { Profile, ProfileSnapshot, ProfileCollection } from './registry/profile/profile.js';
+export type { Profile, ProfileSnapshot, ProfileCollection, ProfileFactory } from './registry/profile/profile.js';
 export type { ProfileNode } from './registry/profile/node.js';
 export type { ProfileNamespace } from './registry/profile/namespace.js';
 export type { ProfileCommand } from './registry/profile/command.js';
@@ -47,3 +47,9 @@ export { profileWrite } from './registry/profile_write.js';
 export type { ProfileWrite, ProfileRootWrite, ProfilePatch, CommandWrite, NamespaceWrite } from './registry/profile_write.js';
 export { ConversationRequiredError, ProfileLockedError, CurrentProfileDeletionError, UnknownCommandError, ZodError, normalizeError, ValidationError, ProfilePermissionError, ProfileNotFoundError, ToolCallError, PositionalArgumentError } from './error.js';
 export type { ErrorData, ErrorIssue } from './error.js';
+
+export { RootNamespace } from './tools/profile_nodes/root_namespace.js';
+export { ImplToolsNamespace } from './tools/profile_nodes/impl_tools_namespace.js';
+export { ImplToolsProfileNamespace } from './tools/profile_nodes/impl_tools_profile_namespace.js';
+export { ImplToolsCommand } from './tools/profile_nodes/impl_tools_command.js';
+export { ImplToolsInspectCommand } from './tools/profile_nodes/impl_tools_inspect_command.js';

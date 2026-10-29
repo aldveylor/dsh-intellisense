@@ -1,16 +1,16 @@
 import { EditableNamespace } from './profile/namespace.js';
 import type { ProfileNamespace } from './profile/namespace.js';
-import { validateProfileEdit } from './profile/validate_edit.js';
+import { compareProfile } from './profile/compare.js';
+import { editedConfiguration } from './profile/configuration.js';
+import { profileWrite } from './profile_write.js';
 import { defaultNamespaceDefinitions, type NamespaceDefinitions } from '../namespace/definitions.js';
 import { settingsAt } from './profile/node_settings.js';
-import { ProfilePermissionError, UnknownCommandError } from '../error.js';
 import { z } from 'zod';
 import { RegistryConfiguration, type RegistryConfigurationData } from './configuration.js';
 import type { Saveable } from '../storage/saveable.js';
-import { CommandNode, NamespaceNode, createNamespace } from '../namespace/namespace.js';
+import { createNamespace } from '../namespace/namespace.js';
 import { fixLevel, nodePermissions, type SerializedNode } from '../namespace/node.js';
 import type { ProfileTreeNode, NamespaceTreeNode } from './profile_node.js';
-import { validatePath } from './path.js';
 
 /** @brief Physical command identity used by editable Profile trees. */
 export type CommandName = string;
@@ -147,85 +147,14 @@ export function profileTree(name: string, configuration: RegistryConfigurationDa
     return new ProfileDocument({ name, brief: configuration.brief, root: snapshot });
 }
 
-/** @brief Validate all writes under server-owned permissions, then build independent configuration data. */
+/** @brief Project an untrusted target by applying its difference through the actual root and child classes. */
 export function profileConfiguration(profile: ProfileData, current: RegistryConfigurationData, commands: readonly CommandBrief[], definitions: NamespaceDefinitions = defaultNamespaceDefinitions): RegistryConfiguration {
     profile = ProfileSchema.parse(profile);
-    const protectedRoot = createNamespace({ tools: [], includeUnavailable: true, definitions: current.providedRoot ?? definitions.tree(profile.name), nodeSettings: current.nodeSettings });
-    const configuration = new RegistryConfiguration({ ...current, brief: profile.brief, mappings: [], namespaces: [], order: [], toolComments: {}, builtinVisible: {}, builtinDisabled: [], namespaceVisible: {} });
-    const submitted: { node: ProfileTreeNode; path: string }[] = [];
-    const root = structuredClone(profile.root);
-    const baseline = profileTree(profile.name, current, definitions).root;
-    /** @brief Index submitted nodes by paths derived from member keys. */
-    const collect = (node: ProfileTreeNode, path: string): void => {
-        submitted.push({ node, path });
-        for (const [name, child] of Object.entries(node.children ?? {})) collect(child, path ? `${path}.${name}` : name);
-    };
-    /** @brief Identify a protected node by physical commands retained at relative child paths, ignoring editable metadata. */
-    const sameIdentity = (node: ProfileTreeNode, expected: NamespaceNode | CommandNode): boolean => {
-        if (expected instanceof CommandNode) return node.type === 'command' && node.command?.tool === expected.tool;
-        return node.type === 'namespace' && [...expected.children.values()].some(child =>
-            Object.hasOwn(node.children ?? {}, child.name) && sameIdentity(node.children![child.name]!, child));
-    };
-    validateProfileEdit(baseline, root);
-    collect(root, '');
-    const visit = (node: ProfileTreeNode, path: string, expected?: NamespaceNode | CommandNode, original?: ProfileTreeNode): void => {
-        if (expected?.permissions.removable && ((node.type === 'command') !== (expected instanceof CommandNode) || (node.type === 'command' && expected instanceof CommandNode && node.command.tool !== expected.tool))) expected = undefined;
-        if (path && !expected) validatePath(path);
-        if (expected && (node.type === 'command') !== (expected instanceof CommandNode)) throw new ProfilePermissionError(`Protected node cannot be replaced: ${path}`);
-        if (expected) {
-            const level = node.fixedLevel ?? 0;
-            const levels = expected.permissions.availableFixLevels;
-            if (levels.length ? !levels.includes(level) : level !== (original?.fixedLevel ?? 0)) throw new ProfilePermissionError(`Node fixed level cannot be changed: ${path} (permissions.availableFixLevels)`);
-            if (path && !expected.permissions.commentable && (node.type === 'command' ? node.command?.doc !== original?.command?.doc : node.description !== original?.description)) throw new ProfilePermissionError(`Node documentation cannot be changed: ${path} (permissions.commentable=false)`);
-        }
-        if (node.disabled && expected && !expected.permissions.disableable) throw new ProfilePermissionError(`Node cannot be disabled: ${path}`);
-        if (node.type === 'command') {
-            if (!node.command || expected instanceof NamespaceNode) throw new ProfilePermissionError(`Invalid command node: ${path}`);
-            if (expected instanceof CommandNode) {
-                if (node.command.tool !== expected.tool) throw new ProfilePermissionError(`Protected command cannot be replaced: ${path}`);
-                configuration.builtinVisible![path] = expected.fixLevel(node.fixedLevel);
-                if (node.disabled) configuration.builtinDisabled!.push(path);
-                return;
-            }
-            if (!commands.some(item => item.name === node.command!.tool) && !(definitions.addition(node.command.tool).fixed && current.mappings.some(mapping => mapping.id === node.command!.tool && mapping.path === path))) throw new UnknownCommandError(node.command.tool);
-            configuration.mappings.push({ id: node.command.tool, path, pinned: false, disabled: node.disabled,
-                alwaysVisible: node.fixedLevel ?? 0, description: node.command.doc });
-            return;
-        }
-        if (node.command || expected instanceof CommandNode) throw new ProfilePermissionError(`Invalid namespace node: ${path}`);
-        const children = node.children ??= {};
-        if (expected instanceof NamespaceNode) {
-            for (const child of expected.children.values()) {
-                if (Object.hasOwn(children, child.name) || child.permissions.removable) continue;
-                const relocated = submitted.find(item => item.path && sameIdentity(item.node, child));
-                if (relocated) {
-                    if (relocated.path.split('.').at(-1) !== child.name && !child.permissions.renamable) throw new ProfilePermissionError(`Node cannot be renamed: ${child.path} -> ${relocated.path} (root.${child.path} -> root.${relocated.path}; permissions.renamable=false; protected builtin node)`);
-                    if (!child.permissions.movable) throw new ProfilePermissionError(`Node cannot be moved: ${child.path} -> ${relocated.path} (root.${child.path} -> root.${relocated.path}; permissions.movable=false; preserve the protected builtin path)`);
-                }
-                throw new ProfilePermissionError(`Node cannot be removed: ${child.path} (permissions.removable=false)`);
-            }
-            if (path) {
-                configuration.namespaceVisible![path] = !!fixLevel(expected.permissions, node.fixedLevel);
-                if (node.disabled) configuration.builtinDisabled!.push(path);
-            }
-        } else if (path) configuration.namespaces.push({ path, description: node.description ?? '', alwaysVisible: !!node.fixedLevel, disabled: node.disabled });
-        for (const [name, child] of Object.entries(children)) {
-            const childPath = path ? `${path}.${name}` : name;
-            const existing = expected instanceof NamespaceNode ? expected.children.get(name) : undefined;
-            if (!existing && expected && !expected.permissions.acceptsChildren) throw new ProfilePermissionError(`Namespace does not accept children: ${path}`);
-            configuration.order.push(childPath);
-            visit(child, childPath, existing, original?.children && Object.hasOwn(original.children, name) ? original.children[name] : undefined);
-        }
-    };
-    if (profile.root.type !== 'namespace') throw new ProfilePermissionError('Expected an anonymous namespace root');
-    visit(root, '', protectedRoot, baseline);
-    if (current.providedRoot) {
-        const retain = (source: ProfileTreeNode, submitted: ProfileTreeNode): ProfileTreeNode => source.type === 'command' ? structuredClone(source)
-            : { ...structuredClone(source), children: Object.fromEntries(Object.entries(source.children ?? {}).filter(([name]) => Object.hasOwn(submitted.children ?? {}, name))
-                .map(([name, child]) => [name, retain(child, submitted.children![name]!)])) };
-        configuration.providedRoot = retain(current.providedRoot, profile.root) as NamespaceTreeNode;
-    }
-    return configuration;
+    const before = profileTree(profile.name, current, definitions).save();
+    const snapshot = definitions.profile(before);
+    snapshot.apply(compareProfile(profileWrite(before), profileWrite(profile)));
+    snapshot.check({ commands: new Set(commands.map(command => command.name)), addition: tool => definitions.addition(tool), original: before.root });
+    return editedConfiguration({ name: profile.name, brief: snapshot.brief, root: snapshot.serialize() }, current, definitions);
 }
 
 /** @brief Shared Profile transport definition preloaded for PTC programs. */

@@ -1,7 +1,6 @@
 import { ConversationRequiredError, ProfileLockedError, CurrentProfileDeletionError } from '../error.js';
-import { ProfileWriteSchema, profileWrite, validateProfilePatch } from '../registry/profile_write.js';
+import { ProfileWriteSchema, validateProfilePatch, type ProfilePatch } from '../registry/profile_write.js';
 import { pluginCommands, projectBuiltin } from '../runtime/builtins.js';
-import { mergeProfilePatch } from './profile_save.js';
 import { ProfileLock } from './profile_lock.js';
 import { presentationConfigFor } from '../integration/presentation.js';
 import { registerBuiltin } from './builtin_trace.js';
@@ -16,7 +15,7 @@ import type { ProfileSessions } from '../registry/profiles.js';
 import { type CommandBrief, profileTree, profileAnnotation } from '../registry/profile_tree.js';
 
 /** @brief Register Profile management commands and data access. */
-export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, profiles: ProfileSessions, registryFor: (agent: Agent) => Promise<SemanticRegistry>, changed: (agent: Agent) => Promise<void>, commands: (agent: Agent) => Promise<CommandBrief[]>, namespace?: Pick<ToolsNamespace, 'saveProfile'>): void {
+export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, profiles: ProfileSessions, registryFor: (agent: Agent) => Promise<SemanticRegistry>, changed: (agent: Agent) => Promise<void>, commands: (agent: Agent) => Promise<CommandBrief[]>, namespace?: Pick<ToolsNamespace, 'saveProfile' | 'applyProfile'>): void {
     /** @brief Resolve mode-specific comments in the registration scope. */
     const contract = (tool: string) => projectBuiltin(pluginCommands.find(tool)!, 'native');
     const lock = new ProfileLock();
@@ -82,12 +81,8 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         execute: async (args, execution) => {
             if (!execution.agent) throw new ConversationRequiredError();
             const { name, value } = z.strictObject({ name: z.string().optional(), value: z.custom<Record<string, unknown>>(value => value !== null && typeof value === 'object' && !Array.isArray(value), 'Expected a Profile object patch') }).parse(args);
-            const registry = name === undefined ? await registryFor(execution.agent) : catalog;
             validateProfilePatch(value);
-            const target = name ?? registry.snapshot().profile!;
-            const profile = profileWrite(profileTree(target, registry.configuration(name), catalog.definitions));
-            const merged = ProfileWriteSchema.parse(mergeProfilePatch(profile, value));
-            return (namespace ?? execution.agent.ctx.get('toolsNamespace')!).saveProfile(execution.agent, name ?? target, merged, 'apply');
+            return (namespace ?? execution.agent.ctx.get('toolsNamespace')!).applyProfile(execution.agent, name, value as ProfilePatch);
         },
     })));
     ctx.effect(() => register(defineTool({

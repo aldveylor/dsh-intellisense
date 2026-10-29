@@ -1,7 +1,15 @@
+import type { ProfileData } from '../profile_tree.js';
+import type { ProfilePatch, ProfileWrite } from '../profile_write.js';
 import type { ProfileNamespace } from './namespace.js';
 
 /** @brief A portable anonymous Profile tree snapshot, independent of its catalog name. */
 export interface Profile extends ProfileNamespace {
+    /** @brief Clone a Profile or hydrate stored data while retaining the concrete root and member implementations. */
+    clone(value?: Pick<ProfileData, 'root' | 'brief'>): ProfileSnapshot;
+    /** @brief Apply an explicit patch through this root and its child implementations. */
+    apply(patch: ProfilePatch): this;
+    /** @brief Compare a complete target with this Profile, then apply the resulting patch. */
+    save(value: ProfileWrite): this;
     readonly brief: string | undefined;
     /** @brief Edit the Profile purpose within this snapshot only. */
     setBrief(value: string): this;
@@ -10,8 +18,13 @@ export interface Profile extends ProfileNamespace {
 /** @brief Profile and ProfileSnapshot describe the same anonymous editing value. */
 export type ProfileSnapshot = Profile;
 
+/** @brief Construct a fresh typed Profile, optionally hydrating stored data. */
+export type ProfileFactory = () => ProfileSnapshot;
+
 /** @brief Named snapshot collection with atomic callback-based modification. */
 export interface ProfileCollection {
+    /** @brief Replaceable constructor used for initial Profiles and typed snapshot hydration. */
+    createInitialProfile: ProfileFactory;
     /** @brief List catalog names without Profile data or selection metadata. */
     list(): Promise<string[]>;
     /** @brief Read an independent tree snapshot, or undefined when absent. */

@@ -10,7 +10,7 @@ import type { NamespaceNode, CommandNode } from './namespace.js';
 import type { NamespaceImplementation } from './nodes/context.js';
 import type { CommandPresentation } from './node.js';
 import type { PresentationMode } from '../integration/presentation.js';
-import type { ProfileWrite } from '../registry/profile_write.js';
+import type { ProfilePatch, ProfileWrite } from '../registry/profile_write.js';
 import type { CommandStatistics } from './statistics.js';
 
 /** @brief Optional physical-tool attributes, independent of prompt pin levels. */
@@ -47,7 +47,10 @@ export interface ToolsNamespace extends ProfileCollection {
     /** @brief Register ordered, disposable save processing shared by agent save and apply. */
     effect(event: 'save', handler: ProfileSaveEffect): () => void;
     /** @brief Save an untrusted agent tree through provider-owned validation and repair effects. */
-    saveProfile(agent: Agent, name: string | undefined, profile: ProfileWrite, operation?: 'save' | 'apply'): Promise<string | null>;
+    saveProfile(agent: Agent, name: string | undefined, profile: ProfileWrite): Promise<string | null>;
+
+    /** @brief Apply an explicit patch using RootNamespace and its child implementations. */
+    applyProfile(agent: Agent, name: string | undefined, patch: ProfilePatch): Promise<string | null>;
 
     readonly searchEngines: SearchEngineRegistry;
     readonly statistics: CommandStatistics;
