@@ -3,7 +3,6 @@ import type { ProfileNodeSettings } from './profile/node_settings.js';
 import { storageVersion } from '../storage/version.js';
 import type { Saveable } from '../storage/saveable.js';
 import type { Mapping, Namespace, CommandVisibility } from './registry.js';
-import { pluginCommands } from '../runtime/builtins.js';
 
 /** @brief Versioned complete registry state, committed atomically. */
 export interface RegistryStateData { version: number; revision: number; brief?: string; providedRoot?: NamespaceTreeNode; nodeSettings?: ProfileNodeSettings; mappings: Mapping[]; namespaces?: Namespace[]; order?: string[]; unmountedVisible?: CommandVisibility; builtinDisabled?: string[]; builtinVisible?: CommandVisibility; namespaceVisible?: Record<string, boolean>; toolComments?: Record<string, string>; profile?: string; profiles?: string[]; inactiveProfiles?: Record<string, RegistryConfigurationData> }
@@ -33,7 +32,7 @@ export class RegistryConfiguration implements Saveable<RegistryConfigurationData
         this.order = structuredClone(data?.order ?? []);
         this.unmountedVisible = structuredClone(data?.unmountedVisible ?? {});
         this.builtinDisabled = structuredClone(data?.builtinDisabled ?? []);
-        this.builtinVisible = structuredClone(data?.builtinVisible ?? pluginCommands.defaultBuiltinVisible);
+        this.builtinVisible = structuredClone(data?.builtinVisible ?? {});
         this.namespaceVisible = structuredClone(data?.namespaceVisible ?? {});
         this.toolComments = structuredClone(data?.toolComments ?? {});
     }

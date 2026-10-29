@@ -23,13 +23,13 @@ export { SemanticRegistry, RegistryConfiguration, RegistryState } from './regist
 export { NamespaceComponent } from './namespace/component.js';
 export { NamespaceNode, CommandNode } from './namespace/namespace.js';
 export type { ManifestEntry, NamespaceContext } from './namespace/namespace.js';
-export type { Node, NodeType, Permission, SerializedNode, CommandContract } from './namespace/node.js';
+export type { Node, NodeType, Permission, SerializedNode, CommandContract, CommandPresentation } from './namespace/node.js';
 export type { PhysicalTool, Mapping, Namespace, RegistryConfigurationData, RegistryStateData, PinLevel, CommandVisibility } from './registry/registry.js';
 export type { Profile, ProfileSnapshot, ProfileCollection } from './registry/profile/profile.js';
 export type { ProfileNode } from './registry/profile/node.js';
 export type { ProfileNamespace } from './registry/profile/namespace.js';
 export type { ProfileCommand } from './registry/profile/command.js';
-export type { ToolAddition, ToolsNamespace } from './namespace/service.js';
+export type { ToolAddition, ToolsNamespace, ProfileSaveEvent, ProfileSaveEffect } from './namespace/service.js';
 export type { ProfileData, Profiles, CommandBrief, CommandName } from './registry/profile_tree.js';
 export type { CommandBinding, ExecutionResult } from './runtime/protocol.js';
 export type { Store } from './storage/store.js';

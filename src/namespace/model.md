@@ -20,7 +20,7 @@ Profile 可同时保存来自多个预设的映射；当前模型作用域未挂
 
 `nodes/` 按类拆分实现，详见其 model.md。`namespace.ts` 作为上层入口，通过 createNamespace(context) 组织初始 tools 子树，再由 manifest 注册当前映射及别名。根是普通匿名 NamespaceNode，不存在 RootNamespaceNode。NamespaceNode.add 不覆盖已有成员；remove 由父节点检查子节点 permissions.removable。DefinedNamespaceNode 从递归接口数据构建已有子节点，再对外提供编辑权限。builtin_profile.ts 使用 toolsNamespace.edit 和节点接口显式安装 tools 子树及权限，替代专用 Tools/Profile/Inspect 节点类。tools 允许禁用，后代继承禁用状态。
 
-tools.* 使用服务端 InnerCommandNode 和专用命令节点，绑定重载、丢弃结果及预加载。tools.inspect 的节点权限仅允许固定等级 2，但可禁用。所有成员都在初始化时创建，inspect 查询只调用 queryNodes → resolve，查询期间不生成节点、不覆盖映射。PTC 函数绑定仅选择非 preload 的命令；所有命令节点均绑定物理工具，不再区分 tool/environment 部署类型。
+tools.* 使用服务端 CommandNode 和专用命令节点，绑定重载、丢弃结果及预加载。tools.inspect 的节点权限仅允许固定等级 2，但可禁用。所有成员都在初始化时创建，inspect 查询只调用 queryNodes → resolve，查询期间不生成节点、不覆盖映射。PTC 函数绑定仅选择非 preload 的命令；所有命令节点均绑定物理工具，不再区分 tool/environment 部署类型。
 
 管理 API 将同一初始化树的 SerializedNode 传给客户端，客户端不导入内置命令表、不按 tools 等名称生成权限或节点。Profile.root 同样使用 SerializedNode 描述，保存时由服务端权威节点拒绝移除、替换、改名、移动、修改受保护文档或外部插入；不能通过伪造 permissions 改写这些规则。实际工具执行权限仍由 DSH 原生 guard 处理。
 
@@ -36,7 +36,7 @@ PTC 同一对话复用 VM Context，允许 globalThis 挂载变量跨调用共�
 
 原生发现集合仅在 native 模式维护，仅由精确函数查询扩展（命名空间查询只列举成员），最多保留最近精确查询的 256 个命令路径；同步时移除已失效路径。PTC 生命周期直接订阅 agent/disposed，运行时释放等待队列退出并移除进程、队列与 epoch。
 
-`declaration.ts` 定义共享命名空间声明项与唯一树渲染器，负责路径合并、稳定排序、嵌套、简略 Function 占位、常量和完整声明，以及提示围栏转义。namespace.ts 仅投影工具契约；inspect.ts 仅选择查询结果；prompt.ts 仅选择提示内容。三种入口统一使用该树模型，内置签名与重载也共用 builtinDeclaration。
+`declaration.ts` 定义共享命名空间声明项与唯一树渲染器，负责路径合并、稳定排序、嵌套、简略 Function 占位、常量和完整声明，以及提示围栏转义。namespace.ts 仅投影工具契约；inspect.ts 仅选择查询结果；prompt.ts 仅选择提示内容。三种入口统一使用该树模型，内置签名与重载也共用 callableDeclaration。
 
 常量与对象成员通过前置 Doxygen JSDoc 保留描述；tools.profile 因含 delete/switch 使用对象声明时，annotation、commands、profiles 等字段仍提供注释，单独查询字段同样保留。
 
@@ -75,8 +75,13 @@ PTC 预加载通过 values 先按当前 Profile 的禁用规则过滤，再计�
 
 统计 counterSnapshot(field, session?) 返回指定字段的独立副本，不复制其它明细或汇总总数；命令摘要使用该接口读取全局 callsByTool。
 
-服务注册名为 toolsNamespace；工具调用路径仍为 tools.*。命令的结构锁定与提示固定独立：Mapping.pinned 阻止移除或改变原映射路径；普通命令的提示等级由 Mapping.alwaysVisible 保存，内置命令由 builtinVisible[path] 保存。InnerCommandNode 通过 permissions 禁止改名、编辑说明、移动和移除，普通固定等级仍可选 0/1/2；内置注册通过节点接口将 tools.inspect 的 availableFixLevels 限为 [2]，因此即使 Profile 请求 0 或 1 也投影为 2，禁用状态仍独立生效。
+服务注册名为 toolsNamespace；工具调用路径仍为 tools.*。命令的结构锁定与提示固定独立：Mapping.pinned 阻止移除或改变原映射路径；普通命令的提示等级由 Mapping.alwaysVisible 保存，内置命令由 builtinVisible[path] 保存。CommandNode 通过 permissions 禁止改名、编辑说明、移动和移除，普通固定等级仍可选 0/1/2；内置注册通过节点接口将 tools.inspect 的 availableFixLevels 限为 [2]，因此即使 Profile 请求 0 或 1 也投影为 2，禁用状态仍独立生效。
 
 service.ts 定义 ToolsNamespace interface，NamespaceComponent 实现该接口并继承 ProfileCollection 的 list/get/create/getOrCreate/remove/edit 合约。Profile 是无名称的匿名树 snapshot，初始为空；edit(name, modifier) 原子发布回调返回值，普通 snapshot 编辑不落盘。Profile 节点接口与内部 class 实现在 registry/profile/。
 
 ToolAddition 定义 fixed、hidden、ptcDescription 可选属性。fixed 禁止人工及 agent 新增挂载，插件 edit 可显式挂载；hidden 从目录、选择器和发现中排除，PTC 仍独立暴露 tools_run_code。native 采用物理工具原始说明，PTC 优先使用 ptcDescription。definitions.ts 统一管理属性注册及注销，builtin_profile.ts 通过相同注册接口配置内置工具；加载尚未显式物化的内置树时通过 edit 安装，之后以实际提交树为准。
+
+
+工具节点统一为 CommandNode，操作许可仅由 permissions 决定。工具提供者通过 setToolAddition 注册 project（模式契约、签名、参数布局、返回策略）、discovery 标记及 value 生产器/刷新策略；通用树构建不识别内置命令表。默认固定等级由节点定义提供，RegistryConfiguration 不假设 tools.inspect。
+
+agent 的 tools.profile.save/apply 统一调用 toolsNamespace.saveProfile，经过 effect('save', handler) 顺序处理独立的 ProfileSaveEvent 后，再按服务端权限校验并原子持久化。事件提供 profile、baseline 可编辑快照、operation、tools 和可修改的 result；异常不写入目录。内置插件自行注册修复 effect，恢复 tools 子树、工具绑定、权限及 inspect 固定等级；save 仍默认禁用 tools，apply 保留原禁用状态。插件侧 edit 是可信编辑入口，不触发 agent 保存 effect；新建 Profile 仍为空。

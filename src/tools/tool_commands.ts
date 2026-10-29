@@ -1,7 +1,7 @@
 import { ConversationRequiredError, ProfileLockedError, CurrentProfileDeletionError } from '../error.js';
 import { ProfileWriteSchema, profileWrite, validateProfilePatch } from '../registry/profile_write.js';
 import { pluginCommands, projectBuiltin } from '../runtime/builtins.js';
-import { mergeProfilePatch, profileSaveInformation } from './profile_save.js';
+import { mergeProfilePatch } from './profile_save.js';
 import { ProfileLock } from './profile_lock.js';
 import { presentationConfigFor } from '../integration/presentation.js';
 import { registerBuiltin } from './builtin_trace.js';
@@ -12,7 +12,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import type { SemanticRegistry } from '../registry/registry.js';
 import type { ProfileSessions } from '../registry/profiles.js';
-import { type CommandBrief, type ProfileData, ProfileSchema, profileConfiguration, profileTree, profileAnnotation } from '../registry/profile_tree.js';
+import { type CommandBrief, profileTree, profileAnnotation } from '../registry/profile_tree.js';
 
 /** @brief Register Profile management commands and data access. */
 export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, profiles: ProfileSessions, registryFor: (agent: Agent) => Promise<SemanticRegistry>, changed: (agent: Agent) => Promise<void>, commands: (agent: Agent) => Promise<CommandBrief[]>): void {
@@ -28,19 +28,6 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         }),
     });
     const output = { schema: { type: 'object', additionalProperties: true } as const, render: (_args: unknown, value: unknown) => [{ type: 'text' as const, text: typeof value === 'string' ? value : JSON.stringify(value) }] };
-    /** @brief Validate and publish a Profile without replacing the conversation draft. */
-    const save = async (agent: Agent, name: string | undefined, profile: ProfileData, defaultToolsDisabled = true): Promise<string | null> => {
-        const registry = await registryFor(agent);
-        const target = name ?? registry.snapshot().profile!;
-        const original = catalog.snapshot().profiles?.includes(target) ? catalog.configuration(target) : registry.configuration();
-        const root = { ...profile.root, description: profileTree(target, original, catalog.definitions).root.description };
-        const configuration = profileConfiguration({ ...profile, root }, original, await commands(agent), catalog.definitions);
-        if (defaultToolsDisabled && profile.root.children?.tools && profile.root.children.tools.disabled !== false
-            && !configuration.builtinDisabled.includes('tools')) configuration.builtinDisabled.push('tools');
-        const information = profileSaveInformation(profileTree(target, configuration, catalog.definitions), registry.tools().map(tool => tool.id));
-        await catalog.saveProfile(target, configuration);
-        return information;
-    };
     ctx.effect(() => register(defineTool({
         name: 'tools_profile_load', description: contract('tools_profile_load').description,
         parameters: { name: { type: 'string', description: contract('tools_profile_load').parameterDocs!.name } }, output,
@@ -84,7 +71,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
             if (!execution.agent) throw new ConversationRequiredError();
             const { name, profile } = z.strictObject({ name: z.string().optional(), profile: ProfileWriteSchema }).parse(args);
             const target = name ?? (await registryFor(execution.agent)).snapshot().profile!;
-            return save(execution.agent, name, { ...profile, name: target });
+            return ctx.toolsNamespace.saveProfile(execution.agent, name ?? target, profile);
         },
     })));
     ctx.effect(() => register(defineTool({
@@ -99,7 +86,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
             const target = name ?? registry.snapshot().profile!;
             const profile = profileWrite(profileTree(target, registry.configuration(name), catalog.definitions));
             const merged = ProfileWriteSchema.parse(mergeProfilePatch(profile, value));
-            return save(execution.agent, name, ProfileSchema.parse({ ...merged, name: target }), false);
+            return ctx.toolsNamespace.saveProfile(execution.agent, name ?? target, merged, 'apply');
         },
     })));
     ctx.effect(() => register(defineTool({

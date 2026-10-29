@@ -4,7 +4,6 @@ import type { PresentationMode } from '../integration/presentation.js';
 import { NamespaceNode } from './nodes/node.js';
 import { CommandNode } from './nodes/command_node.js';
 import { DefinedNamespaceNode } from './nodes/defined_namespace_node.js';
-import { InnerCommandNode } from './nodes/inner_command_node.js';
 import { defaultNamespaceDefinitions } from './definitions.js';
 import { permissionsAt, settingsAt } from '../registry/profile/node_settings.js';
 import type { ProfileTreeNode } from '../registry/profile_node.js';
@@ -13,13 +12,11 @@ import { commandDeclaration } from './nodes/command_contract.js';
 export { nativeArgumentsFor, resultFor } from './nodes/command_contract.js';
 export { NamespaceNode } from './nodes/node.js';
 export { CommandNode } from './nodes/command_node.js';
-export { InnerCommandNode } from './nodes/inner_command_node.js';
 export type { NamespaceContext } from './nodes/context.js';
 import { nodePermissions, type CommandContract } from './node.js';
 export type { Node, NodeType, Permission, SerializedNode } from './node.js';
 import { namespaceDeclaration } from './declaration.js';
 import { z } from 'zod';
-import { pluginCommands, projectBuiltin } from '../runtime/builtins.js';
 import type { SemanticRegistry } from '../registry/registry.js';
 
 /** @brief YAML aliases mount physical tools at additional namespace paths. */
@@ -40,6 +37,15 @@ export interface ManifestEntry extends CommandContract { path: string }
 export function createNamespace(context: NamespaceContext): NamespaceNode {
     const root = new NamespaceNode('', undefined, '', nodePermissions('tree', { renamable: false, commentable: false, movable: false, removable: false, disableable: false, availableFixLevels: [] }));
     const definitions = context.definitions ?? defaultNamespaceDefinitions.tree();
+    const additionFor = context.addition ?? (tool => defaultNamespaceDefinitions.addition(tool));
+    const discoverable = (node: ProfileTreeNode, path: string, disabled = false): boolean => {
+        disabled ||= !!node.disabled || !!context.disabled?.(path);
+        if (disabled) return false;
+        if (node.type === 'command') return !!additionFor(node.command.tool).discovery && !additionFor(node.command.tool).hidden
+            && (!!context.includeUnavailable || context.tools.some(tool => tool.id === node.command.tool));
+        return Object.entries(node.children ?? {}).some(([name, child]) => discoverable(child, path ? `${path}.${name}` : name, disabled));
+    };
+    const discoveryAvailable = discoverable(definitions, '');
     const build = (name: string, data: ProfileTreeNode, parent: NamespaceNode): NamespaceNode | CommandNode | undefined => {
         const path = parent.path ? `${parent.path}.${name}` : name;
         const permissions = nodePermissions(data.type === 'namespace' ? 'tree' : 'leaf', { ...data.permissions, ...permissionsAt(context.nodeSettings, path.split('.')) });
@@ -48,16 +54,12 @@ export function createNamespace(context: NamespaceContext): NamespaceNode {
         if (context.disabled?.(path) || data.disabled || (context.addition ?? (tool => defaultNamespaceDefinitions.addition(tool)))(data.command.tool).hidden) return undefined;
         const tool = context.tools.find(tool => tool.id === data.command.tool);
         if (!tool && !context.includeUnavailable) return undefined;
-        let source = pluginCommands.find(data.command.tool);
-        if (source === pluginCommands.searchCommand) source = pluginCommands.searchContract(((tool?.parameters.properties as Record<string, { enum?: string[] }> | undefined)?.method?.enum) ?? []);
-        const projected = source && projectBuiltin(source, context.mode ?? 'ptc');
-        const addition = (context.addition ?? (tool => defaultNamespaceDefinitions.addition(tool)))(data.command.tool);
+        const addition = additionFor(data.command.tool);
+        const projected = addition.project?.(tool?.parameters ?? {}, context.mode ?? 'ptc', discoveryAvailable);
         const doc = context.mode !== 'native' ? addition.ptcDescription ?? projected?.description ?? tool?.description ?? data.command.doc ?? ''
             : tool?.description ?? projected?.description ?? data.command.doc ?? '';
-        const builtin = projected && { ...projected, description: doc };
-        const entry = { tool: data.command.tool, schema: tool?.parameters ?? {}, output: tool?.output, doc };
-        return builtin ? new InnerCommandNode(name, parent, entry, { ...builtin, path }, permissions, data.fixedLevel, context.provided?.(path) ?? true)
-            : new CommandNode(name, parent, entry, permissions, data.fixedLevel, context.provided?.(path) ?? true);
+        const entry = { tool: data.command.tool, schema: tool?.parameters ?? {}, output: tool?.output, doc: projected?.description ?? doc, presentation: projected };
+        return new CommandNode(name, parent, entry, permissions, data.fixedLevel, context.provided?.(path) ?? true);
     };
     for (const [name, data] of Object.entries(definitions.children ?? {})) {
         const node = build(name, data, root);

@@ -5,7 +5,6 @@ import type { ToolAddition } from '../namespace/service.js';
 import { settingsAt, ProfileNodeSettingsSchema } from './profile/node_settings.js';
 import { ProfileNotFoundError } from '../error.js';
 import { CommandNode, NamespaceNode, createNamespace } from '../namespace/namespace.js';
-import { pluginCommands } from '../runtime/builtins.js';
 import { toolName, validatePath } from './path.js';
 export { validatePath } from './path.js';
 import { storageVersion } from '../storage/version.js';
@@ -159,8 +158,7 @@ export class SemanticRegistry {
         return { ...(typeof saved.brief === 'string' ? { brief: saved.brief } : {}), providedRoot: saved.providedRoot === undefined ? undefined : ProfileSchema.safeParse({ name: 'Recovered', root: saved.providedRoot }).data?.root, nodeSettings: ProfileNodeSettingsSchema.safeParse(saved.nodeSettings).data ?? {}, mappings, namespaces,
             order: Array.isArray(saved.order) ? [...new Set(saved.order.filter((path): path is string => typeof path === 'string'))] : [],
             unmountedVisible: this.recoverEntries<PinLevel>(saved.unmountedVisible, entry => this.validateVisibility(entry)),
-            builtinVisible: saved.builtinVisible === undefined ? { ...pluginCommands.defaultBuiltinVisible }
-                : this.recoverEntries<PinLevel>(saved.builtinVisible, entry => this.validateVisibility(entry)),
+            builtinVisible: this.recoverEntries<PinLevel>(saved.builtinVisible, entry => this.validateVisibility(entry)),
             namespaceVisible: this.recoverEntries<boolean>(saved.namespaceVisible, entry => this.validateNamespaceVisible(entry)),
             toolComments: this.recoverEntries<string>(saved.toolComments, entry => this.validateComments(entry)),
             builtinDisabled: Array.isArray(saved.builtinDisabled) ? saved.builtinDisabled.filter((path: unknown): path is string => this.accepts(() => this.validateDisabled([path as string]))) : [],
@@ -440,7 +438,7 @@ export class SemanticRegistry {
             const comments = structuredClone(toolComments ?? base.toolComments ?? {});
             this.validateComments(comments);
             this.validateDisabled(builtinDisabled, base.providedRoot);
-            const builtins = structuredClone(builtinVisible ?? base.builtinVisible ?? pluginCommands.defaultBuiltinVisible);
+            const builtins = structuredClone(builtinVisible ?? base.builtinVisible ?? {});
             this.validateVisibility(builtins);
             const selected = structuredClone(unmountedVisible ?? base.unmountedVisible ?? {});
             this.validateVisibility(selected);

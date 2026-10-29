@@ -1,9 +1,10 @@
 import type { ProfileSnapshot } from '../registry/profile/profile.js';
 import { EditableSnapshot } from '../registry/profile/snapshot.js';
+import { ProfileWriteSchema, type ProfileWrite } from '../registry/profile_write.js';
 import { RegistryConfiguration } from '../registry/configuration.js';
 import { editedConfiguration } from '../registry/profile/configuration.js';
 import { profileTree } from '../registry/profile_tree.js';
-import type { ToolAddition, ToolsNamespace } from './service.js';
+import type { ProfileSaveEffect, ProfileSaveEvent, ToolAddition, ToolsNamespace } from './service.js';
 import { outputSchema } from '../output_schema.js';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
@@ -18,7 +19,7 @@ import type { ProfileSessions } from '../registry/profiles.js';
 import { declaration, manifest, type Aliases, NamespaceNode, type CommandNode } from './namespace.js';
 import { namespaceDirectory, nativeDirectory, type NamespaceHint } from './prompt.js';
 
-import { type CommandBrief, type Profiles, profileAnnotation } from '../registry/profile_tree.js';
+import { type CommandBrief, type Profiles, profileConfiguration } from '../registry/profile_tree.js';
 import type { z } from 'zod';
 import { createSearchEngines } from '../search/search.js';
 import { registerSearch } from '../tools/tool_search.js';
@@ -46,6 +47,31 @@ export class NamespaceComponent implements ToolsNamespace {
         ctx.on('agent/request', async (payload, next) => {
             if (this.enabled(payload.agent)) this.positions.set(payload.agent.id, { turn: payload.turn, step: payload.step });
             return next();
+        });
+    }
+
+    /** @brief Register disposable provider processing for agent save and apply. */
+    effect(event: 'save', handler: ProfileSaveEffect): () => void { return this.registry.definitions.effect(event, handler); }
+
+    /** @brief Normalize a detached agent save, enforce permissions and publish only after all effects succeed. */
+    saveProfile(agent: Agent, name: string | undefined, input: ProfileWrite, operation: 'save' | 'apply' = 'save'): Promise<string | null> {
+        return this.profileTransaction(async () => {
+            const profile = ProfileWriteSchema.parse(input);
+            const session = await this.registryFor(agent);
+            const target = name ?? session.profileSelection().selected;
+            const catalog = this.registry;
+            const revision = catalog.revision;
+            const original = catalog.profileSelection().profiles.includes(target) ? catalog.configuration(target) : session.configuration();
+            const baseline = new EditableSnapshot(profileTree(target, original, catalog.definitions).save());
+            const event: ProfileSaveEvent = { name: target, operation, agent, tools: session.tools().map(tool => tool.id),
+                profile: new EditableSnapshot(profile), baseline, result: null };
+            await catalog.definitions.processSave(event);
+            const current = editedConfiguration({ name: target, brief: event.baseline.brief, root: event.baseline.serialize() }, original, catalog.definitions);
+            const value = { name: target, brief: event.profile.brief, root: event.profile.serialize() };
+            const configuration = profileConfiguration(value, current, await this.commandBriefs(agent), catalog.definitions);
+            await catalog.saveProfile(target, configuration, { revision });
+            this.ctx.emit('system-prompt/change');
+            return event.result;
         });
     }
 
@@ -251,14 +277,14 @@ export class NamespaceComponent implements ToolsNamespace {
     }
 
     /** @brief Compute only enabled Profile metadata before guest execution. */
-    async values(agent?: Agent, current?: SemanticRegistry): Promise<Record<string, z.infer<ReturnType<typeof z.json>>>> {
+    async values(agent?: Agent, current?: SemanticRegistry, refresh?: { revisionChanged: boolean }): Promise<Record<string, z.infer<ReturnType<typeof z.json>>>> {
         const registry = current ?? (agent ? await this.registryFor(agent) : this.registry);
         const values: Record<string, z.infer<ReturnType<typeof z.json>>> = {};
-        for (const path of ['tools.profile.annotation', 'tools.profile.commands', 'tools.profile.profiles']) {
-            if (registry.disabled(path)) continue;
-            if (path === 'tools.profile.annotation') values[path] = profileAnnotation;
-            else if (path === 'tools.profile.commands') values[path] = (await this.commandBriefs(agent, registry)).map(command => ({ ...command }));
-            else if (path === 'tools.profile.profiles') values[path] = { ...await this.profileNames(agent, registry) };
+        const root = manifest(registry, this.aliases ?? [], agent && !this.isPtc(agent) ? 'native' : 'ptc');
+        for (const entry of root.commands()) {
+            if (entry.disabled) continue;
+            const producer = registry.definitions.addition(entry.tool).value;
+            if (producer && (!refresh || producer.refresh === 'call' || (producer.refresh === 'revision' && refresh.revisionChanged))) values[entry.path] = await producer.read(this, agent, registry);
         }
         return values;
     }
@@ -310,7 +336,7 @@ export class NamespaceComponent implements ToolsNamespace {
                 parent = parent.parent;
             }
         }
-        const discoveryAvailable = !!root.resolve(['tools', 'inspect']) && !registry.disabled('tools.inspect');
+        const discoveryAvailable = root.commands().some(entry => !entry.disabled && registry.definitions.addition(entry.tool).discovery);
         return ptc ? namespaceDirectory(hints, discoveryAvailable) : nativeDirectory(hints, discoveryAvailable);
     }
 
@@ -368,18 +394,16 @@ export class NamespaceComponent implements ToolsNamespace {
             if (name === entry.tool) continue;
             const definition: ToolDefinition = {
                 name, description: `${entry.path}: ${descriptionFor(entry)}`, parameters: entry.schema,
-                output: { schema: entry.tool === 'tools_inspect' ? entry.output ?? {} : {}, render: (_args, value) => [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value) }] },
+                output: { schema: entry.output ?? {}, render: (_args, value) => [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value) }] },
                 execute: async (args, parent) => {
                     const caller = parent.agent;
                     if (!caller) throw new Error('A live conversation is required');
                     return await this.dispatch(caller, entry, entry.nativeArguments(args), parent, 1) ?? null;
                 },
             };
-            if (entry.tool === 'tools_inspect') {
-                const physical = agent.ctx.tools.get(entry.tool, agent)!;
-                definition.presentCall = args => physical.presentCall?.(entry.nativeArguments(args));
-                definition.presentResult = (args, result) => physical.presentResult?.(entry.nativeArguments(args), result);
-            }
+            const physical = agent.ctx.tools.get(entry.tool, agent);
+            if (physical?.presentCall) definition.presentCall = args => physical.presentCall!(entry.nativeArguments(args));
+            if (physical?.presentResult) definition.presentResult = (args, result) => physical.presentResult!(entry.nativeArguments(args), result);
             this.generatedTools.add(definition);
             state.disposers.push(agent.ctx.tools.register(definition));
         }

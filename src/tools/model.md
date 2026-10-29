@@ -68,3 +68,8 @@ ProfileRootWrite 的匿名根只允许 type/children，拒绝没有持久化表�
 `profile_lock.ts` 的 ProfileLock 为当前命名空间组件提供共享 FIFO 异步互斥锁。所有 `tools.profile.*` 操作共用该锁，读写均在获取锁后执行；apply 的读取、合并、校验及目录持久化位于同一临界区，避免跨会话并发增量保存丢失更新。等待结束后再次检查取消信号，失败或取消通过 finally 释放锁，不阻塞后续操作。锁只协调本组件的 Profile 工具调用，不提供跨进程或绕过工具接口的存储事务。
 
 插件侧便携工具附加属性由 namespace/builtin_profile.ts 注册：内置管理工具 fixed=true，exec/run_code/tools_run_code hidden=true，模式差异说明通过可选 ptcDescription 提供。物理工具注册保留 native 注释；PTC 投影读取附加属性。原有 Profile load/save/apply 是 agent JSON 接口，插件侧编辑统一使用 toolsNamespace.edit(name, snapshot => snapshot)，二者共用服务端权限与存储规则。
+
+
+工具节点统一为 CommandNode，操作许可仅由 permissions 决定。工具提供者通过 setToolAddition 注册 project（模式契约、签名、参数布局、返回策略）、discovery 标记及 value 生产器/刷新策略；通用树构建不识别内置命令表。默认固定等级由节点定义提供，RegistryConfiguration 不假设 tools.inspect。
+
+agent 的 tools.profile.save/apply 统一调用 toolsNamespace.saveProfile，经过 effect('save', handler) 顺序处理独立的 ProfileSaveEvent 后，再按服务端权限校验并原子持久化。事件提供 profile、baseline 可编辑快照、operation、tools 和可修改的 result；异常不写入目录。内置插件自行注册修复 effect，恢复 tools 子树、工具绑定、权限及 inspect 固定等级；save 仍默认禁用 tools，apply 保留原禁用状态。插件侧 edit 是可信编辑入口，不触发 agent 保存 effect；新建 Profile 仍为空。

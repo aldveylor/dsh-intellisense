@@ -7,19 +7,47 @@ import type { SemanticRegistry } from '../registry/registry.js';
 import type { CommandBrief, Profiles } from '../registry/profile_tree.js';
 import type { SearchEngineRegistry } from '../search/engine_registry.js';
 import type { NamespaceNode, CommandNode } from './namespace.js';
+import type { CommandPresentation } from './node.js';
+import type { PresentationMode } from '../integration/presentation.js';
+import type { ProfileWrite } from '../registry/profile_write.js';
 import type { CommandStatistics } from './statistics.js';
 
 /** @brief Optional physical-tool attributes, independent of prompt pin levels. */
 export interface ToolAddition {
     fixed?: boolean;
+    /** @brief Identify a command that discovers other namespace members. */
+    discovery?: boolean;
+    /** @brief Project provider-owned callable metadata without introducing a node subclass. */
+    project?: (schema: Record<string, unknown>, mode: PresentationMode, discoveryAvailable: boolean) => CommandPresentation;
+    /** @brief Produce a read-only PTC value; refresh policy applies after successful calls. */
+    value?: { read: (service: ToolsNamespace, agent: Agent | undefined, registry: SemanticRegistry) => Promise<z.infer<ReturnType<typeof z.json>>>; refresh?: 'call' | 'revision' };
     /** @brief Hide from namespace discovery and tool mounting interfaces. */
     hidden?: boolean;
     /** @brief Override the tool description in PTC; native retains the physical description. */
     ptcDescription?: string;
 }
 
+/** @brief Mutable save transaction processed before validation and atomic persistence. */
+export interface ProfileSaveEvent {
+    readonly name: string;
+    readonly operation: 'save' | 'apply';
+    readonly agent: Agent;
+    readonly tools: readonly string[];
+    profile: ProfileSnapshot;
+    baseline: ProfileSnapshot;
+    result: string | null;
+}
+
+/** @brief Provider-owned save processing; throwing aborts persistence. */
+export type ProfileSaveEffect = (event: ProfileSaveEvent) => void | Promise<void>;
+
 /** @brief Portable namespace service with named snapshot editing and execution integration. */
 export interface ToolsNamespace extends ProfileCollection {
+    /** @brief Register ordered, disposable save processing shared by agent save and apply. */
+    effect(event: 'save', handler: ProfileSaveEffect): () => void;
+    /** @brief Save an untrusted agent tree through registered effects and server permissions. */
+    saveProfile(agent: Agent, name: string | undefined, profile: ProfileWrite, operation?: 'save' | 'apply'): Promise<string | null>;
+
     readonly searchEngines: SearchEngineRegistry;
     readonly statistics: CommandStatistics;
 
@@ -47,7 +75,7 @@ export interface ToolsNamespace extends ProfileCollection {
     /** @brief Read enabled command bindings at the execution boundary. */
     entries(agent: Agent, current?: SemanticRegistry): Promise<CommandNode[]>;
     /** @brief Read enabled preloaded values. */
-    values(agent?: Agent, current?: SemanticRegistry): Promise<Record<string, z.infer<ReturnType<typeof z.json>>>>;
+    values(agent?: Agent, current?: SemanticRegistry, refresh?: { revisionChanged: boolean }): Promise<Record<string, z.infer<ReturnType<typeof z.json>>>>;
     /** @brief Dispatch through the native guarded and audited tool pipeline. */
     dispatchTool(agent: Agent, tool: string, args: unknown, parent: ToolRunContext, sequence: number): Promise<unknown>;
     /** @brief Read catalog names and the conversation selection. */

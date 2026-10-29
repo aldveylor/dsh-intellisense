@@ -1,5 +1,4 @@
 import type { PresentationMode } from '../integration/presentation.js';
-import type { CommandVisibility } from '../registry/registry.js';
 
 /** @brief Plugin-owned execution entry, separate from the globally reserved run_code transport. */
 export const ptcToolName = 'tools_run_code';
@@ -96,7 +95,6 @@ export class PluginCommands {
     }
 
     /** @brief Pin only the discovery command by default. */
-    readonly defaultBuiltinVisible: CommandVisibility = { [this.discoveryCommand.path]: 2 };
 
     /** @brief Builtin contracts indexed by physical identity for all namespace projections. */
     readonly builtinTools: readonly BuiltinTool[] = [this.discoveryCommand, this.searchCommand, ...this.managementCommands, ...this.profileValues];

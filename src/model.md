@@ -102,3 +102,8 @@ ProfileRootWrite 的匿名根只允许 type/children，拒绝没有持久化表�
 构建配置统一由 scripts/build.mjs 管理，支持 all/server/client；pnpm run build 按服务端、worker、插件客户端、独立页顺序构建，避免 tsc 覆盖最终浏览器产物。package.json 只保留构建脚本入口，脚本间调用统一使用 pnpm。依赖 external、压缩、loader 与宿主注册包装在构建脚本维护。
 
 工具附加属性通过 ToolAddition 的 fixed、hidden、ptcDescription 声明；内置工具也使用 toolsNamespace 的相同接口注册。fixed 禁止人工和 agent 挂载，hidden 隐藏目录及选择器，PTC 注释可独立覆盖且缺省回退物理工具原文。内置节点通过 edit 显式创建；空 Profile 不自动注入节点。
+
+
+工具节点统一为 CommandNode，操作许可仅由 permissions 决定。工具提供者通过 setToolAddition 注册 project（模式契约、签名、参数布局、返回策略）、discovery 标记及 value 生产器/刷新策略；通用树构建不识别内置命令表。默认固定等级由节点定义提供，RegistryConfiguration 不假设 tools.inspect。
+
+agent 的 tools.profile.save/apply 统一调用 toolsNamespace.saveProfile，经过 effect('save', handler) 顺序处理独立的 ProfileSaveEvent 后，再按服务端权限校验并原子持久化。事件提供 profile、baseline 可编辑快照、operation、tools 和可修改的 result；异常不写入目录。内置插件自行注册修复 effect，恢复 tools 子树、工具绑定、权限及 inspect 固定等级；save 仍默认禁用 tools，apply 保留原禁用状态。插件侧 edit 是可信编辑入口，不触发 agent 保存 effect；新建 Profile 仍为空。

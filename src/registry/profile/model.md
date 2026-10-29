@@ -9,3 +9,8 @@ ProfileNode 是共享 interface；ProfileNamespace 和 ProfileCommand 继承该�
 node_settings.ts 将权限与插件覆盖说明按直接 children 递归保存；providedRoot 只保存显式提交的插件节点树，空树不自动补入内置命令。configuration.ts 是受信编辑投影，允许固定工具挂载和显式权限设置；validate_edit.ts 为人工、agent 及管理 HTTP 写入校验原始服务端权限。运行时树在安装已有成员后应用权限，acceptsChildren=false 不阻止加载已有子节点。
 
 list() 仅返回目录名称数组，不包含 Profile 数据或当前选择；remove(name) 与创建、编辑串行执行，复用目录删除校验与持久化。删除默认 Profile 时回退到已有配置，拒绝删除最后一个 Profile；既有会话快照保持独立。
+
+
+工具节点统一为 CommandNode，操作许可仅由 permissions 决定。工具提供者通过 setToolAddition 注册 project（模式契约、签名、参数布局、返回策略）、discovery 标记及 value 生产器/刷新策略；通用树构建不识别内置命令表。默认固定等级由节点定义提供，RegistryConfiguration 不假设 tools.inspect。
+
+agent 的 tools.profile.save/apply 统一调用 toolsNamespace.saveProfile，经过 effect('save', handler) 顺序处理独立的 ProfileSaveEvent 后，再按服务端权限校验并原子持久化。事件提供 profile、baseline 可编辑快照、operation、tools 和可修改的 result；异常不写入目录。内置插件自行注册修复 effect，恢复 tools 子树、工具绑定、权限及 inspect 固定等级；save 仍默认禁用 tools，apply 保留原禁用状态。插件侧 edit 是可信编辑入口，不触发 agent 保存 effect；新建 Profile 仍为空。

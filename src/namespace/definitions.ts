@@ -1,17 +1,29 @@
 import { EditableSnapshot } from '../registry/profile/snapshot.js';
 import type { ProfileSnapshot } from '../registry/profile/profile.js';
 import type { NamespaceTreeNode } from '../registry/profile_node.js';
-import type { ToolAddition, ToolsNamespace } from './service.js';
+import type { ProfileSaveEffect, ProfileSaveEvent, ToolAddition, ToolsNamespace } from './service.js';
 import { registerBuiltinDefinitions } from './builtin_profile.js';
 
 /** @brief Own shared recursive node definitions and reversible physical-tool registrations. */
 export class NamespaceDefinitions implements Pick<ToolsNamespace, 'setToolAddition'> {
+    private saveEffects = new Set<ProfileSaveEffect>();
     private additions = new Map<string, Map<object, ToolAddition>>();
     private initializers = new Set<(snapshot: ProfileSnapshot) => void>();
     private cachedTree?: NamespaceTreeNode;
     revision = 0;
 
     constructor(private readonly changed: () => void = () => {}) { registerBuiltinDefinitions(this); }
+
+    /** @brief Register an ordered save processor with reversible lifetime. */
+    effect(_event: 'save', handler: ProfileSaveEffect): () => void {
+        this.saveEffects.add(handler);
+        return () => { this.saveEffects.delete(handler); };
+    }
+
+    /** @brief Run effects on detached transaction data before any persistent write. */
+    async processSave(event: ProfileSaveEvent): Promise<void> {
+        for (const handler of [...this.saveEffects]) await handler(event);
+    }
 
     /** @brief Register an attribute layer and restore the previous layer on disposal. */
     setToolAddition(tool: string, addition: ToolAddition): () => void {

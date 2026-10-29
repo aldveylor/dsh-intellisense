@@ -1,5 +1,16 @@
+/** @brief Optional callable projection registered by a physical-tool provider. */
+export interface CommandPresentation {
+    signature: string;
+    description: string;
+    parameterDocs?: Readonly<Record<string, string>>;
+    positional?: readonly (readonly string[])[];
+    overloads?: readonly string[];
+    discardResult?: boolean;
+    preload?: boolean;
+}
+
 /** @brief Public callable contract shared by executable and management nodes. */
-export interface CommandContract { tool: string; schema: Record<string, unknown>; output?: unknown; doc: string }
+export interface CommandContract { tool: string; schema: Record<string, unknown>; output?: unknown; doc: string; presentation?: CommandPresentation }
 
 /** @brief Discriminator for executable namespace nodes. */
 export type NodeType = 'leaf' | 'tree';

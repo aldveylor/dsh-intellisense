@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import type { Context } from '@deepseek-ai/cordis';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { nativeArgumentsFor, type ManifestEntry } from '../../src/namespace/namespace.js';
-import { builtinDeclaration, executionInstructions } from '../../src/namespace/prompt.js';
+import { callableDeclaration, executionInstructions } from '../../src/namespace/prompt.js';
 import { pluginCommands, projectBuiltin } from '../../src/runtime/builtins.js';
 import { NamespaceNode, declaration } from '../../src/namespace/namespace.js';
 import { inspect, registerInspect } from '../../src/tools/inspect.js';
@@ -38,7 +38,7 @@ test('native and PTC discovery preserve a single query array', async () => {
     const entry: ManifestEntry = { path: 'tools.inspect', tool: 'tools_inspect', doc: 'Discover',
         schema: { type: 'object', properties: { queries: schema }, required: ['queries'] }, output: { type: 'string' } };
     const queries = ['global.std.', 'std.cwd'];
-    for (const source of [declaration(namespace([entry]).commands().find(node => node.tool === entry.tool)!), builtinDeclaration(projectBuiltin(pluginCommands.discoveryCommand, 'ptc')), inspect(['tools.inspect'], namespace([entry]), true)]) {
+    for (const source of [declaration(namespace([entry]).commands().find(node => node.tool === entry.tool)!), callableDeclaration(projectBuiltin(pluginCommands.discoveryCommand, 'ptc')), inspect(['tools.inspect'], namespace([entry]), true)]) {
         assert.match(source, /function inspect\(queries: string\[\]\): Promise<string>/);
         assert(source.includes('tools.inspect([""])'));
     }

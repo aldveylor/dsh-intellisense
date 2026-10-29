@@ -81,11 +81,8 @@ export class NamespaceRuntime extends Service {
                 return bindingResult(work, signal);
             }, controller.signal, preloaded, async () => {
                 const currentRevision = registry.revision;
-                const values = {
-                    ...(Object.hasOwn(preloaded, 'tools.profile.profiles') ? { 'tools.profile.profiles': { ...await namespaces.profileNames(agent) } } : {}),
-                    ...(currentRevision !== revision && Object.hasOwn(preloaded, 'tools.profile.commands')
-                        ? { 'tools.profile.commands': (await namespaces.commandBriefs(agent, registry)).map(command => ({ ...command })) } : {}),
-                };
+                const values = await namespaces.values(agent, registry, { revisionChanged: currentRevision !== revision });
+                for (const path of Object.keys(values)) if (!Object.hasOwn(preloaded, path)) delete values[path];
                 revision = currentRevision;
                 return values;
             });
