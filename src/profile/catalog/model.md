@@ -17,3 +17,5 @@ ToolAdditions 是 ctx.intellisense 的独立工具元数据服务。全局目录
 具名集合编辑和 Agent save/apply 共用目录的 profileTransaction 串行事务，事务状态不属于 NamespaceComponent；集成层显式注入目录，ToolsNamespace 无需暴露 registry 或事务方法。保存事件在事务完成后通知，观察者可再次发起集合编辑。
 
 管理路由仅消费 toolsNamespace.editor，RegistryPlaneEditor 在此实现后端适配，保持修订检查和共享写事务。SemanticRegistry 不再由工具执行或管理路由直接消费；真实物理目录归独立 PhysicalToolCatalog，平面校验只消费传入的物理元数据。
+
+node_settings_schema.ts 定义目录写入时的递归权限配置校验；../node_settings.ts 仅提供共享数据类型及查询函数，不初始化 Zod schema，避免浏览器权限查询连带加载服务端校验。

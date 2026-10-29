@@ -11,3 +11,5 @@ package.json 的 dsh.client.inject 显式声明客户端服务提供包 ui-rende
 客户端插件构建 external React、JSX runtime、ui-primitives 与 Zod，复用 DSH 宿主共享模块，并启用 minify；源码保持普通 import。standalone 独立页面继续打包自身依赖并压缩，不依赖宿主模块表。
 
 `ui/` 集中可复用的展示辅助组件，包含 controls、icons、animation、tooltip 和 code_block；业务专用图标保留在所属功能目录。`profile/profile_json.ts` 提供前后端共用的 Profile JSON 校验，不依赖选择器组件。
+
+浏览器权限查询依赖 ../profile/node_settings.ts 的普通数据查询函数；递归权限 schema 单独位于 ../profile/catalog/node_settings_schema.ts，由服务端目录写入消费，避免引入未使用的 Zod 初始化及语言包。
