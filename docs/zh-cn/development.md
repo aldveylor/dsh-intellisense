@@ -13,7 +13,7 @@
 | `presets/intellisense_ptc/` | `intellisense-ptc` | Intellisense PTC | `ptc` |
 | `presets/intellisense/` | `intellisense` | Intellisense | `native` |
 
-每个目录的 `preset.yml` 声明 `id`、`name`、`description`（字符串）和 `order`（数字），不接受额外字段；`agent.cordis.yml` 是完整的 agent 插件列表，包括工具、技能、规划、压缩与子 agent 等配置。注册组件加载、校验并注册这两份声明，卸载时释放注册，不自动注入或修改 presentation。
+每个目录的 `preset.yml` 声明 `id`、`name`、`description`（字符串）和 `order`（数字），不接受额外字段；`agent.cordis.yml` 是完整的 agent 插件列表，包括工具、技能、规划、压缩与子 agent 等配置。注册组件加载、校验并注册这两份声明，卸载时释放注册，不自动注入或修改 presentation。它复用兼容层的 DSH 版本判断：旧版在 delegation 分组中补充 `@deepseek-ai/dsh-tool-subagent-control/list-agents`，从 `0.2.2-alpha.2` 起不再注册这个已移除的入口。
 
 [`cordis.patch.yml`](../../cordis.patch.yml) 同时挂载主组件与 preset 注册组件，并把 `agent-preset-registry.config.default` 和 `selectedDefault` 设为 `intellisense-ptc`。这两个字段属于 preset 注册器；执行模式由各 preset 自己的 presentation 配置决定。
 

@@ -8,6 +8,7 @@ const reports = join(root, 'build/compatibility');
 const legacy = join(reports, 'legacy');
 const tests = [
     'tests/compatibility/version.test.ts',
+    'tests/preset/registration.test.ts',
     'tests/integration/integration.test.ts',
     'tests/integration/ptc_runtime.test.ts',
     'tests/integration/presentation_scope.test.ts',

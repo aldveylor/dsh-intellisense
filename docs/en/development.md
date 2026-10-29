@@ -13,7 +13,7 @@ The main component, `@aldveylor/dsh-intellisense`, provides namespace services, 
 | `presets/intellisense_ptc/` | `intellisense-ptc` | Intellisense PTC | `ptc` |
 | `presets/intellisense/` | `intellisense` | Intellisense | `native` |
 
-Each directory contains `preset.yml`, with string fields `id`, `name`, `description` and a numeric `order`; additional fields are rejected. Its `agent.cordis.yml` contains the complete agent plugin list, including tools, skills, planning, compaction and delegation. The registration component loads, validates and registers these declarations, releases registrations on disposal, and does not inject or rewrite presentation configuration.
+Each directory contains `preset.yml`, with string fields `id`, `name`, `description` and a numeric `order`; additional fields are rejected. Its `agent.cordis.yml` contains the complete agent plugin list, including tools, skills, planning, compaction and delegation. The registration component loads, validates and registers these declarations, releases registrations on disposal, and does not inject or rewrite presentation configuration. It reuses the compatibility layer's DSH version selection: legacy hosts receive `@deepseek-ai/dsh-tool-subagent-control/list-agents` in the delegation group; hosts from `0.2.2-alpha.2` onward omit this removed entry.
 
 [`cordis.patch.yml`](../../cordis.patch.yml) mounts both the main and preset registration components. It sets `agent-preset-registry.config.default` and `selectedDefault` to `intellisense-ptc`. Those settings belong to the preset registry; execution mode comes from each preset's presentation configuration.
 
