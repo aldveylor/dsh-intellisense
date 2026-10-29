@@ -1,7 +1,7 @@
-import type { ProfileNodeSettings } from '../../registry/profile/node_settings.js';
+import type { ProfileNodeSettings } from '../../profile/node_settings.js';
 import { providedNamespace, type ProvidedNamespace } from './tree_provider.js';
-import { validateNodePath as validatePath } from '../../namespace/node.js';
-import type { Mapping, Namespace } from '../../registry/registry.js';
+import { validateNodePath as validatePath } from '../../profile/namespace/node.js';
+import type { Mapping, Namespace } from '../../profile/catalog/registry.js';
 
 /** @brief The editable tree configuration independent of physical tool identities. */
 export interface TreeDraft { nodeSettings?: ProfileNodeSettings; mappings: Mapping[]; namespaces: Namespace[]; order: string[]; provided?: readonly ProvidedNamespace[] }

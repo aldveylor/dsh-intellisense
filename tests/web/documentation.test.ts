@@ -6,7 +6,7 @@ import { JSDOM } from 'jsdom';
 import type { Context } from '@deepseek-ai/cordis';
 import { registerManagement } from '../../src/web/server/routes.js';
 import { managementHtml } from '../../src/web/server/page.js';
-import { SemanticRegistry } from '../../src/registry/registry.js';
+import { SemanticRegistry } from '../../src/profile/catalog/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
 
 /** @brief Mount documentation and state routes without a live DSH instance. */

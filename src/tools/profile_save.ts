@@ -1,13 +1,13 @@
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { NamespaceIntegration } from '../integration/namespace_integration.js';
-import type { ProfileSaveEvent } from '../namespace/service.js';
-import type { ProfilePatch, ProfileWrite } from '../registry/profile_write.js';
-import { RegistryConfiguration } from '../registry/configuration.js';
-import { editedConfiguration } from '../registry/profile/configuration.js';
+import type { ProfileSaveEvent } from '../profile/service.js';
+import type { ProfilePatch, ProfileWrite } from '../profile/catalog/profile_write.js';
+import { RegistryConfiguration } from '../profile/catalog/configuration.js';
+import { editedConfiguration } from '../profile/configuration.js';
 import { ProfileNotFoundError } from '../error.js';
 
-import type { ProfileData } from '../registry/profile_tree.js';
-import type { ProfileTreeNode } from '../registry/profile_node.js';
+import type { ProfileData } from '../profile/catalog/profile_tree.js';
+import type { ProfileTreeNode } from '../profile/catalog/profile_node.js';
 import { pluginCommands } from '../runtime/builtins.js';
 
 /** @brief Report unavailable discovery without rejecting or editing the saved Profile. */

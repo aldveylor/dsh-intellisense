@@ -1,7 +1,7 @@
 import { promptFor } from '../namespace/fixtures.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { SemanticRegistry, type Mapping } from '../../src/registry/registry.js';
+import { SemanticRegistry, type Mapping } from '../../src/profile/catalog/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
 import { manifest } from '../namespace/fixtures.js';
 import { inspect } from '../namespace/fixtures.js';

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ProfileDocument, ProfileSchema, profileConfiguration, profileTree } from '../../src/registry/profile_tree.js';
-import { SemanticRegistry } from '../../src/registry/registry.js';
+import { ProfileDocument, ProfileSchema, profileConfiguration, profileTree } from '../../src/profile/catalog/profile_tree.js';
+import { SemanticRegistry } from '../../src/profile/catalog/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
 
 /** @brief Include protected nodes, all pin levels and a physical command mounted at independent paths. */

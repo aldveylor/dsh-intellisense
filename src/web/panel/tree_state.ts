@@ -1,4 +1,4 @@
-import type { Mapping, Namespace } from '../../registry/registry.js';
+import type { Mapping, Namespace } from '../../profile/catalog/registry.js';
 import type { TreeNode } from './tree_nodes/tree_node.js';
 
 /** @brief Index effective disable flags in one traversal while retaining each node's own permissions. */

@@ -1,15 +1,15 @@
 import { pluginCommands } from '../../src/runtime/builtins.js';
 import { NamespaceIntegration } from '../../src/integration/namespace_integration.js';
 import type { Agent } from '@deepseek-ai/dsh-agent';
-import { commandEntries, bindingFor, declaration, profileMembers, nativeArgumentsFor, serializeProfile, type ManifestEntry } from '../../src/namespace/namespace.js';
+import { commandEntries, bindingFor, declaration, profileMembers, nativeArgumentsFor, serializeProfile, type ManifestEntry } from '../../src/profile/namespace/namespace.js';
 import { inspect as renderInspect } from '../../src/tools/inspect.js';
-import { nativeDiscovery as renderNative, nativeQueryEntries as selectNative } from '../../src/namespace/native_tools.js';
-import { profileTree } from '../../src/registry/profile_tree.js';
+import { nativeDiscovery as renderNative, nativeQueryEntries as selectNative } from '../../src/profile/namespace/native_tools.js';
+import { profileTree } from '../../src/profile/catalog/profile_tree.js';
 import { RootNamespace } from '../../src/tools/profile_nodes/root_namespace.js';
-import { EditableNamespace, type ProfileNamespace } from '../../src/registry/profile/namespace.js';
-import { EditableCommand } from '../../src/registry/profile/command.js';
-import type { ProfileSnapshot } from '../../src/registry/profile/profile.js';
-import type { SemanticRegistry, PhysicalTool } from '../../src/registry/registry.js';
+import { EditableNamespace, type ProfileNamespace } from '../../src/profile/namespace.js';
+import { EditableCommand } from '../../src/profile/command.js';
+import type { ProfileSnapshot } from '../../src/profile/profile.js';
+import type { SemanticRegistry, PhysicalTool } from '../../src/profile/catalog/registry.js';
 import { ToolAdditions } from '../../src/integration/tool_additions/tool_additions.js';
 import { RuntimeHost } from '../../src/runtime/host.js';
 
@@ -39,7 +39,7 @@ export function namespace(entries: readonly ManifestEntry[] = []) {
 /** @brief Exercise global editor conversion independently from session runtime state. */
 export function manifest(registry: SemanticRegistry, aliases: readonly { path: string; tool: string }[] = [], mode: 'native' | 'ptc' = 'ptc') {
     const profile = registry.definitions.profile(profileTree(registry.profileSelection().selected, registry.configuration(), registry.definitions).save());
-    const mounted = new Set([...profileMembers(profile)].filter(({ node }) => node.type === 'command').map(({ node }) => (node as import('../../src/registry/profile/command.js').ProfileCommand).tool));
+    const mounted = new Set([...profileMembers(profile)].filter(({ node }) => node.type === 'command').map(({ node }) => (node as import('../../src/profile/command.js').ProfileCommand).tool));
     for (const alias of aliases) {
         if (!mounted.has(alias.tool)) continue;
         if (!registry.tools().some(tool => tool.id === alias.tool)) continue;

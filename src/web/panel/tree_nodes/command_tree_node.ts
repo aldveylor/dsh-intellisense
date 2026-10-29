@@ -1,9 +1,9 @@
 import type { TreeRenderer } from './tree_node.js';
 import { TreeNode } from './tree_node.js';
 import type { NamespaceTreeNode } from './namespace_tree_node.js';
-import type { Mapping, PhysicalTool } from '../../../registry/registry.js';
+import type { Mapping, PhysicalTool } from '../../../profile/catalog/registry.js';
 import type { ProvidedCommand } from '../tree_provider.js';
-import { fixLevel, type Permission, type NodeType, type SerializedNode } from '../../../namespace/node.js';
+import { fixLevel, type Permission, type NodeType, type SerializedNode } from '../../../profile/namespace/node.js';
 
 /** @brief An independently editable mounting path for a physical command. */
 export class CommandTreeNode extends TreeNode {

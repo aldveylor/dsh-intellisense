@@ -1,4 +1,4 @@
-import { NamespaceComponent } from '../../src/namespace/component.js';
+import { NamespaceComponent } from '../../src/profile/component.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Context } from '@deepseek-ai/cordis';
@@ -7,8 +7,8 @@ import { Session, SessionId } from '@deepseek-ai/dsh-session';
 import { createScope } from '@deepseek-ai/dsh-scope';
 import * as presentation from '../../src/integration/presentation.js';
 import { NamespaceIntegration } from '../../src/integration/namespace_integration.js';
-import { ProfileSessions } from '../../src/registry/profiles.js';
-import { SemanticRegistry } from '../../src/registry/registry.js';
+import { ProfileSessions } from '../../src/profile/catalog/profiles.js';
+import { SemanticRegistry } from '../../src/profile/catalog/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
 
 test('runtime child ownership inherits the nearest parent working profile without changing new root defaults', async () => {

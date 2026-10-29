@@ -1,9 +1,9 @@
-import { promptFor } from '../namespace/fixtures.js';
-import { createNamespace } from '../namespace/fixtures.js';
-import { manifest } from '../namespace/fixtures.js';
+import { promptFor } from './fixtures.js';
+import { createNamespace } from './fixtures.js';
+import { manifest } from './fixtures.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { SemanticRegistry, type Mapping, type PinLevel } from '../../src/registry/registry.js';
+import { SemanticRegistry, type Mapping, type PinLevel } from '../../src/profile/catalog/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
 import { TreeProvider } from '../../src/web/panel/tree_provider.js';
 

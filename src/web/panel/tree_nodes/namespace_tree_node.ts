@@ -1,7 +1,7 @@
 import type { TreeRenderer } from './tree_node.js';
 import { TreeNode } from './tree_node.js';
-import type { Namespace } from '../../../registry/registry.js';
-import type { Permission, NodeType, SerializedNode } from '../../../namespace/node.js';
+import type { Namespace } from '../../../profile/catalog/registry.js';
+import type { Permission, NodeType, SerializedNode } from '../../../profile/namespace/node.js';
 
 /** @brief An editable namespace owns ordered child references and counts descendant commands. */
 export class NamespaceTreeNode extends TreeNode {

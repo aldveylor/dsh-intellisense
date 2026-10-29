@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createSearchEngines, searchEntries, searchParameters, SearchCorpus } from '../../src/search/search.js';
 import { SearchEngineRegistry } from '../../src/search/engine_registry.js';
-import type { ManifestEntry } from '../../src/namespace/namespace.js';
+import type { ManifestEntry } from '../../src/profile/namespace/namespace.js';
 
 const entries: ManifestEntry[] = [
     { path: 'files.read', tool: 'read', doc: 'Read a document', schema: { type: 'object', properties: { file_path: { type: 'string', description: 'Absolute filename' } } }, output: { type: 'string', description: 'Text contents' } },

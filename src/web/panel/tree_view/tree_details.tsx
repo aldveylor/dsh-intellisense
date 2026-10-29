@@ -1,5 +1,5 @@
 import { useRef, type ReactNode } from 'react';
-import type { PhysicalTool } from '../../../registry/registry.js';
+import type { PhysicalTool } from '../../../profile/catalog/registry.js';
 import { useTranslation } from '../../locale/locale.js';
 import { ToolDetails, ToolStatistics } from '../../tool_picker/tool_details.js';
 import { TooltipProvider, useTooltip } from '../../ui/tooltip/tooltip.js';

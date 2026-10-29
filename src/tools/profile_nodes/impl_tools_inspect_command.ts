@@ -1,6 +1,6 @@
 import { ImplToolsCommand } from './impl_tools_command.js';
-import { nodePermissions, type Permission } from '../../namespace/node.js';
-import type { CommandNode, ProfileTreeNode } from '../../registry/profile_node.js';
+import { nodePermissions, type Permission } from '../../profile/namespace/node.js';
+import type { CommandNode, ProfileTreeNode } from '../../profile/catalog/profile_node.js';
 
 /** @brief Discovery uses the builtin command policy and always retains detailed pinning. */
 export class ImplToolsInspectCommand extends ImplToolsCommand {

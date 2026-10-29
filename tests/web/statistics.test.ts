@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Context } from '@deepseek-ai/cordis';
-import { SemanticRegistry } from '../../src/registry/registry.js';
+import { SemanticRegistry } from '../../src/profile/catalog/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
 import { Statistics } from '../../src/statistics/statistics.js';
 import { CommandStatistics } from '../../src/statistics/command_statistics.js';

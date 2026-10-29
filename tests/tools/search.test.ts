@@ -5,16 +5,16 @@ import assert from 'node:assert/strict';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 import type { Context } from '@deepseek-ai/cordis';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
-import { SemanticRegistry } from '../../src/registry/registry.js';
+import { SemanticRegistry } from '../../src/profile/catalog/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
-import { declaration } from '../../src/namespace/namespace.js';
+import { declaration } from '../../src/profile/namespace/namespace.js';
 import { manifest } from '../namespace/fixtures.js';
 import { createSearchEngines, accurateEngine } from '../../src/search/search.js';
 import { SearchEngineRegistry } from '../../src/search/engine_registry.js';
 import { searchDefinition, registerSearch } from '../../src/tools/tool_search.js';
 import { inspect } from '../namespace/fixtures.js';
 import { TreeProvider } from '../../src/web/panel/tree_provider.js';
-import { profileTree, profileConfiguration } from '../../src/registry/profile_tree.js';
+import { profileTree, profileConfiguration } from '../../src/profile/catalog/profile_tree.js';
 
 /** @brief Provide real Profile and manifest behavior without starting an agent or worker. */
 async function fixture(searchEngines = createSearchEngines()) {

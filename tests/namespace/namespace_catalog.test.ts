@@ -1,5 +1,5 @@
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
-import { NamespaceComponent } from '../../src/namespace/component.js';
+import { NamespaceComponent } from '../../src/profile/component.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Context } from '@deepseek-ai/cordis';
@@ -7,8 +7,8 @@ import type { Agent } from '@deepseek-ai/dsh-agent';
 import ToolRuntime, { defineTool } from '@deepseek-ai/dsh-tools';
 import { createScope } from '@deepseek-ai/dsh-scope';
 import { NamespaceIntegration } from '../../src/integration/namespace_integration.js';
-import { SemanticRegistry } from '../../src/registry/registry.js';
-import { ProfileSessions } from '../../src/registry/profiles.js';
+import { SemanticRegistry } from '../../src/profile/catalog/registry.js';
+import { ProfileSessions } from '../../src/profile/catalog/profiles.js';
 import { MemoryStore } from '../../src/storage/store.js';
 
 /** @brief Register a minimal physical command in a real global or preset scope. */

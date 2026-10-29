@@ -1,14 +1,14 @@
-import { namespaceDeclaration, type NamespaceDeclaration } from '../namespace/declaration.js';
+import { namespaceDeclaration, type NamespaceDeclaration } from '../profile/namespace/declaration.js';
 import { pluginCommands, projectBuiltin } from '../runtime/builtins.js';
 import { registerBuiltin } from './builtin_trace.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools';
 import { codeBlock } from '../protocol/code_block.js';
 import { appendPluginRecord } from '@deepseek-ai/dsh-session';
-import { declaration, normalizeInspectQueries, queryNodes, type CommandEntry } from '../namespace/namespace.js';
+import { declaration, normalizeInspectQueries, queryNodes, type CommandEntry } from '../profile/namespace/namespace.js';
 import type { NamespaceIntegration } from '../integration/namespace_integration.js';
-import type { ProfileSnapshot } from '../registry/profile/profile.js';
-import type { ProfileCommand } from '../registry/profile/command.js';
+import type { ProfileSnapshot } from '../profile/profile.js';
+import type { ProfileCommand } from '../profile/command.js';
 
 /** @brief A valid query target resolved against the active Profile tree. */
 export interface QueryTarget { path: string; namespace: boolean; tool?: string }

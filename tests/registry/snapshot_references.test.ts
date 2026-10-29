@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { MemoryStore } from '../../src/storage/store.js';
-import { SemanticRegistry } from '../../src/registry/registry.js';
-import { ProfileSessions } from '../../src/registry/profiles.js';
-import { EditableNamespace } from '../../src/registry/profile/namespace.js';
-import { EditableCommand } from '../../src/registry/profile/command.js';
+import { SemanticRegistry } from '../../src/profile/catalog/registry.js';
+import { ProfileSessions } from '../../src/profile/catalog/profiles.js';
+import { EditableNamespace } from '../../src/profile/namespace.js';
+import { EditableCommand } from '../../src/profile/command.js';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
 import { ToolAdditions } from '../../src/integration/tool_additions/tool_additions.js';
 
@@ -111,7 +111,7 @@ test('tool additions contain metadata while concrete command classes own builtin
     const catalog = new SemanticRegistry(new MemoryStore());
     const inspect = (await catalog.reference()).snapshot.resolve('tools.inspect');
     assert.equal(inspect?.type, 'command');
-    assert.equal((inspect as import('../../src/registry/profile/command.js').ProfileCommand).discovery, true);
+    assert.equal((inspect as import('../../src/profile/command.js').ProfileCommand).discovery, true);
     assert.equal('setToolAddition' in catalog.definitions, false);
     assert.equal('addition' in catalog.definitions, false);
 });

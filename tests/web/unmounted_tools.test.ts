@@ -7,8 +7,8 @@ import { readFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { JSDOM, VirtualConsole } from 'jsdom';
 import { TreeProvider, unmountedTools } from '../../src/web/panel/tree_provider.js';
-import type { Mapping, PhysicalTool } from '../../src/registry/registry.js';
-import { SemanticRegistry } from '../../src/registry/registry.js';
+import type { Mapping, PhysicalTool } from '../../src/profile/catalog/registry.js';
+import { SemanticRegistry } from '../../src/profile/catalog/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
 import { managementHtml } from '../../src/web/server/page.js';
 

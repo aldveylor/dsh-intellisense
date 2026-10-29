@@ -16,7 +16,7 @@ import Storage from '@deepseek-ai/dsh-storage';
 import * as JsonStorage from '@deepseek-ai/dsh-storage-json';
 import type { ConnectionFetchRoute } from '@deepseek-ai/dsh-client-connection';
 import * as plugin from '../../src/index.js';
-import * as namespacePlugin from '../../src/namespace/plugin.js';
+import * as namespacePlugin from '../../src/profile/namespace/plugin.js';
 import * as presentation from '../../src/integration/presentation.js';
 
 /** @brief Capture assembled requests and reply without external model access. */
@@ -123,7 +123,7 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
                 for (const path of ['tools.inspect', 'tools']) {
                     const draft = configuration.clone();
                     draft.resolve(path)!.setDisabled(true);
-                    (draft.resolve('std.fs.read') as import('../../src/registry/profile/command.js').ProfileCommand).setFixedLevel(2);
+                    (draft.resolve('std.fs.read') as import('../../src/profile/command.js').ProfileCommand).setFixedLevel(2);
                     await publishSessionFixture(namespaces, agent, draft);
                     await namespaces.configurationChanged(agent);
                     await send();
@@ -140,8 +140,8 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
                 await send();
                 assert(systemOf(model.requests.at(-1)!).includes('Use tools.inspect'));
                 const brief = configuration.clone();
-                (brief.resolve('std.fs.read') as import('../../src/registry/profile/command.js').ProfileCommand).setFixedLevel(1);
-                (brief.resolve('tools.profile.load') as import('../../src/registry/profile/command.js').ProfileCommand).setFixedLevel(1);
+                (brief.resolve('std.fs.read') as import('../../src/profile/command.js').ProfileCommand).setFixedLevel(1);
+                (brief.resolve('tools.profile.load') as import('../../src/profile/command.js').ProfileCommand).setFixedLevel(1);
                 await publishSessionFixture(namespaces, agent, brief);
                 await namespaces.configurationChanged(agent);
                 await send();

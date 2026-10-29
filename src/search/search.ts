@@ -1,6 +1,6 @@
 import type MiniSearch from 'minisearch';
-import type { ManifestEntry } from '../namespace/namespace.js';
-import { normalizeInspectQueries } from '../namespace/namespace.js';
+import type { ManifestEntry } from '../profile/namespace/namespace.js';
+import { normalizeInspectQueries } from '../profile/namespace/namespace.js';
 import { SearchEngineRegistry, type SearchDocument, type SearchEngine, type SearchField, type SearchSelector } from './engine_registry.js';
 
 /** @brief Load optional BM25 support; missing installations retain substring matching. */

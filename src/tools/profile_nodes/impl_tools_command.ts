@@ -1,12 +1,12 @@
 import { pluginCommands, projectBuiltin } from '../../runtime/builtins.js';
-import { profileAnnotation } from '../../registry/profile_tree.js';
-import type { CommandValues } from '../../registry/profile/command.js';
-import type { CommandPresentation } from '../../namespace/node.js';
+import { profileAnnotation } from '../../profile/catalog/profile_tree.js';
+import type { CommandValues } from '../../profile/command.js';
+import type { CommandPresentation } from '../../profile/namespace/node.js';
 import type { PresentationMode } from '../../integration/presentation.js';
-import { EditableCommand } from '../../registry/profile/command.js';
-import type { CommandNode, ProfileTreeNode } from '../../registry/profile_node.js';
-import type { ProfileCheckContext } from '../../registry/profile/node.js';
-import { nodePermissions, type Permission } from '../../namespace/node.js';
+import { EditableCommand } from '../../profile/command.js';
+import type { CommandNode, ProfileTreeNode } from '../../profile/catalog/profile_node.js';
+import type { ProfileCheckContext } from '../../profile/node.js';
+import { nodePermissions, type Permission } from '../../profile/namespace/node.js';
 import { ProfilePermissionError } from '../../error.js';
 
 /** @brief Shared implementation for builtin commands with identical structural and documentation restrictions. */

@@ -1,7 +1,7 @@
 import { outputSchema } from '../../output_schema.js';
 import { TooltipProvider, useTooltip } from '../ui/tooltip/tooltip.js';
 import { TypeScriptBlock } from '../ui/code_block/code_block.js';
-import type { PhysicalTool } from '../../registry/registry.js';
+import type { PhysicalTool } from '../../profile/catalog/registry.js';
 import { useTranslation } from '../locale/locale.js';
 
 /** @brief Normalize a JSON schema node without interpreting metadata as HTML. */

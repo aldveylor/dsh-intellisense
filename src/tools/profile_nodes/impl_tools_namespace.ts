@@ -2,9 +2,9 @@ import { ImplBuiltinNamespace } from './impl_builtin_namespace.js';
 import { ImplToolsProfileNamespace } from './impl_tools_profile_namespace.js';
 import { ImplToolsInspectCommand } from './impl_tools_inspect_command.js';
 import { ImplToolsCommand } from './impl_tools_command.js';
-import type { ProfileNode } from '../../registry/profile/node.js';
-import type { NamespaceTreeNode, ProfileTreeNode } from '../../registry/profile_node.js';
-import { nodePermissions, type Permission } from '../../namespace/node.js';
+import type { ProfileNode } from '../../profile/node.js';
+import type { NamespaceTreeNode, ProfileTreeNode } from '../../profile/catalog/profile_node.js';
+import { nodePermissions, type Permission } from '../../profile/namespace/node.js';
 import { pluginCommands, projectBuiltin } from '../../runtime/builtins.js';
 
 /** @brief The tools namespace constructs and protects its discovery, search and Profile implementations. */

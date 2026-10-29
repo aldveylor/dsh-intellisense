@@ -1,5 +1,5 @@
-import { permissionsAt } from '../../registry/profile/node_settings.js';
-import type { PhysicalTool } from '../../registry/registry.js';
+import { permissionsAt } from '../../profile/node_settings.js';
+import type { PhysicalTool } from '../../profile/catalog/registry.js';
 import type { ProvidedNamespace } from './tree_provider.js';
 import { namespacePaths, orderedPaths, type TreeDraft } from './namespace_tree.js';
 import { NamespaceTreeNode } from './tree_nodes/namespace_tree_node.js';

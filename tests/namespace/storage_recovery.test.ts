@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Context } from '@deepseek-ai/cordis';
-import { apply } from '../../src/namespace/plugin.js';
+import { apply } from '../../src/profile/namespace/plugin.js';
 import { storageVersion } from '../../src/storage/version.js';
 
 test('startup loading failures keep management available and reset replaces obsolete Profile storage', async () => {
@@ -49,7 +49,7 @@ test('KV version upgrade retains compatible records for domain-level partial rec
     const { tmpdir } = await import('node:os');
     const { join } = await import('node:path');
     const { DshStore } = await import('../../src/storage/store.js');
-    const { SemanticRegistry } = await import('../../src/registry/registry.js');
+    const { SemanticRegistry } = await import('../../src/profile/catalog/registry.js');
     const { CommandStatistics } = await import('../../src/statistics/command_statistics.js');
     const directory = await mkdtemp(join(tmpdir(), 'intellisense-storage-'));
     const backend = new JsonStorageBackend(directory);

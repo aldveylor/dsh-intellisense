@@ -1,8 +1,8 @@
 import { sessionFor } from './session_fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ProfileSessions } from '../../src/registry/profiles.js';
-import { SemanticRegistry } from '../../src/registry/registry.js';
+import { ProfileSessions } from '../../src/profile/catalog/profiles.js';
+import { SemanticRegistry } from '../../src/profile/catalog/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
 
 /** @brief Publish a saved Profile and retain one immutable parent reference. */

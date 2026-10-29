@@ -4,8 +4,8 @@ import assert from 'node:assert/strict';
 import type { Context } from '@deepseek-ai/cordis';
 import type { NamespaceIntegration } from '../../src/integration/namespace_integration.js';
 import { registerSessionProfiles } from '../../src/web/session_profile/routes.js';
-import { SemanticRegistry } from '../../src/registry/registry.js';
-import { ProfileSessions } from '../../src/registry/profiles.js';
+import { SemanticRegistry } from '../../src/profile/catalog/registry.js';
+import { ProfileSessions } from '../../src/profile/catalog/profiles.js';
 import { MemoryStore } from '../../src/storage/store.js';
 
 /** @brief Exercise session selections against real independent Profile registries. */

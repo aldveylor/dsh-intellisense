@@ -1,5 +1,5 @@
 import type { Counter } from '../statistics/statistics.js';
-import type { ProfileReference } from '../registry/profile/snapshot_store.js';
+import type { ProfileReference } from '../profile/snapshot_store.js';
 
 /** @brief Session-owned Profile snapshot and call statistics, without command execution interfaces. */
 export interface AgentSessionAddition {

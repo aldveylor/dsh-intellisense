@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { executionInstructions, namespaceDirectory } from '../../src/namespace/prompt.js';
+import { executionInstructions, namespaceDirectory } from '../../src/profile/namespace/prompt.js';
 
 test('execution guidance selects native named arguments or conversation-scoped async PTC execution', () => {
     const native = executionInstructions('native');

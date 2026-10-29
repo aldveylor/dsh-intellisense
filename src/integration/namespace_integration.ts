@@ -1,31 +1,31 @@
 import type { Intellisense } from './intellisense.js';
-import type { ProfileSnapshot } from '../registry/profile/profile.js';
+import type { ProfileSnapshot } from '../profile/profile.js';
 import { outputSchema } from '../output_schema.js';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
-import * as presentation from '../integration/presentation.js';
+import * as presentation from './presentation.js';
 import type { Position } from '../protocol/events.js';
 import { type Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import { type ScopeKey } from '@deepseek-ai/dsh-scope';
 import '@deepseek-ai/dsh-agent-preset-registry';
-import type { PhysicalTool, SemanticRegistry } from '../registry/registry.js';
-import type { ProfileSessions } from '../registry/profiles.js';
-import { declaration, commandEntries, profileMembers, queryNodes, normalizeInspectQueries, nativeArgumentsFor, resultFor, type Aliases, type CommandEntry } from '../namespace/namespace.js';
+import type { PhysicalTool, SemanticRegistry } from '../profile/catalog/registry.js';
+import type { ProfileSessions } from '../profile/catalog/profiles.js';
+import { declaration, commandEntries, profileMembers, queryNodes, normalizeInspectQueries, nativeArgumentsFor, resultFor, type Aliases, type CommandEntry } from '../profile/namespace/namespace.js';
 import type { AgentSessionAddition } from './agent_session_addition.js';
-import type { ProfileCommand } from '../registry/profile/command.js';
+import type { ProfileCommand } from '../profile/command.js';
 import { inspect } from '../tools/inspect.js';
-import { namespaceDirectory, nativeDirectory, type NamespaceHint } from '../namespace/prompt.js';
+import { namespaceDirectory, nativeDirectory, type NamespaceHint } from '../profile/namespace/prompt.js';
 
-import { type CommandBrief, type Profiles } from '../registry/profile_tree.js';
+import { type CommandBrief, type Profiles } from '../profile/catalog/profile_tree.js';
 import type { z } from 'zod';
 import { registerSearch } from '../tools/tool_search.js';
 import { registerInspect } from '../tools/inspect.js';
 import { registerToolCommands } from '../tools/tool_commands.js';
-import { nativeBindings, nativeDiscovery } from '../namespace/native_tools.js';
+import { nativeBindings, nativeDiscovery } from '../profile/namespace/native_tools.js';
 
 import { createSearchEngines } from '../search/search.js';
-import { NamespaceComponent } from '../namespace/component.js';
+import { NamespaceComponent } from '../profile/component.js';
 
 /** @brief Own Agent session Profiles, discovery, presentation and native execution integration. */
 export class NamespaceIntegration {

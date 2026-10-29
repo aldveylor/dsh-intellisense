@@ -1,7 +1,7 @@
-import { EditableNamespace } from '../../registry/profile/namespace.js';
-import type { ProfileNode } from '../../registry/profile/node.js';
-import type { NamespaceTreeNode, ProfileTreeNode } from '../../registry/profile_node.js';
-import { nodePermissions, type Permission } from '../../namespace/node.js';
+import { EditableNamespace } from '../../profile/namespace.js';
+import type { ProfileNode } from '../../profile/node.js';
+import type { NamespaceTreeNode, ProfileTreeNode } from '../../profile/catalog/profile_node.js';
+import { nodePermissions, type Permission } from '../../profile/namespace/node.js';
 import { ProfilePermissionError } from '../../error.js';
 
 /** @brief Common builtin namespace policy protects its declared direct children and documentation. */

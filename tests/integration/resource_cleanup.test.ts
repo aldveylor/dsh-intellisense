@@ -8,10 +8,10 @@ import { registerManagement } from '../../src/web/server/routes.js';
 import * as presetPlugin from '../../src/preset/index.js';
 import type { KvUnit } from '@deepseek-ai/dsh-storage';
 import { DshStore, MemoryStore } from '../../src/storage/store.js';
-import { ProfileSessions } from '../../src/registry/profiles.js';
-import { SemanticRegistry } from '../../src/registry/registry.js';
-import { declaration, type ManifestEntry } from '../../src/namespace/namespace.js';
-import { nativeBindings } from '../../src/namespace/native_tools.js';
+import { ProfileSessions } from '../../src/profile/catalog/profiles.js';
+import { SemanticRegistry } from '../../src/profile/catalog/registry.js';
+import { declaration, type ManifestEntry } from '../../src/profile/namespace/namespace.js';
+import { nativeBindings } from '../../src/profile/namespace/native_tools.js';
 import { RuntimeHost } from '../../src/runtime/host.js';
 
 test('optional Profile names are omitted and both save overloads retain the Profile', async () => {

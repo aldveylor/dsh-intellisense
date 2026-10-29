@@ -1,5 +1,5 @@
 import type { Context } from '@deepseek-ai/cordis';
-import type { SemanticRegistry } from '../../registry/registry.js';
+import type { SemanticRegistry } from '../../profile/catalog/registry.js';
 import type { NamespaceIntegration } from '../../integration/namespace_integration.js';
 import type { SessionProfileState } from './state.js';
 import { z } from 'zod';

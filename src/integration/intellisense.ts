@@ -1,5 +1,5 @@
 import type { ToolAdditions } from './tool_additions/tool_additions.js';
-import type { ToolsNamespace } from '../namespace/service.js';
+import type { ToolsNamespace } from '../profile/service.js';
 import type { CommandStatistics } from '../statistics/command_statistics.js';
 import type { Statistics } from '../statistics/statistics.js';
 import type { SearchEngineRegistry } from '../search/engine_registry.js';

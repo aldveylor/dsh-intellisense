@@ -20,4 +20,4 @@ Profile 按钮 Tooltip 说明仅切换当前对话配置；模式锁定配置时
 
 会话选择按钮通过独立 TooltipProvider 和 HintButton 使用两行操作提示，首行为配置动作，次行为浅色说明；公共浮层样式随 Provider 注入。
 
-本模块仍由 client.ts 的 conversation.hero.options 插槽及 namespace/plugin.ts 的会话路由注册使用，负责当前对话切换而非全局目录编辑，继续保留。profile_icons.tsx 封装宿主 Profile 图标和受控箭头，统一接收 valid，箭头通过 open 控制旋转，禁用颜色规则由图标自身管理。
+本模块仍由 client.ts 的 conversation.hero.options 插槽及 profile/namespace/plugin.ts 的会话路由注册使用，负责当前对话切换而非全局目录编辑，继续保留。profile_icons.tsx 封装宿主 Profile 图标和受控箭头，统一接收 valid，箭头通过 open 控制旋转，禁用颜色规则由图标自身管理。

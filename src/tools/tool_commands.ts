@@ -1,5 +1,5 @@
 import { ConversationRequiredError, ProfileLockedError, CurrentProfileDeletionError } from '../error.js';
-import { ProfileWriteSchema, validateProfilePatch, type ProfilePatch } from '../registry/profile_write.js';
+import { ProfileWriteSchema, validateProfilePatch, type ProfilePatch } from '../profile/catalog/profile_write.js';
 import { pluginCommands, projectBuiltin } from '../runtime/builtins.js';
 import { writeProfile } from './profile_save.js';
 import { ProfileLock } from './profile_lock.js';
@@ -10,10 +10,10 @@ import type { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
-import type { SemanticRegistry } from '../registry/registry.js';
+import type { SemanticRegistry } from '../profile/catalog/registry.js';
 import type { NamespaceIntegration } from '../integration/namespace_integration.js';
-import type { ProfileSessions } from '../registry/profiles.js';
-import { type CommandBrief, ProfileDocument, profileAnnotation } from '../registry/profile_tree.js';
+import type { ProfileSessions } from '../profile/catalog/profiles.js';
+import { type CommandBrief, ProfileDocument, profileAnnotation } from '../profile/catalog/profile_tree.js';
 
 /** @brief Register Profile management commands and data access. */
 export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, profiles: ProfileSessions, changed: (agent: Agent) => Promise<void>, commands: (agent: Agent) => Promise<CommandBrief[]>, namespace?: NamespaceIntegration): void {

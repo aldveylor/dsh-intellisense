@@ -9,7 +9,7 @@ import { ToolFilter, toolCategories } from './tool_filter/tool_filter.js';
 import { usePickerPreferences } from './session_preferences.js';
 import { ToolLayout } from './tool_layout/tool_layout.js';
 import { ToolDetails } from './tool_details.js';
-import type { Mapping, PhysicalTool } from '../../registry/registry.js';
+import type { Mapping, PhysicalTool } from '../../profile/catalog/registry.js';
 
 /** @brief One tool card with its binding path and shared pointer-following details. */
 function ToolCard({ tool, mappings, builtinPath, calls, queries, busy, select, detailed = false }: {

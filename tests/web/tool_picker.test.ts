@@ -1,5 +1,5 @@
-import { EditableNamespace } from '../../src/registry/profile/namespace.js';
-import { EditableCommand } from '../../src/registry/profile/command.js';
+import { EditableNamespace } from '../../src/profile/namespace.js';
+import { EditableCommand } from '../../src/profile/command.js';
 import { Statistics } from '../../src/statistics/statistics.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,7 +10,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import { registerManagement } from '../../src/web/server/routes.js';
 import { managementHtml } from '../../src/web/server/page.js';
 import { CommandStatistics } from '../../src/statistics/command_statistics.js';
-import { SemanticRegistry } from '../../src/registry/registry.js';
+import { SemanticRegistry } from '../../src/profile/catalog/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
 
 /** @brief Wait for the bundled React UI to commit a browser interaction. */

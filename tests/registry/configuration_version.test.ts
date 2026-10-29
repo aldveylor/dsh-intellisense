@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { SemanticRegistry, type ProfileCatalogData } from '../../src/registry/registry.js';
+import { SemanticRegistry, type ProfileCatalogData } from '../../src/profile/catalog/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
 import { storageVersion } from '../../src/storage/version.js';
 

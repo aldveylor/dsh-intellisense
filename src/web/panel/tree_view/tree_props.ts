@@ -1,5 +1,5 @@
 import type { DragEvent } from 'react';
-import type { Namespace, Mapping, PhysicalTool, CommandVisibility } from '../../../registry/registry.js';
+import type { Namespace, Mapping, PhysicalTool, CommandVisibility } from '../../../profile/catalog/registry.js';
 
 /** @brief Shared namespace tree data and actions for recursively rendered mixed node types. */
 export interface TreeProps {

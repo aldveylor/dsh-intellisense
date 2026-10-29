@@ -10,10 +10,10 @@ import { CommandStatistics } from '../../src/statistics/command_statistics.js';
 import { NamespaceIntegration } from '../../src/integration/namespace_integration.js';
 import { inspectQueryTargets, registerInspect } from '../../src/tools/inspect.js';
 import { RootNamespace } from '../../src/tools/profile_nodes/root_namespace.js';
-import { EditableNamespace } from '../../src/registry/profile/namespace.js';
-import { EditableCommand } from '../../src/registry/profile/command.js';
-import { ProfileReference } from '../../src/registry/profile/snapshot_store.js';
-import { NamespaceDefinitions } from '../../src/namespace/definitions.js';
+import { EditableNamespace } from '../../src/profile/namespace.js';
+import { EditableCommand } from '../../src/profile/command.js';
+import { ProfileReference } from '../../src/profile/snapshot_store.js';
+import { NamespaceDefinitions } from '../../src/profile/namespace/definitions.js';
 import { namespace } from '../namespace/fixtures.js';
 
 test('query targets count normalized occurrences without expanding members or runtime APIs', async () => {

@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { outputSchema } from '../../src/output_schema.js';
-import { commandDeclaration } from '../../src/namespace/command_contract/command_contract.js';
-import { nativeDiscovery } from '../namespace/fixtures.js';
+import { commandDeclaration } from '../../src/profile/namespace/command_contract/command_contract.js';
+import { nativeDiscovery } from './fixtures.js';
 import { returnTypeDeclaration } from '../../src/web/server/return_type.js';
 import { namespace } from './fixtures.js';
 

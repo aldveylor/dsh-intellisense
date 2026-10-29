@@ -1,4 +1,4 @@
-import { nodePermissions, type Node, type NodeType, type Permission, type SerializedNode } from '../../../namespace/node.js';
+import { nodePermissions, type Node, type NodeType, type Permission, type SerializedNode } from '../../../profile/namespace/node.js';
 import type { NamespaceTreeNode } from './namespace_tree_node.js';
 import type { CommandTreeNode } from './command_tree_node.js';
 

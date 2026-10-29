@@ -1,7 +1,7 @@
 import { ImplBuiltinNamespace } from './impl_builtin_namespace.js';
 import { ImplToolsCommand } from './impl_tools_command.js';
-import type { ProfileNode } from '../../registry/profile/node.js';
-import type { NamespaceTreeNode, ProfileTreeNode } from '../../registry/profile_node.js';
+import type { ProfileNode } from '../../profile/node.js';
+import type { NamespaceTreeNode, ProfileTreeNode } from '../../profile/catalog/profile_node.js';
 import { pluginCommands, projectBuiltin } from '../../runtime/builtins.js';
 
 /** @brief Profile management owns a closed set of commands sharing one permission implementation. */

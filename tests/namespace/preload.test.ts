@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { manifest } from '../namespace/fixtures.js';
+import { manifest } from './fixtures.js';
 import { NamespaceIntegration } from '../../src/integration/namespace_integration.js';
-import { SemanticRegistry } from '../../src/registry/registry.js';
+import { SemanticRegistry } from '../../src/profile/catalog/registry.js';
 import { pluginCommands } from '../../src/runtime/builtins.js';
 import { MemoryStore } from '../../src/storage/store.js';
 

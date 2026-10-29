@@ -5,7 +5,7 @@ import { build } from 'esbuild';
 import { JSDOM, VirtualConsole } from 'jsdom';
 import type { Context } from '@deepseek-ai/cordis';
 import { registerManagement } from '../../src/web/server/routes.js';
-import { SemanticRegistry } from '../../src/registry/registry.js';
+import { SemanticRegistry } from '../../src/profile/catalog/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
 
 /** @brief Wait for a browser state transition to commit. */

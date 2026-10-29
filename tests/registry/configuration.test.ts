@@ -2,9 +2,9 @@ import { sessionFor } from './session_fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { RegistryConfiguration, RegistryState, SemanticRegistry } from '../../src/registry/registry.js';
-import type { RegistryStateData } from '../../src/registry/registry.js';
-import { ProfileSessions } from '../../src/registry/profiles.js';
+import { RegistryConfiguration, RegistryState, SemanticRegistry } from '../../src/profile/catalog/registry.js';
+import type { RegistryStateData } from '../../src/profile/catalog/registry.js';
+import { ProfileSessions } from '../../src/profile/catalog/profiles.js';
 import { MemoryStore } from '../../src/storage/store.js';
 
 test('configuration restoration and save detach nested settings in both directions', () => {

@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import { mkdir, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { SemanticRegistry } from '../dist/registry/registry.js';
+import { SemanticRegistry } from '../dist/profile/catalog/registry.js';
 import { MemoryStore } from '../dist/storage/store.js';
 import { registerManagement } from '../dist/web/server/routes.js';
 import { pluginCommands } from '../dist/runtime/builtins.js';

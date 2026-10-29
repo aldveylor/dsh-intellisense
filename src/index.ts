@@ -1,7 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis';
 import { storageBackendServiceKey } from '@deepseek-ai/dsh-storage';
 import { z } from 'zod';
-import * as namespacePlugin from './namespace/plugin.js';
+import * as namespacePlugin from './profile/namespace/plugin.js';
 import { RuntimeConfig } from './runtime/host.js';
 
 export const name = 'dsh-intellisense';
@@ -19,22 +19,22 @@ export async function apply(ctx: Context, options: Config = {}): Promise<void> {
 }
 
 export { RuntimeHost } from './runtime/host.js';
-export { SemanticRegistry, RegistryConfiguration, RegistryState } from './registry/registry.js';
+export { SemanticRegistry, RegistryConfiguration, RegistryState } from './profile/catalog/registry.js';
 export type { Intellisense } from './integration/intellisense.js';
 export type { AgentSessionAddition } from './integration/agent_session_addition.js';
-export { NamespaceComponent } from './namespace/component.js';
-export type { ManifestEntry, CommandEntry, ProfileMember } from './namespace/namespace.js';
-export type { Node, NodeType, Permission, SerializedNode, CommandContract, CommandPresentation } from './namespace/node.js';
-export type { PhysicalTool, Mapping, Namespace, ProfileCatalogData, RegistryConfigurationData, RegistryStateData, PinLevel, CommandVisibility } from './registry/registry.js';
-export type { Profile, ProfileSnapshot, ProfileCollection, ProfileFactory } from './registry/profile/profile.js';
-export type { ProfileNode } from './registry/profile/node.js';
-export type { ProfileNamespace } from './registry/profile/namespace.js';
-export type { ProfileCommand } from './registry/profile/command.js';
+export { NamespaceComponent } from './profile/component.js';
+export type { ManifestEntry, CommandEntry, ProfileMember } from './profile/namespace/namespace.js';
+export type { Node, NodeType, Permission, SerializedNode, CommandContract, CommandPresentation } from './profile/namespace/node.js';
+export type { PhysicalTool, Mapping, Namespace, ProfileCatalogData, RegistryConfigurationData, RegistryStateData, PinLevel, CommandVisibility } from './profile/catalog/registry.js';
+export type { Profile, ProfileSnapshot, ProfileCollection, ProfileFactory } from './profile/profile.js';
+export type { ProfileNode } from './profile/node.js';
+export type { ProfileNamespace } from './profile/namespace.js';
+export type { ProfileCommand } from './profile/command.js';
 export { ToolAdditions } from './integration/tool_additions/tool_additions.js';
 export type { ToolAddition } from './integration/tool_additions/tool_additions.js';
-export { ProfileReference, SnapshotStore } from './registry/profile/snapshot_store.js';
-export type { ToolsNamespace, ProfileSaveEvent, ProfileSaveEffect } from './namespace/service.js';
-export type { ProfileData, Profiles, CommandBrief, CommandName } from './registry/profile_tree.js';
+export { ProfileReference, SnapshotStore } from './profile/snapshot_store.js';
+export type { ToolsNamespace, ProfileSaveEvent, ProfileSaveEffect } from './profile/service.js';
+export type { ProfileData, Profiles, CommandBrief, CommandName } from './profile/catalog/profile_tree.js';
 export type { CommandBinding, ExecutionResult } from './runtime/protocol.js';
 export type { Store } from './storage/store.js';
 export type { Saveable } from './storage/saveable.js';
@@ -47,8 +47,8 @@ export { CommandStatistics } from './statistics/command_statistics.js';
 export { Statistics } from './statistics/statistics.js';
 export type { Counts, Counter } from './statistics/statistics.js';
 
-export { profileWrite } from './registry/profile_write.js';
-export type { ProfileWrite, ProfileRootWrite, ProfilePatch, CommandWrite, NamespaceWrite } from './registry/profile_write.js';
+export { profileWrite } from './profile/catalog/profile_write.js';
+export type { ProfileWrite, ProfileRootWrite, ProfilePatch, CommandWrite, NamespaceWrite } from './profile/catalog/profile_write.js';
 export { ConversationRequiredError, ProfileLockedError, CurrentProfileDeletionError, UnknownCommandError, ZodError, normalizeError, ValidationError, ProfilePermissionError, ProfileNotFoundError, ToolCallError, PositionalArgumentError } from './error.js';
 export type { ErrorData, ErrorIssue } from './error.js';
 

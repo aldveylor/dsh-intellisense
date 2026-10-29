@@ -1,13 +1,13 @@
-import { positionalArguments } from '../namespace/fixtures.js';
+import { positionalArguments } from './fixtures.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import ts from 'typescript';
-import { SemanticRegistry } from '../../src/registry/registry.js';
+import { SemanticRegistry } from '../../src/profile/catalog/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
-import { Aliases, resultFor, declaration } from '../../src/namespace/namespace.js';
-import { manifest } from '../namespace/fixtures.js';
-import { nativeDiscovery } from '../namespace/fixtures.js';
-import { inspect } from '../namespace/fixtures.js';
+import { Aliases, resultFor, declaration } from '../../src/profile/namespace/namespace.js';
+import { manifest } from './fixtures.js';
+import { nativeDiscovery } from './fixtures.js';
+import { inspect } from './fixtures.js';
 
 /** @brief Provide a scoped catalog with preserved native command documentation. */
 async function registry(): Promise<SemanticRegistry> {

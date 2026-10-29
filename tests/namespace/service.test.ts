@@ -1,32 +1,32 @@
 import { sessionFor } from '../registry/session_fixture.js';
 import { NamespaceIntegration } from '../../src/integration/namespace_integration.js';
-import { EditableCommand } from '../../src/registry/profile/command.js';
-import { EditableNamespace } from '../../src/registry/profile/namespace.js';
-import type { ProfileNamespace } from '../../src/registry/profile/namespace.js';
-import type { ProfileCommand } from '../../src/registry/profile/command.js';
+import { EditableCommand } from '../../src/profile/command.js';
+import { EditableNamespace } from '../../src/profile/namespace.js';
+import type { ProfileNamespace } from '../../src/profile/namespace.js';
+import type { ProfileCommand } from '../../src/profile/command.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Context } from '@deepseek-ai/cordis';
-import type { ToolsNamespace } from '../../src/namespace/service.js';
-import { NamespaceComponent } from '../../src/namespace/component.js';
-import { manifest } from '../namespace/fixtures.js';
-import { EditableSnapshot } from '../../src/registry/profile/snapshot.js';
+import type { ToolsNamespace } from '../../src/profile/service.js';
+import { NamespaceComponent } from '../../src/profile/component.js';
+import { manifest } from './fixtures.js';
+import { EditableSnapshot } from '../../src/profile/snapshot.js';
 import { RootNamespace } from '../../src/tools/profile_nodes/root_namespace.js';
 import { ImplToolsNamespace } from '../../src/tools/profile_nodes/impl_tools_namespace.js';
 import { ImplToolsInspectCommand } from '../../src/tools/profile_nodes/impl_tools_inspect_command.js';
-import { SemanticRegistry } from '../../src/registry/registry.js';
-import { ProfileSessions } from '../../src/registry/profiles.js';
-import { profileConfiguration, profileTree } from '../../src/registry/profile_tree.js';
+import { SemanticRegistry } from '../../src/profile/catalog/registry.js';
+import { ProfileSessions } from '../../src/profile/catalog/profiles.js';
+import { profileConfiguration, profileTree } from '../../src/profile/catalog/profile_tree.js';
 import { MemoryStore } from '../../src/storage/store.js';
 
 /** @brief Read the discriminator before narrowing a generic member. */
-function namespaceNode(node: import('../../src/registry/profile/node.js').ProfileNode | undefined): ProfileNamespace {
+function namespaceNode(node: import('../../src/profile/node.js').ProfileNode | undefined): ProfileNamespace {
     assert.equal(node?.type, 'namespace');
     return node as ProfileNamespace;
 }
 
 /** @brief Read the discriminator before narrowing a generic command member. */
-function commandNode(node: import('../../src/registry/profile/node.js').ProfileNode | undefined): ProfileCommand {
+function commandNode(node: import('../../src/profile/node.js').ProfileNode | undefined): ProfileCommand {
     assert.equal(node?.type, 'command');
     return node as ProfileCommand;
 }

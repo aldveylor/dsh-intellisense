@@ -1,7 +1,7 @@
 import { CommandTreeNode } from './command_tree_node.js';
 import type { NamespaceTreeNode } from './namespace_tree_node.js';
 import type { ProvidedCommand } from '../tree_provider.js';
-import type { Permission, SerializedNode } from '../../../namespace/node.js';
+import type { Permission, SerializedNode } from '../../../profile/namespace/node.js';
 
 /** @brief A plugin command retains its contract and shared builtin permissions. */
 export class ProvidedCommandTreeNode extends CommandTreeNode {

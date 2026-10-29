@@ -1,9 +1,9 @@
-import { EditableSnapshot } from '../../registry/profile/snapshot.js';
-import type { ProfileNode } from '../../registry/profile/node.js';
-import type { ProfileData } from '../../registry/profile_tree.js';
-import type { NamespaceTreeNode, ProfileTreeNode } from '../../registry/profile_node.js';
+import { EditableSnapshot } from '../../profile/snapshot.js';
+import type { ProfileNode } from '../../profile/node.js';
+import type { ProfileData } from '../../profile/catalog/profile_tree.js';
+import type { NamespaceTreeNode, ProfileTreeNode } from '../../profile/catalog/profile_node.js';
 import { ImplToolsNamespace } from './impl_tools_namespace.js';
-import { nodePermissions, type Permission } from '../../namespace/node.js';
+import { nodePermissions, type Permission } from '../../profile/namespace/node.js';
 import { ProfilePermissionError } from '../../error.js';
 
 /** @brief Anonymous Profile root owns and protects the tools subtree while ordinary members remain editable. */

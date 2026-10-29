@@ -40,4 +40,4 @@ export function preparePackage(root) {
   return directory;
 }
 
-if (import.meta.main) preparePackage(fileURLToPath(new URL('../../', import.meta.url)));
+if (import.meta.main) preparePackage(fileURLToPath(new URL('../..', import.meta.url)));

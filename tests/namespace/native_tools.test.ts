@@ -1,31 +1,31 @@
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
-import { NamespaceComponent } from '../../src/namespace/component.js';
-import { namespace } from '../namespace/fixtures.js';
+import { NamespaceComponent } from '../../src/profile/component.js';
+import { namespace } from './fixtures.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
-import { nativeBindings } from '../../src/namespace/native_tools.js';
-import { nativeDiscovery } from '../namespace/fixtures.js';
+import { nativeBindings } from '../../src/profile/namespace/native_tools.js';
+import { nativeDiscovery } from './fixtures.js';
 import { NamespaceIntegration } from '../../src/integration/namespace_integration.js';
-import type { ManifestEntry } from '../../src/namespace/namespace.js';
-import { SemanticRegistry } from '../../src/registry/registry.js';
-import { ProfileSessions } from '../../src/registry/profiles.js';
+import type { ManifestEntry } from '../../src/profile/namespace/namespace.js';
+import { SemanticRegistry } from '../../src/profile/catalog/registry.js';
+import { ProfileSessions } from '../../src/profile/catalog/profiles.js';
 import { MemoryStore } from '../../src/storage/store.js';
 
 test('native names satisfy API limits and avoid path and physical name collisions', () => {
     const paths = ['std.cwd', 'std__cwd', 'std.$cwd', 'std._24_cwd', 'std.' + 'a'.repeat(100)];
     const entries = paths.map(path => ({ path, tool: path, doc: '', schema: {}, output: {} }) as ManifestEntry);
     const reserved = ['ns_std__cwd', 'ns_std__cwd_1'];
-    const names = nativeBindings(entries as import('../../src/namespace/namespace.js').CommandEntry[], reserved).map(binding => binding.name);
+    const names = nativeBindings(entries as import('../../src/profile/namespace/namespace.js').CommandEntry[], reserved).map(binding => binding.name);
     assert.equal(new Set(names).size, paths.length);
     assert.equal(names[0], 'ns_std__cwd_2');
     for (const name of names) {
         assert.match(name, /^ns_[a-zA-Z0-9_-]{1,61}$/);
         assert(!reserved.includes(name));
     }
-    assert.deepEqual(nativeBindings(entries as import('../../src/namespace/namespace.js').CommandEntry[], reserved).map(binding => binding.name), names);
+    assert.deepEqual(nativeBindings(entries as import('../../src/profile/namespace/namespace.js').CommandEntry[], reserved).map(binding => binding.name), names);
 });
 
 test('native aliases publish callable names, preserve native arguments and revoke stale handlers', async () => {
@@ -77,7 +77,7 @@ test('native aliases publish callable names, preserve native arguments and revok
 
 test('native discovery shows original documentation only for exact functions', () => {
     const root = namespace([{ path: 'fs.read', tool: 'read_file', doc: 'Read file\nFull file documentation.', schema: {}, output: {} }]);
-    (root.profile.resolve('fs.read') as import('../../src/registry/profile/command.js').ProfileCommand).setDescription('Profile brief');
+    (root.profile.resolve('fs.read') as import('../../src/profile/command.js').ProfileCommand).setDescription('Profile brief');
     for (const queries of [['fs.'], ['fs.read']]) {
         const discovery = JSON.parse(nativeDiscovery(queries, root));
         assert.equal(discovery.members[0].brief, 'Profile brief');
@@ -96,7 +96,7 @@ test('native discovery omits empty namespace, command and Profile briefs', () =>
     }
     const documented = namespace([{ path: 'fs.read', tool: 'read_file', doc: 'Full documentation', schema: {}, output: {} }]);
     for (const brief of ['', '  \n ']) {
-        (documented.profile.resolve('fs.read') as import('../../src/registry/profile/command.js').ProfileCommand).setDescription(brief);
+        (documented.profile.resolve('fs.read') as import('../../src/profile/command.js').ProfileCommand).setDescription(brief);
         const discovery = JSON.parse(nativeDiscovery(['fs.read'], documented));
         assert(!Object.hasOwn(discovery.members[0], 'brief'));
     }

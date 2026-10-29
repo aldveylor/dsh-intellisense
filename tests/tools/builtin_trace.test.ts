@@ -5,10 +5,10 @@ import { defineTool, type ToolDefinition, type ToolRunContext } from '@deepseek-
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
 import type { NamespaceIntegration } from '../../src/integration/namespace_integration.js';
 import { registerToolCommands } from '../../src/tools/tool_commands.js';
-import { SemanticRegistry } from '../../src/registry/registry.js';
-import { ProfileSessions } from '../../src/registry/profiles.js';
-import { profileAnnotation } from '../../src/registry/profile_tree.js';
-import { ProfileWriteSchema } from '../../src/registry/profile_write.js';
+import { SemanticRegistry } from '../../src/profile/catalog/registry.js';
+import { ProfileSessions } from '../../src/profile/catalog/profiles.js';
+import { profileAnnotation } from '../../src/profile/catalog/profile_tree.js';
+import { ProfileWriteSchema } from '../../src/profile/catalog/profile_write.js';
 import { MemoryStore } from '../../src/storage/store.js';
 import { registerBuiltin } from '../../src/tools/builtin_trace.js';
 
