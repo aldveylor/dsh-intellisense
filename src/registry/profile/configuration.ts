@@ -13,7 +13,7 @@ export function editedConfiguration(value: ProfileData, current: RegistryConfigu
     const result = new RegistryConfiguration({ ...current, brief: value.brief, mappings: [], namespaces: [], order: [], builtinVisible: {}, builtinDisabled: [], namespaceVisible: {}, nodeSettings: {} });
     const template = definitions.tree(value.name);
     const select = (node: ProfileTreeNode, defined?: ProfileTreeNode, ownedParent = false): ProfileTreeNode | undefined => {
-        if (node.type === 'command') return ownedParent || defined?.command?.tool === node.command.tool || definitions.addition(node.command.tool).fixed ? structuredClone(node) : undefined;
+        if (node.type === 'command') return ownedParent || defined?.command?.tool === node.command.tool ? structuredClone(node) : undefined;
         const owned = ownedParent || defined?.type === 'namespace';
         const children = Object.fromEntries(Object.entries(node.children ?? {}).flatMap(([name, child]) => {
             const selected = select(child, defined?.children?.[name], owned && !!defined?.children);

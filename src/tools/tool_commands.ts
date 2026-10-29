@@ -35,7 +35,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         const original = catalog.snapshot().profiles?.includes(target) ? catalog.configuration(target) : registry.configuration();
         const root = { ...profile.root, description: profileTree(target, original, catalog.definitions).root.description };
         const configuration = profileConfiguration({ ...profile, root }, original, await commands(agent), catalog.definitions);
-        if (defaultToolsDisabled && profile.root.children?.tools?.disabled !== false
+        if (defaultToolsDisabled && profile.root.children?.tools && profile.root.children.tools.disabled !== false
             && !configuration.builtinDisabled.includes('tools')) configuration.builtinDisabled.push('tools');
         const information = profileSaveInformation(profileTree(target, configuration, catalog.definitions), registry.tools().map(tool => tool.id));
         await catalog.saveProfile(target, configuration);

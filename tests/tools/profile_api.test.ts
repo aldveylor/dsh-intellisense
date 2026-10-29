@@ -709,3 +709,18 @@ test('Profile lock blocks other conversations until persistence completes and ch
     await rejected;
     assert.equal((await read as { brief?: string }).brief, 'Committed');
 });
+
+
+test('agent saves can edit an explicitly empty plugin Profile without restoring builtin nodes', async () => {
+    const { catalog, call, load } = await fixture();
+    await catalog.saveProfile('Empty', { ...catalog.configuration(), providedRoot: { type: 'namespace', children: {} }, builtinVisible: {} }, { trusted: true });
+    const initial = await load({ name: 'Empty' });
+    assert.deepEqual(initial.root.children, {});
+    await call('tools_profile_save', { name: 'Empty', profile: { root: { type: 'namespace', children: {
+        files: { type: 'namespace', children: { read: { type: 'command', command: { tool: 'read_file' }, fixedLevel: 2 } } },
+    } } } });
+    const saved = await load({ name: 'Empty' });
+    assert.equal(saved.root.children!.files.children!.read.command!.tool, 'read_file');
+    assert.equal(saved.root.children!.tools, undefined);
+    assert.deepEqual(catalog.configuration('Empty').builtinDisabled, []);
+});
