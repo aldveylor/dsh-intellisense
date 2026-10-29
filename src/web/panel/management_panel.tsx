@@ -369,7 +369,7 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
         toggle: path => setExpanded(current => ({ ...current, [path]: !(current[path] ?? false) })), dropNode: (event) => nativeDrop(event, treeDropTarget(event.currentTarget, event.clientY)),
     }), [disabledStates, namespaceTree, mappings, namespaces, order, paths, provided, expanded, namespaceVisible, builtinDisabled, toolComments, unmountedVisible, toolsById, view?.tools, view?.callsByTool, view?.queriesByTool, view?.queriesByPath, view?.effective]);
 
-    const inspectWarning = useMemo(() => treeInspectWarning(namespaceTree.roots, tree.disabled, new Set(toolsById.keys())), [namespaceTree, tree, toolsById]);
+    const inspectWarning = useMemo(() => treeInspectWarning(namespaceTree.roots, tree.disabled), [namespaceTree, tree]);
 
     return <div className="ts-intellisense" ref={drag.container} onPointerDownCapture={drag.pointerDown} onDragStartCapture={drag.preventNativeDrag}>
         <style>{styles}</style><TooltipProvider>

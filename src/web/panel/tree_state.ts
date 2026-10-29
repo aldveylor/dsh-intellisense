@@ -1,15 +1,15 @@
 import type { Mapping, Namespace } from '../../profile/catalog/registry.js';
 import type { TreeNode } from './tree_nodes/tree_node.js';
 
-/** @brief Warn only when the enabled draft cannot discover commands and leaves incomplete pins. */
-export function treeInspectWarning(roots: readonly TreeNode[], disabled: (path: string) => boolean, available: ReadonlySet<string>): boolean {
+/** @brief Check draft discovery settings independently of live presentation scopes. */
+export function treeInspectWarning(roots: readonly TreeNode[], disabled: (path: string) => boolean): boolean {
     let inspectAvailable = false;
     let incompletePins = false;
     const visit = (node: TreeNode): void => {
         if (disabled(node.path)) return;
         node.render({
             function: command => {
-                if (command.path === 'tools.inspect') inspectAvailable ||= available.has(command.mapping?.id ?? command.function?.id ?? '');
+                if (command.path === 'tools.inspect') inspectAvailable ||= !!(command.mapping?.id ?? command.function?.id);
                 else if (command.level !== 2) incompletePins = true;
             },
             namespace: namespace => namespace.children.forEach(visit),

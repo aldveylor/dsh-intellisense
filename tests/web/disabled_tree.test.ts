@@ -15,9 +15,9 @@ async function until(predicate: () => boolean): Promise<void> {
     assert(predicate(), 'Expected disabled tree transition');
 }
 
-test('disable controls retain visible nodes, precede deletion and save command and namespace state', async () => {
+test('draft inspect state controls warnings without requiring a live presentation tool catalog', async () => {
     const registry = new SemanticRegistry(new MemoryStore());
-    registry.refresh([{ id: 'tools_inspect', description: 'Inspect commands', parameters: {}, output: {} }, { id: 'read', description: 'Read document', parameters: { type: 'object' }, output: { type: 'string' } }]);
+    registry.refresh([{ id: 'read', description: 'Read document', parameters: { type: 'object' }, output: { type: 'string' } }]);
     await registry.configure([
         { id: 'read', path: 'files.read', pinned: false },
         { id: 'read', path: 'files.nested.read', pinned: false },
@@ -42,7 +42,7 @@ test('disable controls retain visible nodes, precede deletion and save command a
         dom.window.eval(result.outputFiles[0]!.text);
         await until(() => !!document.querySelector('[data-namespace-path="files"] .ts-disclosure'));
         const warning = (): Element | null => document.querySelector('.ts-inspect-warning');
-        assert.equal(warning(), null);
+        assert(warning() === null, 'Enabled draft inspect must not depend on a live presentation scope');
         click('[data-namespace-path="tools"] .ts-disclosure');
         await until(() => !!document.querySelector('[data-tree-path="tools.inspect"] .ts-disable'));
         click('[data-tree-path="tools.inspect"] .ts-disable');

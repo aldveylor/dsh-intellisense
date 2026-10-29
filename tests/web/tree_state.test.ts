@@ -6,8 +6,7 @@ import { inNamespace } from '../../src/web/panel/namespace_tree.js';
 import { TreeProvider } from '../../src/web/panel/tree_provider.js';
 import { createNamespace } from '../namespace/fixtures.js';
 
-test('inspect warning resolves physical identities for both provided and mapped commands', () => {
-    const available = new Set(['tools_inspect', 'read']);
+test('inspect warning checks provided and mapped draft commands independently of physical tools', () => {
     const mappings = [{ id: 'read', path: 'files.read', pinned: false }];
     const provided = TreeProvider([...createNamespace({ tools: [], includeUnavailable: true }).children.values()].map(node => node.serialize()));
     const trees = [
@@ -15,21 +14,20 @@ test('inspect warning resolves physical identities for both provided and mapped 
         new NamespaceTree({ namespaces: [], mappings: [...mappings, { id: 'tools_inspect', path: 'tools.inspect', pinned: false, alwaysVisible: 2 }], order: [] }, [], []),
     ];
     for (const tree of trees) {
-        const warning = (disabled: string[] = [], tools = available): boolean => {
+        const warning = (disabled: string[] = []): boolean => {
             const states = treeDisabledState(tree.roots, disabled, [], []);
-            return treeInspectWarning(tree.roots, path => states.get(path)?.disabled ?? false, tools);
+            return treeInspectWarning(tree.roots, path => states.get(path)?.disabled ?? false);
         };
         assert.equal(warning(), false);
         assert.equal(warning(['tools.inspect']), true);
         assert.equal(warning(['tools']), true);
-        assert.equal(warning([], new Set(['read'])), true);
         assert.equal(warning(), false);
     }
     const fixedMappings = [...mappings.map(mapping => ({ ...mapping, alwaysVisible: 2 as const })),
         { id: 'read', path: 'files.hidden', pinned: false, disabled: true }];
     const tree = new NamespaceTree({ namespaces: [], mappings: fixedMappings, order: [] }, [], []);
     const states = treeDisabledState(tree.roots, [], [], fixedMappings);
-    assert.equal(treeInspectWarning(tree.roots, path => states.get(path)?.disabled ?? false, available), false);
+    assert.equal(treeInspectWarning(tree.roots, path => states.get(path)?.disabled ?? false), false);
 });
 
 test('indexed disable flags preserve ancestor, own command and provided node rules', () => {
