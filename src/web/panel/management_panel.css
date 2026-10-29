@@ -56,7 +56,8 @@
 .ts-tree-tool,.ts-node-block{transition:border-color .2s ease,color .24s ease,background-color .24s ease}
 .ts-tree-children{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .22s ease,opacity .22s ease}
 .ts-tree-children>ul{min-height:0;overflow:hidden;margin-top:0;margin-bottom:0;padding-left:var(--ts-tree-indent,41px)}
-.ts-tree-children>ul>li{position:relative;display:flow-root}
+.ts-tree-children>ul>li{position:relative}
+.ts-tree-children>ul>li:where(:not(.ts-tree-tool)){display:flow-root}
 .ts-tree-children>ul>li::before,.ts-tree-children>ul>li::after{content:'';position:absolute;pointer-events:none;border-color:var(--ts-border);border-style:dashed;border-width:0}
 .ts-tree-children>ul>li::before{left:calc(var(--ts-tree-indent,41px) / -2);top:0;bottom:0;border-left-width:1px}
 .ts-tree-children>ul>li::after{left:calc(var(--ts-tree-indent,41px) / -2);top:33px;width:calc(var(--ts-tree-indent,41px) / 2);border-top-width:1px}
