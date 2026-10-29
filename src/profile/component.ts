@@ -3,19 +3,27 @@ import { PlaneProfile } from './plane/profile.js';
 import { toPlaneProfile } from './plane/to_plane_profile.js';
 import type { ProfileEditOptions, ProfileSaveEffect, ToolsNamespace } from './service.js';
 import type { Context } from '@deepseek-ai/cordis';
+import { RegistryPlaneEditor, type PlaneProfileEditor } from './plane/editor.js';
 import type { SemanticRegistry } from './catalog/registry.js';
 
 /** @brief Shared named Profile collection without command queries or execution state. */
 export class NamespaceComponent implements ToolsNamespace {
-    constructor(private ctx: Context, readonly registry: SemanticRegistry) {}
+    readonly editor: PlaneProfileEditor;
+
+    constructor(private ctx: Context, private readonly registry: SemanticRegistry, private readonly load: (recover?: boolean) => Promise<void> = () => Promise.resolve()) {
+        this.editor = new RegistryPlaneEditor(registry, () => this.initialize());
+    }
+
+    initialize(recover = false): Promise<void> { return this.load(recover); }
 
     get revision(): string { return `${this.registry.revision}:${this.registry.definitions.revision}`; }
 
     /** @brief Read the shared default and catalog names. */
-    async selection() { return this.registry.profileSelection(); }
+    async selection() { await this.initialize(); return this.registry.profileSelection(); }
 
     /** @brief Change the default in the shared edit transaction. */
     async setDefault(name: string): Promise<void> {
+        await this.initialize();
         await this.registry.profileTransaction(() => this.registry.manageProfile('select', name, this.registry.revision));
     }
 
@@ -23,13 +31,13 @@ export class NamespaceComponent implements ToolsNamespace {
     setAliases(aliases: readonly { path: string; tool: string }[]): void { this.registry.setAliases(aliases); }
 
     /** @brief Read a current immutable version. */
-    reference(name?: string): Promise<ProfileVersion> { return this.registry.reference(name); }
+    async reference(name?: string): Promise<ProfileVersion> { await this.initialize(); return this.registry.reference(name); }
 
     /** @brief Restore an archived version without consulting the current catalog. */
-    restore(pointer: number): Promise<ProfileVersion> { return this.registry.snapshots.get(pointer); }
+    async restore(pointer: number): Promise<ProfileVersion> { await this.initialize(); return this.registry.snapshots.get(pointer); }
 
     /** @brief Archive and publish a holder atomically through the Profile backend. */
-    retain<T>(reference: ProfileVersion, publish: (reference: ProfileVersion) => Promise<T>): Promise<T> { return this.registry.snapshots.use(reference, publish); }
+    async retain<T>(reference: ProfileVersion, publish: (reference: ProfileVersion) => Promise<T>): Promise<T> { await this.initialize(); return this.registry.snapshots.use(reference, publish); }
 
     /** @brief The collection's constructor creates the default typed tree and rehydrates stored Profiles. */
     get createInitialProfile(): ProfileFactory { return this.registry.definitions.createInitialProfile; }
@@ -41,28 +49,33 @@ export class NamespaceComponent implements ToolsNamespace {
 
     /** @brief List only catalog names without copying Profile trees. */
     async list(): Promise<string[]> {
+        await this.initialize();
         return this.registry.profileSelection().profiles;
     }
 
     /** @brief Read an anonymous, independently editable snapshot without publishing changes. */
     async get(name: string): Promise<ProfileSnapshot | undefined> {
+        await this.initialize();
         const registry = this.registry;
         if (!registry.profileSelection().profiles.includes(name)) return undefined;
         return (await registry.reference(name)).snapshot;
     }
 
     /** @brief Create a Profile using the collection factory and return its independent anonymous snapshot. */
-    create(name: string): Promise<ProfileSnapshot> {
+    async create(name: string): Promise<ProfileSnapshot> {
+        await this.initialize();
         return this.registry.profileTransaction(() => this.createProfile(name));
     }
 
     /** @brief Serialize concurrent get-or-create operations under the collection transaction. */
-    getOrCreate(name: string): Promise<ProfileSnapshot> {
+    async getOrCreate(name: string): Promise<ProfileSnapshot> {
+        await this.initialize();
         return this.registry.profileTransaction(async () => await this.get(name) ?? this.createProfile(name));
     }
 
     /** @brief Remove a catalog entry in submission order using the registry's deletion rules. */
-    remove(name: string): Promise<void> {
+    async remove(name: string): Promise<void> {
+        await this.initialize();
         return this.registry.profileTransaction(async () => {
             await this.registry.manageProfile('delete', name, this.registry.revision);
             this.ctx.emit('system-prompt/change');
@@ -71,6 +84,7 @@ export class NamespaceComponent implements ToolsNamespace {
 
     /** @brief Publish only the callback result, preserving current data when the callback fails. */
     async edit(name: string, modifier: (snapshot: ProfileSnapshot) => ProfileSnapshot, options: ProfileEditOptions = {}): Promise<ProfileSnapshot> {
+        await this.initialize();
         const saved = await this.registry.profileTransaction(async () => {
             const registry = this.registry;
             const exists = registry.profileSelection().profiles.includes(name);

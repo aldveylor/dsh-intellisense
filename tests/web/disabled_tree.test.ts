@@ -1,3 +1,4 @@
+import { NamespaceComponent } from '../../src/profile/component.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -23,7 +24,7 @@ test('disable controls retain visible nodes, precede deletion and save command a
     ], 0, [{ path: 'files', description: 'Files', alwaysVisible: false }, { path: 'files.nested', description: '', alwaysVisible: false }]);
     const routes = new Map<string, (request: Request) => Promise<Response>>();
     const ctx = { connection: { fetch: { register: (route: { path: string; fetch: (request: Request) => Promise<Response> }) => routes.set(route.path, route.fetch) } }, emit: () => {} } as unknown as Context;
-    registerManagement(ctx, registry, { refresh: async () => {} });
+    registerManagement(ctx, new NamespaceComponent(ctx, registry, recover => registry.load(recover)), { catalog: registry, refresh: async () => {} });
     const result = await build({ stdin: { resolveDir: process.cwd(), loader: 'tsx', contents: `
         import { createRoot } from 'react-dom/client';
         import { ManagementPanel } from './src/web/panel/management_panel.js';

@@ -10,7 +10,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent';
 import { type ScopeKey } from '@deepseek-ai/dsh-scope';
 import '@deepseek-ai/dsh-agent-preset-registry';
 import type { PhysicalTool } from '../profile/catalog/registry.js';
-import type { ProfileSessions } from '../profile/catalog/profiles.js';
+import type { ProfileSessionCollection } from '../profile/session.js';
 import { declaration, commandEntries, profileMembers, queryNodes, normalizeInspectQueries, nativeArgumentsFor, resultFor, type Aliases, type CommandEntry } from '../profile/namespace/namespace.js';
 import type { AgentSessionAddition } from './agent_session_addition.js';
 import type { ProfileCommand } from '../profile/command.js';
@@ -42,7 +42,7 @@ export class NamespaceIntegration {
     private catalogRevision = 0;
     private get catalogVersion(): string { return `${this.catalogRevision}:${this.namespace.revision}:${this.catalog.toolAdditions.revision}`; }
 
-    constructor(private ctx: Context, readonly namespace: ToolsNamespace, readonly catalog: ToolCatalog, readonly profiles: ProfileSessions, aliases: z.infer<typeof Aliases> = [], readonly searchEngines = createSearchEngines(), readonly statistics = profiles.statistics, readonly inspectStatistics = profiles.inspectStatistics) {
+    constructor(private ctx: Context, readonly namespace: ToolsNamespace, readonly catalog: ToolCatalog, readonly profiles: ProfileSessionCollection, aliases: z.infer<typeof Aliases> = [], readonly searchEngines = createSearchEngines(), readonly statistics = profiles.statistics, readonly inspectStatistics = profiles.inspectStatistics) {
         this.namespace.setAliases(aliases);
         this.intellisense = { profiles: namespace, toolAdditions: this.catalog.toolAdditions, statistics, inspectStatistics, searchEngines };
         ctx.effect(() => async () => { await Promise.all([...new Set([...this.nativeTools.keys(), ...this.positions.keys(), ...this.discovered.keys()])].map(id => this.release(id))); await this.statistics.dispose(); await this.inspectStatistics.dispose(); });

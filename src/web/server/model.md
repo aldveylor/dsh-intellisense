@@ -24,3 +24,5 @@ POST action=recover 在既有认证入口执行显式局部恢复，不受目录
 GET ts-intellisense-docs-image 为内置使用文档提供 README 同源截图，复用原生认证入口；严格限制 language 为 en/zh，name 为 namespace_table/tools/tooltip，非法查询或不存在文件返回 404，返回 image/png 与 nosniff，不接受任意文件路径。
 
 文档图片枚举增加 profile_editor、namespace_tree、new_conversation；仅允许固定图片名称与 en/zh 语言组合，仍不接受任意文件路径。
+
+Profile 与 namespace 的管理操作统一调用 toolsNamespace.editor 的 PlaneProfileEditor 接口；物理工具目录通过独立 ToolCatalog 传入。缓存代际由 Profile 服务 revision 与物理目录 generation 共同构成，不依赖具体注册器。

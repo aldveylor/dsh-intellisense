@@ -363,6 +363,8 @@ test('integration accepts a portable namespace service without exposing its regi
     const { registry, component } = fixture();
     const ctx = new Context();
     const service: ToolsNamespace = {
+        editor: component.editor,
+        initialize: recover => component.initialize(recover),
         get revision() { return component.revision; },
         selection: () => component.selection(),
         setDefault: name => component.setDefault(name),

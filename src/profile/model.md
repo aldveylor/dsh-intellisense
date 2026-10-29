@@ -14,4 +14,8 @@ SnapshotStore 为全局修改分配递增数值指针，当前具名版本保存
 
 AgentSessionAddition.profile 为只读 ProfileReference，name 为独立选择信息。switch 复用全局当前指针，在共享锁内执行存在性检查、首次归档与会话引用持久化；相同指针只归档一次，失败保留原会话引用。save/apply 工具始终修改全局目标，当前会话内容与指针不变。
 
-ToolsNamespace 统一提供 selection/setDefault、具名集合编辑、setAliases、reference/restore/retain 版本读取与归档及保存事件。edit 的 initial 只初始化缺失目标，event 在提交后且事务释放后通知。ProfileVersion 是只读版本接口，持久化类 ProfileReference 实现它。Agent、会话引用和选择器不直接访问 SemanticRegistry；集成层只通过 ToolCatalog 读取和刷新物理工具。
+ToolsNamespace 统一提供 editor 平面管理接口、initialize/revision、selection/setDefault、具名集合编辑、setAliases、reference/restore/retain 版本读取与归档及保存事件。edit 的 initial 只初始化缺失目标，event 在提交后且事务释放后通知。ProfileVersion 是只读版本接口，持久化类 ProfileReference 实现它。Agent、会话引用和选择器不直接访问 SemanticRegistry；集成层只通过 ToolCatalog 读取和刷新物理工具。
+
+plugin.ts 仅装配 Profile 存储与 toolsNamespace，服务首次读取时独立加载数据，不依赖工具、Agent、统计或 UI 初始化。integration/plugin.ts 负责后续执行和界面集成，卸载它不销毁独立挂载的 Profile 服务。原 namespace 目录不再保留装配入口。session.ts 的 ProfileSessionCollection 为会话引用管理的消费接口。
+
+管理 UI 经 toolsNamespace.editor 的 PlaneProfileEditor 读取平面状态、提供方节点和目录说明，并执行配置/目录操作；不直接依赖 SemanticRegistry 或 NamespaceDefinitions。底层存储通过内部 intellisenseStorage 基础设施共享，不暴露 Profile 业务方法。ctx.intellisense 继续独立提供工具属性、搜索和统计，toolsNamespace 不吸收这些能力。

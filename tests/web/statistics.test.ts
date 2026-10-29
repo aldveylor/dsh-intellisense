@@ -1,3 +1,4 @@
+import { NamespaceComponent } from '../../src/profile/component.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Context } from '@deepseek-ai/cordis';
@@ -21,7 +22,7 @@ test('management reads selected Profile paths while sharing tool counters', asyn
     await inspectStatistics.increment('Other', ['std', 'std', 'files.read']);
     const routes = new Map<string, (request: Request) => Promise<Response>>();
     const ctx = { connection: { fetch: { register: (route: { path: string; fetch: (request: Request) => Promise<Response> }) => routes.set(route.path, route.fetch) } } } as unknown as Context;
-    registerManagement(ctx, registry, { refresh: async () => {}, statistics, inspectStatistics });
+    registerManagement(ctx, new NamespaceComponent(ctx, registry, recover => registry.load(recover)), { catalog: registry, refresh: async () => {}, statistics, inspectStatistics });
     const route = routes.get('/api/ts-intellisense-state')!;
     for (const [name, expected] of [[first, { std: 1, 'std.read': 1 }], ['Other', { std: 2, 'files.read': 1 }]] as const) {
         const response = await route(new Request(`https://localhost/api/ts-intellisense-state?profile=${encodeURIComponent(name)}`));

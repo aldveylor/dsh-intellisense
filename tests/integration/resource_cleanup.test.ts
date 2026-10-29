@@ -86,7 +86,7 @@ test('management rejects malformed writes and requires an explicit complete save
     const routes = new Map<string, (request: Request) => Promise<Response>>();
     const ctx = { connection: { fetch: { register: (route: { path: string; fetch: (request: Request) => Promise<Response> }) => routes.set(route.path, route.fetch) } }, emit: () => {} } as unknown as Context;
     const registry = new SemanticRegistry(new MemoryStore());
-    registerManagement(ctx, registry, { refresh: async () => {} });
+    registerManagement(ctx, new NamespaceComponent(ctx, registry, recover => registry.load(recover)), { catalog: registry, refresh: async () => {} });
     const post = (body: string) => routes.get('/api/ts-intellisense-state')!(new Request('https://localhost/api/ts-intellisense-state', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body }));
     const malformed = await post('{');
     assert.equal(malformed.status, 400);
@@ -135,7 +135,7 @@ test('management reuses one tool projection until the registry contract changes'
     const tools = registry.tools.bind(registry);
     let reads = 0;
     registry.tools = () => { reads++; return tools(); };
-    registerManagement(ctx, registry, { refresh: async () => {} });
+    registerManagement(ctx, new NamespaceComponent(ctx, registry, recover => registry.load(recover)), { catalog: registry, refresh: async () => {} });
     const get = () => routes.get('/api/ts-intellisense-state')!(new Request('https://localhost/api/ts-intellisense-state'));
     const first = await (await get()).json();
     assert.equal(reads, 1);

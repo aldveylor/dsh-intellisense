@@ -1,6 +1,7 @@
 import { Statistics } from '../../statistics/statistics.js';
 import { CommandStatistics } from '../../statistics/command_statistics.js';
 import { createHash } from 'node:crypto';
+import type { ProfileSessionCollection } from '../session.js';
 import type { ToolsNamespace } from '../service.js';
 import type { ProfileVersion } from '../profile.js';
 import type { AgentSessionAddition } from '../../integration/agent_session_addition.js';
@@ -8,7 +9,7 @@ import type { Session } from '@deepseek-ai/dsh-session';
 import type { Store } from '../../storage/store.js';
 
 /** @brief Persist session references without copying Profiles or constructing session registries. */
-export class ProfileSessions {
+export class ProfileSessions implements ProfileSessionCollection {
     private replacements = new WeakMap<AgentSessionAddition, (name: string, reference: ProfileVersion) => void>();
     private opening = new WeakMap<Session, Promise<AgentSessionAddition>>();
     private writes = new WeakMap<AgentSessionAddition, Promise<unknown>>();

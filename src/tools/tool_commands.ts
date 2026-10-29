@@ -13,11 +13,11 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import type { ToolsNamespace } from '../profile/service.js';
 import { readProfile } from './profile_data.js';
 import type { NamespaceIntegration } from '../integration/namespace_integration.js';
-import type { ProfileSessions } from '../profile/catalog/profiles.js';
+import type { ProfileSessionCollection } from '../profile/session.js';
 import { type CommandBrief, profileAnnotation } from '../profile/catalog/profile_tree.js';
 
 /** @brief Register Profile management commands and data access. */
-export function registerToolCommands(ctx: Context, catalog: ToolsNamespace, profiles: ProfileSessions, changed: (agent: Agent) => Promise<void>, commands: (agent: Agent) => Promise<CommandBrief[]>, namespace?: NamespaceIntegration): void {
+export function registerToolCommands(ctx: Context, catalog: ToolsNamespace, profiles: ProfileSessionCollection, changed: (agent: Agent) => Promise<void>, commands: (agent: Agent) => Promise<CommandBrief[]>, namespace?: NamespaceIntegration): void {
     /** @brief Resolve mode-specific comments in the registration scope. */
     const contract = (tool: string) => projectBuiltin(pluginCommands.find(tool)!, 'native');
     const lock = new ProfileLock();

@@ -373,14 +373,14 @@ export class SemanticRegistry {
         return settingsAt(this.state.nodeSettings, path.split('.'))?.description ?? this.state.mappings.find(mapping => mapping.path === path && mapping.id === tool)?.description ?? this.state.toolComments?.[tool];
     }
 
-    effective(): Array<Mapping & { tool: PhysicalTool }> {
+    effective(tools: readonly PhysicalTool[] = [...this.physical.values()]): Array<Mapping & { tool: PhysicalTool }> {
         const byId = new Map<string, Mapping[]>();
         for (const mapping of this.state.mappings) {
             const group = byId.get(mapping.id);
             if (group) group.push(mapping);
             else byId.set(mapping.id, [mapping]);
         }
-        return [...this.physical.values()].flatMap(tool => {
+        return tools.flatMap(tool => {
             const mappings = byId.get(tool.id) ?? [];
             return (mappings.length ? mappings : [{ id: tool.id,
                 path: `tools.${tool.id.startsWith('tools_') ? tool.id.slice(6) : toolName(tool.id)}`,

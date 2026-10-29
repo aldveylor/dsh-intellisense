@@ -1,3 +1,4 @@
+import { NamespaceComponent } from '../../src/profile/component.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { registerManagement } from '../../src/web/server/routes.js';
 import { createNamespace } from '../namespace/fixtures.js';
@@ -16,7 +17,7 @@ import { managementHtml } from '../../src/web/server/page.js';
 function managementFetch(registry: SemanticRegistry) {
     const routes = new Map<string, (request: Request) => Promise<Response>>();
     const ctx = { connection: { fetch: { register: (route: { path: string; fetch: (request: Request) => Promise<Response> }) => routes.set(route.path, route.fetch) } }, emit: () => {} } as unknown as Context;
-    registerManagement(ctx, registry, { refresh: async () => {} });
+    registerManagement(ctx, new NamespaceComponent(ctx, registry, recover => registry.load(recover)), { catalog: registry, refresh: async () => {} });
     return async (url: unknown, init?: RequestInit): Promise<Response> => routes.get('/api/ts-intellisense-state')!(new Request(new URL(String(url), 'http://localhost'), { ...init, signal: undefined }));
 }
 

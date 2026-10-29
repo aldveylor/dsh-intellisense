@@ -4,7 +4,7 @@
 
 ## 全局配置与会话引用
 
-`profile/service.ts` 定义 ToolsNamespace，`profile/component.ts` 实现服务；节点位于 `profile/`，目录与持久化适配器位于 `profile/catalog/`，命名空间投影及装配位于 `profile/namespace/`。
+`profile/service.ts` 定义 ToolsNamespace，`profile/component.ts` 实现服务，`profile/plugin.ts` 独立装配 Profile 存储与服务；节点位于 `profile/`，目录与持久化适配器位于 `profile/catalog/`，命名空间投影位于 `profile/namespace/`，装配位于 `integration/plugin.ts`。
 
 `ctx.toolsNamespace` 管理共享具名 Profile 及保存事件；`ctx.intellisense.profiles` 指向同一服务。Profile/ProfileSnapshot 是匿名的原始节点树，节点使用 namespace/command 类型。默认工厂创建 RootNamespace 及具体内置命令类；克隆和恢复保留工厂声明的实际原型。节点类负责权限、校验和修改策略。
 

@@ -1,3 +1,4 @@
+import { NamespaceComponent } from '../../src/profile/component.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -13,7 +14,8 @@ import { MemoryStore } from '../../src/storage/store.js';
 function fixture() {
     const routes = new Map<string, (request: Request) => Promise<Response>>();
     const ctx = { connection: { fetch: { register: (route: { path: string; fetch: (request: Request) => Promise<Response> }) => routes.set(route.path, route.fetch) } } } as unknown as Context;
-    registerManagement(ctx, new SemanticRegistry(new MemoryStore()), { refresh: async () => {} });
+    const registry = new SemanticRegistry(new MemoryStore());
+    registerManagement(ctx, new NamespaceComponent(ctx, registry, recover => registry.load(recover)), { catalog: registry, refresh: async () => {} });
     return routes;
 }
 

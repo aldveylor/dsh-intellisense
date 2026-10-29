@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Context } from '@deepseek-ai/cordis';
-import { apply } from '../../src/profile/namespace/plugin.js';
+import { apply } from '../../src/integration/plugin.js';
+import { apply as applyProfiles } from '../../src/profile/plugin.js';
 import { storageVersion } from '../../src/storage/version.js';
 
 test('startup loading failures keep management available and reset replaces obsolete Profile storage', async () => {
@@ -27,6 +28,7 @@ test('startup loading failures keep management available and reset replaces obso
         agents: { list: () => [] }, tools: { schemas: () => [] },
         provide: (name: string, value: unknown) => { Object.assign(ctx, { [name]: value }); },
     } as unknown as Context;
+    await applyProfiles(ctx);
     await apply(ctx);
     assert.equal(warnings.length, 1);
     assert.deepEqual(descriptors, [{ name: 'ts_intellisense', version: storageVersion, compatibleVersions: [1, 2], tables: ['state'], hasGlobal: false, layout: 'per-record' }, { name: 'intellisense_profile_snapshots', version: 1, tables: ['state'], hasGlobal: false, layout: 'per-record' }]);
@@ -89,6 +91,7 @@ test('plugin teardown flushes delayed statistics before closing their storage ba
         agents: { list: () => [] }, tools: { schemas: () => [] },
         provide: (name: string, value: unknown) => { Object.assign(ctx, { [name]: value }); },
     } as unknown as Context;
+    await applyProfiles(ctx);
     await apply(ctx);
     assert.strictEqual(ctx.intellisense.profiles, ctx.toolsNamespace);
     assert.strictEqual(ctx.intellisense.statistics, ctx.namespaceIntegration.statistics);

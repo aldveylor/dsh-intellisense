@@ -1,3 +1,4 @@
+import { NamespaceComponent } from '../../src/profile/component.js';
 import { EditableNamespace } from '../../src/profile/namespace.js';
 import { EditableCommand } from '../../src/profile/command.js';
 import { Statistics } from '../../src/statistics/statistics.js';
@@ -38,7 +39,7 @@ test('picker and namespace details show global call and query counts', async () 
     await inspectStatistics.increment(registry.profileSelection().selected, ['std.alpha', 'other.alpha', 'std.beta', 'std.beta', 'tools', 'tools']);
     const routes = new Map<string, (request: Request) => Promise<Response>>();
     const ctx = { connection: { fetch: { register: (route: { path: string; fetch: (request: Request) => Promise<Response> }) => routes.set(route.path, route.fetch) } } } as unknown as Context;
-    registerManagement(ctx, registry, { refresh: async () => {}, statistics, inspectStatistics });
+    registerManagement(ctx, new NamespaceComponent(ctx, registry, recover => registry.load(recover)), { catalog: registry, refresh: async () => {}, statistics, inspectStatistics });
     const dom = new JSDOM(managementHtml, { url: 'http://localhost/api/ts-intellisense', runScripts: 'outside-only', pretendToBeVisual: true });
     try {
         const { window } = dom;
@@ -187,7 +188,7 @@ test('tool category filter combines selections and keeps the picker open on Esca
     registry.refresh(['zebra', 'alpha', 'beta'].map(id => ({ id, description: id, parameters: { type: 'object' }, output: { type: 'string' } })));
     const routes = new Map<string, (request: Request) => Promise<Response>>();
     const ctx = { connection: { fetch: { register: (route: { path: string; fetch: (request: Request) => Promise<Response> }) => routes.set(route.path, route.fetch) } } } as unknown as Context;
-    registerManagement(ctx, registry, { refresh: async () => {} });
+    registerManagement(ctx, new NamespaceComponent(ctx, registry, recover => registry.load(recover)), { catalog: registry, refresh: async () => {} });
     const dom = new JSDOM(managementHtml, { url: 'http://localhost/api/ts-intellisense', runScripts: 'outside-only', pretendToBeVisual: true });
     try {
         const { window } = dom;
@@ -252,7 +253,7 @@ test('tool metadata hides private tools while concrete nodes identify fixed tool
     registry.toolAdditions.set('hidden_custom', { hidden: true });
     const routes = new Map<string, (request: Request) => Promise<Response>>();
     const ctx = { connection: { fetch: { register: (route: { path: string; fetch: (request: Request) => Promise<Response> }) => routes.set(route.path, route.fetch) } } } as unknown as Context;
-    registerManagement(ctx, registry, { refresh: async () => {} });
+    registerManagement(ctx, new NamespaceComponent(ctx, registry, recover => registry.load(recover)), { catalog: registry, refresh: async () => {} });
     const dom = new JSDOM(managementHtml, { url: 'http://localhost/api/ts-intellisense', runScripts: 'outside-only', pretendToBeVisual: true });
     try {
         const { window } = dom;

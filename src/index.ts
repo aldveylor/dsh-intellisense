@@ -1,7 +1,8 @@
 import type { Context } from '@deepseek-ai/cordis';
 import { storageBackendServiceKey } from '@deepseek-ai/dsh-storage';
 import { z } from 'zod';
-import * as namespacePlugin from './profile/namespace/plugin.js';
+import * as profilesPlugin from './profile/plugin.js';
+import * as integrationPlugin from './integration/plugin.js';
 import { RuntimeConfig } from './runtime/host.js';
 
 export const name = 'dsh-intellisense';
@@ -15,7 +16,8 @@ export type Config = z.input<typeof Config>;
 export async function apply(ctx: Context, options: Config = {}): Promise<void> {
     const { aliasesFile, defaultSearchMethod, ...runtimeOptions } = Config.parse(options);
     ctx.provide('codeRuntimeOptions', runtimeOptions);
-    await ctx.plugin(namespacePlugin, { aliasesFile, defaultSearchMethod });
+    await ctx.plugin(profilesPlugin);
+    await ctx.plugin(integrationPlugin, { aliasesFile, defaultSearchMethod });
 }
 
 export { RuntimeHost } from './runtime/host.js';
@@ -63,3 +65,6 @@ export { ImplToolsInspectCommand } from './tools/profile_nodes/impl_tools_inspec
 
 export type { ToolCatalog } from './integration/tool_catalog.js';
 export { applyProfile } from './profile/edit.js';
+export { profilesPlugin as profilePlugin };
+export type { ProfileSessionCollection } from './profile/session.js';
+export type { PlaneProfileEditor, PlaneProfileEdit } from './profile/plane/editor.js';

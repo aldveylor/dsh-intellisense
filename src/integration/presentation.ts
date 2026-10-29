@@ -2,7 +2,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import { scopeChainOf, scopeOf, type ScopeKey } from '@deepseek-ai/dsh-scope';
 import { z } from 'zod';
 import '@deepseek-ai/dsh-tools';
-import type {} from '../profile/namespace/plugin.js';
+import type {} from './plugin.js';
 import { NamespaceRuntime } from '../profile/namespace/runtime.js';
 
 export const name = 'intellisense-presentation';

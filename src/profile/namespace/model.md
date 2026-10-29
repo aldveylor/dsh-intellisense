@@ -6,6 +6,6 @@ namespace.ts 的 profileMembers/queryNodes 直接遍历 ProfileNode 或调用 Pr
 
 不存在 manifest/createNamespace 或服务端 NamespaceNode/CommandNode 语义树。ProfileSnapshot.resolve 返回实际节点而非物理名称；命令消费者自行读取 ProfileCommand.tool。物理可用性由消费边界过滤，执行权限交给 DSH。
 
-plugin.ts 发布 toolsNamespace、intellisense 和内部 namespaceIntegration，负责独立快照 KV 单元与普通配置/统计单元的生命周期。native_tools.ts 处理扁平原生工具命名和直接节点发现；prompt.ts/declaration.ts 只生成显示文本。runtime.ts 将原节点导出的扁平绑定接入隔离 RuntimeHost，取消后等待真实子调用完成。
+本目录不含插件装配入口。../plugin.ts 独立发布 toolsNamespace 并管理 Profile 存储；../../integration/plugin.ts 消费服务并发布 intellisense 和内部 namespaceIntegration，管理统计、路由与执行生命周期。native_tools.ts 处理扁平原生工具命名和直接节点发现；prompt.ts/declaration.ts 只生成显示文本。runtime.ts 将原节点导出的扁平绑定接入隔离 RuntimeHost，取消后等待真实子调用完成。
 
 内置行为由 tools/profile_nodes/ 的具体类拥有。definitions.ts 只维护初始 Profile 工厂、其序列化默认声明及保存观察者；builtin_profile.ts 仅选择 RootNamespace，不注册工具附加属性。

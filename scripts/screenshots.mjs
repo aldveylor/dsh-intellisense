@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import { mkdir, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { NamespaceComponent } from '../dist/profile/component.js';
 import { SemanticRegistry } from '../dist/profile/catalog/registry.js';
 import { MemoryStore } from '../dist/storage/store.js';
 import { registerManagement } from '../dist/web/server/routes.js';
@@ -51,8 +52,8 @@ async function documentationRegistry() {
 
 const registry = await documentationRegistry();
 const routes = new Map();
-registerManagement({ connection: { fetch: { register: route => routes.set(route.path, route.fetch) } } }, registry, {
-    refresh: async () => {}, statistics: { snapshot: async () => ({ callsByTool: { bash: 128, read_file: 94, write_file: 31, list_directory: 46, search_files: 22, web_search: 12, fetch_url: 8 } }) },
+registerManagement({ connection: { fetch: { register: route => routes.set(route.path, route.fetch) } } }, new NamespaceComponent({ emit() {} }, registry), {
+    catalog: registry, refresh: async () => {}, statistics: { snapshot: async () => ({ callsByTool: { bash: 128, read_file: 94, write_file: 31, list_directory: 46, search_files: 22, web_search: 12, fetch_url: 8 } }) },
 });
 
 const server = createServer(async (request, response) => {

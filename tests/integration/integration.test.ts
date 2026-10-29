@@ -16,7 +16,8 @@ import Storage from '@deepseek-ai/dsh-storage';
 import * as JsonStorage from '@deepseek-ai/dsh-storage-json';
 import type { ConnectionFetchRoute } from '@deepseek-ai/dsh-client-connection';
 import * as plugin from '../../src/index.js';
-import * as namespacePlugin from '../../src/profile/namespace/plugin.js';
+import * as profilesPlugin from '../../src/profile/plugin.js';
+import * as namespacePlugin from '../../src/integration/plugin.js';
 import * as presentation from '../../src/integration/presentation.js';
 
 /** @brief Capture assembled requests and reply without external model access. */
@@ -58,6 +59,7 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
                 return () => { presets.delete(preset.id); };
             } });
             const model = new ScriptedModel(); ctx.llm.registerAdapter(['fake'], model);
+            const mountedProfiles = mode === 'native' ? await ctx.plugin(profilesPlugin) : undefined;
             const mounted = mode === 'native' ? await ctx.plugin(namespacePlugin) : await ctx.plugin(plugin, { timeoutMs: 3000 });
             assert.equal(presets.size, 0, 'The main component does not register agent presets');
             assert.deepEqual([...routes.keys()].sort(), ['/api/ts-intellisense', '/api/ts-intellisense-client', '/api/ts-intellisense-docs-image', '/api/ts-intellisense-profile', '/api/ts-intellisense-state']);
@@ -154,6 +156,10 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
             }
             assert(!agent.session.snapshotEvents().some(event => String(event.type) === 'plugin:ts_intellisense/rewrite'));
             await mounted.dispose();
+            if (mountedProfiles) {
+                assert(ctx.get('toolsNamespace'));
+                await mountedProfiles.dispose();
+            }
             assert.equal(ctx.get('toolsNamespace'), undefined);
             assert.equal(presets.size, 0);
         } finally { await ctx.fiber.dispose(); await rm(directory, { recursive: true, force: true }); }

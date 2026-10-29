@@ -1,4 +1,5 @@
 import type { ProfileCollection, ProfileSnapshot, ProfileVersion } from './profile.js';
+import type { PlaneProfileEditor } from './plane/editor.js';
 import type { Profiles } from './catalog/profile_tree.js';
 
 /** @brief Basic saved-Profile event; specialized event descriptions may extend this interface. */
@@ -22,6 +23,9 @@ export interface ProfileEditOptions {
 
 /** @brief Portable namespace service for shared named Profile management. */
 export interface ToolsNamespace extends ProfileCollection {
+    readonly editor: PlaneProfileEditor;
+    /** @brief Load or explicitly recover Profile storage without initializing IntelliSense services. */
+    initialize(recover?: boolean): Promise<void>;
     readonly revision: string;
     /** @brief Read catalog names and the default selection through the same service. */
     selection(): Promise<Profiles>;
