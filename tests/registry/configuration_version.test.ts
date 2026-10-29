@@ -78,17 +78,22 @@ test('failed migration persistence preserves the loaded in-memory configuration'
     assert.deepEqual(await store.load('registry'), { mappings: [mapping] });
 });
 
-test('session working snapshots recover outdated versions and preserve valid siblings', async () => {
+test('session hydration reads plain Profile data without registry version metadata or rewrites', async () => {
     const store = new MemoryStore();
     const values: unknown[] = [];
-    store.load = async <T>() => ({ version: 0, revision: 4, mappings: [mapping, null] }) as T;
+    store.load = async <T>() => ({ name: 'Work', root: { type: 'namespace', children: {
+        files: { type: 'namespace', children: { read: { type: 'command', command: { tool: 'read' } } } },
+    } } }) as T;
     store.save = async <T>(_key: string, value: T) => { values.push(value); };
     const catalog = new SemanticRegistry(new MemoryStore());
     const sessions = new ProfileSessions(catalog, store);
+    const addition = await sessions.addition('existing');
+    assert.equal(addition.profile.resolve('files.read'), 'read');
     const registry = await sessions.forSession('existing');
-    assert.equal(registry.snapshot().version, storageVersion);
-    assert.deepEqual(registry.snapshot().mappings, [mapping]);
-    assert.equal(values.length, 1);
+    assert.equal(registry.profileSelection().selected, 'Work');
+    assert.deepEqual(registry.configuration().mappings, [mapping]);
+    assert.equal(values.length, 0);
+    await sessions.dispose();
 });
 
 test('explicit recovery discards invalid current-version entries and preserves other profiles', async () => {

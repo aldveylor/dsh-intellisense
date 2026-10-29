@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { RegistryConfiguration, RegistryState, SemanticRegistry } from '../../src/registry/registry.js';
 import type { RegistryStateData } from '../../src/registry/registry.js';
+import type { ProfileData } from '../../src/registry/profile_tree.js';
 import { ProfileSessions } from '../../src/registry/profiles.js';
 import { MemoryStore } from '../../src/storage/store.js';
 
@@ -75,15 +76,15 @@ test('session snapshots persist plain data and restore classes without sharing c
     const session = await profiles.forSession('session');
     await session.replaceConfiguration(new RegistryConfiguration({ namespaces: [{ path: 'draft', description: '', alwaysVisible: true }] }), 'Draft');
     const key = `profile_session_${createHash('sha256').update('session').digest('hex')}`;
-    const persisted = await store.load<RegistryStateData>(key);
+    const persisted = await store.load<ProfileData>(key);
     assert.equal(Object.getPrototypeOf(persisted), Object.prototype);
-    assert.equal(persisted!.profile, 'Draft');
+    assert.equal(persisted!.name, 'Draft');
     const restoredProfiles = new ProfileSessions(catalog, store);
     try {
         const restored = await restoredProfiles.forSession('session');
         assert(restored.snapshot() instanceof RegistryState);
         assert(restored.configuration() instanceof RegistryConfiguration);
-        assert.deepEqual(restored.configuration(), session.configuration());
+        assert.deepEqual((await restoredProfiles.addition('session')).profile.serialize(), (await profiles.addition('session')).profile.serialize());
         await restored.replaceConfiguration(new RegistryConfiguration(), 'Default');
         assert.equal(session.configuration().namespaces[0]!.path, 'draft');
         assert.deepEqual(catalog.configuration().namespaces, []);

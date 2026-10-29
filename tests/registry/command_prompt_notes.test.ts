@@ -11,7 +11,7 @@ test('custom pinned briefs preserve original Inspect documentation at every pin 
     const registry = new SemanticRegistry(new MemoryStore());
     registry.refresh([{ id: 'read', description: 'Original command documentation', parameters: { type: 'object', properties: { path: { type: 'string', description: 'Absolute path' } }, required: ['path'] }, output: { type: 'string' } }]);
     const mapping: Mapping = { id: 'read', path: 'files.read', pinned: false };
-    const component = { registryFor: async () => registry, aliases: [], isPtc: () => true } as unknown as NamespaceIntegration;
+    const component = { registryFor: async () => registry, aliases: [], isPtc: () => true, tree: async () => manifest(registry, []) } as unknown as NamespaceIntegration;
     for (const level of [0, 1, 2] as const) {
         await registry.configure([{ ...mapping, alwaysVisible: level, description: 'Custom prompt note' }], registry.snapshot().revision);
         const hint = await NamespaceIntegration.prototype.prompt.call(component, {} as Agent);

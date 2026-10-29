@@ -17,7 +17,7 @@ export class ProfileSessions {
 
     constructor(private catalog: SemanticRegistry, private store: Store, readonly statistics = new CommandStatistics(store)) {}
 
-    /** @brief Read the per-session addition containing only its current Profile snapshot. */
+    /** @brief Read the session Profile snapshot and its bound call-statistics interface. */
     async addition(session: string, inherit?: () => Promise<SemanticRegistry>, profile?: string): Promise<AgentSessionAddition> {
         let pending = this.sessions.get(session);
         if (!pending) {
