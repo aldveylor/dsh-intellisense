@@ -125,10 +125,14 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "tsx": "^4.23.15",
-    "typescript-eslint": "8.72.0"
+    "typescript-eslint": "8.72.0",
+    "@deepseek-ai/dsh-tool-executor-native": ">=0.2.2-alpha.2",
+    "@deepseek-ai/dsh-tool-executor-ptc": ">=0.2.2-alpha.2",
+    "@deepseek-ai/dsh-client-ui-layout": ">=0.2.2-alpha.2",
+    "@deepseek-ai/dsh-client-ui-conversation": ">=0.2.2-alpha.2"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/cordis": ">=4.0.6-alpha.1",
     "@deepseek-ai/dsh": ">=0.2.2-alpha.2",
     "@deepseek-ai/dsh-agent": ">=0.2.2-alpha.2",
     "@deepseek-ai/dsh-agent-preset-registry": ">=0.2.2-alpha.2",
@@ -142,7 +146,9 @@
     "@deepseek-ai/dsh-storage": ">=0.2.2-alpha.2",
     "@deepseek-ai/dsh-subagent": ">=0.2.2-alpha.2",
     "@deepseek-ai/dsh-system-prompt": ">=0.2.2-alpha.2",
-    "@deepseek-ai/dsh-tools": ">=0.2.2-alpha.2"
+    "@deepseek-ai/dsh-tools": ">=0.2.2-alpha.2",
+    "@deepseek-ai/dsh-tool-executor-native": ">=0.2.2-alpha.2",
+    "@deepseek-ai/dsh-tool-executor-ptc": ">=0.2.2-alpha.2"
   },
   "optionalDependencies": {
     "minisearch": "7.2.0"
