@@ -731,7 +731,7 @@ test('agent save effects restore builtin nodes in an explicitly empty plugin Pro
     assert.deepEqual(catalog.configuration('Empty').builtinDisabled, ['tools']);
 });
 
-test('save events expose only name, time and type after persistence and can return feedback', async () => {
+test('save events expose only name, time and type after persistence and ignore observer results', async () => {
     const { namespaces, call, load, registry } = await fixture();
     const operations: string[] = [];
     const observed: string[] = [];
@@ -744,12 +744,12 @@ test('save events expose only name, time and type after persistence and can retu
         const saved = await namespaces.namespace.get(event.name);
         assert(saved);
         observed.push(saved.brief ?? '');
-        return 'Saved by observer';
+        return 'Ignored observer feedback' as never;
     });
     const second = namespaces.namespace.effect('save', event => { operations.push(`observed:${event.type}`); });
-    assert.equal(await call('tools_profile_save', { name: 'Effects', profile: profileWrite(await load()) }), 'Saved by observer');
+    assert.equal(await call('tools_profile_save', { name: 'Effects', profile: profileWrite(await load()) }), null);
     assert.equal((await load({ name: 'Effects' })).brief, undefined);
-    assert.equal(await call('tools_profile_apply', { name: 'Effects', value: { brief: 'Agent patch' } }), 'Saved by observer');
+    assert.equal(await call('tools_profile_apply', { name: 'Effects', value: { brief: 'Agent patch' } }), null);
     assert.deepEqual(operations, ['save:Effects', 'observed:save', 'apply:Effects', 'observed:apply']);
     assert.deepEqual(observed, ['', 'Agent patch']);
     assert.deepEqual(registry.snapshot(), original);
@@ -777,10 +777,10 @@ test('node validation failures never publish changes and event failures occur af
     assert.deepEqual(registry.snapshot(), draft);
 });
 
-test('save events are absent on validation or persistence failure and explicit feedback overrides advisories', async () => {
+test('save events are absent on failures and observer results preserve validation advisories', async () => {
     const { namespaces, call, load, catalog, store } = await fixture();
     let events = 0;
-    const remove = namespaces.namespace.effect('save', () => { events++; return null; });
+    const remove = namespaces.namespace.effect('save', () => { events++; return null as never; });
     const before = catalog.snapshot();
     await assert.rejects(call('tools_profile_apply', { value: { root: { children: { tools: null } } } }), /cannot be removed/);
     assert.equal(events, 0);
@@ -792,7 +792,7 @@ test('save events are absent on validation or persistence failure and explicit f
     store.save = persist;
     const profile = profileWrite(await load());
     profile.root.children!.read = { type: 'command', command: { tool: 'read_file' } };
-    assert.equal(await call('tools_profile_save', { name: 'Saved', profile }), null);
+    assert.match(await call('tools_profile_save', { name: 'Saved', profile }) as string, /tools.inspect.*disabled/);
     assert.equal(events, 1);
     remove();
 });

@@ -1,6 +1,7 @@
 import { ConversationRequiredError, ProfileLockedError, CurrentProfileDeletionError } from '../error.js';
 import { ProfileWriteSchema, validateProfilePatch, type ProfilePatch } from '../registry/profile_write.js';
 import { pluginCommands, projectBuiltin } from '../runtime/builtins.js';
+import { writeProfile } from './profile_save.js';
 import { ProfileLock } from './profile_lock.js';
 import { presentationConfigFor } from '../integration/presentation.js';
 import { registerBuiltin } from './builtin_trace.js';
@@ -15,7 +16,7 @@ import type { ProfileSessions } from '../registry/profiles.js';
 import { type CommandBrief, profileTree, profileAnnotation } from '../registry/profile_tree.js';
 
 /** @brief Register Profile management commands and data access. */
-export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, profiles: ProfileSessions, registryFor: (agent: Agent) => Promise<SemanticRegistry>, changed: (agent: Agent) => Promise<void>, commands: (agent: Agent) => Promise<CommandBrief[]>, namespace?: Pick<AgentSessionAddition, 'saveProfile' | 'applyProfile'>): void {
+export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, profiles: ProfileSessions, registryFor: (agent: Agent) => Promise<SemanticRegistry>, changed: (agent: Agent) => Promise<void>, commands: (agent: Agent) => Promise<CommandBrief[]>, namespace?: AgentSessionAddition): void {
     /** @brief Resolve mode-specific comments in the registration scope. */
     const contract = (tool: string) => projectBuiltin(pluginCommands.find(tool)!, 'native');
     const lock = new ProfileLock();
@@ -71,7 +72,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
             if (!execution.agent) throw new ConversationRequiredError();
             const { name, profile } = z.strictObject({ name: z.string().optional(), profile: ProfileWriteSchema }).parse(args);
             const target = name ?? (await registryFor(execution.agent)).snapshot().profile!;
-            return (namespace ?? execution.agent.ctx.get('agentSessionAddition')!).saveProfile(execution.agent, name ?? target, profile);
+            return writeProfile(namespace ?? execution.agent.ctx.get('agentSessionAddition')!, execution.agent, name ?? target, profile, 'save');
         },
     })));
     ctx.effect(() => register(defineTool({
@@ -82,7 +83,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
             if (!execution.agent) throw new ConversationRequiredError();
             const { name, value } = z.strictObject({ name: z.string().optional(), value: z.custom<Record<string, unknown>>(value => value !== null && typeof value === 'object' && !Array.isArray(value), 'Expected a Profile object patch') }).parse(args);
             validateProfilePatch(value);
-            return (namespace ?? execution.agent.ctx.get('agentSessionAddition')!).applyProfile(execution.agent, name, value as ProfilePatch);
+            return writeProfile(namespace ?? execution.agent.ctx.get('agentSessionAddition')!, execution.agent, name, value as ProfilePatch, 'apply');
         },
     })));
     ctx.effect(() => register(defineTool({

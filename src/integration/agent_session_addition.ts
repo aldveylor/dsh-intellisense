@@ -1,8 +1,6 @@
 import type { ProfileSnapshot } from '../registry/profile/profile.js';
-import { ProfileWriteSchema, validateProfilePatch, type ProfilePatch, type ProfileWrite } from '../registry/profile_write.js';
 import { editedConfiguration } from '../registry/profile/configuration.js';
 import { profileTree } from '../registry/profile_tree.js';
-import type { ProfileSaveEvent } from '../namespace/service.js';
 import { outputSchema } from '../output_schema.js';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
@@ -24,7 +22,6 @@ import { registerInspect } from '../tools/inspect.js';
 import { registerToolCommands } from '../tools/tool_commands.js';
 import { nativeBindings, nativeDiscovery, nativeQueryEntries } from '../namespace/native_tools.js';
 import { CommandStatistics } from '../namespace/statistics.js';
-import { ProfileNotFoundError } from '../error.js';
 
 import { NamespaceComponent } from '../namespace/component.js';
 
@@ -53,45 +50,6 @@ export class AgentSessionAddition {
     private set catalogRevision(value: number) { this.namespace.catalogRevision = value; }
     get statistics(): CommandStatistics { return this.namespace.statistics; }
     get searchEngines() { return this.namespace.searchEngines; }
-
-    /** @brief Save compares the target against the selected baseline and delegates actual mutations to node apply methods. */
-    saveProfile(agent: Agent, name: string | undefined, value: ProfileWrite): Promise<string | null> {
-        return this.writeProfile(agent, name, ProfileWriteSchema.parse(value), 'save');
-    }
-
-    /** @brief Apply is the primitive patch operation; reading and writing share one transaction. */
-    applyProfile(agent: Agent, name: string | undefined, patch: ProfilePatch): Promise<string | null> {
-        validateProfilePatch(patch as Record<string, unknown>);
-        return this.writeProfile(agent, name, patch, 'apply');
-    }
-
-    /** @brief Node-owned processing completes before atomic persistence; basic events are emitted only after commit. */
-    private async writeProfile(agent: Agent, name: string | undefined, input: ProfileWrite | ProfilePatch, operation: 'save' | 'apply'): Promise<string | null> {
-        const saved = await this.namespace.profileTransaction(async () => {
-            const session = await this.registryFor(agent);
-            const target = name ?? session.profileSelection().selected;
-            const catalog = this.registry;
-            const revision = catalog.revision;
-            if (operation === 'apply' && name !== undefined && !catalog.profileSelection().profiles.includes(target)) throw new ProfileNotFoundError(target);
-            const original = catalog.profileSelection().profiles.includes(target) ? catalog.configuration(target) : session.configuration();
-            const source = operation === 'apply' && name === undefined ? session.configuration() : original;
-            const baseline = this.registry.definitions.profile(profileTree(target, original, catalog.definitions).save());
-            const snapshot = this.registry.definitions.profile(profileTree(target, source, catalog.definitions).save());
-            if (operation === 'save') snapshot.save(input as ProfileWrite);
-            else snapshot.apply(input as ProfilePatch);
-            snapshot.check({ commands: new Set((await this.commandBriefs(agent)).map(command => command.name)),
-                addition: tool => catalog.definitions.addition(tool), original: baseline.serialize() });
-            const information = snapshot.saveInformation(session.tools().map(tool => tool.id));
-            const value = { name: target, brief: snapshot.brief, root: snapshot.serialize() };
-            const configuration = editedConfiguration(value, original, catalog.definitions);
-            await catalog.saveProfile(target, configuration, { trusted: true, revision });
-            this.ctx.emit('system-prompt/change');
-            const event: ProfileSaveEvent = Object.freeze({ name: target, time: new Date().toISOString(), type: operation });
-            return { event, information };
-        });
-        const result = await this.registry.definitions.processSave(saved.event);
-        return result === undefined ? saved.information : result;
-    }
 
     /** @brief Read the current conversation snapshot. */
     async get(agent: Agent): Promise<ProfileSnapshot> {

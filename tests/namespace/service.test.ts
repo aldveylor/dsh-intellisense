@@ -331,3 +331,29 @@ test('RootNamespace cannot alias its tools node or move its protected descendant
     assert.equal(root.get('alias'), undefined);
     assert.equal(ordinary.get('tools'), undefined);
 });
+
+
+test('resolve returns only physical names and preserves Profile selection and tool execution', async () => {
+    const { service, registry, component } = fixture();
+    component.refresh = async () => {};
+    await service.create('Work');
+    await service.edit('Work', snapshot => {
+        snapshot.create('files', () => new EditableNamespace('files')).create('read', () => new EditableCommand('read')).setTool('read');
+        return snapshot;
+    });
+    assert.equal(await service.resolve('files.read', 'Work'), 'read');
+    assert.equal(await service.resolve('global.files.read', 'Work'), 'read');
+    assert.equal(await service.resolve('files', 'Work'), undefined);
+    assert.equal(await service.resolve('files.read'), undefined);
+    assert.equal(await service.resolve('files.read', 'Missing'), undefined);
+    assert.equal(registry.profileSelection().selected, 'Default');
+    assert.equal('dispatch' in service, false);
+    assert.equal('dispatchTool' in service, false);
+    assert.equal('registryFor' in service, false);
+    assert.deepEqual((await component.statistics.snapshot()).callsByTool, {});
+    await service.edit('Work', snapshot => { namespaceNode(snapshot.get('files')).setDisabled(true); return snapshot; });
+    assert.equal(await service.resolve('files.read', 'Work'), undefined);
+    await service.edit('Work', snapshot => { namespaceNode(snapshot.get('files')).setDisabled(false); return snapshot; });
+    registry.refresh([]);
+    assert.equal(await service.resolve('files.read', 'Work'), undefined);
+});

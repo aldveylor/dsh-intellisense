@@ -18,7 +18,7 @@
 
 `protocol.ts` 的 CommandBinding 定义初始化命令契约：命名空间路径、物理 tool 名称、参数适配器（字段、重载或对象别名）与返回值适配器。worker 在 VM realm 内以 NamespaceCommand 类将这些契约编译为可调用函数，调用前直接生成底层命名参数对象；可选字段 undefined 被省略，显式 null 保留。IPC call 只发送物理 tool 与命名参数 args，不传命名空间路径或位置参数元组。返回值通过存在标志保留 undefined，VM 命令对象完成单字段解包或丢弃结果。
 
-插件自有 tools_run_code 通过 namespace/runtime.ts 使用本运行时。命名空间在初始化时解析一次；宿主收到 IPC 后通过 NamespaceComponent.dispatchTool 直接调用 DSH 原生 tools.execute，保留父子审计和上下文。插件不逐次解析 manifest 或自行判定权限，权限及底层参数校验交给 DSH，不依赖全局 ptcRuntime。worker 内的 ToolCallError 属于 guest realm，包含失败命名空间路径 toolName。
+插件自有 tools_run_code 通过 namespace/runtime.ts 使用本运行时。命名空间在初始化时解析一次；宿主收到 IPC 后通过 AgentSessionAddition.dispatchTool 直接调用 DSH 原生 tools.execute，保留父子审计和上下文。插件不逐次解析 manifest 或自行判定权限，权限及底层参数校验交给 DSH，不依赖全局 ptcRuntime。worker 内的 ToolCallError 属于 guest realm，包含失败命名空间路径 toolName。
 
 init 消息携带 data-only values，VM realm 内解析并递归冻结，执行前预加载 tools.profile.annotation 与 tools.profile.commands；不传递宿主对象。每次运行刷新这些值，工具仍通过原生 PTC 闭包派发。
 

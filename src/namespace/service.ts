@@ -31,8 +31,8 @@ export interface ProfileSaveEvent {
     readonly type: string;
 }
 
-/** @brief Observe a completed save; an explicit return replaces tool feedback, while void preserves it. */
-export type ProfileSaveEffect = (event: ProfileSaveEvent) => void | string | null | Promise<void | string | null>;
+/** @brief Observe a completed save without producing tool feedback. */
+export type ProfileSaveEffect = (event: ProfileSaveEvent) => void | Promise<void>;
 
 /** @brief Portable namespace service with named snapshot editing and command-name resolution. */
 export interface ToolsNamespace extends ProfileCollection {

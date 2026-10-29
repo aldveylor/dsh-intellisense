@@ -105,6 +105,6 @@ ProfileRootWrite 的匿名根只允许 type/children，拒绝没有持久化表�
 
 执行投影命令使用 CommandNode，Profile 编辑树使用实际的内置命令类。permissions 作为 agent 和前端可读声明保留，检查与修正在 RootNamespace 和各子节点实现中执行。工具契约与预加载生产器仍由 setToolAddition 注册。
 
-Profile 操作模型详见 registry/profile/model.md 与 tools/profile_nodes/model.md。ProfileCollection.createInitialProfile 是无参数初始生成函数；节点 create/getOrCreate 使用 (name, factory: () => T)，T extends ProfileNode，返回 T；get/set 使用 ProfileNode，type 基础声明为 string。apply 为基础操作，save 比较完整目标再 apply 差异，普通省略节点删除。effect 仅处理事件和返回信息。
+Profile 操作模型详见 registry/profile/model.md 与 tools/profile_nodes/model.md。ProfileCollection.createInitialProfile 是无参数初始生成函数；节点 create/getOrCreate 使用 (name, factory: () => T)，T extends ProfileNode，返回 T；get/set 使用 ProfileNode，type 基础声明为 string。apply 为基础操作，save 比较完整目标再 apply 差异，普通省略节点删除。effect 仅通知保存事件，不处理返回值。
 
 ToolsNamespace 不持有 Agent 或直接派发接口；resolve(path, profile?) 只返回启用命令的物理名称。会话相关 API 统一归 AgentSessionAddition，服务名为 agentSessionAddition。
