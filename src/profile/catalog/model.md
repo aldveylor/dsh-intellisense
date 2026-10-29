@@ -8,7 +8,7 @@ SemanticRegistry 管理全局当前目录、默认名称、编辑事务和物理
 
 ../snapshot_store.ts 的 SnapshotStore 负责 durable 递增编号与进入过会话的历史版本。ProfileReference 只有只读 pointer 与匿名数据，snapshot 返回独立值；修改该值不会影响版本内容。create 只分配版本号，use 在同一共享锁内检查旧快照、必要时写入、再执行会话引用持久化回调。
 
-profiles.ts 的 ProfileSessions 只恢复或选择引用。会话存储仅包含 name/pointer；初始化或 load/switch 从全局当前指针选择版本，存在即复用、不存在才归档，最后发布该会话的只读引用。save() 不发布版本、不编辑内容。父子会话可共享同一个 ProfileReference，后续切换互不影响。
+profiles.ts 的 ProfileSessions 仅依赖 ToolsNamespace 的 selection/reference/restore/retain 恢复或选择引用，不读取具体目录实现。会话存储仅包含 name/pointer；初始化或 load/switch 从全局当前指针选择版本，存在即复用、不存在才归档，最后发布该会话的只读引用。save() 不发布版本、不编辑内容。父子会话可共享同一个 ProfileReference，后续切换互不影响。
 
 全局当前表与旧快照可使用不同 Store。默认插件单独打开 intellisense_profile_snapshots 单元，计数器与匿名旧快照通过 JournalStore 恢复。旧模型不做隐式兼容迁移；当前格式严格校验，显式恢复仅保留有效当前条目，归档内容不随全局恢复或目录删除改写。
 

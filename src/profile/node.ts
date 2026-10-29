@@ -28,8 +28,6 @@ export interface ProfileNode {
     check(context: ProfileCheckContext, path?: string, original?: ProfileTreeNode): void;
     /** @brief Validate deletion or replacement of this node. */
     assertRemovable(): void;
-    /** @brief Apply a node-local JSON patch through its concrete setters. */
-    apply(patch: Record<string, unknown>): this;
     /** @brief Normalize a target node for differential saving. */
     normalize(value: ProfileTreeNode): ProfileTreeNode;
     /** @brief Export recursive transport data. */
@@ -86,9 +84,6 @@ export abstract class EditableNode implements ProfileNode {
 
     /** @brief Concrete nodes own their final validation and descendant dispatch. */
     abstract check(context: ProfileCheckContext, path?: string, original?: ProfileTreeNode): void;
-
-    /** @brief Concrete nodes apply their own writable fields. */
-    abstract apply(patch: Record<string, unknown>): this;
 
     /** @brief Set this node's own disabled state. */
     setDisabled(value: boolean): this { if (value && !this.permissions.disableable) throw new ProfilePermissionError(`Node cannot be disabled: ${this.memberName}`); this.settings.disabled = value; return this; }

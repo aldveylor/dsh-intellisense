@@ -1,3 +1,4 @@
+import { applyProfile } from '../../src/profile/edit.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EditableCommand, type ProfileCommand } from '../../src/profile/command.js';
@@ -16,6 +17,7 @@ class InterfaceCommand implements ProfileCommand {
     constructor(data: CommandNode = { type: 'command', command: { tool: 'read', doc: 'Provider command' } }) { this.#command = new EditableCommand('', data); }
 
     get tool() { return this.#command.tool; }
+    get fixedLevel() { return this.#command.fixedLevel; }
     get disabled() { return this.#command.disabled; }
     get permissions() { return this.#command.permissions; }
 
@@ -31,11 +33,10 @@ class InterfaceCommand implements ProfileCommand {
     setPermissions(value: Partial<Permission>): this { this.#command.setPermissions(value); return this; }
     setDisabled(value: boolean): this { this.#command.setDisabled(value); return this; }
     setTool(value: string): this { this.#command.setTool(value); return this; }
-    setDescription(value: string): this { this.#command.setDescription(value); return this; }
+    setDescription(value: string | undefined): this { this.#command.setDescription(value); return this; }
     setFixedLevel(value: 0 | 1 | 2): this { this.#command.setFixedLevel(value); return this; }
     check(context: ProfileCheckContext, path?: string, original?: ProfileTreeNode): void { this.#command.check(context, path, original); }
     assertRemovable(): void { this.#command.assertRemovable(); }
-    apply(value: Record<string, unknown>): this { this.#command.apply(value); return this; }
     normalize(value: ProfileTreeNode): ProfileTreeNode { return this.#command.normalize(value); }
     serialize(): CommandNode { return this.#command.serialize(); }
 }
@@ -56,8 +57,8 @@ test('interface nodes preserve provider behavior and private state through clone
     assert.equal(copied.serialize().command.doc, 'Loaded description');
     assert.equal(original.serialize().command.doc, 'Provider command');
 
-    restored.apply({ root: { children: { files: { children: { read: { command: { doc: 'Patched' } } } } } } });
-    const patched = restored.resolve('files.read') as InterfaceCommand;
+    const updated = applyProfile(restored, { root: { children: { files: { children: { read: { command: { doc: 'Patched' } } } } } } });
+    const patched = updated.resolve('files.read') as InterfaceCommand;
     assert(patched instanceof InterfaceCommand);
     assert.equal(patched.serialize().command.doc, 'Patched');
     assert.equal(copied.serialize().command.doc, 'Loaded description');

@@ -2,6 +2,7 @@ import { EditableNamespace } from '../namespace.js';
 import { EditableCommand } from '../command.js';
 import type { ProfileCommand } from '../command.js';
 import type { ProfileNamespace } from '../namespace.js';
+import { applyProfile } from '../edit.js';
 import { compareProfile } from '../compare.js';
 import { toPlaneProfile } from '../plane/to_plane_profile.js';
 import { profileWrite } from './profile_write.js';
@@ -150,8 +151,7 @@ export function profileTree(name: string, configuration: PlaneProfileData, defin
 export function profileConfiguration(profile: ProfileData, current: PlaneProfileData, commands: readonly CommandBrief[], definitions: NamespaceDefinitions = defaultNamespaceDefinitions): PlaneProfile {
     profile = ProfileSchema.parse(profile);
     const before = profileTree(profile.name, current, definitions).save();
-    const snapshot = definitions.profile(before);
-    snapshot.apply(compareProfile(profileWrite(before), profileWrite(profile)));
+    const snapshot = applyProfile(definitions.profile(before), compareProfile(profileWrite(before), profileWrite(profile)));
     snapshot.check({ commands: new Set(commands.map(command => command.name)), addition: () => ({}), original: before.root });
     return toPlaneProfile({ name: profile.name, brief: snapshot.brief, root: snapshot.serialize() }, current, definitions);
 }

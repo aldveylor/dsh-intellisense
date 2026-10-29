@@ -1,3 +1,4 @@
+import { NamespaceComponent } from '../../src/profile/component.js';
 import { sessionFor } from '../registry/session_fixture.js';
 import { namespace } from '../namespace/fixtures.js';
 import { positionalArguments } from '../namespace/fixtures.js';
@@ -28,7 +29,7 @@ test('optional Profile names are omitted and both save overloads retain the Prof
 test('global intermediate edits are not archived and existing session pointers survive replacement', async () => {
     const store = new MemoryStore();
     const catalog = new SemanticRegistry(store);
-    const profiles = new ProfileSessions(catalog, store);
+    const profiles = new ProfileSessions(new NamespaceComponent(new Context(), catalog), store);
     const first = await profiles.addition(sessionFor(profiles, 'first'));
     const second = await profiles.addition(sessionFor(profiles, 'second'));
     const pointer = first.profile.pointer;
@@ -36,7 +37,7 @@ test('global intermediate edits are not archived and existing session pointers s
     assert.equal(first.profile.pointer, pointer);
     assert.equal(second.profile.pointer, pointer);
     assert.equal((await store.loadEntries('profile_snapshot_')).filter(([key]) => /_\d+$/.test(key)).length, 1);
-    const restoredProfiles = new ProfileSessions(catalog, store);
+    const restoredProfiles = new ProfileSessions(new NamespaceComponent(new Context(), catalog), store);
     const restored = await restoredProfiles.addition(sessionFor(restoredProfiles, 'first'));
     assert.equal(restored.profile.pointer, pointer);
     assert.equal(restored.profile.snapshot.brief, undefined);

@@ -1,7 +1,8 @@
+import { Context } from '@deepseek-ai/cordis';
+import { NamespaceComponent } from '../../src/profile/component.js';
 import { sessionFor } from '../registry/session_fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Context } from '@deepseek-ai/cordis';
 import type { NamespaceIntegration } from '../../src/integration/namespace_integration.js';
 import { registerSessionProfiles } from '../../src/web/session_profile/routes.js';
 import { SemanticRegistry } from '../../src/profile/catalog/registry.js';
@@ -13,7 +14,7 @@ async function fixture(locked = false) {
     const catalog = new SemanticRegistry(new MemoryStore());
     await catalog.load();
     await catalog.saveProfile('Files', { ...catalog.configuration(), brief: 'File operations', namespaces: [{ path: 'files', description: 'File tools', alwaysVisible: true }] });
-    const profiles = new ProfileSessions(catalog, new MemoryStore());
+    const profiles = new ProfileSessions(new NamespaceComponent(new Context(), catalog), new MemoryStore());
     const agents = [...['native', 'ptc', 'standard'].map(id => ({ id, enabled: id !== 'standard', session: sessionFor(profiles, id) }))];
     const changed: string[] = [];
     let fetch!: (request: Request) => Promise<Response>;
@@ -23,7 +24,7 @@ async function fixture(locked = false) {
         addition: (agent: typeof agents[number]) => profiles.forSession(agent.session),
         configurationChanged: async (agent: typeof agents[number]) => { changed.push(agent.id); },
     } as unknown as NamespaceIntegration;
-    registerSessionProfiles(ctx, catalog, namespaces);
+    registerSessionProfiles(ctx, new NamespaceComponent(new Context(), catalog), namespaces);
     return { catalog, profiles, changed, fetch, request: (session: string, body?: unknown, contentType = 'application/json') => fetch(new Request(`https://localhost/api/ts-intellisense-profile?session=${session}`, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': contentType }, body: JSON.stringify(body) })) };
 }
 

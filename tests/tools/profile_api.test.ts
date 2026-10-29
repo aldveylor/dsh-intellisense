@@ -32,7 +32,7 @@ async function fixture() {
     const catalog = new SemanticRegistry(store);
     const physical = { id: 'read_file', description: 'Read a file.', parameters: { type: 'object' }, output: { type: 'string' } };
     catalog.refresh([physical]);
-    const profiles = new ProfileSessions(catalog, new MemoryStore());
+    const profiles = new ProfileSessions(new NamespaceComponent(new Context(), catalog), new MemoryStore());
     const addition = await profiles.addition(sessionFor(profiles, 'session'));
     // Read-only editor projection for assertions; production sessions contain only a reference.
     const configuration = () => toPlaneProfile({ name: addition.name, root: addition.profile.snapshot.serialize(), brief: addition.profile.snapshot.brief }, new PlaneProfile(), catalog.definitions);
@@ -48,7 +48,7 @@ async function fixture() {
     const namespaces = new NamespaceIntegration(serviceContext, new NamespaceComponent(serviceContext, catalog), catalog, profiles);
     namespaces.physical = () => catalog.tools();
     namespaces.commandBriefs = async () => [{ name: physical.id, brief: physical.description, paths: ['files.read', 'files.cat'], totalCalls: 2 }, { name: 'outside_scope', brief: 'Outside this session.', paths: [], totalCalls: 0 }];
-    registerToolCommands(ctx, catalog, profiles, async agent => { changed.push(agent.id); }, agent => namespaces.commandBriefs(agent), namespaces);
+    registerToolCommands(ctx, namespaces.namespace, profiles, async agent => { changed.push(agent.id); }, agent => namespaces.commandBriefs(agent), namespaces);
     const agentContext = new Context();
     agentContext.provide('namespaceIntegration', { isPtc: () => true } as unknown as Context['namespaceIntegration']);
     const execution = { agent: { id: 'session', inject: () => {}, ctx: agentContext, session: sessionFor(profiles, 'session') }, signal: new AbortController().signal } as unknown as ToolRunContext;
@@ -242,7 +242,7 @@ test('Profile setdefault persists the default for new sessions and preserves exi
     assert.equal(catalog.snapshot().profile, 'Copy');
     assert.deepEqual(registry.snapshot(), before);
     assert.deepEqual(changed, []);
-    assert.equal((await new ProfileSessions(catalog, new MemoryStore()).addition(Session.create(SessionId('new')))).name, 'Copy');
+    assert.equal((await new ProfileSessions(new NamespaceComponent(new Context(), catalog), new MemoryStore()).addition(Session.create(SessionId('new')))).name, 'Copy');
     const revision = catalog.snapshot().revision;
     await call('tools_profile_setdefault', { name: 'Copy' });
     assert.equal(catalog.snapshot().revision, revision);

@@ -25,7 +25,7 @@ export interface ProfileCommand extends ProfileNode {
     /** @brief Bind an exact physical tool identity. */
     setTool(tool: string): this;
     /** @brief Set the Profile-specific summary. */
-    setDescription(value: string): this;
+    setDescription(value: string | undefined): this;
     /** @brief Set requested prompt visibility. */
     setFixedLevel(value: 0 | 1 | 2): this;
     serialize(): CommandNode;
@@ -58,19 +58,6 @@ export class EditableCommand extends EditableNode implements ProfileCommand {
         const existing = original?.type === 'command' && original.command.tool === this.tool;
         const addition = context.addition(this.tool!);
         if (!existing && (!context.commands.has(this.tool!) || context.owns?.(this.tool!) || addition.hidden)) throw new UnknownCommandError(this.tool!);
-    }
-
-    /** @brief Apply command changes through virtual setters so subclasses own enforcement. */
-    apply(patch: Record<string, unknown>): this {
-        if (patch.type !== undefined && patch.type !== 'command') throw new ProfilePermissionError(`Protected node cannot be replaced: ${this.memberName}`);
-        if (patch.command && typeof patch.command === 'object') {
-            const command = patch.command as Record<string, unknown>;
-            if (command.tool !== undefined) this.setTool(command.tool as string);
-            if (Object.hasOwn(command, 'doc')) this.setDescription(command.doc === null ? undefined : command.doc as string);
-        }
-        if (Object.hasOwn(patch, 'fixedLevel')) this.setFixedLevel((patch.fixedLevel ?? 0) as 0 | 1 | 2);
-        if (Object.hasOwn(patch, 'disabled')) this.setDisabled(!!patch.disabled);
-        return this;
     }
 
     /** @brief Bind an exact physical tool identity, including plugin-owned fixed tools. */

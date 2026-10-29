@@ -39,7 +39,7 @@ function fixture() {
     registry.refresh([{ id: 'read', description: 'Native read documentation', parameters: { type: 'object', properties: {} }, output: {} }]);
     const component = new NamespaceComponent(ctx, registry);
     const service: ToolsNamespace = component;
-    const sessions = new NamespaceIntegration(ctx, component, registry, new ProfileSessions(registry, store));
+    const sessions = new NamespaceIntegration(ctx, component, registry, new ProfileSessions(new NamespaceComponent(new Context(), registry), store));
     return { store, registry, component, service, sessions };
 }
 
@@ -363,6 +363,13 @@ test('integration accepts a portable namespace service without exposing its regi
     const { registry, component } = fixture();
     const ctx = new Context();
     const service: ToolsNamespace = {
+        get revision() { return component.revision; },
+        selection: () => component.selection(),
+        setDefault: name => component.setDefault(name),
+        setAliases: aliases => component.setAliases(aliases),
+        reference: name => component.reference(name),
+        restore: pointer => component.restore(pointer),
+        retain: (reference, publish) => component.retain(reference, publish),
         get createInitialProfile() { return component.createInitialProfile; },
         set createInitialProfile(factory) { component.createInitialProfile = factory; },
         list: () => component.list(),
@@ -370,10 +377,10 @@ test('integration accepts a portable namespace service without exposing its regi
         create: name => component.create(name),
         getOrCreate: name => component.getOrCreate(name),
         remove: name => component.remove(name),
-        edit: (name, modifier) => component.edit(name, modifier),
+        edit: (name, modifier, options) => component.edit(name, modifier, options),
         on: (event, handler) => component.on(event, handler),
     };
-    const integration = new NamespaceIntegration(ctx, service, registry, new ProfileSessions(registry, new MemoryStore()));
+    const integration = new NamespaceIntegration(ctx, service, registry, new ProfileSessions(new NamespaceComponent(new Context(), registry), new MemoryStore()));
     assert.equal('registry' in service, false);
     assert.equal(integration.namespace, service);
     assert.equal(integration.intellisense.profiles, service);

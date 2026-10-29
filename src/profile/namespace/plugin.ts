@@ -10,7 +10,6 @@ import { ProfileSessions } from '../catalog/profiles.js';
 import { createSearchEngines } from '../../search/search.js';
 import { NamespaceIntegration } from '../../integration/namespace_integration.js';
 import { NamespaceComponent } from '../component.js';
-import type { ToolsNamespace } from '../service.js';
 import { Aliases } from './namespace.js';
 import { registerSessionProfiles } from '../../web/session_profile/routes.js';
 import { registerManagement } from '../../web/server/routes.js';
@@ -24,7 +23,7 @@ export const inject = ['tools', 'agents', 'systemPrompt', 'storage', storageBack
 export const Config = z.object({ aliasesFile: z.string().optional(), defaultSearchMethod: z.string().regex(/^[a-z][a-z0-9_]*$/).optional() }).prefault({});
 
 /** @brief Independent namespace service shared by native tools, the UI, and optional PTC execution. */
-declare module '@deepseek-ai/cordis' { interface Context { toolsNamespace: ToolsNamespace; namespaceIntegration: NamespaceIntegration } }
+declare module '@deepseek-ai/cordis' { interface Context { namespaceIntegration: NamespaceIntegration } }
 
 /** @brief Mount namespace configuration, initial system hints and native discovery controls. */
 export async function apply(ctx: Context, options: z.input<typeof Config> = {}): Promise<void> {
@@ -37,7 +36,8 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
     const snapshotUnit = await backend.kv.open({ name: 'intellisense_profile_snapshots', version: 1, tables: ['state'], hasGlobal: false, layout: 'per-record' });
     const registry = new SemanticRegistry(store, 'global', undefined, new DshStore(snapshotUnit));
     const statistics = new CommandStatistics(store, { onError: error => ctx.logger.warn('Statistics persistence failed; dirty data will be retried.', error) });
-    const profiles = new ProfileSessions(registry, store, statistics);
+    const namespace = new NamespaceComponent(ctx, registry);
+    const profiles = new ProfileSessions(namespace, store, statistics);
     ctx.effect(() => async () => { try { await statistics.dispose(); await profiles.inspectStatistics.dispose(); } finally { try { await registry.snapshots.flush(); } finally { await snapshotUnit.close(); await unit.close(); } } });
     let namespaces: NamespaceIntegration | undefined;
     let initialization: Promise<void> | undefined;
@@ -52,13 +52,12 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
             await statistics.load(recover);
             await profiles.inspectStatistics.load(recover);
             if (namespaces) return;
-            const namespace = new NamespaceComponent(ctx, registry);
             const component = new NamespaceIntegration(ctx, namespace, registry, profiles, aliases, createSearchEngines(config.defaultSearchMethod), statistics);
             namespaces = component;
             ctx.provide('intellisense', component.intellisense);
             ctx.provide('toolsNamespace', namespace);
             ctx.provide('namespaceIntegration', component);
-            registerSessionProfiles(ctx, registry, component);
+            registerSessionProfiles(ctx, namespace, component);
             ctx.on('agent/created', async ({ agent }) => { await component.configure(agent); });
             ctx.on('agent/disposed', async ({ agent }) => { await component.release(agent.id); });
             ctx.on('system-prompt/assemble', async (_assembly, context, next) => {

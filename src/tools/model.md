@@ -78,3 +78,5 @@ Profile 操作模型详见 profile/model.md 与 tools/profile_nodes/model.md。P
 Inspect 的查询目标及计数直接通过 ProfileReference.snapshot.resolve(path) 读取实际节点，原节点提供简述与命名空间描述，物理目录补充当前可用工具的文档、签名和 schema。不构建展示树或运行时语义树。
 
 save/apply 只更新全局表并分配新版本号；当前会话快照不可修改。switch(name) 在共享锁内检查目标指针是否归档，已有则复用，否则首次复制后持久化当前会话指针。同指针并发进入只写入一次，switch 不生成新版本号。
+
+Agent 的读取由 profile_data.ts 遍历 ProfileVersion.snapshot 的节点接口生成 JSON；写入由 profile_save.ts 在 ToolsNamespace.edit 中读取最新节点树，save 比较 normalize 后的完整目标，apply 使用增量字段，统一交给 profile/edit.ts 遍历调用增删与 setter。ProfileNode 与 Profile 均不提供 apply/save。发布、缺失目标初始化及保存事件由同一服务处理，不直接访问目录、扁平配置或 definitions。

@@ -1,3 +1,5 @@
+import { Context } from '@deepseek-ai/cordis';
+import { NamespaceComponent } from '../../src/profile/component.js';
 import { sessionFor } from './session_fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,7 +12,7 @@ async function fixture() {
     const catalog = new SemanticRegistry(new MemoryStore());
     await catalog.saveProfile('Work', { ...catalog.configuration(), namespaces: [{ path: 'saved', description: '', alwaysVisible: false }] });
     const store = new MemoryStore();
-    const profiles = new ProfileSessions(catalog, store);
+    const profiles = new ProfileSessions(new NamespaceComponent(new Context(), catalog), store);
     const parent = await profiles.load(sessionFor(profiles, 'parent'), 'Work');
     return { catalog, store, profiles, parent };
 }
@@ -35,7 +37,7 @@ test('restored child pointers take priority over a parent that has switched', as
     const child = await profiles.addition(sessionFor(profiles, 'child'), async () => parent);
     const pointer = child.profile.pointer;
     await profiles.load(sessionFor(profiles, 'parent'), 'Default');
-    const restored = new ProfileSessions(catalog, store);
+    const restored = new ProfileSessions(new NamespaceComponent(new Context(), catalog), store);
     const own = await restored.addition(sessionFor(restored, 'child'), async () => parent);
     assert.equal(own.name, 'Work');
     assert.equal(own.profile.pointer, pointer);

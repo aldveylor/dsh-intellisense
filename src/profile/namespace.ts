@@ -1,5 +1,5 @@
 import { EditableNode, type ProfileNode, type ProfileCheckContext } from './node.js';
-import { EditableCommand, type ProfileCommand } from './command.js';
+import { EditableCommand } from './command.js';
 import { ProfilePermissionError } from '../error.js';
 import type { NamespaceTreeNode, ProfileTreeNode } from './catalog/profile_node.js';
 
@@ -19,7 +19,7 @@ export interface ProfileNamespace extends ProfileNode {
     /** @brief Remove one direct child in the editing copy. */
     remove(name: string): boolean;
     /** @brief Set the namespace description. */
-    setDescription(value: string): this;
+    setDescription(value: string | undefined): this;
     /** @brief Set requested namespace visibility. */
     setFixedLevel(value: 0 | 1): this;
     serialize(): NamespaceTreeNode;
@@ -89,30 +89,6 @@ export class EditableNamespace extends EditableNode implements ProfileNamespace 
     /** @brief Delegate validation to each concrete direct member without central builtin-name dispatch. */
     check(context: ProfileCheckContext, path = '', original: ProfileTreeNode | undefined = context.original): void {
         for (const [name, child] of this.members) child.check(context, path ? `${path}.${name}` : name, original?.children?.[name]);
-    }
-
-    /** @brief Apply local namespace settings and delegate each child patch to its own class. */
-    apply(patch: Record<string, unknown>): this {
-        if (patch.type !== undefined && patch.type !== 'namespace') throw new ProfilePermissionError(`Protected node cannot be replaced: ${this.memberName}`);
-        if (Object.hasOwn(patch, 'description')) this.setDescription(patch.description === null ? undefined : patch.description as string);
-        if (Object.hasOwn(patch, 'fixedLevel')) this.setFixedLevel((patch.fixedLevel ?? 0) as 0 | 1);
-        if (Object.hasOwn(patch, 'disabled')) this.setDisabled(!!patch.disabled);
-        if (patch.children && typeof patch.children === 'object') {
-            for (const [name, value] of Object.entries(patch.children)) {
-                const previous = this.get(name);
-                if (value === null) { this.remove(name); continue; }
-                const child = value as Record<string, unknown>;
-                const replacing = previous && ((child.type !== undefined && child.type !== previous.type)
-                    || (previous.type === 'command' && (child.command as { tool?: string } | undefined)?.tool !== undefined
-                        && (child.command as { tool: string }).tool !== (previous as ProfileCommand).tool));
-                if (replacing) this.remove(name);
-                if (!previous || replacing) {
-                    const created = child.type === 'command' ? this.create(name, () => new EditableCommand(name)) : this.create(name, () => new EditableNamespace(name));
-                    created.apply(child);
-                } else previous.apply(child);
-            }
-        }
-        return this;
     }
 
     /** @brief Normalize existing children through their concrete node classes before comparison. */

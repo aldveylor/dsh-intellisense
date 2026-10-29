@@ -9,7 +9,7 @@ import { type Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import { type ScopeKey } from '@deepseek-ai/dsh-scope';
 import '@deepseek-ai/dsh-agent-preset-registry';
-import type { PhysicalTool, SemanticRegistry } from '../profile/catalog/registry.js';
+import type { PhysicalTool } from '../profile/catalog/registry.js';
 import type { ProfileSessions } from '../profile/catalog/profiles.js';
 import { declaration, commandEntries, profileMembers, queryNodes, normalizeInspectQueries, nativeArgumentsFor, resultFor, type Aliases, type CommandEntry } from '../profile/namespace/namespace.js';
 import type { AgentSessionAddition } from './agent_session_addition.js';
@@ -26,6 +26,7 @@ import { nativeBindings, nativeDiscovery } from '../profile/namespace/native_too
 
 import { createSearchEngines } from '../search/search.js';
 import type { ToolsNamespace } from '../profile/service.js';
+import type { ToolCatalog } from './tool_catalog.js';
 
 /** @brief Own Agent session Profiles, discovery, presentation and native execution integration. */
 export class NamespaceIntegration {
@@ -39,11 +40,11 @@ export class NamespaceIntegration {
     private nativeTools = new Map<string, { source: string; names: string[]; fingerprint: string; disposers: (() => void)[] }>();
 
     private catalogRevision = 0;
-    private get catalogVersion(): string { return `${this.catalogRevision}:${this.registry.definitions.revision}:${this.registry.toolAdditions.revision}`; }
+    private get catalogVersion(): string { return `${this.catalogRevision}:${this.namespace.revision}:${this.catalog.toolAdditions.revision}`; }
 
-    constructor(private ctx: Context, readonly namespace: ToolsNamespace, readonly registry: SemanticRegistry, readonly profiles: ProfileSessions, aliases: z.infer<typeof Aliases> = [], readonly searchEngines = createSearchEngines(), readonly statistics = profiles.statistics, readonly inspectStatistics = profiles.inspectStatistics) {
-        this.registry.setAliases(aliases);
-        this.intellisense = { profiles: namespace, toolAdditions: this.registry.toolAdditions, statistics, inspectStatistics, searchEngines };
+    constructor(private ctx: Context, readonly namespace: ToolsNamespace, readonly catalog: ToolCatalog, readonly profiles: ProfileSessions, aliases: z.infer<typeof Aliases> = [], readonly searchEngines = createSearchEngines(), readonly statistics = profiles.statistics, readonly inspectStatistics = profiles.inspectStatistics) {
+        this.namespace.setAliases(aliases);
+        this.intellisense = { profiles: namespace, toolAdditions: this.catalog.toolAdditions, statistics, inspectStatistics, searchEngines };
         ctx.effect(() => async () => { await Promise.all([...new Set([...this.nativeTools.keys(), ...this.positions.keys(), ...this.discovered.keys()])].map(id => this.release(id))); await this.statistics.dispose(); await this.inspectStatistics.dispose(); });
         ctx.on('tools/change', () => { this.catalogRevision++; });
         ctx.on('agent/request', async (payload, next) => {
@@ -69,7 +70,7 @@ export class NamespaceIntegration {
     /** @brief List physical commands and their paths from the original session nodes, including disabled mounts. */
     async commandBriefs(agent?: Agent): Promise<CommandBrief[]> {
         await this.refresh();
-        const profile = agent ? await this.get(agent) : (await this.registry.reference()).snapshot;
+        const profile = agent ? await this.get(agent) : (await this.namespace.reference()).snapshot;
         const paths = new Map<string, string[]>();
         for (const { path, node } of profileMembers(profile, false)) {
             if (node.type !== 'command') continue;
@@ -78,14 +79,19 @@ export class NamespaceIntegration {
             paths.get(tool)!.push(path);
         }
         const callsByTool = await this.statistics.calls.snapshot();
-        return this.registry.tools().filter(tool => !this.registry.toolAdditions.get(tool.id).hidden && !this.registry.owns(tool.id)).map(tool => ({
+        return this.catalog.tools().filter(tool => !this.catalog.toolAdditions.get(tool.id).hidden && !this.owns(tool.id)).map(tool => ({
             name: tool.id, brief: tool.description, paths: paths.get(tool.id) ?? [], totalCalls: Object.hasOwn(callsByTool, tool.id) ? callsByTool[tool.id]! : 0,
         }));
     }
 
+    /** @brief Derive protected physical identities from the service's initial node interfaces. */
+    owns(tool: string): boolean {
+        return [...profileMembers(this.namespace.createInitialProfile(), false)].some(({ node }) => node.type === 'command' && !node.permissions.removable && (node as ProfileCommand).tool === tool);
+    }
+
     /** @brief Read catalog names independently from a session's selected name and old version. */
     async profileNames(agent?: Agent): Promise<Profiles> {
-        return { profiles: this.registry.profileSelection().profiles, selected: agent ? (await this.addition(agent)).name : this.registry.profileSelection().selected };
+        return { profiles: (await this.namespace.list()), selected: agent ? (await this.addition(agent)).name : (await this.namespace.selection()).selected };
     }
 
     /** @brief Ask concrete commands for enabled preloaded values. */
@@ -101,7 +107,7 @@ export class NamespaceIntegration {
     register(ctx: Context): void {
         registerInspect(ctx, this);
         registerSearch(ctx, this);
-        registerToolCommands(ctx, this.registry, this.profiles, agent => this.configurationChanged(agent), agent => this.commandBriefs(agent), this);
+        registerToolCommands(ctx, this.namespace, this.profiles, agent => this.configurationChanged(agent), agent => this.commandBriefs(agent), this);
     }
 
     /** @brief Enable namespaces only for an explicitly configured Intellisense scope. */
@@ -130,7 +136,7 @@ export class NamespaceIntegration {
     physical(agent?: Agent, scope: ScopeKey | undefined = agent): PhysicalTool[] {
         const tools = agent?.ctx.tools ?? this.ctx.tools;
         return tools.schemas(scope).flatMap(tool => {
-            if (this.registry.toolAdditions.get(tool.name).hidden) return [];
+            if (this.catalog.toolAdditions.get(tool.name).hidden) return [];
             const definition = tools.get(tool.name, scope);
             if (!definition) {
                 this.ctx.logger.warn(`Tool schema has no definition: ${tool.name}`);
@@ -164,7 +170,7 @@ export class NamespaceIntegration {
             } finally { await scope[Symbol.asyncDispose](); }
         }
         for (const agent of this.ctx.agents.list()) for (const tool of this.physical(agent)) tools.set(tool.id, tool);
-        this.registry.refresh([...tools.values()]);
+        this.catalog.refresh([...tools.values()]);
     }
 
     /** @brief Derive flat physical contracts while retaining references to the original Profile commands. */

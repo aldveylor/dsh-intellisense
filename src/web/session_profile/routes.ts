@@ -1,11 +1,11 @@
 import type { Context } from '@deepseek-ai/cordis';
-import type { SemanticRegistry } from '../../profile/catalog/registry.js';
+import type { ToolsNamespace } from '../../profile/service.js';
 import type { NamespaceIntegration } from '../../integration/namespace_integration.js';
 import type { SessionProfileState } from './state.js';
 import { z } from 'zod';
 
 /** @brief Load a named namespace into one live session without changing the deployment default. */
-export function registerSessionProfiles(ctx: Context, catalog: SemanticRegistry, namespaces: NamespaceIntegration): void {
+export function registerSessionProfiles(ctx: Context, catalog: ToolsNamespace, namespaces: NamespaceIntegration): void {
     const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
     const selection = z.strictObject({ profile: z.string().min(1).max(80) });
     ctx.connection.fetch.register({ path: '/api/ts-intellisense-profile', methods: ['GET', 'POST'], requestBody: 'buffered', fetch: async request => {
@@ -33,7 +33,9 @@ export function registerSessionProfiles(ctx: Context, catalog: SemanticRegistry,
                 await namespaces.configurationChanged(agent);
             }
             const addition = await namespaces.addition(agent);
-            return Response.json({ enabled: true, ...(locked ? { locked } : {}), profile: addition.name, profiles: catalog.snapshot().profiles ?? [], profileBriefs: catalog.profileBriefs() } satisfies SessionProfileState, { headers });
+            const names = await catalog.list();
+            const briefs = await Promise.all(names.map(async name => [name, (await catalog.get(name))?.brief] as const));
+            return Response.json({ enabled: true, ...(locked ? { locked } : {}), profile: addition.name, profiles: names, profileBriefs: Object.fromEntries(briefs.flatMap(([name, brief]) => brief === undefined ? [] : [[name, brief]])) } satisfies SessionProfileState, { headers });
         } catch (error) { return Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: 400, headers }); }
     } });
 }

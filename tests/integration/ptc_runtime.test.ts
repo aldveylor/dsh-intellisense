@@ -37,7 +37,7 @@ async function fixture(store: Store = new MemoryStore(), mode: 'ptc' | 'native' 
     const catalog = new SemanticRegistry(store);
     const statistics = new CommandStatistics(store);
     await statistics.load();
-    const namespaces = new NamespaceIntegration(ctx, new NamespaceComponent(ctx, catalog), catalog, new ProfileSessions(catalog, store, statistics), [], createSearchEngines(), statistics);
+    const namespaces = new NamespaceIntegration(ctx, new NamespaceComponent(ctx, catalog), catalog, new ProfileSessions(new NamespaceComponent(new Context(), catalog), store, statistics), [], createSearchEngines(), statistics);
     ctx.provide('namespaceIntegration', namespaces);
     let toolContext = ctx;
     await ctx.plugin({ inject: ['tools'], apply: (scope: Context) => { toolContext = scope; } });

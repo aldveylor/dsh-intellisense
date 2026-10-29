@@ -1,3 +1,5 @@
+import { Context } from '@deepseek-ai/cordis';
+import { NamespaceComponent } from '../../src/profile/component.js';
 import { sessionFor } from './session_fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -73,12 +75,12 @@ test('session persistence stores only a name and numeric pointer', async () => {
     const catalog = new SemanticRegistry(new MemoryStore());
     await catalog.saveProfile('Draft', new PlaneProfile({ namespaces: [{ path: 'draft', description: '', alwaysVisible: true }] }));
     const store = new MemoryStore();
-    const profiles = new ProfileSessions(catalog, store);
+    const profiles = new ProfileSessions(new NamespaceComponent(new Context(), catalog), store);
     const session = await profiles.load(sessionFor(profiles, 'session'), 'Draft');
     const key = `profile_session_${createHash('sha256').update('session').digest('hex')}`;
     const persisted = await store.load<{ name: string; pointer: number }>(key);
     assert.deepEqual(persisted, { name: 'Draft', pointer: session.profile.pointer });
-    const restoredProfiles = new ProfileSessions(catalog, store);
+    const restoredProfiles = new ProfileSessions(new NamespaceComponent(new Context(), catalog), store);
     const restored = await restoredProfiles.addition(sessionFor(restoredProfiles, 'session'));
     assert.equal(restored.profile.pointer, session.profile.pointer);
     await restoredProfiles.load(sessionFor(restoredProfiles, 'session'), 'Default');

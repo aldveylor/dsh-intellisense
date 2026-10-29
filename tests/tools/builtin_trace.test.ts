@@ -1,3 +1,4 @@
+import { NamespaceComponent } from '../../src/profile/component.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Context } from '@deepseek-ai/cordis';
@@ -54,7 +55,7 @@ for (const ptc of [false, true]) test(`builtin discovery and Profile annotation 
                 output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
                 execute: async () => 'discovered commands',
             }));
-            registerToolCommands(scope, catalog, new ProfileSessions(catalog, new MemoryStore()), async () => {}, async () => []);
+            registerToolCommands(scope, new NamespaceComponent(scope, catalog), new ProfileSessions(new NamespaceComponent(new Context(), catalog), new MemoryStore()), async () => {}, async () => []);
         },
     });
     try {

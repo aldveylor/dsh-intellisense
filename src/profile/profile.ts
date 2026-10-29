@@ -1,5 +1,4 @@
 import type { ProfileData } from './catalog/profile_tree.js';
-import type { ProfilePatch, ProfileWrite } from './catalog/profile_write.js';
 import type { ProfileNode } from './node.js';
 import type { ProfileNamespace } from './namespace.js';
 
@@ -9,13 +8,9 @@ export interface Profile extends ProfileNamespace {
     resolve(path: string): ProfileNode | undefined;
     /** @brief Clone a Profile or hydrate stored data while retaining the concrete root and member implementations. */
     clone(value?: Pick<ProfileData, 'root' | 'brief'>): ProfileSnapshot;
-    /** @brief Apply an explicit patch through this root and its child implementations. */
-    apply(patch: ProfilePatch): this;
-    /** @brief Compare a complete target with this Profile, then apply the resulting patch. */
-    save(value: ProfileWrite): this;
     readonly brief: string | undefined;
     /** @brief Edit the Profile purpose within this snapshot only. */
-    setBrief(value: string): this;
+    setBrief(value: string | undefined): this;
 }
 
 /** @brief Profile and ProfileSnapshot describe the same anonymous editing value. */

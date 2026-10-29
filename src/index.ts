@@ -29,14 +29,14 @@ export { NamespaceComponent } from './profile/component.js';
 export type { ManifestEntry, CommandEntry, ProfileMember } from './profile/namespace/namespace.js';
 export type { Node, NodeType, Permission, SerializedNode, CommandContract, CommandPresentation } from './profile/namespace/node.js';
 export type { PhysicalTool, Mapping, Namespace, ProfileCatalogData, PinLevel, CommandVisibility } from './profile/catalog/registry.js';
-export type { Profile, ProfileSnapshot, ProfileCollection, ProfileFactory } from './profile/profile.js';
+export type { Profile, ProfileSnapshot, ProfileCollection, ProfileFactory, ProfileVersion } from './profile/profile.js';
 export type { ProfileNode } from './profile/node.js';
 export type { ProfileNamespace } from './profile/namespace.js';
 export type { ProfileCommand } from './profile/command.js';
 export { ToolAdditions } from './integration/tool_additions/tool_additions.js';
 export type { ToolAddition } from './integration/tool_additions/tool_additions.js';
 export { ProfileReference, SnapshotStore } from './profile/snapshot_store.js';
-export type { ToolsNamespace, ProfileSaveEvent, ProfileSaveEffect } from './profile/service.js';
+export type { ToolsNamespace, ProfileSaveEvent, ProfileSaveEffect, ProfileEditOptions } from './profile/service.js';
 export type { ProfileData, Profiles, CommandBrief, CommandName } from './profile/catalog/profile_tree.js';
 export type { CommandBinding, ExecutionResult } from './runtime/protocol.js';
 export type { Store } from './storage/store.js';
@@ -60,3 +60,6 @@ export { ImplToolsNamespace } from './tools/profile_nodes/impl_tools_namespace.j
 export { ImplToolsProfileNamespace } from './tools/profile_nodes/impl_tools_profile_namespace.js';
 export { ImplToolsCommand } from './tools/profile_nodes/impl_tools_command.js';
 export { ImplToolsInspectCommand } from './tools/profile_nodes/impl_tools_inspect_command.js';
+
+export type { ToolCatalog } from './integration/tool_catalog.js';
+export { applyProfile } from './profile/edit.js';

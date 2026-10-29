@@ -1,9 +1,9 @@
 import type { Counter } from '../statistics/statistics.js';
-import type { ProfileReference } from '../profile/snapshot_store.js';
+import type { ProfileVersion } from '../profile/profile.js';
 
 /** @brief Session-owned Profile snapshot and call statistics, without command execution interfaces. */
 export interface AgentSessionAddition {
-    readonly profile: ProfileReference;
+    readonly profile: ProfileVersion;
     readonly name: string;
     readonly statistics: Counter;
     /** @brief Persist the current reference without modifying or publishing a Profile. */

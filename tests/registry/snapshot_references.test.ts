@@ -1,3 +1,5 @@
+import { Context } from '@deepseek-ai/cordis';
+import { NamespaceComponent } from '../../src/profile/component.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { MemoryStore } from '../../src/storage/store.js';
@@ -15,7 +17,7 @@ test('catalog saves allocate immutable anonymous versions while sessions retain 
     const state = new MemoryStore();
     const history = new MemoryStore();
     const catalog = new SemanticRegistry(state, 'global', undefined, history);
-    const sessions = new ProfileSessions(catalog, state);
+    const sessions = new ProfileSessions(new NamespaceComponent(new Context(), catalog), state);
     const first = await sessions.addition(session('first'));
     const second = await sessions.addition(session('second'));
     assert.equal(first.profile.pointer, second.profile.pointer);
@@ -36,7 +38,7 @@ test('catalog saves allocate immutable anonymous versions while sessions retain 
     assert(entries.filter(([key]) => /_\d+$/.test(key)).every(([, value]) => !Object.hasOwn(value, 'name')));
     const restoredCatalog = new SemanticRegistry(state, 'global', undefined, history);
     await restoredCatalog.load();
-    const reopened = await new ProfileSessions(restoredCatalog, state).addition(session('first'));
+    const reopened = await new ProfileSessions(new NamespaceComponent(new Context(), restoredCatalog), state).addition(session('first'));
     assert.equal(reopened.profile.pointer, original);
     assert.equal(reopened.profile.snapshot.resolve('updated'), undefined);
     assert.equal((await restoredCatalog.reference()).pointer, latest.pointer);
@@ -45,7 +47,7 @@ test('catalog saves allocate immutable anonymous versions while sessions retain 
 test('session snapshots are immutable and switch archives an existing global pointer exactly once', async () => {
     const store = new MemoryStore();
     const catalog = new SemanticRegistry(store);
-    const sessions = new ProfileSessions(catalog, store);
+    const sessions = new ProfileSessions(new NamespaceComponent(new Context(), catalog), store);
     const parentSession = session('parent');
     const parent = await sessions.addition(parentSession);
     const child = await sessions.addition(session('child'), async () => parent);
@@ -84,7 +86,7 @@ test('concurrent publication uses unique pointers and failed switch retains the 
     const versions = await Promise.all(Array.from({ length: 8 }, () => catalog.snapshots.create(original.snapshot)));
     assert.equal(new Set(versions.map(version => version.pointer)).size, 8);
     assert(versions.every(version => version.pointer > original.pointer));
-    const sessions = new ProfileSessions(catalog, store);
+    const sessions = new ProfileSessions(new NamespaceComponent(new Context(), catalog), store);
     const live = session('failure');
     const current = await sessions.addition(live);
     const previous = current.profile;
@@ -119,7 +121,7 @@ test('tool additions contain metadata while concrete command classes own builtin
 test('parallel switches bind pointer checks and archive writes under one lock', async () => {
     const store = new MemoryStore();
     const catalog = new SemanticRegistry(store);
-    const sessions = new ProfileSessions(catalog, store);
+    const sessions = new ProfileSessions(new NamespaceComponent(new Context(), catalog), store);
     const firstSession = session('parallel_first');
     const secondSession = session('parallel_second');
     const first = await sessions.addition(firstSession);
@@ -152,7 +154,7 @@ test('parallel switches bind pointer checks and archive writes under one lock', 
     const restored = new SemanticRegistry(store);
     await restored.load();
     assert.equal((await restored.reference('Next')).pointer, next.pointer);
-    const reopened = await new ProfileSessions(restored, store).addition(session('parallel_first'));
+    const reopened = await new ProfileSessions(new NamespaceComponent(new Context(), restored), store).addition(session('parallel_first'));
     assert.equal(reopened.profile.pointer, next.pointer);
 });
 
@@ -160,7 +162,7 @@ test('parallel switches bind pointer checks and archive writes under one lock', 
 test('changing the global factory never adds nodes to an existing session version', async () => {
     const store = new MemoryStore();
     const catalog = new SemanticRegistry(store);
-    const sessions = new ProfileSessions(catalog, store);
+    const sessions = new ProfileSessions(new NamespaceComponent(new Context(), catalog), store);
     const current = await sessions.addition(session('factory_change'));
     const reference = current.profile;
     const before = reference.snapshot.serialize();
