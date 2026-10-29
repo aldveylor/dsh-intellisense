@@ -72,7 +72,7 @@ for (const ptc of [false, true]) test(`physical Inspect records query targets in
     registerInspect(ctx, namespaces);
     const execution = {
         callId: 'query', signal: new AbortController().signal,
-        agent: { id: 'session', session: Session.create(SessionId('statistics-query')), ctx: { get: (key: string) => key === 'commandNamespaces' ? namespaces : undefined } },
+        agent: { id: 'session', session: Session.create(SessionId('statistics-query')), ctx: { get: (key: string) => key === 'toolsNamespace' ? namespaces : undefined } },
     } as unknown as ToolRunContext;
     await definition.execute({ queries: ['global.std.', 'std.read', 'console.log'] }, execution);
     const counts = await statistics.snapshot('session');

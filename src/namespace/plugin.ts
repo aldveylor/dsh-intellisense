@@ -22,7 +22,7 @@ export const inject = ['tools', 'agents', 'systemPrompt', 'storage', storageBack
 export const Config = z.object({ aliasesFile: z.string().optional(), defaultSearchMethod: z.string().regex(/^[a-z][a-z0-9_]*$/).optional() }).prefault({});
 
 /** @brief Independent namespace service shared by native tools, the UI, and optional PTC execution. */
-declare module '@deepseek-ai/cordis' { interface Context { commandNamespaces: NamespaceComponent } }
+declare module '@deepseek-ai/cordis' { interface Context { toolsNamespace: NamespaceComponent } }
 
 /** @brief Mount namespace configuration, initial system hints and native discovery controls. */
 export async function apply(ctx: Context, options: z.input<typeof Config> = {}): Promise<void> {
@@ -50,7 +50,7 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
             if (namespaces) return;
             const component = new NamespaceComponent(ctx, registry, profiles, aliases, createSearchEngines(config.defaultSearchMethod), statistics);
             namespaces = component;
-            ctx.provide('commandNamespaces', component);
+            ctx.provide('toolsNamespace', component);
             registerSessionProfiles(ctx, registry, component);
             ctx.on('agent/created', async ({ agent }) => { await component.configure(agent); });
             ctx.on('agent/disposed', async ({ agent }) => { await component.release(agent.id); });

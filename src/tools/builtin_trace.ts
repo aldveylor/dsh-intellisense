@@ -23,7 +23,7 @@ export function registerBuiltin(ctx: Context, definition: ToolDefinition): () =>
                     arguments: JSON.stringify(args, null, 2),
                     result: error ?? (typeof result === 'string' ? result : JSON.stringify(result, null, 2) ?? ''),
                     language: error !== undefined ? 'text' : ['tools_inspect', 'tools_profile_annotation'].includes(definition.name)
-                        && agent.ctx.get('commandNamespaces')!.isPtc(agent) ? 'typescript' : 'json',
+                        && agent.ctx.get('toolsNamespace')!.isPtc(agent) ? 'typescript' : 'json',
                     elapsedMs: performance.now() - started,
                     isError: error !== undefined,
                 });

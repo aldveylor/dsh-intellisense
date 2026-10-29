@@ -38,7 +38,7 @@ for (const ptc of [false, true]) test(`builtin discovery and Profile annotation 
     const session = Session.create(SessionId(`builtin-injection-${ptc}`));
     const catalog = new SemanticRegistry(new MemoryStore());
     const provider = await ctx.plugin({ apply: (scope: Context) => {
-        scope.provide('commandNamespaces', { isPtc: () => ptc } as unknown as NamespaceComponent);
+        scope.provide('toolsNamespace', { isPtc: () => ptc } as unknown as NamespaceComponent);
     } });
     ctx.provide('tools', { register: (definition: ToolDefinition) => {
         definitions.set(definition.name, definition);
@@ -58,7 +58,7 @@ for (const ptc of [false, true]) test(`builtin discovery and Profile annotation 
         },
     });
     try {
-        assert.throws(() => caller.commandNamespaces, /without inject/);
+        assert.throws(() => caller.toolsNamespace, /without inject/);
         const execution = { callId: 'call-1', agent: { ctx: caller!, session }, signal: new AbortController().signal } as unknown as ToolRunContext;
         assert.equal(await definitions.get('tools_inspect')!.execute({}, execution), 'discovered commands');
         assert.equal(await definitions.get('tools_profile_annotation')!.execute({}, execution), ptc ? profileAnnotation : JSON.stringify(ProfileWriteSchema.toJSONSchema()));

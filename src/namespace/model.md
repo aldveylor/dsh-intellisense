@@ -4,7 +4,7 @@
 
 `tools/inspect.ts` 内部按请求中的实际查询目标计数：去掉 global. 前缀和命名空间尾点，根目录路径为 ""；重复目标分别计数，命名空间查询不展开为所有后代的查询次数。不存在、禁用、无效命令尾点不计数，非法路径请求整体拒绝。统计在一个同步步骤中原子累加目标会话、全局及物理工具查询计数；延时保存交给 storage/JournalStore，重启和会话释放均保留已保存计数。
 
-`plugin.ts` 装配共享 Profile、管理 UI、tools_inspect、命名空间树和模式提示。主入口 index.ts 提供运行时配置；仅 PTC presentation 创建 codeRuntime 与 NamespaceRuntime；独立入口 ./namespace 不创建 JS 运行时。主插件和命名空间服务仅配置运行预算与别名；执行模式由 presentation 配置决定。
+`plugin.ts` 通过 `ctx.provide('toolsNamespace', component)` 注册共享服务，Context 类型声明、presentation 与运行时注入及调用方统一使用 `ctx.toolsNamespace`。该服务装配共享 Profile、管理 UI、tools_inspect、命名空间树和模式提示。主入口 index.ts 提供运行时配置；仅 PTC presentation 创建 codeRuntime 与 NamespaceRuntime；独立入口 ./namespace 不创建 JS 运行时。主插件和命名空间服务仅配置运行预算与别名；执行模式由 presentation 配置决定。
 
 `runtime.ts` 注册插件自有的 tools_run_code，使用已有受限 RuntimeHost 执行完整 TS/JS 函数体，不依赖或替换部署的全局 ptcRuntime。只在 Intellisense PTC presentation 作用域挂载，模型仅见 tools_run_code；物理目录和 manifest 排除此入口，禁止递归调用。轨迹调用卡片使用 description 作为标题，以 TypeScript 代码块展示 code。初始化时将 CommandNode 编译为 CommandBinding，VM 内 NamespaceCommand 代理类把函数绑定到物理 tool 与参数/结果适配器；IPC 直接传物理 tool 和底层命名参数，宿主通过 NamespaceComponent.dispatchTool 调用 DSH tools.execute，不逐次重建或解析 manifest，不增加插件权限校验。保留父子审计和附加上下文转发，返回值仅由 VM 命令适配器投影一次并保留 undefined。显式超时限制在部署上限内，按实际 Agent owner 释放状态。取消先解除 IPC 回调等待，再取消并等待所有真实子调用；程序结束时也取消并等待未完成子调用，避免循环等待和后台遗留执行。执行失败保留原始错误和已捕获输出，以 CodeRunFailedError 返回。插件不解析模型流或代码围栏。
 
@@ -18,7 +18,7 @@ Profile 可同时保存来自多个预设的映射；当前模型作用域未挂
 
 `node.ts` 定义共享 Node、Permission 与 SerializedNode。NodeType 只区分 leaf（命令）和 tree（命名空间），服务端子类身份不进入协议。Permission 包含 commentable、renamable、movable、removable、disableable、acceptsChildren、availableFixLevels；固定等级为 0/1/2。serialize/toJSON 仅输出子树、命令契约、描述和权限，不包含父引用。
 
-`nodes/` 按类拆分实现，详见其 model.md。`namespace.ts` 作为上层入口，通过 createNamespace(context) 组织初始 tools 子树，再由 manifest 注册当前映射及别名。根是普通匿名 NamespaceNode，不存在 RootNamespaceNode。NamespaceNode.add 不覆盖已有成员；remove 由父节点检查子节点 permissions.removable。InnerNamespaceNode 自行限制外部插入；ToolsNamespaceNode、ProfileNamespaceNode 在构造期间管理各自子对象，ToolsNamespaceNode 禁止禁用。
+`nodes/` 按类拆分实现，详见其 model.md。`namespace.ts` 作为上层入口，通过 createNamespace(context) 组织初始 tools 子树，再由 manifest 注册当前映射及别名。根是普通匿名 NamespaceNode，不存在 RootNamespaceNode。NamespaceNode.add 不覆盖已有成员；remove 由父节点检查子节点 permissions.removable。InnerNamespaceNode 自行限制外部插入；ToolsNamespaceNode、ProfileNamespaceNode 在构造期间管理各自子对象，ToolsNamespaceNode 允许禁用，后代继承禁用状态。
 
 tools.* 使用服务端 InnerCommandNode 和专用命令节点，绑定重载、丢弃结果及预加载。tools.inspect 的节点权限仅允许固定等级 2，但可禁用。所有成员都在初始化时创建，inspect 查询只调用 queryNodes → resolve，查询期间不生成节点、不覆盖映射。PTC 函数绑定仅选择非 preload 的命令；所有命令节点均绑定物理工具，不再区分 tool/environment 部署类型。
 
@@ -74,3 +74,5 @@ NamespaceComponent 的作用域释放会 dispose 统计服务，确保独立挂�
 PTC 预加载通过 values 先按当前 Profile 的禁用规则过滤，再计算字段。子调用回复只刷新本次初始化已部署的字段，commands 仅在 revision 变化时计算；执行中切换到禁用字段的 Profile 仍刷新已有引用，新一次执行不再部署禁用字段。
 
 统计 counterSnapshot(field, session?) 返回指定字段的独立副本，不复制其它明细或汇总总数；命令摘要使用该接口读取全局 callsByTool。
+
+服务注册名为 toolsNamespace；工具调用路径仍为 tools.*。命令的结构锁定与提示固定独立：Mapping.pinned 阻止移除或改变原映射路径；普通命令的提示等级由 Mapping.alwaysVisible 保存，内置命令由 builtinVisible[path] 保存。InnerCommandNode 通过 permissions 禁止改名、编辑说明、移动和移除，普通固定等级仍可选 0/1/2；InspectCommandNode 将 availableFixLevels 限为 [2]，因此即使 Profile 请求 0 或 1 也投影为 2，禁用状态仍独立生效。

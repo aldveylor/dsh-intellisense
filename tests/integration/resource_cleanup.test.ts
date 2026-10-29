@@ -121,7 +121,7 @@ test('preset component registers and releases presets with only the native regis
         } });
         const mounted = await ctx.plugin(presetPlugin);
         assert.deepEqual([...presets.keys()].sort(), ['intellisense', 'intellisense-ptc']);
-        assert.equal(ctx.get('commandNamespaces'), undefined);
+        assert.equal(ctx.get('toolsNamespace'), undefined);
         assert.equal(ctx.get('codeRuntime'), undefined);
         await mounted.dispose();
         assert.equal(presets.size, 0);

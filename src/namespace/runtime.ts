@@ -23,7 +23,7 @@ declare module '@deepseek-ai/cordis' { interface Context { namespaceRuntime: Nam
 
 /** @brief Execute namespace programs in isolated processes and dispatch children through native tool guards. */
 export class NamespaceRuntime extends Service {
-    static inject = ['codeRuntimeOptions', 'commandNamespaces', 'tools'];
+    static inject = ['codeRuntimeOptions', 'toolsNamespace', 'tools'];
     private sequence = 0;
     private runtime: RuntimeHost;
 
@@ -56,7 +56,7 @@ export class NamespaceRuntime extends Service {
     /** @brief Run one program, propagate cancellation and await all native child executions before settling. */
     private async execute(code: string, parent: ToolRunContext, timeoutMs = this.runtime.config.timeoutMs): Promise<{ logs: string[]; result?: z.infer<ReturnType<typeof z.json>> }> {
         const agent = parent.agent;
-        const namespaces = this.ctx.commandNamespaces;
+        const namespaces = this.ctx.toolsNamespace;
         if (!agent || !namespaces.isPtc(agent)) throw new Error('An Intellisense PTC conversation is required');
         if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new Error('Expected a positive finite timeoutMs');
         parent.signal.throwIfAborted();

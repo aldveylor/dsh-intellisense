@@ -61,7 +61,7 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
             assert.equal(presets.size, 0, 'The main component does not register agent presets');
             assert.deepEqual([...routes.keys()].sort(), ['/api/ts-intellisense', '/api/ts-intellisense-client', '/api/ts-intellisense-docs-image', '/api/ts-intellisense-profile', '/api/ts-intellisense-state']);
             const agent = await ctx.agentLoop.create(SessionId(`integration-${mode}`), { provider: 'fake', model: 'scripted' });
-            const namespaces = ctx.commandNamespaces;
+            const namespaces = ctx.toolsNamespace;
             assert.equal(namespaces.enabled(agent), false);
             if (mode !== 'standard') {
                 await agent.ctx.plugin(presentation, { mode });
@@ -151,7 +151,7 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
             }
             assert(!agent.session.snapshotEvents().some(event => String(event.type) === 'plugin:ts_intellisense/rewrite'));
             await mounted.dispose();
-            assert.equal(ctx.get('commandNamespaces'), undefined);
+            assert.equal(ctx.get('toolsNamespace'), undefined);
             assert.equal(presets.size, 0);
         } finally { await ctx.fiber.dispose(); await rm(directory, { recursive: true, force: true }); }
     });

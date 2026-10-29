@@ -31,7 +31,7 @@ async function fixture() {
     const changed: string[] = [];
     registerToolCommands(ctx, catalog, profiles, async () => registry, async agent => { changed.push(agent.id); }, async () => [{ name: physical.id, brief: physical.description, paths: ['files.read', 'files.cat'], totalCalls: 2 }, { name: 'outside_scope', brief: 'Outside this session.', paths: [], totalCalls: 0 }]);
     const agentContext = new Context();
-    agentContext.provide('commandNamespaces', { isPtc: () => true } as unknown as Context['commandNamespaces']);
+    agentContext.provide('toolsNamespace', { isPtc: () => true } as unknown as Context['toolsNamespace']);
     const execution = { agent: { id: 'session', inject: () => {}, ctx: agentContext, session: Session.create(SessionId('session')) }, signal: new AbortController().signal } as unknown as ToolRunContext;
     const call = (name: string, args: unknown = {}) => definitions.get(name)!.execute(args, execution);
     const load = async (args: unknown = {}) => ProfileSchema.parse(await call('tools_profile_load', args));

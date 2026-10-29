@@ -36,7 +36,7 @@ async function fixture(store: Store = new MemoryStore(), mode: 'ptc' | 'native' 
     const statistics = new CommandStatistics(store);
     await statistics.load();
     const namespaces = new NamespaceComponent(ctx, catalog, new ProfileSessions(catalog, store), [], createSearchEngines(), statistics);
-    ctx.provide('commandNamespaces', namespaces);
+    ctx.provide('toolsNamespace', namespaces);
     let toolContext = ctx;
     await ctx.plugin({ inject: ['tools'], apply: (scope: Context) => { toolContext = scope; } });
     const key = {};

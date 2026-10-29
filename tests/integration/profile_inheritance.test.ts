@@ -17,7 +17,7 @@ test('runtime child ownership inherits the nearest parent working profile withou
     const profiles = new ProfileSessions(catalog, new MemoryStore());
     const namespaces = new NamespaceComponent(ctx, catalog, profiles, []);
     ctx.provide('tools', { schemas: () => [], presentAs: () => {} } as unknown as Context['tools']);
-    ctx.provide('commandNamespaces', { register: () => {} } as unknown as NamespaceComponent);
+    ctx.provide('toolsNamespace', { register: () => {} } as unknown as NamespaceComponent);
     const scopes: ReturnType<typeof createScope>[] = [];
     const detach: (() => void)[] = [];
 

@@ -8,10 +8,10 @@
 
 搜索索引来自调用者当前 Profile、当前作用域有效 manifest，排除失效和禁用路径，不影响原生执行权限。仅索引 name、description 和 parameters；parameters 使用配置后的命名参数 schema，description 使用当前简化描述（若配置）。target 仅接受 name、description、parameters 和 all，all 不搜索返回值。命名空间范围按点号边界限定，包含所有后代；支持 global. 前缀及尾点。
 
-自定义插件通过现有 commandNamespaces 服务注册引擎，例如：
+自定义插件通过现有 toolsNamespace 服务注册引擎，例如：
 
 ```ts
-ctx.effect(() => ctx.commandNamespaces.searchEngines.register({
+ctx.effect(() => ctx.toolsNamespace.searchEngines.register({
     name: 'custom',
     description: 'Custom command search',
     search: async ({ documents, keywords, fields, maxResults }) => {
@@ -20,7 +20,7 @@ ctx.effect(() => ctx.commandNamespaces.searchEngines.register({
             .slice(0, maxResults).map(document => document.id);
     },
 }));
-ctx.commandNamespaces.searchEngines.setDefault('custom');
+ctx.toolsNamespace.searchEngines.setDefault('custom');
 ```
 
 主插件与独立 namespace 配置均允许 defaultSearchMethod，未指定时优先 bm25。SearchEngineRegistry 及公共类型从根入口和 namespace 入口导出。

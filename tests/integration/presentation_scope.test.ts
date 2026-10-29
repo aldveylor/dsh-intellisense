@@ -24,7 +24,7 @@ test('only an explicit Intellisense scope enables namespace configuration and de
     await component.configure(standardAgent);
     const registrations: Context[] = [];
     const presentations: string[] = [];
-    ctx.provide('commandNamespaces', { register: (scope: Context) => registrations.push(scope) } as unknown as NamespaceComponent);
+    ctx.provide('toolsNamespace', { register: (scope: Context) => registrations.push(scope) } as unknown as NamespaceComponent);
     ctx.provide('tools', { presentAs: (mode: string) => presentations.push(mode) } as unknown as Context['tools']);
     const mounted = await intellisense.ctx.plugin(presentation, { mode: 'native', profile: 'Work' });
     assert.equal(registrations.length, 1);

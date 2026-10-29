@@ -128,7 +128,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
     ctx.effect(() => register(defineTool({
         name: 'tools_profile_annotation', description: contract('tools_profile_annotation').description, parameters: {},
         output: { ...output, schema: { type: 'string' } },
-        execute: async (_args, execution) => execution.agent && !execution.agent.ctx.get('commandNamespaces')!.isPtc(execution.agent)
+        execute: async (_args, execution) => execution.agent && !execution.agent.ctx.get('toolsNamespace')!.isPtc(execution.agent)
             ? JSON.stringify(ProfileWriteSchema.toJSONSchema()) : profileAnnotation,
     })));
     ctx.effect(() => register(defineTool({
