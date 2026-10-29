@@ -68,18 +68,6 @@ export class NamespaceIntegration {
     /** @brief Read an editing value from the current immutable reference. */
     async get(agent: Agent): Promise<ProfileSnapshot> { return (await this.addition(agent)).profile.snapshot; }
 
-    /** @brief Append a session-only version without changing its catalog name's pointer. */
-    edit(agent: Agent, modifier: (snapshot: ProfileSnapshot) => ProfileSnapshot): Promise<ProfileSnapshot> {
-        return this.namespace.profileTransaction(async () => {
-            const addition = await this.addition(agent);
-            const output = modifier(addition.profile.snapshot);
-            if (!output || typeof output.serialize !== 'function') throw new Error('Profile modifier must return a snapshot');
-            await addition.save(output);
-            await this.configurationChanged(agent);
-            return addition.profile.snapshot;
-        });
-    }
-
     /** @brief List physical commands and their paths from the original session nodes, including disabled mounts. */
     async commandBriefs(agent?: Agent): Promise<CommandBrief[]> {
         await this.refresh();

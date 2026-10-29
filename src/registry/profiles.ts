@@ -2,13 +2,13 @@ import { Statistics } from '../statistics/statistics.js';
 import { CommandStatistics } from '../statistics/command_statistics.js';
 import { createHash } from 'node:crypto';
 import type { SemanticRegistry } from './registry.js';
-import type { ProfileSnapshot } from './profile/profile.js';
 import type { AgentSessionAddition } from '../integration/agent_session_addition.js';
 import type { Session } from '@deepseek-ai/dsh-session';
 import type { Store } from '../storage/store.js';
 
 /** @brief Persist session references without copying Profiles or constructing session registries. */
 export class ProfileSessions {
+    private replacements = new WeakMap<AgentSessionAddition, (name: string, reference: import('./profile/snapshot_store.js').ProfileReference) => void>();
     private opening = new WeakMap<Session, Promise<AgentSessionAddition>>();
     private writes = new WeakMap<AgentSessionAddition, Promise<unknown>>();
     readonly inspectStatistics: Statistics;
@@ -42,20 +42,20 @@ export class ProfileSessions {
         const saved = await this.store.load<{ name: string; pointer: number }>(this.key(session.id));
         const parent = !saved && profile === undefined ? await inherit?.() : undefined;
         const name = saved?.name ?? profile ?? parent?.name ?? this.catalog.profileSelection().selected;
-        const reference = saved ? await this.catalog.snapshots.get(saved.pointer) : parent?.profile ?? await this.catalog.reference(name);
+        let selected = name;
+        let reference = saved ? await this.catalog.snapshots.get(saved.pointer)
+            : parent?.profile ?? await this.catalog.reference(name);
         const addition: AgentSessionAddition = {
-            name, profile: reference,
+            get name() { return selected; },
+            get profile() { return reference; },
             statistics: this.statistics.calls.scope(session.id),
-            save: (snapshot?: ProfileSnapshot) => {
-                const value = (snapshot ?? addition.profile.snapshot).clone();
-                return this.write(addition, async () => {
-                    const reference = await this.catalog.snapshots.save(value);
-                    await this.store.save(this.key(session.id), { name: addition.name, pointer: reference.pointer });
-                    addition.profile = reference;
-                });
-            },
+            save: () => this.write(addition, () => this.store.save(this.key(session.id), { name: selected, pointer: reference.pointer })),
         };
-        if (!saved) await this.store.save(this.key(session.id), { name, pointer: reference.pointer });
+        this.replacements.set(addition, (name, value) => { selected = name; reference = value; });
+        if (!saved) await this.catalog.snapshots.use(reference, async archived => {
+            await this.store.save(this.key(session.id), { name, pointer: archived.pointer });
+            reference = archived;
+        });
         session.intellisense = addition;
         return addition;
     }
@@ -65,10 +65,11 @@ export class ProfileSessions {
         const addition = await this.addition(session);
         return this.write(addition, async () => {
             const reference = await this.catalog.reference(name);
-            await this.store.save(this.key(session.id), { name, pointer: reference.pointer });
-            addition.name = name;
-            addition.profile = reference;
-            return addition;
+            return this.catalog.snapshots.use(reference, async archived => {
+                await this.store.save(this.key(session.id), { name, pointer: archived.pointer });
+                this.replacements.get(addition)!(name, archived);
+                return addition;
+            });
         });
     }
 

@@ -13,7 +13,7 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import type { SemanticRegistry } from '../registry/registry.js';
 import type { NamespaceIntegration } from '../integration/namespace_integration.js';
 import type { ProfileSessions } from '../registry/profiles.js';
-import { type CommandBrief, profileAnnotation } from '../registry/profile_tree.js';
+import { type CommandBrief, ProfileDocument, profileAnnotation } from '../registry/profile_tree.js';
 
 /** @brief Register Profile management commands and data access. */
 export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, profiles: ProfileSessions, changed: (agent: Agent) => Promise<void>, commands: (agent: Agent) => Promise<CommandBrief[]>, namespace?: NamespaceIntegration): void {
@@ -37,7 +37,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
             const { name } = z.strictObject({ name: z.string().optional() }).parse(args);
             const addition = await profiles.addition(execution.agent.session);
             const snapshot = name === undefined ? addition.profile.snapshot : (await catalog.reference(name)).snapshot;
-            return JSON.parse(JSON.stringify({ name: name ?? addition.name, root: snapshot.serialize(), brief: snapshot.brief })) as Record<string, z.infer<ReturnType<typeof z.json>>>;
+            return JSON.parse(JSON.stringify(new ProfileDocument({ name: name ?? addition.name, root: snapshot.serialize(), brief: snapshot.brief }).save())) as Record<string, z.infer<ReturnType<typeof z.json>>>;
         },
     })));
     ctx.effect(() => register(defineTool({

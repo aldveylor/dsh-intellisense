@@ -66,32 +66,30 @@ export class SemanticRegistry {
 
     readonly snapshots: SnapshotStore;
     readonly toolAdditions = new ToolAdditions();
-    private pointers: Record<string, number> = {};
+    private references: Record<string, ProfileReference> = {};
 
     constructor(private store: Store, _scope: 'global' | 'session' = 'global', readonly definitions = new NamespaceDefinitions(), snapshotStore: Store = store) { this.snapshots = new SnapshotStore(snapshotStore, definitions); }
 
     /** @brief Read the immutable version currently published under a catalog name. */
     async reference(name = this.state.profile): Promise<ProfileReference> {
-        const pointer = this.pointers[name];
-        if (pointer === undefined) {
+        if (!this.references[name]) {
             this.configuration(name);
-            await this.transaction(async () => { if (this.pointers[name] === undefined) await this.persist(this.state, [name]); });
-            return this.snapshots.get(this.pointers[name]!);
+            await this.transaction(async () => { if (!this.references[name]) await this.persist(this.state, [name]); });
         }
-        return this.snapshots.get(pointer);
+        return this.references[name]!;
     }
 
-    /** @brief Persist catalog names as references; Profile contents live exclusively in snapshot storage. */
+    /** @brief Store current global Profiles and pointers; archive data is written only when a session enters. */
     private async persist(state: RegistryState, updated: readonly string[] = []): Promise<void> {
         const configurations = { ...state.inactiveProfiles, [state.profile]: state };
-        const pointers: Record<string, number> = {};
+        const references: Record<string, ProfileReference> = {};
         for (const [name, configuration] of Object.entries(configurations)) {
-            const previous = this.pointers[name];
-            pointers[name] = previous !== undefined && !updated.includes(name) ? previous
-                : (await this.snapshots.save(this.definitions.profile(profileTree(name, configuration, this.definitions).save()))).pointer;
+            references[name] = this.references[name] && !updated.includes(name) ? this.references[name]!
+                : await this.snapshots.create(this.definitions.profile(profileTree(name, configuration, this.definitions).save()));
         }
-        await this.store.save('registry', { version: storageVersion, revision: state.revision, profile: state.profile, pointers });
-        this.pointers = pointers;
+        await this.store.save('registry', { version: storageVersion, revision: state.revision, profile: state.profile,
+            profiles: Object.fromEntries(Object.entries(references).map(([name, reference]) => [name, { pointer: reference.pointer, ...reference.serialize() }])) });
+        this.references = references;
     }
 
     /** @brief Serialize loading and recovery with ordinary configuration writes. */
@@ -100,17 +98,18 @@ export class SemanticRegistry {
     /** @brief Validate or recover persisted settings before publishing a new in-memory state. */
     private async loadSnapshot(recover: boolean): Promise<void> {
         await this.snapshots.load();
-        const catalog = await this.store.load<{ version: number; revision: number; profile: string; pointers: Record<string, number> }>('registry');
+        const catalog = await this.store.load<{ version: number; revision: number; profile: string; profiles: Record<string, { pointer: number; root: import('./profile_node.js').NamespaceTreeNode; brief?: string }> }>('registry');
         let saved: RegistryStateData | undefined;
         if (catalog) {
-            if (!catalog.pointers || !Object.hasOwn(catalog.pointers, catalog.profile)) throw new Error('Invalid Profile reference catalog');
+            if (!catalog.profiles || !Object.hasOwn(catalog.profiles, catalog.profile)) throw new Error('Invalid Profile reference catalog');
             const configurations: Record<string, RegistryConfiguration> = {};
-            for (const [name, pointer] of Object.entries(catalog.pointers)) {
+            for (const [name, { pointer, root, brief }] of Object.entries(catalog.profiles)) {
                 this.validateProfileName(name);
-                const snapshot = (await this.snapshots.get(pointer)).snapshot;
+                const reference = await this.snapshots.restore(pointer, { root, brief });
+                this.references[name] = reference;
+                const snapshot = reference.snapshot;
                 configurations[name] = editedConfiguration({ name, root: snapshot.serialize(), brief: snapshot.brief }, new RegistryConfiguration(), this.definitions);
             }
-            this.pointers = { ...catalog.pointers };
             saved = new RegistryState({ ...configurations[catalog.profile], version: catalog.version, revision: catalog.revision, profile: catalog.profile, inactiveProfiles: Object.fromEntries(Object.entries(configurations).filter(([name]) => name !== catalog.profile)) }).save();
         }
         if (saved !== undefined) {
@@ -372,9 +371,9 @@ export class SemanticRegistry {
                 } else throw new Error('Invalid profile action');
             }
             const state = new RegistryState(next);
-            const previousPointers = this.pointers;
-            if (action === 'rename') this.pointers = { ...this.pointers, [newName!]: this.pointers[name]! };
-            try { await this.persist(state); } catch (error) { this.pointers = previousPointers; throw error; }
+            const previousReferences = this.references;
+            if (action === 'rename') this.references = { ...this.references, [newName!]: this.references[name]! };
+            try { await this.persist(state); } catch (error) { this.references = previousReferences; throw error; }
             this.state = state;
         });
     }

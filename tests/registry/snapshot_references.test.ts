@@ -1,0 +1,117 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { MemoryStore } from '../../src/storage/store.js';
+import { SemanticRegistry } from '../../src/registry/registry.js';
+import { ProfileSessions } from '../../src/registry/profiles.js';
+import { EditableNamespace } from '../../src/registry/profile/namespace.js';
+import { EditableCommand } from '../../src/registry/profile/command.js';
+import { Session, SessionId } from '@deepseek-ai/dsh-session';
+import { ToolAdditions } from '../../src/integration/tool_additions/tool_additions.js';
+
+/** @brief Create a fresh live session with an identity that can be reopened after restart. */
+function session(id: string): Session { return Session.create(SessionId(id)); }
+
+test('catalog saves allocate immutable anonymous versions while sessions retain old numeric pointers', async () => {
+    const state = new MemoryStore();
+    const history = new MemoryStore();
+    const catalog = new SemanticRegistry(state, 'global', undefined, history);
+    const sessions = new ProfileSessions(catalog, state);
+    const first = await sessions.addition(session('first'));
+    const second = await sessions.addition(session('second'));
+    assert.equal(first.profile.pointer, second.profile.pointer);
+    const original = first.profile.pointer;
+    await catalog.saveProfile('Default', { ...catalog.configuration(), namespaces: [{ path: 'updated', description: 'New version', alwaysVisible: false }] }, { trusted: true });
+    const latest = await catalog.reference();
+    assert(latest.pointer > original);
+    assert.equal(first.profile.pointer, original);
+    assert.equal(first.profile.snapshot.resolve('updated'), undefined);
+    assert.equal(latest.snapshot.resolve('updated')?.type, 'namespace');
+    const detached = latest.snapshot;
+    detached.create('private', () => new EditableNamespace());
+    assert.equal(latest.snapshot.resolve('private'), undefined);
+    const saved = await state.load<{ profiles: Record<string, { pointer: number }> }>('registry');
+    assert.equal(saved?.profiles.Default.pointer, latest.pointer);
+    assert.equal('root' in saved!, false);
+    const entries = await history.loadEntries<Record<string, unknown>>('profile_snapshot_');
+    assert(entries.filter(([key]) => /_\d+$/.test(key)).every(([, value]) => !Object.hasOwn(value, 'name')));
+    const restoredCatalog = new SemanticRegistry(state, 'global', undefined, history);
+    await restoredCatalog.load();
+    const reopened = await new ProfileSessions(restoredCatalog, state).addition(session('first'));
+    assert.equal(reopened.profile.pointer, original);
+    assert.equal(reopened.profile.snapshot.resolve('updated'), undefined);
+    assert.equal((await restoredCatalog.reference()).pointer, latest.pointer);
+});
+
+test('session snapshots are immutable and switch archives an existing global pointer exactly once', async () => {
+    const store = new MemoryStore();
+    const catalog = new SemanticRegistry(store);
+    const sessions = new ProfileSessions(catalog, store);
+    const parentSession = session('parent');
+    const parent = await sessions.addition(parentSession);
+    const child = await sessions.addition(session('child'), async () => parent);
+    assert.equal(parent.profile, child.profile);
+    const initial = parent.profile.pointer;
+    const draft = parent.profile.snapshot;
+    draft.create('files', () => new EditableNamespace()).create('read', () => new EditableCommand()).setTool('read');
+    assert.equal(parent.profile.snapshot.resolve('files'), undefined);
+    await parent.save();
+    assert.equal(parent.profile.pointer, initial);
+    assert.throws(() => { Object.assign(parent, { profile: child.profile }); }, TypeError);
+    await catalog.saveProfile('Default', { ...catalog.configuration(), namespaces: [{ path: 'latest', description: 'Latest', alwaysVisible: false }] }, { trusted: true });
+    const firstUnreferenced = await catalog.reference();
+    await assert.rejects(catalog.snapshots.get(firstUnreferenced.pointer), /Unknown Profile snapshot/);
+    await catalog.saveProfile('Default', { ...catalog.configuration(), namespaces: [{ path: 'latest', description: 'Latest again', alwaysVisible: false }] }, { trusted: true });
+    const latest = await catalog.reference();
+    assert(latest.pointer > firstUnreferenced.pointer);
+    await assert.rejects(catalog.snapshots.get(latest.pointer), /Unknown Profile snapshot/);
+    await sessions.load(parentSession, 'Default');
+    assert.equal(parent.profile.pointer, latest.pointer);
+    assert.equal(child.profile.pointer, initial);
+    assert.equal(await catalog.snapshots.get(latest.pointer), parent.profile);
+    const archiveCount = (await store.loadEntries('profile_snapshot_')).filter(([key]) => /_\d+$/.test(key)).length;
+    await sessions.load(parentSession, 'Default');
+    assert.equal(parent.profile.pointer, latest.pointer);
+    assert.equal((await store.loadEntries('profile_snapshot_')).filter(([key]) => /_\d+$/.test(key)).length, archiveCount);
+    await assert.rejects(catalog.snapshots.get(firstUnreferenced.pointer), /Unknown Profile snapshot/);
+    const persisted = (await store.loadEntries<{ name: string; pointer: number }>('profile_session_')).map(([, value]) => value);
+    assert(persisted.every(value => Object.keys(value).sort().join(',') === 'name,pointer'));
+});
+
+test('concurrent publication uses unique pointers and failed switch retains the current reference', async () => {
+    const store = new MemoryStore();
+    const catalog = new SemanticRegistry(store);
+    const original = await catalog.reference();
+    const versions = await Promise.all(Array.from({ length: 8 }, () => catalog.snapshots.create(original.snapshot)));
+    assert.equal(new Set(versions.map(version => version.pointer)).size, 8);
+    assert(versions.every(version => version.pointer > original.pointer));
+    const sessions = new ProfileSessions(catalog, store);
+    const live = session('failure');
+    const current = await sessions.addition(live);
+    const previous = current.profile;
+    await catalog.saveProfile('Next', catalog.configuration(), { trusted: true });
+    const save = store.save.bind(store);
+    store.save = async (key, value) => { if (key.startsWith('profile_session_')) throw new Error('Session unavailable'); await save(key, value); };
+    await assert.rejects(sessions.load(live, 'Next'), /Session unavailable/);
+    assert.equal(current.profile, previous);
+    store.save = save;
+    await sessions.load(live, 'Next');
+    assert(current.profile.pointer > versions.at(-1)!.pointer);
+});
+
+test('tool additions contain metadata while concrete command classes own builtin behavior', async () => {
+    const additions = new ToolAdditions();
+    const first = additions.set('read', { ptcDescription: 'First' });
+    const second = additions.set('read', { hidden: true, ptcDescription: 'Second' });
+    assert.deepEqual(additions.get('read'), { hidden: true, ptcDescription: 'Second' });
+    second();
+    assert.deepEqual(additions.get('read'), { ptcDescription: 'First' });
+    first();
+    assert.deepEqual(additions.get('read'), {});
+    assert.throws(() => additions.set('read', { fixed: true } as never), /Invalid tool addition/);
+    const catalog = new SemanticRegistry(new MemoryStore());
+    const inspect = (await catalog.reference()).snapshot.resolve('tools.inspect');
+    assert.equal(inspect?.type, 'command');
+    assert.equal((inspect as import('../../src/registry/profile/command.js').ProfileCommand).discovery, true);
+    assert.equal('setToolAddition' in catalog.definitions, false);
+    assert.equal('addition' in catalog.definitions, false);
+});

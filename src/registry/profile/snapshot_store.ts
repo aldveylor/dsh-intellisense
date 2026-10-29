@@ -4,17 +4,20 @@ import type { ProfileSnapshot } from './profile.js';
 import type { ProfileData } from '../profile_tree.js';
 import type { NamespaceDefinitions } from '../../namespace/definitions.js';
 
-/** @brief A durable identity for one immutable anonymous Profile version. */
+/** @brief A numeric identity and immutable anonymous Profile; editing values are always detached. */
 export class ProfileReference {
-    constructor(readonly pointer: number, private readonly data: Pick<ProfileData, 'root' | 'brief'>, private readonly definitions: NamespaceDefinitions) {}
+    constructor(readonly pointer: number, private readonly data: Pick<ProfileData, 'root' | 'brief'>, private readonly definitions: NamespaceDefinitions) { this.data = structuredClone(data); Object.freeze(this); }
 
-    /** @brief Return an independent editing value; changing it never changes the referenced version. */
+    /** @brief Return a detached value for global editing; it cannot modify the referenced snapshot. */
     get snapshot(): ProfileSnapshot { return this.definitions.profile(this.data); }
+
+    /** @brief Export anonymous data without exposing the stored value to mutation. */
+    serialize(): Pick<ProfileData, 'root' | 'brief'> { return structuredClone(this.data); }
 
     toJSON(): number { return this.pointer; }
 }
 
-/** @brief Allocate monotonically increasing identities and retain every committed anonymous snapshot. */
+/** @brief Allocate version numbers globally and archive only versions actually referenced by sessions. */
 export class SnapshotStore {
     private journal: JournalStore;
     private pending: Promise<unknown> = Promise.resolve();
@@ -24,7 +27,7 @@ export class SnapshotStore {
 
     constructor(store: Store, private readonly definitions: NamespaceDefinitions) { this.journal = new JournalStore(store, 'profile_snapshot'); }
 
-    /** @brief Recover numbering and history before references are opened. */
+    /** @brief Recover the counter and archived versions before opening references. */
     load(): Promise<void> {
         return this.loaded ??= (async () => {
             const records = await this.journal.loadEntries<unknown>();
@@ -36,16 +39,14 @@ export class SnapshotStore {
                 }
                 const pointer = Number(key.slice('profile_snapshot_'.length));
                 if (!Number.isSafeInteger(pointer) || pointer <= 0) throw new Error('Invalid Profile snapshot identity');
-                const data = value as Pick<ProfileData, 'root' | 'brief'>;
-                // Validate once through the declared concrete Profile classes.
-                const snapshot = this.definitions.profile(data);
+                const snapshot = this.definitions.profile(value as Pick<ProfileData, 'root' | 'brief'>);
                 this.references.set(pointer, new ProfileReference(pointer, { root: snapshot.serialize(), brief: snapshot.brief }, this.definitions));
                 this.sequence = Math.max(this.sequence, pointer);
             }
         })();
     }
 
-    /** @brief Retrieve an existing version without constructing a replacement semantic tree. */
+    /** @brief Retrieve a version that has entered a session, including deleted or superseded catalog entries. */
     async get(pointer: number): Promise<ProfileReference> {
         await this.load();
         const reference = this.references.get(pointer);
@@ -53,22 +54,51 @@ export class SnapshotStore {
         return reference;
     }
 
-    /** @brief Atomically append data and its high-water mark before publishing a new reference. */
-    save(snapshot: ProfileSnapshot): Promise<ProfileReference> {
+    /** @brief Restore a current catalog version without archiving it. */
+    async restore(pointer: number, data: Pick<ProfileData, 'root' | 'brief'>): Promise<ProfileReference> {
+        await this.load();
+        if (!Number.isSafeInteger(pointer) || pointer <= 0 || pointer > this.sequence) throw new Error('Invalid Profile reference');
+        const archived = this.references.get(pointer);
+        if (archived && JSON.stringify(archived.serialize()) !== JSON.stringify(data)) throw new Error('Conflicting Profile snapshot');
+        return archived ?? new ProfileReference(pointer, structuredClone(data), this.definitions);
+    }
+
+    /** @brief Reserve a durable increasing pointer; unreferenced global intermediate versions are not archived. */
+    create(snapshot: ProfileSnapshot): Promise<ProfileReference> {
         const data = structuredClone({ root: snapshot.serialize(), brief: snapshot.brief });
-        const work = this.pending.then(async () => {
+        return this.write(async () => {
             await this.load();
             if (this.sequence >= Number.MAX_SAFE_INTEGER) throw new Error('Profile snapshot sequence exhausted');
             const pointer = ++this.sequence;
-            await this.journal.commit([[`profile_snapshot_${pointer}`, data], ['profile_snapshot_sequence', pointer]]);
-            const reference = new ProfileReference(pointer, data, this.definitions);
-            this.references.set(pointer, reference);
-            return reference;
+            await this.journal.commit([['profile_snapshot_sequence', pointer]]);
+            return new ProfileReference(pointer, data, this.definitions);
         });
+    }
+
+    /** @brief Keep existence checks, first archive writes and holder publication under one shared lock. */
+    use<T>(reference: ProfileReference, publish: (reference: ProfileReference) => Promise<T>): Promise<T> {
+        return this.write(async () => {
+            await this.load();
+            let archived = this.references.get(reference.pointer);
+            if (!archived) {
+                await this.journal.commit([[`profile_snapshot_${reference.pointer}`, reference.serialize()]]);
+                archived = reference;
+                this.references.set(reference.pointer, reference);
+            }
+            return publish(archived);
+        });
+    }
+
+    /** @brief Archive a version idempotently without publishing another holder. */
+    archive(reference: ProfileReference): Promise<ProfileReference> { return this.use(reference, async value => value); }
+
+    /** @brief Serialize numbering and archive publication without poisoning later work on failure. */
+    private write<T>(operation: () => Promise<T>): Promise<T> {
+        const work = this.pending.then(operation);
         this.pending = work.catch(() => {});
         return work;
     }
 
-    /** @brief Complete interrupted appends before the independent backend is closed. */
+    /** @brief Complete interrupted writes before the independent backend is closed. */
     flush(): Promise<void> { return this.journal.flush(); }
 }
