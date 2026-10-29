@@ -34,10 +34,11 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
     if (!backend.kv) throw new Error('DSH json backend does not support KV storage');
     const unit = await backend.kv.open({ name: 'ts_intellisense', version: storageVersion, compatibleVersions: [1], tables: ['state'], hasGlobal: false, layout: 'per-record' });
     const store = new DshStore(unit);
-    const registry = new SemanticRegistry(store);
+    const snapshotUnit = await backend.kv.open({ name: 'intellisense_profile_snapshots', version: 1, tables: ['state'], hasGlobal: false, layout: 'per-record' });
+    const registry = new SemanticRegistry(store, 'global', undefined, new DshStore(snapshotUnit));
     const statistics = new CommandStatistics(store, { onError: error => ctx.logger.warn('Statistics persistence failed; dirty data will be retried.', error) });
     const profiles = new ProfileSessions(registry, store, statistics);
-    ctx.effect(() => async () => { try { await statistics.dispose(); await profiles.inspectStatistics.dispose(); } finally { await unit.close(); } });
+    ctx.effect(() => async () => { try { await statistics.dispose(); await profiles.inspectStatistics.dispose(); } finally { try { await registry.snapshots.flush(); } finally { await snapshotUnit.close(); await unit.close(); } } });
     let namespaces: NamespaceIntegration | undefined;
     let initialization: Promise<void> | undefined;
 

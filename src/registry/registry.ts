@@ -1,3 +1,5 @@
+import { editedConfiguration } from './profile/configuration.js';
+import { SnapshotStore, type ProfileReference } from './profile/snapshot_store.js';
 import { profileTree, ProfileSchema } from './profile_tree.js';
 import { validateProfileEdit } from './profile/validate_edit.js';
 import { NamespaceDefinitions } from '../namespace/definitions.js';
@@ -61,14 +63,54 @@ export class SemanticRegistry {
     private state = new RegistryState({ inactiveProfiles: {} });
     private writeChain: Promise<unknown> = Promise.resolve();
 
-    constructor(private store: Store, _scope: 'global' | 'session' = 'global', readonly definitions = new NamespaceDefinitions()) {}
+    readonly snapshots: SnapshotStore;
+    private pointers: Record<string, number> = {};
+
+    constructor(private store: Store, _scope: 'global' | 'session' = 'global', readonly definitions = new NamespaceDefinitions(), snapshotStore: Store = store) { this.snapshots = new SnapshotStore(snapshotStore, definitions); }
+
+    /** @brief Read the immutable version currently published under a catalog name. */
+    async reference(name = this.state.profile): Promise<ProfileReference> {
+        const pointer = this.pointers[name];
+        if (pointer === undefined) {
+            this.configuration(name);
+            await this.transaction(async () => { if (this.pointers[name] === undefined) await this.persist(this.state, [name]); });
+            return this.snapshots.get(this.pointers[name]!);
+        }
+        return this.snapshots.get(pointer);
+    }
+
+    /** @brief Persist catalog names as references; Profile contents live exclusively in snapshot storage. */
+    private async persist(state: RegistryState, updated: readonly string[] = []): Promise<void> {
+        const configurations = { ...state.inactiveProfiles, [state.profile]: state };
+        const pointers: Record<string, number> = {};
+        for (const [name, configuration] of Object.entries(configurations)) {
+            const previous = this.pointers[name];
+            pointers[name] = previous !== undefined && !updated.includes(name) ? previous
+                : (await this.snapshots.save(this.definitions.profile(profileTree(name, configuration, this.definitions).save()))).pointer;
+        }
+        await this.store.save('registry', { version: storageVersion, revision: state.revision, profile: state.profile, pointers });
+        this.pointers = pointers;
+    }
 
     /** @brief Serialize loading and recovery with ordinary configuration writes. */
     load(recover = false): Promise<void> { return this.transaction(() => this.loadSnapshot(recover)); }
 
     /** @brief Validate or recover persisted settings before publishing a new in-memory state. */
     private async loadSnapshot(recover: boolean): Promise<void> {
-        let saved = await this.store.load<RegistryStateData>('registry');
+        await this.snapshots.load();
+        const catalog = await this.store.load<{ version: number; revision: number; profile: string; pointers: Record<string, number> }>('registry');
+        let saved: RegistryStateData | undefined;
+        if (catalog) {
+            if (!catalog.pointers || !Object.hasOwn(catalog.pointers, catalog.profile)) throw new Error('Invalid Profile reference catalog');
+            const configurations: Record<string, RegistryConfiguration> = {};
+            for (const [name, pointer] of Object.entries(catalog.pointers)) {
+                this.validateProfileName(name);
+                const snapshot = (await this.snapshots.get(pointer)).snapshot;
+                configurations[name] = editedConfiguration({ name, root: snapshot.serialize(), brief: snapshot.brief }, new RegistryConfiguration(), this.definitions);
+            }
+            this.pointers = { ...catalog.pointers };
+            saved = new RegistryState({ ...configurations[catalog.profile], version: catalog.version, revision: catalog.revision, profile: catalog.profile, inactiveProfiles: Object.fromEntries(Object.entries(configurations).filter(([name]) => name !== catalog.profile)) }).save();
+        }
         if (saved !== undefined) {
             const migrate = recover || (saved?.version ?? 0) !== configurationVersion;
             if (migrate) saved = this.recoverState(saved);
@@ -102,7 +144,7 @@ export class SemanticRegistry {
                 if (configuration.providedRoot) ProfileSchema.parse({ name, root: configuration.providedRoot });
             }
             const state = new RegistryState(saved);
-            if (migrate || cleaned) await this.store.save('registry', state.save());
+            if (migrate || cleaned) await this.persist(state);
             this.state = state;
         }
     }
@@ -244,7 +286,7 @@ export class SemanticRegistry {
             this.validateComments(detached.toolComments ?? {});
             const next: RegistryStateData = { ...this.state, ...detached, toolComments: detached.toolComments ?? {}, profile, revision: this.state.revision + 1 };
             const state = new RegistryState(next);
-            await this.store.save('registry', state.save());
+            await this.persist(state);
             this.state = state;
         });
     }
@@ -275,7 +317,7 @@ export class SemanticRegistry {
             if (name === (this.state.profile ?? 'Default')) Object.assign(next, detached, { toolComments: detached.toolComments ?? {} });
             else next.inactiveProfiles = { ...this.state.inactiveProfiles, [name]: detached };
             const state = new RegistryState(next);
-            await this.store.save('registry', state.save());
+            await this.persist(state, [name]);
             this.state = state;
         });
     }
@@ -328,7 +370,9 @@ export class SemanticRegistry {
                 } else throw new Error('Invalid profile action');
             }
             const state = new RegistryState(next);
-            await this.store.save('registry', state.save());
+            const previousPointers = this.pointers;
+            if (action === 'rename') this.pointers = { ...this.pointers, [newName!]: this.pointers[name]! };
+            try { await this.persist(state); } catch (error) { this.pointers = previousPointers; throw error; }
             this.state = state;
         });
     }
@@ -479,7 +523,7 @@ export class SemanticRegistry {
                 }
             }
             const state = new RegistryState(next);
-            await this.store.save('registry', state.save());
+            await this.persist(state, [targetName]);
             this.state = state;
         });
     }
