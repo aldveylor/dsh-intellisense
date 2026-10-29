@@ -89,8 +89,8 @@ export function registerToolCommands(ctx: Context, catalog: ToolsNamespace, prof
         },
     })));
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_delete', description: contract('tools_profile_delete').description,
-        parameters: { name: { type: 'string', required: true, description: contract('tools_profile_delete').parameterDocs!.name } },
+        name: 'tools_profile_remove', description: contract('tools_profile_remove').description,
+        parameters: { name: { type: 'string', required: true, description: contract('tools_profile_remove').parameterDocs!.name } },
         output: { ...output, schema: { type: 'null' } },
         execute: async (args, execution) => {
             if (!execution.agent) throw new ConversationRequiredError();

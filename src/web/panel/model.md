@@ -4,7 +4,7 @@
 
 命名空间树下方显示中英文操作提示，说明展开、编辑、拖动排序、跨命名空间移动及添加工具。
 
-`tools.inspect` 固定映射内置 tools_inspect，启用时始终提示且不可取消固定、改名、拖动或删除，其图钉锁定详细等级 2；tools.profile 子树仅显示 annotation、commands、profiles、load、save、delete、switch、setdefault，均可按 0/1/2 切换提示等级。
+`tools.inspect` 固定映射内置 tools_inspect，启用时始终提示且不可取消固定、改名、拖动或删除，其图钉锁定详细等级 2；tools.profile 子树仅显示 annotation、commands、profiles、load、save、remove、switch、setdefault，均可按 0/1/2 切换提示等级。
 
 普通命令图钉点击按 0（不固定）→ 1（简略）→ 2（详细）→ 0 循环，等级 2 使用黄色实心图钉。固定等级切换时，填充与颜色均渐变过渡。草稿及挂载/移除映射均保留完整等级；命名空间图钉保留布尔开关。树中的固定及关闭图标均为 18px，按钮保持 26px，无边框。
 

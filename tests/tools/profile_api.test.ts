@@ -59,7 +59,7 @@ async function fixture() {
 
 test('native Profile data tools and optional-name save/load use session defaults', async () => {
     const { definitions, call, registry, catalog } = await fixture();
-    assert.deepEqual([...definitions.keys()].sort(), ['tools_profile_annotation', 'tools_profile_apply', 'tools_profile_commands', 'tools_profile_delete', 'tools_profile_load', 'tools_profile_profiles', 'tools_profile_save', 'tools_profile_setdefault', 'tools_profile_switch']);
+    assert.deepEqual([...definitions.keys()].sort(), ['tools_profile_annotation', 'tools_profile_apply', 'tools_profile_commands', 'tools_profile_load', 'tools_profile_profiles', 'tools_profile_remove', 'tools_profile_save', 'tools_profile_setdefault', 'tools_profile_switch']);
     assert.equal(await call('tools_profile_annotation'), profileAnnotation);
     assert.deepEqual(await call('tools_profile_profiles'), { profiles: ['Default'], selected: 'Default' });
     assert.deepEqual(await call('tools_profile_commands'), [{ name: 'read_file', brief: 'Read a file.', paths: ['files.read', 'files.cat'], totalCalls: 2 }, { name: 'outside_scope', brief: 'Outside this session.', paths: [], totalCalls: 0 }]);
@@ -87,7 +87,7 @@ test('manifest exposes only the new tools API and projects VM array arguments', 
         { id: 'tools_mount', description: 'Old command.', parameters: {}, output: {} },
     ]));
     const entries = manifest(registry, []);
-    assert.deepEqual(entries.commands().map(entry => entry.path).sort(), ['tools.inspect', 'tools.profile.annotation', 'tools.profile.apply', 'tools.profile.commands', 'tools.profile.delete', 'tools.profile.load', 'tools.profile.profiles', 'tools.profile.save', 'tools.profile.setdefault', 'tools.profile.switch']);
+    assert.deepEqual(entries.commands().map(entry => entry.path).sort(), ['tools.inspect', 'tools.profile.annotation', 'tools.profile.apply', 'tools.profile.commands', 'tools.profile.load', 'tools.profile.profiles', 'tools.profile.remove', 'tools.profile.save', 'tools.profile.setdefault', 'tools.profile.switch']);
     const discovery = entries.commands().find(entry => entry.path === 'tools.inspect')!;
     assert.deepEqual(await positionalArguments(discovery, [['files.']]), { queries: ['files.'] });
     await assert.rejects(positionalArguments(discovery, ['files.']));
@@ -170,20 +170,20 @@ test('Profile save validates input and undefined name overwrites the current sel
 });
 
 
-test('Profile deletion rejects the current selection and missing entries, and can remove the catalog default', async () => {
+test('Profile removal rejects the current selection and missing entries, and can remove the catalog default', async () => {
     const { call, load, catalog, registry } = await fixture();
-    await assert.rejects(call('tools_profile_delete'), /name/);
-    await assert.rejects(call('tools_profile_delete', { name: 'Default' }), /Current Profile cannot be deleted: Default/);
-    await assert.rejects(call('tools_profile_delete', { name: 'Missing' }), /Profile does not exist/);
+    await assert.rejects(call('tools_profile_remove'), /name/);
+    await assert.rejects(call('tools_profile_remove', { name: 'Default' }), /Current Profile cannot be deleted: Default/);
+    await assert.rejects(call('tools_profile_remove', { name: 'Missing' }), /Profile does not exist/);
     const profile = await load();
     await call('tools_profile_save', { name: 'Copy', profile: profileWrite(profile) });
     await call('tools_profile_switch', { name: 'Copy' });
-    await assert.rejects(call('tools_profile_delete', { name: 'Copy' }), /Current Profile cannot be deleted: Copy/);
-    await call('tools_profile_delete', { name: 'Default' });
+    await assert.rejects(call('tools_profile_remove', { name: 'Copy' }), /Current Profile cannot be deleted: Copy/);
+    await call('tools_profile_remove', { name: 'Default' });
     assert.deepEqual(await call('tools_profile_profiles'), { profiles: ['Copy'], selected: 'Copy' });
     assert.equal(registry.snapshot().profile, 'Copy');
     assert.equal(catalog.snapshot().profile, 'Copy');
-    await assert.rejects(call('tools_profile_delete', { name: 'Default' }), /Profile does not exist/);
+    await assert.rejects(call('tools_profile_remove', { name: 'Default' }), /Profile does not exist/);
 });
 
 
@@ -652,7 +652,7 @@ test('save and apply reject anonymous root settings that have no persistent repr
 
 test('Profile failures use explicit domain error classes and save shares patch protection', async () => {
     const { call, load, definitions, catalog } = await fixture();
-    await assert.rejects(call('tools_profile_delete', { name: 'Default' }), CurrentProfileDeletionError);
+    await assert.rejects(call('tools_profile_remove', { name: 'Default' }), CurrentProfileDeletionError);
     await assert.rejects(call('tools_profile_load', { name: 'Missing' }), ProfileNotFoundError);
     await assert.rejects(call('tools_profile_apply', { value: { root: { children: { unknown: { type: 'command', command: { tool: 'missing_tool' } } } } } }), UnknownCommandError);
     await assert.rejects(definitions.get('tools_profile_load')!.execute({}, { signal: new AbortController().signal } as ToolRunContext), ConversationRequiredError);

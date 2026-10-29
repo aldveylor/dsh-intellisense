@@ -364,9 +364,9 @@ test('PTC Profile deletion protects the selection and refreshes preloaded names'
             await tools.profile.save('Copy', writable(profile));
             await tools.profile.switch('Copy');
             let blocked = false;
-            try { await tools.profile.delete(); } catch { blocked = true; }
+            try { await tools.profile.remove(); } catch { blocked = true; }
             const state = tools.profile.profiles;
-            const returned = await tools.profile.delete('Default');
+            const returned = await tools.profile.remove('Default');
             return [blocked, typeof returned, state.profiles, state.selected];
         `);
         assert.equal(result.isError, false, JSON.stringify(result));
@@ -413,8 +413,8 @@ test('Profile saves preserve the snapshot and inject notices only when explicitl
             await tools.profile.load('Copy');
             try { await tools.profile.switch('Missing'); } catch {}
             try { await tools.profile.save(); } catch {}
-            try { await tools.profile.delete('Default'); } catch {}
-            await tools.profile.delete('Copy');
+            try { await tools.profile.remove('Default'); } catch {}
+            await tools.profile.remove('Copy');
         `);
         assert.equal(result.isError, false, JSON.stringify(result));
         assert.deepEqual(injected.map(message => message.content), ['Default'].map(name => [{ type: 'text', text: `Profile updated to ${name}` }]));
@@ -495,13 +495,13 @@ test('Profile cleanup steps serialize void values and preserve per-step errors',
                 try { out.push({ test: name, ok: true, value: await fn() }); }
                 catch (e) { out.push({ test: name, ok: false, err: String((e && e.message) || e) }); }
             }
-            await step('delete TMP_ProfileTest2 (not current) via catalog', function () { return tools.profile.delete('TMP_ProfileTest2'); });
-            await step('delete TMP_FromDefault', function () { return tools.profile.delete('TMP_FromDefault'); });
-            await step('delete TMP_ProfileTest', function () { return tools.profile.delete('TMP_ProfileTest'); });
+            await step('remove TMP_ProfileTest2 (not current) via catalog', function () { return tools.profile.remove('TMP_ProfileTest2'); });
+            await step('remove TMP_FromDefault', function () { return tools.profile.remove('TMP_FromDefault'); });
+            await step('remove TMP_ProfileTest', function () { return tools.profile.remove('TMP_ProfileTest'); });
             await step('switch back to Default', function () { return tools.profile.switch('Default'); });
-            await step('cleanup: delete leftover TMP profiles if any', async function () {
+            await step('cleanup: remove leftover TMP profiles if any', async function () {
                 const names = tools.profile.profiles.profiles.filter(n => n.indexOf('TMP_') === 0);
-                for (const n of names) await tools.profile.delete(n);
+                for (const n of names) await tools.profile.remove(n);
                 return names;
             });
             await step('final profiles', function () { return tools.profile.profiles; });
@@ -511,10 +511,10 @@ test('Profile cleanup steps serialize void values and preserve per-step errors',
         assert.equal(result.isError, false, JSON.stringify(result));
         const rows = (result.value as { result: { test?: string; ok?: boolean; value?: unknown; err?: string; current?: string }[] }).result;
         assert.equal(rows.length, 7);
-        assert.deepEqual(rows[0], { test: 'delete TMP_ProfileTest2 (not current) via catalog', ok: true });
+        assert.deepEqual(rows[0], { test: 'remove TMP_ProfileTest2 (not current) via catalog', ok: true });
         assert.equal(rows[1]!.ok, false);
         assert.match(rows[1]!.err!, /Current Profile cannot be deleted: TMP_FromDefault/);
-        assert.deepEqual(rows[2], { test: 'delete TMP_ProfileTest', ok: true });
+        assert.deepEqual(rows[2], { test: 'remove TMP_ProfileTest', ok: true });
         assert.deepEqual(rows[3], { test: 'switch back to Default', ok: true });
         assert.deepEqual(rows[4]!.value, ['TMP_FromDefault', 'TMP_Leftover']);
         assert.deepEqual(rows[5]!.value, { profiles: ['Default'], selected: 'Default' });
@@ -545,7 +545,7 @@ test('Profile organization mounts catalog commands and applies briefs without mu
             invalid.root.children['tools'].children['inspect'].command.tool = 'read';
             let rejected = 0;
             try { await tools.profile.save('Organized', writable(invalid)); } catch { rejected++; }
-            try { await tools.profile.delete('Missing'); } catch { rejected++; }
+            try { await tools.profile.remove('Missing'); } catch { rejected++; }
             return [rejected, tools.profile.profiles.selected, (await tools.profile.load('Organized')).root.children['files'].description];
         `);
         assert.equal(result.isError, false, JSON.stringify(result));
