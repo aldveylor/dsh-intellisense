@@ -1,7 +1,6 @@
-import { apiGeneration } from './version.js';
+import { version } from './version.js';
 import type { DshCompatibility } from './contracts.js';
 
 /** @brief Load only the host version's adapter, keeping new executor packages optional on old hosts. */
-export const dshCompatibility: DshCompatibility = (apiGeneration === 'executor'
-    ? await import('./executor.js')
-    : await import('./legacy.js')).compatibility;
+export const dshCompatibility: DshCompatibility = (await (version.gte('0.2.2-alpha.2', () => import('./executor.js'))
+    ?? import('./legacy.js'))).compatibility;

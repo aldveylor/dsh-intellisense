@@ -1,6 +1,6 @@
 # DSH 兼容层
 
-compatibility.ts 提供统一的 DshCompatibility 接口。version.ts 读取本插件实际解析到的 @deepseek-ai/dsh-tools/package.json 版本，使用 SemVer 判断，不依赖全局 CLI、环境变量或接口是否存在。
+compatibility.ts 提供统一的 DshCompatibility 接口。version.ts 读取本插件实际解析到的 @deepseek-ai/dsh-tools/package.json 版本，封装字符串创建的 `Version` 类并导出 `version` 实例，不导出原始版本字符串或接口代际。`gte/gt/lte/lt/eq/neq(version, callback)` 直接按 SemVer 比较，匹配时执行回调并返回其结果，否则返回 undefined；回调异常直接传播，异步返回值保留。通用 Version 类只校验版本格式，最低宿主版本限制在宿主实例初始化时检查。不依赖全局 CLI、环境变量或接口是否存在。
 
 0.2.1-rc.2 是最低支持版本；0.2.2-alpha.2 是执行器接口分界。分界之前动态加载 legacy.ts，分界起动态加载 executor.ts。无效版本或低于最低版本时显式失败；被选择适配器的加载错误直接暴露，不回退到另一套接口。业务层不直接导入版本专有模块。
 

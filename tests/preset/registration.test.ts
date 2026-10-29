@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import { test } from 'node:test';
 import type { Context } from '@deepseek-ai/cordis';
 import type { PresetDefinition } from '@deepseek-ai/dsh-agent-preset-registry';
-import { apiGeneration } from '../../src/compatibility/version.js';
+import { version } from '../../src/compatibility/version.js';
 import { apply } from '../../src/preset/index.js';
 
 test('preset version patches retain legacy discovery and omit removed host exports', async () => {
@@ -25,12 +25,12 @@ test('preset version patches retain legacy discovery and omit removed host expor
         assert.equal(delegation?.group, true);
         const children = delegation?.config as PresetDefinition['plugins'];
         const discovery = children.filter(plugin => plugin.id === 'tool-subagent-list-agents');
-        assert.equal(discovery.length, apiGeneration === 'legacy' ? 1 : 0);
-        if (apiGeneration === 'legacy') {
+        assert.equal(discovery.length, version.lt('0.2.2-alpha.2', () => 1) ?? 0);
+        version.lt('0.2.2-alpha.2', () => {
             const control = children.findIndex(plugin => plugin.id === 'tool-subagent-control');
             assert.equal(children[control + 1], discovery[0]);
             assert.equal(discovery[0]?.name, '@deepseek-ai/dsh-tool-subagent-control/list-agents');
-        }
+        });
         for (const plugin of children) assert.doesNotThrow(() => host.resolve(plugin.name));
         assert.deepEqual(preset.plugins.find(plugin => plugin.id === 'intellisense-presentation')?.config,
             { mode: preset.id === 'intellisense-ptc' ? 'ptc' : 'native' });

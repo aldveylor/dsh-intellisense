@@ -1,15 +1,38 @@
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
-import { gte, valid } from 'semver';
+import { eq, gt, gte, lt, lte, neq, valid } from 'semver';
 
-/** @brief Identify the tool API generation from the installed DSH package version. */
-export function generationFor(version: string): 'legacy' | 'executor' {
-    if (!valid(version) || !gte(version, '0.2.1-rc.2')) throw new Error(`Unsupported DSH version: ${version}`);
-    return gte(version, '0.2.2-alpha.2') ? 'executor' : 'legacy';
+/** @brief Run version-specific callbacks against an immutable semantic version. */
+export class Version {
+    private readonly value: string;
+
+    /** @brief Create a version from a valid SemVer string. */
+    constructor(value: string) {
+        const normalized = valid(value);
+        if (!normalized) throw new Error(`Invalid version: ${value}`);
+        this.value = normalized;
+    }
+
+    /** @brief Run the callback when this version is greater than or equal to the target. */
+    gte<T>(version: string, callback: () => T): T | undefined { return gte(this.value, version) ? callback() : undefined; }
+
+    /** @brief Run the callback when this version is greater than the target. */
+    gt<T>(version: string, callback: () => T): T | undefined { return gt(this.value, version) ? callback() : undefined; }
+
+    /** @brief Run the callback when this version is less than or equal to the target. */
+    lte<T>(version: string, callback: () => T): T | undefined { return lte(this.value, version) ? callback() : undefined; }
+
+    /** @brief Run the callback when this version is less than the target. */
+    lt<T>(version: string, callback: () => T): T | undefined { return lt(this.value, version) ? callback() : undefined; }
+
+    /** @brief Run the callback when this version equals the target. */
+    eq<T>(version: string, callback: () => T): T | undefined { return eq(this.value, version) ? callback() : undefined; }
+
+    /** @brief Run the callback when this version differs from the target. */
+    neq<T>(version: string, callback: () => T): T | undefined { return neq(this.value, version) ? callback() : undefined; }
 }
 
 const require = createRequire(import.meta.url);
-/** @brief Read the API package resolved by this plugin rather than a potentially different CLI installation. */
-export const dshVersion: string = JSON.parse(readFileSync(require.resolve('@deepseek-ai/dsh-tools/package.json'), 'utf8')).version;
-/** @brief Select the adapter once, before importing any version-specific runtime modules. */
-export const apiGeneration = generationFor(dshVersion);
+/** @brief Version of the DSH API package resolved by this plugin. */
+export const version = new Version(JSON.parse(readFileSync(require.resolve('@deepseek-ai/dsh-tools/package.json'), 'utf8')).version);
+version.lt('0.2.1-rc.2', () => { throw new Error('Unsupported DSH version: expected >=0.2.1-rc.2'); });

@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { parse } from 'yaml';
 import { z } from 'zod';
 import { entryListProblem, type PresetDefinition } from '@deepseek-ai/dsh-agent-preset-registry';
-import { apiGeneration } from '../compatibility/version.js';
+import { version } from '../compatibility/version.js';
 
 export const inject = ['agentPresets'];
 
@@ -18,14 +18,14 @@ export async function apply(ctx: Context): Promise<void> {
         const problem = entryListProblem(plugins);
         if (problem) throw new Error(`Invalid ${metadata.name} composition: ${problem}`);
         const composition = plugins as PresetDefinition['plugins'];
-        if (apiGeneration === 'legacy') {
+        version.lt('0.2.2-alpha.2', () => {
             const delegation = composition.find(plugin => plugin.id === 'delegation');
             const children = delegation?.config as PresetDefinition['plugins'] | undefined;
             if (!delegation?.group || !Array.isArray(children)) throw new Error(`Invalid ${metadata.name} composition: missing delegation group`);
             const index = children.findIndex(plugin => plugin.id === 'tool-subagent-control');
             if (index < 0) throw new Error(`Invalid ${metadata.name} composition: missing subagent control`);
             children.splice(index + 1, 0, { id: 'tool-subagent-list-agents', name: '@deepseek-ai/dsh-tool-subagent-control/list-agents' });
-        }
+        });
         const dispose = await ctx.agentPresets.register({ ...metadata, plugins: composition });
         ctx.effect(() => dispose);
     }
