@@ -1,3 +1,4 @@
+import { profileSaveInformation } from '../profile_save.js';
 import { EditableSnapshot } from '../../registry/profile/snapshot.js';
 import type { ProfileNode } from '../../registry/profile/node.js';
 import type { ProfileData } from '../../registry/profile_tree.js';
@@ -10,6 +11,11 @@ import { ProfilePermissionError } from '../../error.js';
 export class RootNamespace extends EditableSnapshot {
     constructor(data?: Pick<ProfileData, 'root' | 'brief'>) {
         super({ ...data, root: { type: 'namespace', children: { tools: new ImplToolsNamespace().serialize(), ...data?.root.children } } });
+    }
+
+    /** @brief Discovery feedback belongs to the provider's root policy, not the save event payload. */
+    override saveInformation(availableTools: readonly string[]): string | null {
+        return profileSaveInformation({ name: '', root: this.serialize() }, availableTools);
     }
 
     override get permissions(): Permission { return nodePermissions('tree', { renamable: false, movable: false, removable: false, commentable: false, disableable: false, availableFixLevels: [] }); }

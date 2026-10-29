@@ -17,7 +17,6 @@ import { manifest } from '../../src/namespace/namespace.js';
 import { nodePermissions } from '../../src/namespace/node.js';
 import { inspect } from '../../src/tools/inspect.js';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
-import { validateProfileEdit } from '../../src/registry/profile/validate_edit.js';
 import { NamespaceComponent } from '../../src/namespace/component.js';
 import { RuntimeHost } from '../../src/runtime/host.js';
 
@@ -731,50 +730,70 @@ test('agent save effects restore builtin nodes in an explicitly empty plugin Pro
     assert.deepEqual(catalog.configuration('Empty').builtinDisabled, ['tools']);
 });
 
-test('agent save and apply run ordered disposable namespace effects and return their result', async () => {
+test('save events expose only name, time and type after persistence and can return feedback', async () => {
     const { namespaces, call, load, registry } = await fixture();
     const operations: string[] = [];
+    const observed: string[] = [];
     const original = registry.snapshot();
     const first = namespaces.effect('save', async event => {
-        await Promise.resolve();
-        operations.push(`${event.operation}:${event.name}`);
-        event.profile.setBrief('Processed by provider');
-        event.result = 'Saved by provider';
+        assert.deepEqual(Object.keys(event).sort(), ['name', 'time', 'type']);
+        assert.equal(Object.isFrozen(event), true);
+        assert.equal(new Date(event.time).toISOString(), event.time);
+        operations.push(`${event.type}:${event.name}`);
+        const saved = await namespaces.get(event.name);
+        assert(saved);
+        observed.push(saved.brief ?? '');
+        return 'Saved by observer';
     });
-    const second = namespaces.effect('save', event => { event.result += ' / second effect'; });
-    assert.equal(await call('tools_profile_save', { name: 'Effects', profile: profileWrite(await load()) }), 'Saved by provider / second effect');
-    assert.equal((await load({ name: 'Effects' })).brief, 'Processed by provider');
-    assert.equal(await call('tools_profile_apply', { name: 'Effects', value: { brief: 'Agent patch' } }), 'Saved by provider / second effect');
-    assert.deepEqual(operations, ['save:Effects', 'apply:Effects']);
+    const second = namespaces.effect('save', event => { operations.push(`observed:${event.type}`); });
+    assert.equal(await call('tools_profile_save', { name: 'Effects', profile: profileWrite(await load()) }), 'Saved by observer');
+    assert.equal((await load({ name: 'Effects' })).brief, undefined);
+    assert.equal(await call('tools_profile_apply', { name: 'Effects', value: { brief: 'Agent patch' } }), 'Saved by observer');
+    assert.deepEqual(operations, ['save:Effects', 'observed:save', 'apply:Effects', 'observed:apply']);
+    assert.deepEqual(observed, ['', 'Agent patch']);
     assert.deepEqual(registry.snapshot(), original);
     first();
     second();
     await call('tools_profile_apply', { name: 'Effects', value: { brief: 'After disposal' } });
     assert.equal((await load({ name: 'Effects' })).brief, 'After disposal');
-    assert.equal(operations.length, 2);
+    assert.equal(operations.length, 4);
 });
 
-test('save effect failures and provider-independent permission failures never publish partial changes', async () => {
+test('node validation failures never publish changes and event failures occur after commit', async () => {
     const { namespaces, call, load, catalog, registry } = await fixture();
     await namespaces.edit('Default', snapshot => {
         snapshot.create('external', () => new EditableNamespace('external')).create('read', () => new EditableCommand('read')).setTool('read_file').setPermissions({ removable: false, commentable: false });
         return snapshot;
     });
-    const before = catalog.snapshot();
     const draft = registry.snapshot();
-    namespaces.effect('save', event => validateProfileEdit(event.baseline.serialize(), event.profile.serialize()));
-    const unregister = namespaces.effect('save', event => {
-        event.profile.setBrief('Must not persist');
-        event.result = 'Must not return';
-        throw new Error('Provider rejected save');
-    });
-    await assert.rejects(call('tools_profile_apply', { name: 'Default', value: { brief: 'Changed' } }), /Provider rejected save/);
-    assert.deepEqual(catalog.snapshot(), before);
+    const unregister = namespaces.effect('save', () => { throw new Error('Observer failed'); });
+    await assert.rejects(call('tools_profile_apply', { name: 'Default', value: { brief: 'Committed' } }), /Observer failed/);
+    assert.equal((await load({ name: 'Default' })).brief, 'Committed');
+    const committed = catalog.snapshot();
     unregister();
     await assert.rejects(call('tools_profile_apply', { name: 'Default', value: { root: { children: { external: null } } } }), /cannot be removed: external.read/);
-    assert.deepEqual(catalog.snapshot(), before);
+    assert.deepEqual(catalog.snapshot(), committed);
     assert.deepEqual(registry.snapshot(), draft);
-    assert((await load({ name: 'Default' })).root.children!.external);
+});
+
+test('save events are absent on validation or persistence failure and explicit feedback overrides advisories', async () => {
+    const { namespaces, call, load, catalog, store } = await fixture();
+    let events = 0;
+    const remove = namespaces.effect('save', () => { events++; return null; });
+    const before = catalog.snapshot();
+    await assert.rejects(call('tools_profile_apply', { value: { root: { children: { tools: null } } } }), /cannot be removed/);
+    assert.equal(events, 0);
+    const persist = store.save.bind(store);
+    store.save = async () => { throw new Error('Persistence failed'); };
+    await assert.rejects(call('tools_profile_save', { name: 'Failed', profile: profileWrite(await load()) }), /Persistence failed/);
+    assert.equal(events, 0);
+    assert.deepEqual(catalog.snapshot(), before);
+    store.save = persist;
+    const profile = profileWrite(await load());
+    profile.root.children!.read = { type: 'command', command: { tool: 'read_file' } };
+    assert.equal(await call('tools_profile_save', { name: 'Saved', profile }), null);
+    assert.equal(events, 1);
+    remove();
 });
 
 test('builtin nodes normalize differential saves and reject explicit deletion during apply', async () => {
@@ -797,4 +816,15 @@ test('builtin nodes normalize differential saves and reject explicit deletion du
     const applied = await load({ name: 'Repaired' });
     assert.equal(applied.root.children!.tools.disabled ?? false, false);
     assert.equal(applied.root.children!.tools.children!.inspect.fixedLevel, 2);
+});
+
+
+test('post-save observers can use collection writes without holding the completed save transaction', { timeout: 2000 }, async () => {
+    const { namespaces, call, load } = await fixture();
+    const remove = namespaces.effect('save', async event => {
+        await namespaces.edit(event.name, value => value.setBrief('Observed after commit'));
+    });
+    await call('tools_profile_save', { name: 'Observed', profile: profileWrite(await load()) });
+    assert.equal((await load({ name: 'Observed' })).brief, 'Observed after commit');
+    remove();
 });

@@ -8,4 +8,4 @@ apply 是根级基础操作：先检查补丁字段与合并后形状，再对�
 
 profileConfiguration 和 validate_edit.ts 是转换兼容入口，均委托实际根和子节点 apply，不再自行遍历判断内置权限。configuration.ts 仅将节点树投影为持久化数据；providedRoot、nodeSettings 分别保存拥有的定义与权限/说明声明。默认 Profile 包含 tools，不再显式安装内置树。
 
-NamespaceComponent 的 saveProfile/applyProfile 使用同一串行写事务。apply 读取基线、应用及持久化在锁内完成，避免增量更新丢失。事件只在节点处理成功后发出，处理器可改变返回信息；构造、修复、检查属于节点实现。目录保存不更新已有会话，显式 switch 后才应用。
+NamespaceComponent 的 saveProfile/applyProfile 使用同一串行写事务。apply 读取基线、应用及持久化在锁内完成，避免增量更新丢失。事件只在持久化成功后发出，基础字段仅为 name、ISO 时间 time 和 string 类型 type，可用接口继承扩展描述。处理器返回 string/null 可覆盖返回信息，void 保留已有信息；观察器异常发生在提交后，不回滚已保存配置。构造、修复、检查属于节点实现。目录保存不更新已有会话，显式 switch 后才应用。

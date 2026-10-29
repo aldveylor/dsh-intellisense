@@ -70,9 +70,9 @@ export class NamespaceComponent implements ToolsNamespace {
         return this.writeProfile(agent, name, patch, 'apply');
     }
 
-    /** @brief Node-owned validation completes before event processing and one atomic persistent write. */
-    private writeProfile(agent: Agent, name: string | undefined, input: ProfileWrite | ProfilePatch, operation: 'save' | 'apply'): Promise<string | null> {
-        return this.profileTransaction(async () => {
+    /** @brief Node-owned processing completes before atomic persistence; basic events are emitted only after commit. */
+    private async writeProfile(agent: Agent, name: string | undefined, input: ProfileWrite | ProfilePatch, operation: 'save' | 'apply'): Promise<string | null> {
+        const saved = await this.profileTransaction(async () => {
             const session = await this.registryFor(agent);
             const target = name ?? session.profileSelection().selected;
             const catalog = this.registry;
@@ -86,16 +86,16 @@ export class NamespaceComponent implements ToolsNamespace {
             else snapshot.apply(input as ProfilePatch);
             snapshot.check({ commands: new Set((await this.commandBriefs(agent)).map(command => command.name)),
                 addition: tool => catalog.definitions.addition(tool), original: baseline.serialize() });
-            const event: ProfileSaveEvent = { name: target, operation, agent, tools: session.tools().map(tool => tool.id), profile: snapshot, baseline, result: null };
-            await catalog.definitions.processSave(event);
-            event.profile.check({ commands: new Set((await this.commandBriefs(agent)).map(command => command.name)),
-                addition: tool => catalog.definitions.addition(tool), original: baseline.serialize() });
-            const value = { name: target, brief: event.profile.brief, root: event.profile.serialize() };
+            const information = snapshot.saveInformation(session.tools().map(tool => tool.id));
+            const value = { name: target, brief: snapshot.brief, root: snapshot.serialize() };
             const configuration = editedConfiguration(value, original, catalog.definitions);
             await catalog.saveProfile(target, configuration, { trusted: true, revision });
             this.ctx.emit('system-prompt/change');
-            return event.result;
+            const event: ProfileSaveEvent = Object.freeze({ name: target, time: new Date().toISOString(), type: operation });
+            return { event, information };
         });
+        const result = await this.registry.definitions.processSave(saved.event);
+        return result === undefined ? saved.information : result;
     }
 
     /** @brief Install a provider namespace class and invalidate its projected bindings. */

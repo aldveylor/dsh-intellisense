@@ -4,6 +4,8 @@ import type { ProfileNamespace } from './namespace.js';
 
 /** @brief A portable anonymous Profile tree snapshot, independent of its catalog name. */
 export interface Profile extends ProfileNamespace {
+    /** @brief Read provider-owned advisory feedback independently of save events. */
+    saveInformation(availableTools: readonly string[]): string | null;
     /** @brief Clone a Profile or hydrate stored data while retaining the concrete root and member implementations. */
     clone(value?: Pick<ProfileData, 'root' | 'brief'>): ProfileSnapshot;
     /** @brief Apply an explicit patch through this root and its child implementations. */

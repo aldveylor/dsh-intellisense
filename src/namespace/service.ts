@@ -28,23 +28,20 @@ export interface ToolAddition {
     ptcDescription?: string;
 }
 
-/** @brief Mutable save transaction processed by providers before atomic persistence. */
+/** @brief Basic saved-Profile event; specialized event descriptions may extend this interface. */
 export interface ProfileSaveEvent {
     readonly name: string;
-    readonly operation: 'save' | 'apply';
-    readonly agent: Agent;
-    readonly tools: readonly string[];
-    profile: ProfileSnapshot;
-    baseline: ProfileSnapshot;
-    result: string | null;
+    /** @brief ISO 8601 UTC time recorded after successful persistence. */
+    readonly time: string;
+    readonly type: string;
 }
 
-/** @brief Provider-owned save processing; throwing aborts persistence. */
-export type ProfileSaveEffect = (event: ProfileSaveEvent) => void | Promise<void>;
+/** @brief Observe a completed save; an explicit return replaces tool feedback, while void preserves it. */
+export type ProfileSaveEffect = (event: ProfileSaveEvent) => void | string | null | Promise<void | string | null>;
 
 /** @brief Portable namespace service with named snapshot editing and execution integration. */
 export interface ToolsNamespace extends ProfileCollection {
-    /** @brief Register ordered, disposable save events after concrete nodes have processed save or apply. */
+    /** @brief Register ordered, disposable events emitted only after save or apply has persisted successfully. */
     effect(event: 'save', handler: ProfileSaveEffect): () => void;
     /** @brief Compare a target tree and apply its differences through concrete Profile nodes. */
     saveProfile(agent: Agent, name: string | undefined, profile: ProfileWrite): Promise<string | null>;

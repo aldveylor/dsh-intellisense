@@ -1,11 +1,10 @@
 import { pluginCommands, projectBuiltin, ptcToolName } from '../runtime/builtins.js';
-import type { ToolsNamespace, ProfileSaveEvent } from './service.js';
+import type { ToolsNamespace } from './service.js';
 import { profileAnnotation } from '../registry/profile_tree.js';
-import { profileSaveInformation } from '../tools/profile_save.js';
 import { RootNamespace } from '../tools/profile_nodes/root_namespace.js';
 
 /** @brief Define plugin tools exclusively through the portable namespace registration API. */
-export function registerBuiltinDefinitions(service: Pick<ToolsNamespace, 'setToolAddition' | 'createInitialProfile' | 'effect'>): void {
+export function registerBuiltinDefinitions(service: Pick<ToolsNamespace, 'setToolAddition' | 'createInitialProfile'>): void {
     service.createInitialProfile = () => new RootNamespace();
     for (const tool of ['exec', 'run_code', ptcToolName]) service.setToolAddition(tool, { hidden: true });
     for (const command of pluginCommands.builtinTools) service.setToolAddition(command.tool, {
@@ -26,12 +25,5 @@ export function registerBuiltinDefinitions(service: Pick<ToolsNamespace, 'setToo
             ...(command.tool === 'tools_profile_profiles' ? { refresh: 'call' as const } : command.tool === 'tools_profile_commands' ? { refresh: 'revision' as const } : {}),
         } } : {}),
     });
-    service.effect('save', reportSavedProfile);
-}
-
-/** @brief Emit save-result information without constructing, repairing or validating nodes. */
-function reportSavedProfile(event: ProfileSaveEvent): void {
-    const information = profileSaveInformation({ name: event.name, root: event.profile.serialize() }, event.tools);
-    if (information) event.result = [event.result, information].filter(Boolean).join('\n');
 }
 

@@ -37,9 +37,14 @@ export class NamespaceDefinitions implements Pick<ToolsNamespace, 'setToolAdditi
         return () => { this.saveEffects.delete(handler); };
     }
 
-    /** @brief Run effects on detached transaction data before any persistent write. */
-    async processSave(event: ProfileSaveEvent): Promise<void> {
-        for (const handler of [...this.saveEffects]) await handler(event);
+    /** @brief Notify observers of a committed save; the last explicit return controls tool feedback. */
+    async processSave(event: ProfileSaveEvent): Promise<string | null | undefined> {
+        let result: string | null | undefined;
+        for (const handler of [...this.saveEffects]) {
+            const returned = await handler(event);
+            if (returned !== undefined) result = returned;
+        }
+        return result;
     }
 
     /** @brief Register an attribute layer and restore the previous layer on disposal. */

@@ -86,3 +86,5 @@ ToolAddition 定义 fixed、hidden、ptcDescription 可选属性。fixed 禁止�
 `setNamespaceImplementation(path, factory)` 可扩展执行投影的命名空间类型；Profile 的实际权限实现独立位于 tools/profile_nodes/，通过 createInitialProfile 构造，不依赖执行投影的专用子类。
 
 Profile 操作模型详见 registry/profile/model.md 与 tools/profile_nodes/model.md。ProfileCollection.createInitialProfile 是无参数初始生成函数；节点 create/getOrCreate 使用 (name, factory: () => T)，T extends ProfileNode，返回 T；get/set 使用 ProfileNode，type 基础声明为 string。apply 为基础操作，save 比较完整目标再 apply 差异，普通省略节点删除。effect 仅处理事件和返回信息。
+
+ProfileSaveEvent 是可被其它事件接口继承的基础描述，标准事件只有 name、time（ISO 8601 UTC）、type: string。save/apply 提交成功后才通知处理器；失败写入不会产生事件。处理器不接触保存上下文，其最后一个显式返回值决定工具反馈，void 保留原有反馈。事件处理异常不回滚已经提交的数据。

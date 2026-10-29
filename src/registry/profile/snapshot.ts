@@ -11,6 +11,9 @@ export class EditableSnapshot extends EditableNamespace implements ProfileSnapsh
 
     constructor(data?: Pick<ProfileData, 'root' | 'brief'>) { super('', data?.root); this.brief = data?.brief; }
 
+    /** @brief Ordinary Profiles have no provider-specific save feedback. */
+    saveInformation(_availableTools: readonly string[]): string | null { return null; }
+
     /** @brief Clone stored data using this concrete root implementation. */
     clone(value: Pick<ProfileData, 'root' | 'brief'> = { root: this.serialize(), brief: this.brief }): ProfileSnapshot {
         const node = this.copyNode(value.root);
