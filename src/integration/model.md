@@ -13,3 +13,5 @@
 `namespace_integration.ts` 的 NamespaceIntegration 是内部编排层，持有作用域工具目录缓存、请求位置、原生发现集合、搜索引擎及代理生命周期。presentation、工具、Profile 下拉框和 PTC runtime 使用该内部层；它不作为 AgentSessionAddition 对外暴露。原生和 PTC 工具均经 DSH tools.execute 派发，保留 guard、调用计数、父子审计、附加上下文和结束回合语义。ToolsNamespace 仅负责共享具名 Profile 目录。
 
 `intellisense.ts` 定义全局 ctx.intellisense，插件初始化成功后发布，子作用域继承同一服务。profiles 指向共享 ToolsNamespace 目录，statistics 指向命令统计（calls/queries），inspectStatistics 提供按 Profile 名称隔离的路径计数，searchEngines 为共享搜索引擎注册器。内部 NamespaceIntegration 与该服务引用同一批对象，不复制计数或目录。此全局服务与 session.intellisense 的会话快照状态分开。
+
+NamespaceIntegration.discover 从 agent.session.intellisense.profile 读取发现数据，展示投影不复用运行时 manifest；会话快照决定节点范围、禁用状态与简略说明，物理目录补充签名和 schema。精确查询原生工具后仍通过完整运行时树刷新绑定。

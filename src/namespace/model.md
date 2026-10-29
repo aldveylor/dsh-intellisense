@@ -11,3 +11,5 @@
 Session.intellisense 持有 AgentSessionAddition，包含 profile: ProfileSnapshot、会话调用 statistics.increment([tool]) 和异步 save()（仅保存会话快照），不提供查询、执行或目录接口。inspect 查询统计保留在 tools/inspect.ts。会话快照持久化及内部配置投影位于 registry/profiles.ts；NamespaceIntegration 在 integration/namespace_integration.ts 内部管理作用域目录、搜索、发现、呈现和 DSH 派发，不作为 AgentSessionAddition 暴露。
 
 plugin.ts 注册 toolsNamespace 和内部 namespaceIntegration 服务，挂载管理、恢复路由及生命周期。runtime.ts 仅在 PTC presentation 注册 tools_run_code，使用内部集成层编译绑定和派发；取消后等待真实子调用结束。统计实现在 ../statistics/，不属于 namespace；调用与物理工具查询分别持有独立计数集合，inspect 查询按 Profile 名称与路径单独累计。
+
+Inspect 查询直接使用当前会话的 ProfileSnapshot 节点；发现展示仅用快照生成投影并补充物理工具契约，不经 manifest 合并 registry 配置或 YAML 别名。manifest 仅在需要物理名称的边界从 resolve 返回的命令节点提取 tool。

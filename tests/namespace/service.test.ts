@@ -361,7 +361,7 @@ test('snapshot resolve returns enabled nodes by identity without service executi
     editable.create('unbound', () => new EditableCommand('unbound'));
     assert.equal(commandNode(editable.resolve('files.read')).tool, 'read');
     assert.equal(editable.resolve('unbound'), editable.get('unbound'));
-    editable.setDisabled(true);
-    assert.equal(editable.resolve(''), undefined);
-    assert.equal(editable.resolve('files.read'), undefined);
+    const disabled = new EditableSnapshot({ root: { type: 'namespace', disabled: true } });
+    assert.equal(disabled.resolve(''), undefined);
+    assert.equal(disabled.resolve('files.read'), undefined);
 });

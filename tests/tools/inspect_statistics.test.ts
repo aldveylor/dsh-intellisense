@@ -9,10 +9,14 @@ import { MemoryStore } from '../../src/storage/store.js';
 import { CommandStatistics } from '../../src/statistics/command_statistics.js';
 import { NamespaceIntegration } from '../../src/integration/namespace_integration.js';
 import { inspectQueryTargets, registerInspect } from '../../src/tools/inspect.js';
+import { RootNamespace } from '../../src/tools/profile_nodes/root_namespace.js';
+import { EditableNamespace } from '../../src/registry/profile/namespace.js';
+import { EditableCommand } from '../../src/registry/profile/command.js';
 import { namespace } from '../namespace/fixtures.js';
 
 test('query targets count normalized occurrences without expanding members or runtime APIs', async () => {
-    const root = namespace([{ path: 'std.read', tool: 'read', doc: '', schema: {}, output: {} }]);
+    const root = new RootNamespace();
+    root.create('std', () => new EditableNamespace()).create('read', () => new EditableCommand()).setTool('read');
     assert.deepEqual(inspectQueryTargets(['', 'global.std.', 'std', 'std.read', 'global.std.read', 'std.read.', 'missing', 'console.', 'console.log'], root), [
         { path: '', namespace: true }, { path: 'std', namespace: true }, { path: 'std', namespace: true },
         { path: 'std.read', namespace: false, tool: 'read' }, { path: 'std.read', namespace: false, tool: 'read' },
@@ -40,11 +44,12 @@ test('dispatch counts physical tools once for both entry and direct dispatch, in
 
 for (const ptc of [false, true]) test(`physical Inspect records query targets internally in ${ptc ? 'PTC' : 'native'} mode`, async () => {
     const statistics = new CommandStatistics(new MemoryStore());
-    const root = namespace([{ path: 'std.read', tool: 'read', doc: '', schema: {}, output: {} }]);
+    const profile = new RootNamespace();
+    profile.create('std', () => new EditableNamespace()).create('read', () => new EditableCommand()).setTool('read');
     let selected = 'Default';
     const namespaces = {
-        statistics, inspectStatistics: new Statistics(new MemoryStore(), 'inspect_statistics'), registryFor: async () => ({ profileSelection: () => ({ selected }), effective: () => [], description: () => undefined, disabled: () => false, revision: 0, snapshot: () => ({ revision: 0 }) }),
-        tree: async () => root, isPtc: () => ptc, discover: async () => '{}', position: () => ({ turn: 0, step: 0 }),
+        statistics, inspectStatistics: new Statistics(new MemoryStore(), 'inspect_statistics'), registryFor: async () => ({ profileSelection: () => ({ selected }), effective: () => [], description: () => undefined, disabled: () => false, revision: 0, snapshot: () => ({ revision: 0 }), tools: () => [{ id: 'read', description: '', parameters: {}, output: {} }], definitions: { addition: () => ({}) } }),
+        isPtc: () => ptc, discover: async () => '{}', position: () => ({ turn: 0, step: 0 }),
     } as unknown as NamespaceIntegration;
     let definition!: ToolDefinition;
     const ctx = { effect: (callback: () => unknown) => callback(), tools: {
@@ -55,6 +60,7 @@ for (const ptc of [false, true]) test(`physical Inspect records query targets in
         callId: 'query', signal: new AbortController().signal,
         agent: { id: 'session', session: Session.create(SessionId('statistics-query')), ctx: { get: (key: string) => key === 'namespaceIntegration' ? namespaces : undefined } },
     } as unknown as ToolRunContext;
+    execution.agent!.session.intellisense = { profile, statistics: statistics.calls.scope('session'), save: async () => {} };
     await definition.execute({ queries: ['global.std.', 'std.read', 'console.log'] }, execution);
     assert.deepEqual(await namespaces.inspectStatistics.snapshot('Default'), { std: 1, 'std.read': 1 });
     assert.deepEqual(await statistics.calls.snapshot(), {});

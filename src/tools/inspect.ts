@@ -5,19 +5,39 @@ import type { Context } from '@deepseek-ai/cordis';
 import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools';
 import { codeBlock } from '../protocol/code_block.js';
 import { appendPluginRecord } from '@deepseek-ai/dsh-session';
-import { declaration, normalizeInspectQueries, queryNodes, NamespaceNode } from '../namespace/namespace.js';
+import { createNamespace, declaration, normalizeInspectQueries, queryNodes, NamespaceNode } from '../namespace/namespace.js';
 import type { NamespaceIntegration } from '../integration/namespace_integration.js';
+import type { ProfileSnapshot } from '../registry/profile/profile.js';
+import type { ProfileCommand } from '../registry/profile/command.js';
+import type { SemanticRegistry } from '../registry/registry.js';
+
+/** @brief Enrich session-owned nodes with physical tool contracts for discovery rendering only. */
+export function inspectionTree(profile: ProfileSnapshot, registry: SemanticRegistry, runtime = false): NamespaceNode {
+    return createNamespace({
+        definitions: profile.disabled ? { type: 'namespace' } : profile.serialize(),
+        tools: registry.tools(), mode: runtime ? 'ptc' : 'native',
+        addition: tool => registry.definitions.addition(tool),
+        implementation: () => undefined,
+    });
+}
+
+/** @brief Read a command summary directly from its session-owned Profile node. */
+export function inspectionBrief(profile: ProfileSnapshot, path: string): string | undefined {
+    const node = profile.resolve(path);
+    return node?.type === 'command' ? (node as ProfileCommand).serialize().command.doc : undefined;
+}
+
 /** @brief A valid query target resolved against the active Profile tree. */
 export interface QueryTarget { path: string; namespace: boolean; tool?: string }
 
 /** @brief Resolve each query target, excluding disabled and missing members. */
-export function inspectQueryTargets(queries: readonly string[], root: NamespaceNode): QueryTarget[] {
+export function inspectQueryTargets(queries: readonly string[], profile: ProfileSnapshot): QueryTarget[] {
     return normalizeInspectQueries(queries).flatMap<QueryTarget>(query => {
         const path = query.replace(/\.$/, '');
-        const node = root.resolve(path ? path.split('.') : []);
-        if (!node || node.disabled) return [];
-        if (node instanceof NamespaceNode) return [{ path, namespace: true }];
-        return !query.endsWith('.') ? [{ path, namespace: false, tool: node.tool }] : [];
+        const node = profile.resolve(path);
+        if (!node) return [];
+        if (node.type === 'namespace') return [{ path, namespace: true }];
+        return node.type === 'command' && !query.endsWith('.') ? [{ path, namespace: false, tool: (node as ProfileCommand).tool }] : [];
     });
 }
 
@@ -75,16 +95,19 @@ export function registerInspect(ctx: Context, namespaces: NamespaceIntegration):
             execution.signal.throwIfAborted();
             const started = performance.now();
             const registry = await namespaces.registryFor(agent);
-            if (registry.disabled('tools.inspect')) throw new Error('Execution denied: tools.inspect');
-            const root = await namespaces.tree(agent, registry);
-            const targets = inspectQueryTargets(queries, root);
+            const profile = agent.session.intellisense?.profile;
+            if (!profile) throw new Error('A session Profile is required');
+            if (!profile.resolve('tools.inspect')) throw new Error('Execution denied: tools.inspect');
+            const runtime = namespaces.isPtc(agent);
+            const root = inspectionTree(profile, registry, runtime);
+            const targets = inspectQueryTargets(queries, profile);
             await namespaces.inspectStatistics.increment(registry.profileSelection().selected, targets.map(target => target.path));
             await namespaces.statistics.queries.increment(agent.session.id, targets.flatMap(target => target.tool ? [target.tool] : []));
             let info: string;
-            if (namespaces.isPtc(agent)) {
-                info = inspect(queries, root, true, (tool, path) => registry.description(path, tool));
+            if (runtime) {
+                info = inspect(queries, root, true, (_tool, path) => inspectionBrief(profile, path));
             } else {
-                info = await namespaces.discover(agent, queries);
+                info = await namespaces.discover(agent, queries, root);
             }
             const position = namespaces.position(agent);
             appendPluginRecord(agent.session, 'plugin:ts_intellisense/inspect', {

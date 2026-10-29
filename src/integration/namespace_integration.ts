@@ -18,7 +18,7 @@ import { namespaceDirectory, nativeDirectory, type NamespaceHint } from '../name
 import { type CommandBrief, type Profiles } from '../registry/profile_tree.js';
 import type { z } from 'zod';
 import { registerSearch } from '../tools/tool_search.js';
-import { registerInspect } from '../tools/inspect.js';
+import { inspectionTree, inspectionBrief, registerInspect } from '../tools/inspect.js';
 import { registerToolCommands } from '../tools/tool_commands.js';
 import { nativeBindings, nativeDiscovery, nativeQueryEntries } from '../namespace/native_tools.js';
 
@@ -277,10 +277,13 @@ export class NamespaceIntegration {
     }
 
     /** @brief Expand native tools for this conversation and invalidate the assembled system prompt. */
-    async discover(agent: Agent, queries: readonly string[]): Promise<string> {
+    async discover(agent: Agent, queries: readonly string[], root?: NamespaceNode): Promise<string> {
         const registry = await this.registryFor(agent);
-        const root = await this.tree(agent, registry);
-        if (this.isPtc(agent)) return nativeDiscovery(queries, root, (tool, path) => registry.description(path, tool));
+        const profile = agent.session.intellisense?.profile;
+        if (!profile) throw new Error('A session Profile is required');
+        root ??= inspectionTree(profile, registry, this.isPtc(agent));
+        const brief = (_tool: string, path: string): string | undefined => inspectionBrief(profile, path);
+        if (this.isPtc(agent)) return nativeDiscovery(queries, root, brief);
         const selected = nativeQueryEntries(queries, root);
         let discovered = this.discovered.get(agent.id);
         if (!discovered) this.discovered.set(agent.id, discovered = new Set());
@@ -289,9 +292,9 @@ export class NamespaceIntegration {
             discovered.add(entry.path);
         }
         while (discovered.size > 256) discovered.delete(discovered.values().next().value!);
-        await this.syncNative(agent, registry, root);
+        await this.syncNative(agent, registry);
         this.ctx.emit('system-prompt/change');
-        return nativeDiscovery(queries, root, (tool, path) => registry.description(path, tool));
+        return nativeDiscovery(queries, root, brief);
     }
 
     /** @brief Install scoped namespace aliases while keeping dispatch inside native guards and auditing. */

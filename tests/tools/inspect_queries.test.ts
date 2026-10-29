@@ -7,8 +7,13 @@ import { nativeArgumentsFor, type ManifestEntry } from '../../src/namespace/name
 import { callableDeclaration, executionInstructions } from '../../src/namespace/prompt.js';
 import { pluginCommands, projectBuiltin } from '../../src/runtime/builtins.js';
 import { NamespaceNode, declaration } from '../../src/namespace/namespace.js';
-import { inspect, registerInspect } from '../../src/tools/inspect.js';
+import { inspect, inspectionTree, inspectionBrief, registerInspect } from '../../src/tools/inspect.js';
 import type { NamespaceIntegration } from '../../src/integration/namespace_integration.js';
+import { EditableSnapshot } from '../../src/registry/profile/snapshot.js';
+import { EditableNamespace } from '../../src/registry/profile/namespace.js';
+import { EditableCommand } from '../../src/registry/profile/command.js';
+import { SemanticRegistry } from '../../src/registry/registry.js';
+import { MemoryStore } from '../../src/storage/store.js';
 import { nativeDiscovery, nativeQueryEntries } from '../../src/namespace/native_tools.js';
 
 const entries: ManifestEntry[] = [
@@ -85,4 +90,29 @@ test('PTC declarations omit explicitly disabled namespaces and their descendants
     const listing = inspect(['', 'hidden.', 'visible.'], root, true);
     assert(!listing.includes('hidden'));
     assert(listing.includes('namespace visible'));
+});
+
+
+test('inspection reads session nodes and summaries without registry mounts or aliases', () => {
+    const profile = new EditableSnapshot();
+    const files = profile.create('session_files', () => new EditableNamespace()).setDescription('Session namespace');
+    files.create('read', () => new EditableCommand()).setTool('read').setDescription('Session summary');
+    files.create('disabled', () => new EditableCommand()).setTool('read').setDisabled(true);
+    const registry = new SemanticRegistry(new MemoryStore());
+    registry.refresh([{ id: 'read', description: 'Physical documentation', parameters: { path: { type: 'string', required: true } }, output: { type: 'string' } }]);
+    const root = inspectionTree(profile, registry, true);
+    const brief = (_tool: string, path: string): string | undefined => inspectionBrief(profile, path);
+    const listing = inspect(['session_files.'], root, true, brief);
+    assert.match(listing, /Session namespace/);
+    assert.match(listing, /Session summary/);
+    assert.doesNotMatch(listing, /disabled/);
+    assert.match(inspect(['session_files.read'], root, true, brief), /Physical documentation/);
+    const native = JSON.parse(nativeDiscovery(['session_files.read'], root, brief));
+    assert.equal(native.members[0].brief, 'Session summary');
+    assert.equal(native.members[0].description, 'Physical documentation');
+    assert.equal(native.members[0].parameters.path.type, 'string');
+    assert.deepEqual(JSON.parse(nativeDiscovery(['read'], root)).members, []);
+    files.setDisabled(true);
+    const disabled = inspectionTree(profile, registry);
+    assert.deepEqual(JSON.parse(nativeDiscovery(['session_files.read'], disabled)).members, []);
 });

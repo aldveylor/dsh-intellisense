@@ -1,6 +1,6 @@
 # 工具模型
 
-内置工具在 presentation 作用域注册，通过 NamespaceComponent 读取当前会话命名空间。命名空间实现位于 `../namespace/`，搜索引擎实现在 `../search/`。
+内置工具在 presentation 作用域注册，inspect 直接读取 agent.session.intellisense.profile 当前会话快照。命名空间实现位于 `../namespace/`，搜索引擎实现在 `../search/`。
 
 `tools_inspect` 在 native/PTC 模式共享命名空间成员范围，不再按环境节点过滤结果；两种模式均无 console 命名空间。native 返回 JSON，PTC 返回 TypeScript 声明。
 
@@ -20,7 +20,7 @@ tools.profile.commands 返回排除插件内置命令的完整命令目录，字
 
 PTC 在每次执行前预加载 commands，并由 VM 命令包装同步更新本次执行内对应物理工具的 totalCalls，只更新 VM 视图，不额外通知宿主。native 的 tools.profile.commands 是实际工具函数，每次调用均重新读取 CommandStatistics.calls 全局快照，返回该次读取时的最新累计值，不复用上次返回的数组。
 
-命名空间成员同样保留注释：native 命名空间条目返回 brief；PTC 对直接命中的命名空间、显式查询的命名空间及返回成员的父命名空间链输出描述注释。Profile 自定义描述与内置 tools 等节点描述均从共享运行时树读取。
+命名空间成员同样保留注释：native 命名空间条目返回 brief；PTC 对直接命中的命名空间、显式查询的命名空间及返回成员的父命名空间链输出描述注释。Profile 自定义描述与内置 tools 等节点描述均从当前会话 Profile 节点读取。
 
 `tools.profile.profiles` 返回 `Profiles { profiles: string[]; selected: string }`，列表来自全局目录，selected 来自当前会话。native 为无参数命令，每次调用读取最新状态；PTC 为只读字段，每次执行前初始化，并在工具调用成功返回前通过 IPC 刷新，load/save 后同次执行内的读取和持有的对象引用均可见新状态。
 
@@ -74,3 +74,5 @@ ProfileRootWrite 的匿名根只允许 type/children，拒绝没有持久化表�
 Profile 操作模型详见 registry/profile/model.md 与 tools/profile_nodes/model.md。ProfileCollection.createInitialProfile 是无参数初始生成函数；节点 create/getOrCreate 使用 (name, factory: () => T)，T extends ProfileNode，返回 T；get/set 使用 ProfileNode，type 基础声明为 string。apply 为基础操作，save 比较完整目标再 apply 差异，普通省略节点删除。effect 仅通知保存事件，不处理返回值。
 
 `profile_save.ts` 为 tools_profile_save/tools_profile_apply 统一执行节点校验、原子持久化及校验提示计算。ProfileSaveEffect 只在提交后观察 name/time/type，不处理返回值，不覆盖工具反馈；处理器可在保存事务结束后继续编辑目录。
+
+Inspect 的查询目标及计数直接通过当前会话 ProfileSnapshot.resolve(path) 读取节点；展示投影只以该快照节点树为输入，物理目录仅补充可用工具的原始文档、签名及 schema，不合并 registry 挂载、命名空间描述或 YAML 别名。Profile 命令简略注释直接从命中节点提取。native 精确查询仍注册对应工具并刷新提示，注册阶段使用完整运行时树。
