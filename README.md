@@ -61,6 +61,15 @@ pnpm install --frozen-lockfile
 
 This starts a separate development profile for trying the plugin locally.
 
+Select an exact DSH version to test against a different host:
+
+```sh
+./run.sh --dsh-version 0.2.1-rc.2
+node run.mjs --dsh-version 0.2.2-alpha.2
+```
+
+The first run installs that host under `build/dsh_versions/<version>`; later runs reuse it and refresh copies of the local plugins. Each version uses a separate development profile. The project dependencies and lockfile stay unchanged. Both entry points accept `--plugin <directory>` and forward other arguments to DSH; use `--` to end launcher options.
+
 ## Tool management
 
 Read the [usage guide](docs/en/usage.md), also available from the configuration page. Screenshots below use light mode.

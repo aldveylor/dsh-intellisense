@@ -61,6 +61,15 @@ pnpm install --frozen-lockfile
 
 此方式使用独立的开发运行配置，方便在本地体验插件。
 
+使用精确的 DSH 版本号测试不同版本的宿主：
+
+```sh
+./run.sh --dsh-version 0.2.1-rc.2
+node run.mjs --dsh-version 0.2.2-alpha.2
+```
+
+首次运行会将对应宿主安装到 `build/dsh_versions/<version>`，之后复用安装结果并刷新本地插件副本。每个版本使用独立的开发运行配置，项目依赖及锁文件保持不变。两个入口均支持 `--plugin <目录>`，其他参数传递给 DSH；使用 `--` 结束启动器选项。
+
 ## 工具管理
 
 查看[使用文档](docs/zh-cn/usage.md)，也可从配置页内打开。下方截图统一使用浅色模式。

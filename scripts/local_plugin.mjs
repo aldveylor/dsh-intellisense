@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { readProfileManifest, writeProfileManifest } from '@deepseek-ai/dsh-app-boot';
 
 /** @brief Copy runtime packages without development dependencies, checkout metadata or recursive build output. */
-function copyPackage(directory, target, ancestors = new Set()) {
+export function copyPackage(directory, target, ancestors = new Set()) {
     const manifest = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'));
     mkdirSync(target, { recursive: true });
     for (const entry of readdirSync(directory)) {
