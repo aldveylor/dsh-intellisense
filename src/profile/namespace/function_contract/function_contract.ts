@@ -1,7 +1,7 @@
 import { decodeHTML } from 'entities';
 import { outputSchema } from '../../../output_schema.js';
 import { validateJsonSchemaValue, type JsonSchemaNode } from '@deepseek-ai/dsh-tools';
-import { jsonSchemaToTs } from '@deepseek-ai/dsh-tool-executor-ptc';
+import { dshCompatibility } from '../../../compatibility/compatibility.js';
 import type { ManifestEntry } from '../namespace.js';
 
 /** @brief One positional parameter projected from a native object contract. */
@@ -44,7 +44,7 @@ export function functionDeclaration(entry: ManifestEntry): string {
     const types: string[] = [];
     /** @brief Keep complex field types out of the callable signature. */
     const typeName = (value: unknown, suffix: string): string => {
-        const text = decodeHTML(jsonSchemaToTs(value));
+        const text = decodeHTML(dshCompatibility.jsonSchemaToTs(value));
         if (!text.includes('{')) return text;
         const alias = `${name}_${suffix}`;
         types.push(`type ${alias} = ${text};`);

@@ -43,3 +43,7 @@ profile.profiles 返回全局名称与当前会话选择；profile.tools 返回�
 ctx.intellisense 还提供 statistics.calls/queries、按 Profile 名称隔离的 inspectStatistics、searchEngines。通用统计仅处理计数，业务层决定调用或查询时机。计数延迟合并，关闭存储前刷新。搜索支持按作用域契约生成的 BM25 或字符串匹配语料。
 
 管理界面在 web/panel、tool_picker、profile_picker 等组件中实现，服务端 Profile 输出权限及 transport DTO，浏览器仅构建显示树。Profile 下拉框、另存为、JSON 编辑、拖动排序、固定等级、禁用状态及国际化沿用共享协议。文档截图由 scripts/screenshots.mjs 生成；构建和性能产物位于 build/dist，不记录生成中间文件或 agent 文件。
+
+## DSH 版本兼容
+
+compatibility/ 统一 DSH 0.2.1-rc.2 与 0.2.2-alpha.2 的差异接口，按实际安装的 dsh-tools 版本动态加载适配器。工具执行、声明选择、PTC 错误类型和 Schema 声明生成均由该层提供；业务模块不直接依赖新版执行器包。详见 compatibility/model.md。

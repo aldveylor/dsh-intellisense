@@ -3,6 +3,7 @@ import { scopeChainOf, scopeOf, type ScopeKey } from '@deepseek-ai/dsh-scope';
 import { z } from 'zod';
 import '@deepseek-ai/dsh-tools';
 import type {} from './plugin.js';
+import { dshCompatibility } from '../compatibility/compatibility.js';
 import { NamespaceRuntime } from '../profile/namespace/runtime.js';
 
 export const name = 'intellisense-presentation';
@@ -32,4 +33,5 @@ export async function apply(ctx: Context, options: z.input<typeof Config>): Prom
     ctx.effect(() => { configurations.set(scope, config); return () => { configurations.delete(scope); }; });
     ctx.namespaceIntegration.register(ctx);
     if (config.mode === 'ptc') await ctx.isolate('namespaceRuntime').isolate('codeRuntime').plugin(NamespaceRuntime);
+    dshCompatibility.presentNative(ctx);
 }

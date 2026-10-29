@@ -10,4 +10,4 @@ namespace.ts 的 profileMembers/queryNodes 直接遍历 ProfileNode 或调用 Pr
 
 内置行为由 tools/profile_nodes/ 的具体类拥有。definitions.ts 只维护初始 Profile 工厂、其序列化默认声明及保存观察者；builtin_profile.ts 仅选择 RootNamespace，不注册工具附加属性。
 
-DSH 0.2.2-alpha.2 的 jsonSchemaToTs 与 CodeRunFailedError 从 dsh-tool-executor-ptc 导入；工具定义、JSON Schema 校验和单次调用流水线仍由 dsh-tools 提供。
+jsonSchemaToTs 与 CodeRunFailedError 由 ../../compatibility/compatibility.ts 按 DSH 版本提供：旧版来自 dsh-tools，新版来自 dsh-tool-executor-ptc。工具定义和 JSON Schema 校验继续使用 dsh-tools 的共享接口。

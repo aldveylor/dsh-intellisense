@@ -9,6 +9,8 @@ import { NamespaceIntegration } from './namespace_integration.js';
 import { Aliases } from '../profile/namespace/namespace.js';
 import { registerSessionProfiles } from '../web/session_profile/routes.js';
 import { registerManagement } from '../web/server/routes.js';
+import { dshCompatibility } from '../compatibility/compatibility.js';
+import { ptcToolName } from '../runtime/builtins.js';
 import { executionInstructions } from '../profile/namespace/prompt.js';
 import { PhysicalToolCatalog } from './tool_catalog.js';
 import { CommandStatistics } from '../statistics/command_statistics.js';
@@ -57,7 +59,8 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
                 if (agent && component.enabled(agent)) {
                     const directory = await component.prompt(agent);
                     if (directory) assembled.sections.push({ name: 'namespaces:directory', text: directory, interpolate: false });
-                    if (!component.isPtc(agent)) await component.syncNative(agent);
+                    const names = component.isPtc(agent) ? [ptcToolName] : await component.syncNative(agent);
+                    dshCompatibility.presentTools(assembled, agent, names);
                     assembled.sections = assembled.sections.filter(section => !section.name.startsWith('tool:') && !section.name.startsWith('tools:'));
                     const instructions = executionInstructions(component.isPtc(agent) ? 'ptc' : 'native', (await component.entries(agent)).some(entry => entry.node.discovery));
                     if (instructions) assembled.sections.push({ name: 'namespaces:execution', text: instructions, interpolate: false });

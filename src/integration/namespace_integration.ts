@@ -3,9 +3,7 @@ import type { ProfileSnapshot } from '../profile/profile.js';
 import { outputSchema } from '../output_schema.js';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
-import { ToolExecutionPipeline } from '@deepseek-ai/dsh-tools/pipeline';
-import { NativeToolExecutor } from '@deepseek-ai/dsh-tool-executor-native';
-import type {} from '@deepseek-ai/dsh-tool-executor-ptc';
+import { dshCompatibility } from '../compatibility/compatibility.js';
 import * as presentation from './presentation.js';
 import type { Position } from '../protocol/events.js';
 import { type Context } from '@deepseek-ai/cordis';
@@ -132,14 +130,7 @@ export class NamespaceIntegration {
         if (!this.enabled(agent)) return;
         this.catalogRevision++;
         if (!this.executors.has(agent.id)) {
-            const executor = new NativeToolExecutor(agent.ctx);
-            const dispose = agent.ctx.tools.setExecutor({
-                describe: tools => {
-                    const names = new Set(this.isPtc(agent) ? [ptcToolName] : this.nativeTools.get(agent.id)?.names ?? []);
-                    return executor.describe(tools.filter(tool => names.has(tool.name)));
-                },
-                execute: input => executor.execute(input),
-            });
+            const dispose = dshCompatibility.configureTools(agent.ctx, () => this.isPtc(agent) ? [ptcToolName] : this.nativeTools.get(agent.id)?.names ?? []);
             this.executors.set(agent.id, dispose);
         }
         if (!this.isPtc(agent)) await this.syncNative(agent);
@@ -296,10 +287,7 @@ export class NamespaceIntegration {
         const ids = { rootCallId: parent.rootCallId, parentCallId: parent.callId, subCallId: callId, name: tool, arguments: args };
         agent.session.append('tool/ptc-dispatch-start', ids);
         await (await this.profiles.addition(agent.session)).statistics.increment([tool]);
-        const pipeline = new ToolExecutionPipeline(agent.ctx);
-        const prepared = await pipeline.prepare({ agent, callId, rootCallId: parent.rootCallId, parent: parent.token, toolSet: parent.toolSet, name: tool, arguments: args, signal: parent.signal });
-        const outcome = prepared.kind === 'dispatch' ? await pipeline.dispatch(prepared.exec) : prepared;
-        const settled = await pipeline.complete(prepared.exec, outcome);
+        const settled = await dshCompatibility.dispatchTool(agent.ctx, { agent, callId, rootCallId: parent.rootCallId, parent: parent.token, toolSet: parent.toolSet, name: tool, arguments: args, signal: parent.signal });
         agent.session.append('tool/ptc-dispatch', { ...ids, isError: settled.isError, content: settled.content, ...(settled.meta === undefined ? {} : { meta: settled.meta }), ...(settled.isError && settled.error.info ? { error: settled.error.info } : {}) });
         for (const context of settled.additionalContexts ?? []) parent.deferContext(context);
         if (settled.concludesTurn) parent.concludeTurn();

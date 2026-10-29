@@ -1,7 +1,7 @@
 import { bindingFor } from './namespace.js';
 import { Service, type Context } from '@deepseek-ai/cordis';
 import { defineTool, type ToolRunContext } from '@deepseek-ai/dsh-tools';
-import { CodeRunFailedError } from '@deepseek-ai/dsh-tool-executor-ptc';
+import { dshCompatibility } from '../../compatibility/compatibility.js';
 import type {} from '../../integration/plugin.js';
 import { RuntimeHost, type RuntimeConfig } from '../../runtime/host.js';
 import { ptcToolName } from '../../runtime/builtins.js';
@@ -98,7 +98,7 @@ export class NamespaceRuntime extends Service {
             return { logs: result.logs, ...(result.value === undefined ? {} : { result: result.value }) };
         } catch (error) {
             const kind = timedOut ? 'timeout' : parent.signal.aborted ? 'abort' : 'exception';
-            throw new CodeRunFailedError(`code run failed (${kind}): ${error instanceof Error ? error.message : String(error)}`);
+            throw new dshCompatibility.CodeRunFailedError(`code run failed (${kind}): ${error instanceof Error ? error.message : String(error)}`);
         } finally {
             clearTimeout(timer);
             parent.signal.removeEventListener('abort', abort);

@@ -1,8 +1,8 @@
 import { outputSchema } from '../../output_schema.js';
-import { jsonSchemaToTs } from '@deepseek-ai/dsh-tool-executor-ptc';
+import { dshCompatibility } from '../../compatibility/compatibility.js';
 import { decodeHTML } from 'entities';
 
 /** @brief Render the result type directly, without an alias or interface wrapper. */
 export function returnTypeDeclaration(schema: unknown): string {
-    return decodeHTML(jsonSchemaToTs(outputSchema(schema)));
+    return decodeHTML(dshCompatibility.jsonSchemaToTs(outputSchema(schema)));
 }

@@ -14,4 +14,4 @@ package.json 的 dsh.client.inject 显式声明客户端服务提供包 ui-rende
 
 浏览器权限查询依赖 ../profile/node_settings.ts 的普通数据查询函数；递归权限 schema 单独位于 ../profile/catalog/node_settings_schema.ts，由服务端目录写入消费，避免引入未使用的 Zod 初始化及语言包。
 
-client.ts 显式导入 ui-layout/client 与 ui-conversation/client 的类型扩展，并将对应宿主包声明为开发依赖，以保证 ctx.layout 和 ctx.conversation 使用当前 DSH 接口。server/return_type.ts 从 dsh-tool-executor-ptc 获取 JSON Schema 的 TypeScript 类型投影。
+client.ts 显式导入 ui-layout/client 与 ui-conversation/client 的类型扩展，并将对应宿主包声明为开发依赖，以保证 ctx.layout 和 ctx.conversation 使用当前 DSH 接口。server/return_type.ts 经 ../compatibility/compatibility.ts 获取当前 DSH 版本的 JSON Schema TypeScript 类型投影。

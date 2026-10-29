@@ -1,4 +1,4 @@
-import * as nativeExecutor from '@deepseek-ai/dsh-tool-executor-native';
+import { dshCompatibility } from '../../src/compatibility/compatibility.js';
 import { executeTool } from './tool_execution.js';
 import { configureSession, publishSessionFixture } from '../registry/session_fixture.js';
 import { test } from 'node:test';
@@ -48,7 +48,7 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
         try {
             await ctx.plugin(LlmRuntime); await ctx.plugin(SessionStore); await ctx.plugin(SessionProjectionRegistry);
             await ctx.plugin(SystemPrompt, { personaPrefix: 'Preserve the original persona.' });
-            await ctx.plugin(ToolRuntime); await ctx.plugin(nativeExecutor); await ctx.plugin(AgentRegistry); await ctx.plugin(AgentLoop, { agents: [] });
+            await ctx.plugin(ToolRuntime); await ctx.plugin({ inject: ['tools'], apply: (scope: Context) => { dshCompatibility.configureTools(scope); } }); await ctx.plugin(AgentRegistry); await ctx.plugin(AgentLoop, { agents: [] });
             await ctx.plugin(Storage); await ctx.plugin(JsonStorage, { root: directory });
             const routes = new Map<string, ConnectionFetchRoute>();
             ctx.provide('connection', { fetch: { register: (route: ConnectionFetchRoute) => { routes.set(route.path, route); return () => { routes.delete(route.path); }; } } });
