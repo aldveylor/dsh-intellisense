@@ -56,8 +56,9 @@
 .ts-tree-tool,.ts-node-block{transition:border-color .2s ease,color .24s ease,background-color .24s ease}
 .ts-tree-children{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .22s ease,opacity .22s ease}
 /* Keep connectors in the row grid area, independent of expanded subtree height. */
-.ts-tree-children>ul{display:flex;flex-direction:column;gap:10px;min-height:0;overflow:hidden;margin:0;padding-top:10px;padding-left:var(--ts-tree-indent,41px)}
+.ts-tree-children>ul{display:flex;flex-direction:column;gap:10px;min-height:0;overflow:hidden;margin:0;padding-top:0;padding-left:var(--ts-tree-indent,41px)}
 .ts-tree-children>ul>li{--ts-row-border:0px;position:relative;flex-shrink:0;margin:0}
+.ts-tree-children>ul>li:first-child{margin-top:10px}
 .ts-tree-children>ul>li:where([data-tree-path]:not(.ts-tree-tool)){display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto}
 .ts-tree-children>ul>li>.ts-node-block{grid-area:1/1;margin:0}
 .ts-tree-children>ul>li>.ts-tree-children{grid-area:2/1}
