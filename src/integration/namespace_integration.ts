@@ -1,26 +1,29 @@
 import type { Intellisense } from './intellisense.js';
 import type { ProfileSnapshot } from '../registry/profile/profile.js';
-import { editedConfiguration } from '../registry/profile/configuration.js';
 import { outputSchema } from '../output_schema.js';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 import * as presentation from '../integration/presentation.js';
 import type { Position } from '../protocol/events.js';
-import { symbols, type Context } from '@deepseek-ai/cordis';
+import { type Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
-import { scopeChainOf, type ScopeKey } from '@deepseek-ai/dsh-scope';
+import { type ScopeKey } from '@deepseek-ai/dsh-scope';
 import '@deepseek-ai/dsh-agent-preset-registry';
 import type { PhysicalTool, SemanticRegistry } from '../registry/registry.js';
 import type { ProfileSessions } from '../registry/profiles.js';
-import { declaration, manifest, type Aliases, NamespaceNode, type CommandNode } from '../namespace/namespace.js';
+import { declaration, commandEntries, profileMembers, queryNodes, normalizeInspectQueries, nativeArgumentsFor, resultFor, type Aliases, type CommandEntry } from '../namespace/namespace.js';
+import type { AgentSessionAddition } from './agent_session_addition.js';
+import type { ProfileCommand } from '../registry/profile/command.js';
+import type { ProfileNamespace } from '../registry/profile/namespace.js';
+import { inspect } from '../tools/inspect.js';
 import { namespaceDirectory, nativeDirectory, type NamespaceHint } from '../namespace/prompt.js';
 
 import { type CommandBrief, type Profiles } from '../registry/profile_tree.js';
 import type { z } from 'zod';
 import { registerSearch } from '../tools/tool_search.js';
-import { inspectionTree, inspectionBrief, registerInspect } from '../tools/inspect.js';
+import { registerInspect } from '../tools/inspect.js';
 import { registerToolCommands } from '../tools/tool_commands.js';
-import { nativeBindings, nativeDiscovery, nativeQueryEntries } from '../namespace/native_tools.js';
+import { nativeBindings, nativeDiscovery } from '../namespace/native_tools.js';
 
 import { createSearchEngines } from '../search/search.js';
 import { NamespaceComponent } from '../namespace/component.js';
@@ -32,13 +35,12 @@ export class NamespaceIntegration {
     private refreshedRevision = '';
     private refreshing?: Promise<void>;
     private generatedTools = new WeakSet<ToolDefinition>();
-    private physicalSources = new WeakMap<Agent, { registry: SemanticRegistry; tools: object; revision: string; chain: ScopeKey[] }>();
     private positions = new Map<string, Position>();
     private discovered = new Map<string, Set<string>>();
     private nativeTools = new Map<string, { source: string; names: string[]; fingerprint: string; disposers: (() => void)[] }>();
 
     private catalogRevision = 0;
-    private get catalogVersion(): string { return `${this.catalogRevision}:${this.registry.definitions.revision}`; }
+    private get catalogVersion(): string { return `${this.catalogRevision}:${this.registry.definitions.revision}:${this.registry.toolAdditions.revision}`; }
 
     constructor(private ctx: Context, readonly namespace: NamespaceComponent, readonly profiles: ProfileSessions, private aliases: z.infer<typeof Aliases> = [], readonly searchEngines = createSearchEngines(), readonly statistics = profiles.statistics, readonly inspectStatistics = profiles.inspectStatistics) {
         this.intellisense = { profiles: namespace, toolAdditions: this.registry.toolAdditions, statistics, inspectStatistics, searchEngines };
@@ -52,64 +54,59 @@ export class NamespaceIntegration {
 
     private get registry(): SemanticRegistry { return this.namespace.registry; }
 
-    /** @brief Read the current conversation snapshot. */
-    async get(agent: Agent): Promise<ProfileSnapshot> {
-        await this.registryFor(agent);
-        return (await this.profiles.addition(agent.session)).profile;
+    /** @brief Initialize the session reference, inheriting the parent's exact immutable version. */
+    async addition(agent: Agent): Promise<AgentSessionAddition> {
+        const fixed = this.fixedProfile(agent);
+        const addition = await this.profiles.addition(agent.session, async () => {
+            const parent = this.ctx.agents.list().find(candidate => candidate !== agent && this.ctx.agents.isOwnedBy(agent.id, candidate));
+            return parent && this.enabled(parent) ? this.addition(parent) : undefined;
+        }, fixed);
+        if (fixed !== undefined && addition.name !== fixed) return this.profiles.load(agent.session, fixed);
+        return addition;
     }
 
-    /** @brief Publish a conversation edit without changing its catalog Profile. */
+    /** @brief Read an editing value from the current immutable reference. */
+    async get(agent: Agent): Promise<ProfileSnapshot> { return (await this.addition(agent)).profile.snapshot; }
+
+    /** @brief Append a session-only version without changing its catalog name's pointer. */
     edit(agent: Agent, modifier: (snapshot: ProfileSnapshot) => ProfileSnapshot): Promise<ProfileSnapshot> {
         return this.namespace.profileTransaction(async () => {
-            const registry = await this.registryFor(agent);
-            const revision = registry.revision;
-            const output = modifier((await this.get(agent)).clone());
+            const addition = await this.addition(agent);
+            const output = modifier(addition.profile.snapshot);
             if (!output || typeof output.serialize !== 'function') throw new Error('Profile modifier must return a snapshot');
-            const published = registry.definitions.profile({ brief: output.brief, root: output.serialize() });
-            const name = registry.profileSelection().selected;
-            await registry.saveProfile(name, editedConfiguration({ name, brief: published.brief, root: published.serialize() }, registry.configuration(), registry.definitions), { trusted: true, revision });
+            await addition.save(output);
             await this.configurationChanged(agent);
-            return published;
+            return addition.profile.snapshot;
         });
     }
 
-    /** @brief List catalog commands with mount paths including disabled paths, excluding plugin builtins. */
-    async commandBriefs(agent?: Agent, current?: SemanticRegistry): Promise<CommandBrief[]> {
+    /** @brief List physical commands and their paths from the original session nodes, including disabled mounts. */
+    async commandBriefs(agent?: Agent): Promise<CommandBrief[]> {
         await this.refresh();
-        const registry = current ?? (agent ? await this.registryFor(agent) : this.registry);
+        const profile = agent ? await this.get(agent) : (await this.registry.reference()).snapshot;
         const paths = new Map<string, string[]>();
-        const mounts = registry.snapshot().mappings;
-        const mounted = new Set(mounts.map(mapping => mapping.id));
-        for (const { id, path } of mounts) {
-            if (!paths.has(id)) paths.set(id, []);
-            if (!paths.get(id)!.includes(path)) paths.get(id)!.push(path);
-        }
-        for (const { tool, path } of this.aliases) {
-            if (!mounted.has(tool)) continue;
-            if (!paths.get(tool)!.includes(path)) paths.get(tool)!.push(path);
+        for (const { path, node } of profileMembers(profile, false)) {
+            if (node.type !== 'command') continue;
+            const tool = (node as ProfileCommand).tool!;
+            if (!paths.has(tool)) paths.set(tool, []);
+            paths.get(tool)!.push(path);
         }
         const callsByTool = await this.statistics.calls.snapshot();
-        return this.registry.tools().filter(tool => !this.registry.toolAdditions.get(tool.id).hidden && !this.registry.toolAdditions.get(tool.id).fixed).map(tool => ({
+        return this.registry.tools().filter(tool => !this.registry.toolAdditions.get(tool.id).hidden && !this.registry.owns(tool.id)).map(tool => ({
             name: tool.id, brief: tool.description, paths: paths.get(tool.id) ?? [], totalCalls: Object.hasOwn(callsByTool, tool.id) ? callsByTool[tool.id]! : 0,
         }));
     }
 
-    /** @brief Read catalog names separately from the conversation's selected Profile. */
-    async profileNames(agent?: Agent, current?: SemanticRegistry): Promise<Profiles> {
-        const registry = current ?? (agent ? await this.registryFor(agent) : this.registry);
-        return { profiles: this.registry.profileSelection().profiles, selected: registry.profileSelection().selected };
+    /** @brief Read catalog names independently from a session's selected name and old version. */
+    async profileNames(agent?: Agent): Promise<Profiles> {
+        return { profiles: this.registry.profileSelection().profiles, selected: agent ? (await this.addition(agent)).name : this.registry.profileSelection().selected };
     }
 
-    /** @brief Compute only enabled Profile metadata before guest execution. */
-    async values(agent?: Agent, current?: SemanticRegistry): Promise<Record<string, z.infer<ReturnType<typeof z.json>>>> {
-        const registry = current ?? (agent ? await this.registryFor(agent) : this.registry);
-        const mode = agent && !this.isPtc(agent) ? 'native' : 'ptc';
+    /** @brief Ask concrete commands for enabled preloaded values. */
+    async values(agent: Agent, entries?: CommandEntry[]): Promise<Record<string, z.infer<ReturnType<typeof z.json>>>> {
         const values: Record<string, z.infer<ReturnType<typeof z.json>>> = {};
-        const root = manifest(registry, this.aliases ?? [], mode);
-        for (const entry of root.commands()) {
-            if (entry.disabled) continue;
-            const producer = registry.toolAdditions.get(entry.tool).value;
-            if (producer) values[entry.path] = await producer.read({ commandBriefs: current => this.commandBriefs(agent, current), profileNames: current => this.profileNames(agent, current) }, registry);
+        for (const entry of entries ?? await this.entries(agent)) {
+            if (entry.preload && entry.node.readValue) values[entry.path] = await entry.node.readValue({ commandBriefs: () => this.commandBriefs(agent), profileNames: () => this.profileNames(agent) }) as z.infer<ReturnType<typeof z.json>>;
         }
         return values;
     }
@@ -118,7 +115,7 @@ export class NamespaceIntegration {
     register(ctx: Context): void {
         registerInspect(ctx, this);
         registerSearch(ctx, this);
-        registerToolCommands(ctx, this.registry, this.profiles, agent => this.registryFor(agent), agent => this.configurationChanged(agent), agent => this.commandBriefs(agent), this);
+        registerToolCommands(ctx, this.registry, this.profiles, agent => this.configurationChanged(agent), agent => this.commandBriefs(agent), this);
     }
 
     /** @brief Enable namespaces only for an explicitly configured Intellisense scope. */
@@ -137,7 +134,7 @@ export class NamespaceIntegration {
         if (!this.enabled(agent)) return;
         this.catalogRevision++;
         if (!this.isPtc(agent)) await this.syncNative(agent);
-        else await this.registryFor(agent);
+        else await this.addition(agent);
     }
 
     /** @brief Read the native loop position for ordinary tool query audit events. */
@@ -184,34 +181,10 @@ export class NamespaceIntegration {
         this.registry.refresh([...tools.values()]);
     }
 
-    /** @brief Initialize child Profiles from their live parent's working copy, then retain independent snapshots. */
-    async registryFor(agent?: Agent): Promise<SemanticRegistry> {
-        if (!agent) { await this.refresh(); return this.registry; }
-        const profile = this.fixedProfile(agent);
-        const registry = await this.profiles.forSession(agent.session, async () => {
-            const parent = this.ctx.agents.list().find(candidate => candidate !== agent && this.ctx.agents.isOwnedBy(agent.id, candidate));
-            return parent && this.enabled(parent) ? this.registryFor(parent) : this.registry;
-        }, profile);
-        if (profile !== undefined && registry.profileSelection().selected !== profile) await this.profiles.load(agent.session, profile);
-        const chain = scopeChainOf(agent);
-        const tools: object = Reflect.get(agent.ctx.tools, symbols.original) ?? agent.ctx.tools;
-        const previous = this.physicalSources.get(agent);
-        if (!previous || previous.registry !== registry || previous.tools !== tools || previous.revision !== this.catalogVersion
-            || previous.chain.length !== chain.length || previous.chain.some((scope, index) => scope !== chain[index])) {
-            registry.refresh(this.physical(agent));
-            this.physicalSources.set(agent, { registry, tools, revision: this.catalogVersion, chain });
-        }
-        return registry;
+    /** @brief Derive flat physical contracts while retaining references to the original Profile commands. */
+    async entries(agent: Agent, profile?: ProfileSnapshot): Promise<CommandEntry[]> {
+        return commandEntries(profile ?? await this.get(agent), this.physical(agent), this.isPtc(agent) ? 'ptc' : 'native', this.intellisense.toolAdditions);
     }
-
-    /** @brief Resolve the current enabled namespace independently of prompt visibility. */
-    async tree(agent: Agent, current?: SemanticRegistry): Promise<NamespaceNode> {
-        const registry = current ?? await this.registryFor(agent);
-        return manifest(registry, this.aliases, this.isPtc(agent) ? 'ptc' : 'native');
-    }
-
-    /** @brief Flatten command bindings only for consumers that dispatch physical tools. */
-    async entries(agent: Agent, current?: SemanticRegistry): Promise<CommandNode[]> { return (await this.tree(agent, current)).commands().filter(entry => !entry.disabled); }
 
     /** @brief Refresh tool presentation after the conversation configuration changes. */
     async configurationChanged(agent: Agent): Promise<void> {
@@ -219,103 +192,68 @@ export class NamespaceIntegration {
         this.ctx.emit('system-prompt/change');
     }
 
-    /** @brief Publish only explicitly pinned commands and namespaces with their Profile briefs. */
+    /** @brief Render pinned original nodes directly, deriving only output declarations. */
     async prompt(agent: Agent): Promise<string> {
         const ptc = this.isPtc(agent);
-        const registry = await this.registryFor(agent);
-        const state = registry.snapshot();
-        const root = await this.tree(agent, registry);
-        const hints: NamespaceHint[] = [];
-        const mappings = new Map(registry.effective().map(mapping => [mapping.path, mapping]));
-        for (const entry of root.commands()) {
-            if (entry.disabled) continue;
-            if (entry.provided) {
-                const level = entry.fixLevel(state.builtinVisible?.[entry.path] ?? entry.fixedLevel);
-                if (level && (ptc || level === 1)) hints.push({ path: entry.path, description: entry.doc,
-                    ...(level === 2 ? { declaration: entry.preload ? `/** @brief ${entry.doc} */\nconst ${entry.name}: ${entry.signature};` : entry.declaration(false) } : {}) });
-                continue;
-            }
-            const mapping = mappings.get(entry.path);
-            const level = entry.fixLevel(mapping?.alwaysVisible);
-            const description = mapping?.description ?? entry.doc.trim().split(/\r?\n/, 1)[0]!;
-            if (level && (ptc || level === 1)) hints.push({ path: entry.path, description,
-                ...(level === 2 ? { declaration: declaration({ ...entry, path: entry.path, doc: description }, false) } : {}) });
+        const profile = await this.get(agent);
+        const entries = await this.entries(agent, profile);
+        const hints = new Map<string, NamespaceHint>();
+        for (const entry of entries) {
+            const level = entry.fixedLevel;
+            const description = entry.provided ? entry.doc : entry.node.serialize().command.doc ?? entry.doc.trim().split(/\r?\n/, 1)[0]!;
+            if (level && (ptc || level === 1)) hints.set(entry.path, { path: entry.path, description,
+                ...(level === 2 ? { declaration: entry.preload ? `/** @brief ${description} */\nconst ${entry.name}: ${entry.signature};` : declaration({ ...entry, doc: description }, false) } : {}) });
         }
-        for (const item of state.namespaces ?? []) {
-            const node = root.resolve(item.path.split('.'));
-            if (item.alwaysVisible && node && !node.disabled) hints.push({ ...item, namespace: true });
+        for (const { path, node } of profileMembers(profile)) {
+            if (node.type === 'namespace' && node.serialize().fixedLevel) hints.set(path, { path, namespace: true, description: node.serialize().description });
         }
-        for (const [path, pinned] of Object.entries(state.namespaceVisible ?? {})) {
-            const node = root.resolve(path.split('.'));
-            if (pinned && !registry.disabled(path) && node && node.permissions.availableFixLevels.length) hints.push({ path, namespace: true, description: node instanceof NamespaceNode ? node.description : node.doc });
-        }
-        const included = new Set(hints.map(hint => hint.path));
-        for (const hint of [...hints]) {
-            let parent = root.resolve(hint.path.split('.'))?.parent;
-            while (parent?.path) {
-                if (!included.has(parent.path)) {
-                    hints.push({ path: parent.path, namespace: true, description: parent.description });
-                    included.add(parent.path);
-                }
-                parent = parent.parent;
+        for (const path of [...hints.keys()]) {
+            const parts = path.split('.');
+            while (parts.length > 1) {
+                parts.pop();
+                const parent = parts.join('.');
+                if (!hints.has(parent)) hints.set(parent, { path: parent, namespace: true, description: profile.resolve(parent)?.serialize().description });
             }
         }
-        const discoveryAvailable = root.commands().some(entry => !entry.disabled && registry.toolAdditions.get(entry.tool).discovery);
-        return ptc ? namespaceDirectory(hints, discoveryAvailable) : nativeDirectory(hints, discoveryAvailable);
+        const discovery = entries.some(entry => entry.node.discovery);
+        return ptc ? namespaceDirectory([...hints.values()], discovery) : nativeDirectory([...hints.values()], discovery);
     }
 
-    /** @brief Expose detailed pins and explicitly queried commands as native tools. */
-    private nativeEntries(agent: Agent, registry: SemanticRegistry, entries: CommandNode[]): CommandNode[] {
-        const state = registry.snapshot();
-        const discovered = this.discovered.get(agent.id);
-        const pinned = new Set(registry.effective().filter(mapping => mapping.alwaysVisible === 2).map(mapping => mapping.path));
+    /** @brief Resolve discovery from the session snapshot and supplement only the selected command contracts. */
+    async discover(agent: Agent, queries: readonly string[]): Promise<string> {
+        const profile = await this.get(agent);
+        const entries = await this.entries(agent, profile);
+        if (this.isPtc(agent)) return inspect(queries, profile, entries, true);
+        const exact = new Set(normalizeInspectQueries(queries));
         const available = new Set(entries.map(entry => entry.path));
-        for (const path of discovered ?? []) if (!available.has(path)) discovered!.delete(path);
-        return entries.filter(entry => entry.fixLevel(state.builtinVisible?.[entry.path] ?? entry.fixedLevel) === 2 || discovered?.has(entry.path)
-            || pinned.has(entry.path)
-        );
-    }
-
-    /** @brief Expand native tools for this conversation and invalidate the assembled system prompt. */
-    async discover(agent: Agent, queries: readonly string[], root?: NamespaceNode): Promise<string> {
-        const registry = await this.registryFor(agent);
-        const profile = agent.session.intellisense?.profile;
-        if (!profile) throw new Error('A session Profile is required');
-        root ??= inspectionTree(profile, registry, this.isPtc(agent));
-        const brief = (_tool: string, path: string): string | undefined => inspectionBrief(profile, path);
-        if (this.isPtc(agent)) return nativeDiscovery(queries, root, brief);
-        const selected = nativeQueryEntries(queries, root);
         let discovered = this.discovered.get(agent.id);
         if (!discovered) this.discovered.set(agent.id, discovered = new Set());
-        for (const entry of selected) {
-            discovered.delete(entry.path);
-            discovered.add(entry.path);
+        for (const { path, node } of queryNodes(profile, queries)) {
+            if (node.type !== 'command' || !exact.has(path) || !available.has(path)) continue;
+            discovered.delete(path);
+            discovered.add(path);
         }
         while (discovered.size > 256) discovered.delete(discovered.values().next().value!);
-        await this.syncNative(agent, registry);
+        await this.syncNative(agent, entries);
         this.ctx.emit('system-prompt/change');
-        return nativeDiscovery(queries, root, brief);
+        return nativeDiscovery(queries, profile, entries);
     }
 
-    /** @brief Install scoped namespace aliases while keeping dispatch inside native guards and auditing. */
-    async syncNative(agent: Agent, registry?: SemanticRegistry, root?: NamespaceNode): Promise<string[]> {
-        registry ??= await this.registryFor(agent);
-        const source = JSON.stringify([registry.generation, [...this.discovered.get(agent.id) ?? []]]);
+    /** @brief Register native tools from flat contracts without constructing another node hierarchy. */
+    async syncNative(agent: Agent, current?: CommandEntry[]): Promise<string[]> {
+        const addition = await this.addition(agent);
+        const entries = current ?? await this.entries(agent);
+        const discovered = this.discovered.get(agent.id);
+        const available = new Set(entries.map(entry => entry.path));
+        for (const path of discovered ?? []) if (!available.has(path)) discovered!.delete(path);
+        const bindings = nativeBindings(entries, this.physical(agent).map(tool => tool.id)).filter(({ entry }) => entry.fixedLevel === 2 || discovered?.has(entry.path));
+        const descriptionFor = (entry: CommandEntry): string => entry.node.serialize().command.doc ?? entry.doc.trim().split(/\r?\n/, 1)[0]!;
+        const fingerprint = JSON.stringify([addition.profile.pointer, bindings.map(({ entry, name }) => ({ name, path: entry.path, doc: entry.doc, schema: entry.schema, output: entry.output, description: descriptionFor(entry) }))]);
         const previous = this.nativeTools.get(agent.id);
-        if (previous?.source === source) return [...previous.names];
-        const entries = (root ?? await this.tree(agent, registry)).commands().filter(entry => !entry.disabled);
-        const visible = new Set(this.nativeEntries(agent, registry, entries));
-        const bindings = nativeBindings(entries, registry.tools().map(tool => tool.id)).filter(({ entry }) => visible.has(entry));
-        const descriptionFor = (entry: CommandNode): string => registry.description(entry.path, entry.tool) ?? entry.doc.trim().split(/\r?\n/, 1)[0]!;
-        const fingerprint = JSON.stringify(bindings.map(({ entry, name }) => ({ name, path: entry.path, node: entry.serialize(), description: descriptionFor(entry) })));
         const names = bindings.map(binding => binding.name);
-        if (previous?.fingerprint === fingerprint) {
-            previous.source = source;
-            previous.names = names;
-            return [...names];
-        }
+        if (previous?.fingerprint === fingerprint) return [...names];
         for (const dispose of previous?.disposers ?? []) dispose();
-        const state = { source, names, fingerprint, disposers: [] as (() => void)[] };
+        const state = { source: '', names, fingerprint, disposers: [] as (() => void)[] };
         this.nativeTools.set(agent.id, state);
         for (const { entry, name } of bindings) {
             if (name === entry.tool) continue;
@@ -325,12 +263,12 @@ export class NamespaceIntegration {
                 execute: async (args, parent) => {
                     const caller = parent.agent;
                     if (!caller) throw new Error('A live conversation is required');
-                    return await this.dispatch(caller, entry, entry.nativeArguments(args), parent, 1) ?? null;
+                    return await this.dispatch(caller, entry, nativeArgumentsFor(entry, args), parent, 1) ?? null;
                 },
             };
             const physical = agent.ctx.tools.get?.(entry.tool, agent);
-            if (physical?.presentCall) definition.presentCall = args => physical.presentCall!(entry.nativeArguments(args));
-            if (physical?.presentResult) definition.presentResult = (args, result) => physical.presentResult!(entry.nativeArguments(args), result);
+            if (physical?.presentCall) definition.presentCall = args => physical.presentCall!(nativeArgumentsFor(entry, args));
+            if (physical?.presentResult) definition.presentResult = (args, result) => physical.presentResult!(nativeArgumentsFor(entry, args), result);
             this.generatedTools.add(definition);
             state.disposers.push(agent.ctx.tools.register(definition));
         }
@@ -338,8 +276,9 @@ export class NamespaceIntegration {
     }
 
     /** @brief Dispatch a namespace call through native permission checks and paired child audit records. */
-    async dispatch(agent: Agent, entry: CommandNode, args: unknown, parent: ToolRunContext, sequence: number): Promise<unknown> {
-        return entry.result(await this.dispatchTool(agent, entry.tool, args, parent, sequence));
+    async dispatch(agent: Agent, entry: CommandEntry, args: unknown, parent: ToolRunContext, sequence: number): Promise<unknown> {
+        const value = await this.dispatchTool(agent, entry.tool, args, parent, sequence);
+        return entry.presentation?.discardResult ? undefined : resultFor(entry, value);
     }
 
     /** @brief Dispatch a physical tool through DSH, which owns permission checks and execution. */

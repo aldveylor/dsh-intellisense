@@ -5,27 +5,10 @@ import type { Context } from '@deepseek-ai/cordis';
 import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools';
 import { codeBlock } from '../protocol/code_block.js';
 import { appendPluginRecord } from '@deepseek-ai/dsh-session';
-import { createNamespace, declaration, normalizeInspectQueries, queryNodes, NamespaceNode } from '../namespace/namespace.js';
+import { declaration, normalizeInspectQueries, queryNodes, type CommandEntry } from '../namespace/namespace.js';
 import type { NamespaceIntegration } from '../integration/namespace_integration.js';
 import type { ProfileSnapshot } from '../registry/profile/profile.js';
 import type { ProfileCommand } from '../registry/profile/command.js';
-import type { SemanticRegistry } from '../registry/registry.js';
-
-/** @brief Enrich session-owned nodes with physical tool contracts for discovery rendering only. */
-export function inspectionTree(profile: ProfileSnapshot, registry: SemanticRegistry, runtime = false): NamespaceNode {
-    return createNamespace({
-        definitions: profile.disabled ? { type: 'namespace' } : profile.serialize(),
-        tools: registry.tools(), mode: runtime ? 'ptc' : 'native',
-        addition: tool => registry.toolAdditions.get(tool),
-        implementation: () => undefined,
-    });
-}
-
-/** @brief Read a command summary directly from its session-owned Profile node. */
-export function inspectionBrief(profile: ProfileSnapshot, path: string): string | undefined {
-    const node = profile.resolve(path);
-    return node?.type === 'command' ? (node as ProfileCommand).serialize().command.doc : undefined;
-}
 
 /** @brief A valid query target resolved against the active Profile tree. */
 export interface QueryTarget { path: string; namespace: boolean; tool?: string }
@@ -41,33 +24,33 @@ export function inspectQueryTargets(queries: readonly string[], profile: Profile
     });
 }
 
-/** @brief Render queried members and signatures through the shared namespace declaration model. */
-export function inspect(queries: readonly string[], root: NamespaceNode, runtime = false, brief: (tool: string, path: string) => string | undefined = () => undefined): string {
+/** @brief Render selected original nodes and supplement commands with scoped physical contracts. */
+export function inspect(queries: readonly string[], profile: ProfileSnapshot, entries: readonly CommandEntry[], runtime = false): string {
     const selected = new Map<string, NamespaceDeclaration>();
     const exact = new Set(normalizeInspectQueries(queries));
-    for (const node of queryNodes(root, queries)) {
-        if (node instanceof NamespaceNode) {
-            selected.set(node.path, { path: node.path, namespace: true, description: node.description });
+    const byPath = new Map(entries.map(entry => [entry.path, entry]));
+    for (const { path, node } of queryNodes(profile, queries)) {
+        const data = node.serialize();
+        if (node.type === 'namespace') {
+            selected.set(path, { path, namespace: true, description: data.description });
             continue;
         }
-        const value = runtime && node.preload;
-        selected.set(node.path, {
-            path: node.path, description: brief(node.tool, node.path) ?? node.doc.trim().split(/\r?\n/, 1)[0],
-            ...(value ? { valueType: node.signature }
-                : exact.has(node.path) ? { declaration: declaration(node, false) } : {}),
-        });
+        const entry = byPath.get(path);
+        if (!entry) continue;
+        selected.set(path, { path, description: entry.provided ? entry.doc : data.command?.doc ?? entry.doc.trim().split(/\r?\n/, 1)[0],
+            ...(runtime && entry.preload ? { valueType: entry.signature } : exact.has(path) ? { declaration: declaration(entry, false) } : {}) });
     }
-    // Preserve an explicitly queried namespace even when it has no direct children.
     for (const query of exact) {
         const path = query.replace(/\.$/, '');
-        const node = root.resolve(path.split('.'));
-        if (path && node instanceof NamespaceNode && !node.disabled) selected.set(path, { path, namespace: true, description: node.description });
+        const node = profile.resolve(path);
+        if (path && node?.type === 'namespace') selected.set(path, { path, namespace: true, description: node.serialize().description });
     }
     for (const path of [...selected.keys()]) {
-        let parent = root.resolve(path.split('.'))?.parent;
-        while (parent?.path) {
-            selected.set(parent.path, { path: parent.path, namespace: true, description: parent.description });
-            parent = parent.parent;
+        const parts = path.split('.');
+        while (parts.length > 1) {
+            parts.pop();
+            const parent = parts.join('.');
+            selected.set(parent, { path: parent, namespace: true, description: profile.resolve(parent)?.serialize().description });
         }
     }
     return namespaceDeclaration([...selected.values()]);
@@ -94,25 +77,17 @@ export function registerInspect(ctx: Context, namespaces: NamespaceIntegration):
             if (!agent) throw new Error('A live conversation is required');
             execution.signal.throwIfAborted();
             const started = performance.now();
-            const registry = await namespaces.registryFor(agent);
-            const profile = agent.session.intellisense?.profile;
-            if (!profile) throw new Error('A session Profile is required');
+            const addition = await namespaces.addition(agent);
+            const profile = addition.profile.snapshot;
             if (!profile.resolve('tools.inspect')) throw new Error('Execution denied: tools.inspect');
-            const runtime = namespaces.isPtc(agent);
-            const root = inspectionTree(profile, registry, runtime);
             const targets = inspectQueryTargets(queries, profile);
-            await namespaces.inspectStatistics.increment(registry.profileSelection().selected, targets.map(target => target.path));
+            await namespaces.inspectStatistics.increment(addition.name, targets.map(target => target.path));
             await namespaces.statistics.queries.increment(agent.session.id, targets.flatMap(target => target.tool ? [target.tool] : []));
-            let info: string;
-            if (runtime) {
-                info = inspect(queries, root, true, (_tool, path) => inspectionBrief(profile, path));
-            } else {
-                info = await namespaces.discover(agent, queries, root);
-            }
+            const info = await namespaces.discover(agent, queries);
             const position = namespaces.position(agent);
             appendPluginRecord(agent.session, 'plugin:ts_intellisense/inspect', {
                 ...position, queries, info, elapsedMs: performance.now() - started,
-                profileRevision: registry.revision,
+                profileRevision: addition.profile.pointer,
                 runtimeEpoch: namespaces.isPtc(agent) ? agent.ctx.get('codeRuntime')?.epoch(agent.id) ?? 0 : 0,
             });
             return info;

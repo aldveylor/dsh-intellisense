@@ -2,7 +2,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { NamespaceIntegration } from '../integration/namespace_integration.js';
 import type { ProfileSaveEvent } from '../namespace/service.js';
 import type { ProfilePatch, ProfileWrite } from '../registry/profile_write.js';
-import { profileTree } from '../registry/profile_tree.js';
+import { RegistryConfiguration } from '../registry/configuration.js';
 import { editedConfiguration } from '../registry/profile/configuration.js';
 import { ProfileNotFoundError } from '../error.js';
 
@@ -36,22 +36,21 @@ export function profileSaveInformation(profile: ProfileData, tools: readonly str
 export async function writeProfile(sessions: NamespaceIntegration, agent: Agent, name: string | undefined, input: ProfileWrite | ProfilePatch, operation: 'save' | 'apply'): Promise<string | null> {
     const namespace = sessions.namespace;
     const saved = await namespace.profileTransaction(async () => {
-        const session = await sessions.registryFor(agent);
-        const target = name ?? session.profileSelection().selected;
+        const session = await sessions.addition(agent);
+        const target = name ?? session.name;
         const catalog = namespace.registry;
         const revision = catalog.revision;
-        if (operation === 'apply' && name !== undefined && !catalog.profileSelection().profiles.includes(target)) throw new ProfileNotFoundError(target);
-        const original = catalog.profileSelection().profiles.includes(target) ? catalog.configuration(target) : session.configuration();
-        const source = operation === 'apply' && name === undefined ? session.configuration() : original;
-        const baseline = catalog.definitions.profile(profileTree(target, original, catalog.definitions).save());
-        const snapshot = catalog.definitions.profile(profileTree(target, source, catalog.definitions).save());
+        const exists = catalog.profileSelection().profiles.includes(target);
+        if (operation === 'apply' && name !== undefined && !exists) throw new ProfileNotFoundError(target);
+        const baseline = exists ? (await catalog.reference(target)).snapshot : session.profile.snapshot;
+        const snapshot = operation === 'apply' && name === undefined ? session.profile.snapshot : baseline.clone();
         if (operation === 'save') snapshot.save(input as ProfileWrite);
         else snapshot.apply(input as ProfilePatch);
         snapshot.check({ commands: new Set((await sessions.commandBriefs(agent)).map(command => command.name)),
-            addition: tool => catalog.toolAdditions.get(tool), original: baseline.serialize() });
+            addition: tool => sessions.intellisense.toolAdditions.get(tool), owns: tool => catalog.owns(tool), original: baseline.serialize() });
         const value = { name: target, brief: snapshot.brief, root: snapshot.serialize() };
-        const information = profileSaveInformation(value, session.tools().map(tool => tool.id));
-        const configuration = editedConfiguration(value, original, catalog.definitions);
+        const information = profileSaveInformation(value, sessions.physical(agent).map(tool => tool.id));
+        const configuration = editedConfiguration(value, exists ? catalog.configuration(target) : new RegistryConfiguration(), catalog.definitions);
         await catalog.saveProfile(target, configuration, { trusted: true, revision });
         agent.ctx.emit('system-prompt/change');
         const event: ProfileSaveEvent = Object.freeze({ name: target, time: new Date().toISOString(), type: operation });

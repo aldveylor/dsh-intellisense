@@ -10,7 +10,6 @@ import { settingsAt } from './profile/node_settings.js';
 import { z } from 'zod';
 import { RegistryConfiguration, type RegistryConfigurationData } from './configuration.js';
 import type { Saveable } from '../storage/saveable.js';
-import { createNamespace } from '../namespace/namespace.js';
 import { fixLevel, nodePermissions, type SerializedNode } from '../namespace/node.js';
 import type { ProfileTreeNode, NamespaceTreeNode } from './profile_node.js';
 
@@ -35,7 +34,7 @@ export class ProfileDocument implements Saveable<ProfileData> {
     constructor(data?: ProfileData) {
         this.name = data?.name ?? 'Default';
         this.brief = data?.brief;
-        this.root = compactProfileNode(data?.root ?? profileNode(createNamespace({ tools: [], includeUnavailable: true }).serialize())) as NamespaceTreeNode;
+        this.root = compactProfileNode(data?.root ?? defaultNamespaceDefinitions.createInitialProfile().serialize()) as NamespaceTreeNode;
     }
 
     save(): ProfileData { return { name: this.name, ...(this.brief === undefined ? {} : { brief: this.brief }), root: compactProfileNode(this.root) as NamespaceTreeNode }; }
@@ -133,8 +132,7 @@ export function profileTree(name: string, configuration: RegistryConfigurationDa
         const description = mapping.description ?? configuration.toolComments?.[mapping.id];
         if (description !== undefined) command.setDescription(description);
     }
-    const root = createNamespace({ tools: [], includeUnavailable: true, definitions: definition.serialize(), addition: tool => definitions.addition(tool), implementation: path => definitions.implementation(path), nodeSettings: configuration.nodeSettings });
-    const snapshot = profileNode(root.serialize()) as NamespaceTreeNode;
+    const snapshot = definition.serialize();
     const apply = (node: ProfileTreeNode, path: string): void => {
         const setting = settingsAt(configuration.nodeSettings, path ? path.split('.') : []);
         if (setting?.description !== undefined) {
@@ -148,6 +146,7 @@ export function profileTree(name: string, configuration: RegistryConfigurationDa
             : namespace?.alwaysVisible || configuration.namespaceVisible?.[path] ? 1 : 0);
         if (node.type === 'command') node.fixedLevel = level;
         else node.fixedLevel = level === 2 ? 1 : level;
+        node.permissions = permissions;
         node.disabled = permissions.disableable && (!!mapping?.disabled || !!namespace?.disabled || (configuration.builtinDisabled ?? []).includes(path));
         for (const [name, child] of Object.entries(node.children ?? {})) apply(child, path ? `${path}.${name}` : name);
     };
@@ -161,7 +160,7 @@ export function profileConfiguration(profile: ProfileData, current: RegistryConf
     const before = profileTree(profile.name, current, definitions).save();
     const snapshot = definitions.profile(before);
     snapshot.apply(compareProfile(profileWrite(before), profileWrite(profile)));
-    snapshot.check({ commands: new Set(commands.map(command => command.name)), addition: tool => definitions.addition(tool), original: before.root });
+    snapshot.check({ commands: new Set(commands.map(command => command.name)), addition: () => ({}), original: before.root });
     return editedConfiguration({ name: profile.name, brief: snapshot.brief, root: snapshot.serialize() }, current, definitions);
 }
 

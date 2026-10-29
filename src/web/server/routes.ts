@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { profileConfiguration } from '../profile/profile_json.js';
 import { returnTypeDeclaration } from './return_type.js';
 import type { PhysicalTool, SemanticRegistry } from '../../registry/registry.js';
-import { createNamespace } from '../../namespace/namespace.js';
+import { serializeProfile } from '../../namespace/namespace.js';
 import type { SerializedNode } from '../../namespace/node.js';
 import type { CommandStatistics } from '../../statistics/command_statistics.js';
 import '@deepseek-ai/dsh-client-connection';
@@ -62,9 +62,7 @@ export function registerManagement(ctx: Context, globalRegistry: SemanticRegistr
                 const selected = registry.configuration(profile);
                 let provided = catalog.provided.get(profile);
                 if (!provided) {
-                    provided = [...createNamespace({ tools: catalog.physical, includeUnavailable: true,
-                        definitions: selected.providedRoot ?? registry.definitions.tree(profile), addition: tool => registry.toolAdditions.get(tool), implementation: path => registry.definitions.implementation(path), nodeSettings: selected.nodeSettings,
-                    }).children.values()].map(node => node.serialize());
+                    provided = serializeProfile(registry.definitions.profile({ root: selected.providedRoot ?? registry.definitions.tree(profile) }), catalog.physical, 'ptc', registry.toolAdditions).children ?? [];
                     catalog.provided.set(profile, provided);
                 }
                 return Response.json({ defaultProfile: state.profile, profileBriefs: registry.profileBriefs(), state: { ...state, ...selected, profile }, tools: catalog.tools, callsByTool, queriesByTool, queriesByPath, provided, effective: registry.effective() }, { headers });

@@ -1,27 +1,17 @@
-import { profileTree } from '../registry/profile_tree.js';
 import type { ProfileSnapshot } from '../registry/profile/profile.js';
-import { EditableNamespace } from '../registry/profile/namespace.js';
-import { EditableCommand } from '../registry/profile/command.js';
+import type { ProfileNode } from '../registry/profile/node.js';
 import type { ProfileCommand } from '../registry/profile/command.js';
 import type { ProfileNamespace } from '../registry/profile/namespace.js';
 import type { PresentationMode } from '../integration/presentation.js';
-import { NamespaceNode } from './nodes/node.js';
-import { CommandNode } from './nodes/command_node.js';
-import { DefinedNamespaceNode } from './nodes/defined_namespace_node.js';
-import { defaultNamespaceDefinitions } from './definitions.js';
-import { permissionsAt, settingsAt } from '../registry/profile/node_settings.js';
-import type { ProfileTreeNode } from '../registry/profile_node.js';
-import type { NamespaceContext, NamespaceInitialization } from './nodes/context.js';
-import { commandDeclaration } from './nodes/command_contract.js';
-export { nativeArgumentsFor, resultFor } from './nodes/command_contract.js';
-export { NamespaceNode } from './nodes/node.js';
-export { CommandNode } from './nodes/command_node.js';
-export type { NamespaceContext } from './nodes/context.js';
-import { nodePermissions, type CommandContract } from './node.js';
-export type { Node, NodeType, Permission, SerializedNode } from './node.js';
-import { namespaceDeclaration } from './declaration.js';
+import type { ToolAdditions } from '../integration/tool_additions/tool_additions.js';
+import type { PhysicalTool } from '../registry/registry.js';
+import type { CommandContract, SerializedNode } from './node.js';
+import type { CommandBinding } from '../runtime/protocol.js';
+import { namespaceDeclaration, callableDeclaration } from './declaration.js';
+import { commandDeclaration, parameters, resultField } from './nodes/command_contract.js';
 import { z } from 'zod';
-import type { SemanticRegistry } from '../registry/registry.js';
+export { nativeArgumentsFor, resultFor } from './nodes/command_contract.js';
+export type { Node, NodeType, Permission, SerializedNode } from './node.js';
 
 /** @brief YAML aliases mount physical tools at additional namespace paths. */
 export const Aliases = z.array(z.strictObject({ path: z.string().regex(/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+$/), tool: z.string().min(1) })).superRefine((aliases, context) => {
@@ -34,48 +24,51 @@ export const Aliases = z.array(z.strictObject({ path: z.string().regex(/^[A-Za-z
     }
 });
 
-/** @brief Trusted host-side namespace manifest entry. */
+/** @brief Flat output contract for a physical tool at one Profile path. */
 export interface ManifestEntry extends CommandContract { path: string }
 
-/** @brief Create an ordinary root container with server-owned protected children before adding mappings. */
-export function createNamespace(context: NamespaceContext): NamespaceNode {
-    const root = new NamespaceNode('', undefined, '', nodePermissions('tree', { renamable: false, commentable: false, movable: false, removable: false, disableable: false, availableFixLevels: [] }));
-    const definitions = context.definitions ?? defaultNamespaceDefinitions.tree();
-    const additionFor = context.addition ?? (tool => defaultNamespaceDefinitions.addition(tool));
-    const discoverable = (node: ProfileTreeNode, path: string, disabled = false): boolean => {
-        disabled ||= !!node.disabled || !!context.disabled?.(path);
-        if (disabled) return false;
-        if (node.type === 'command') return !!additionFor(node.command.tool).discovery && !additionFor(node.command.tool).hidden
-            && (!!context.includeUnavailable || context.tools.some(tool => tool.id === node.command.tool));
-        return Object.entries(node.children ?? {}).some(([name, child]) => discoverable(child, path ? `${path}.${name}` : name, disabled));
-    };
-    const discoveryAvailable = discoverable(definitions, '');
-    const build = (name: string, data: ProfileTreeNode, parent: NamespaceNode): NamespaceNode | CommandNode | undefined => {
-        const path = parent.path ? `${parent.path}.${name}` : name;
-        const permissions = nodePermissions(data.type === 'namespace' ? 'tree' : 'leaf', { ...data.permissions, ...permissionsAt(context.nodeSettings, path.split('.')) });
-        if (data.type === 'namespace') {
-            const options: NamespaceInitialization = { name, parent, description: settingsAt(context.nodeSettings, path.split('.'))?.description ?? data.description ?? '', permissions,
-                disabled: context.disabled?.(path) ?? !!data.disabled, fixedLevel: data.fixedLevel ?? 0,
-                children: node => Object.entries(data.children ?? {}).flatMap(([name, child]) => build(name, child, node) ?? []) };
-            const implementation = (context.implementation ?? (path => defaultNamespaceDefinitions.implementation(path)))(path);
-            return implementation ? implementation(options) : new DefinedNamespaceNode(options.name, options.parent, options.description, options.permissions, options.disabled, options.fixedLevel, options.children);
-        }
-        if (context.disabled?.(path) || data.disabled || (context.addition ?? (tool => defaultNamespaceDefinitions.addition(tool)))(data.command.tool).hidden) return undefined;
-        const tool = context.tools.find(tool => tool.id === data.command.tool);
-        if (!tool && !context.includeUnavailable) return undefined;
-        const addition = additionFor(data.command.tool);
-        const projected = addition.project?.(tool?.parameters ?? {}, context.mode ?? 'ptc', discoveryAvailable);
-        const doc = context.mode !== 'native' ? addition.ptcDescription ?? projected?.description ?? tool?.description ?? data.command.doc ?? ''
-            : projected?.description ?? tool?.description ?? data.command.doc ?? '';
-        const entry = { tool: data.command.tool, schema: tool?.parameters ?? {}, output: tool?.output, doc, presentation: projected };
-        return new CommandNode(name, parent, entry, permissions, data.fixedLevel, context.provided?.(path) ?? true);
-    };
-    for (const [name, data] of Object.entries(definitions.children ?? {})) {
-        const node = build(name, data, root);
-        if (node) root.add(node);
+/** @brief A derived command contract retaining its original Profile node, without a second node hierarchy. */
+export interface CommandEntry extends ManifestEntry {
+    node: ProfileCommand;
+    name: string;
+    fixedLevel: 0 | 1 | 2;
+    provided: boolean;
+    preload: boolean;
+    signature?: string;
+}
+
+/** @brief One original node and its path while walking a Profile. */
+export interface ProfileMember { path: string; node: ProfileNode }
+
+/** @brief Walk original nodes; disabled containers exclude their entire subtree by default. */
+export function* profileMembers(root: ProfileNamespace, enabled = true, parent = ''): Generator<ProfileMember> {
+    if (enabled && root.disabled) return;
+    for (const [name, node] of root.children) {
+        if (enabled && node.disabled) continue;
+        const path = parent ? `${parent}.${name}` : name;
+        yield { path, node };
+        if (node.type === 'namespace') yield* profileMembers(node as ProfileNamespace, enabled, path);
     }
-    Object.assign(root.permissions, context.nodeSettings?.permissions);
-    return root;
+}
+
+/** @brief Supplement original commands with scoped physical contracts only at a consumer boundary. */
+export function commandEntries(profile: ProfileSnapshot, tools: readonly PhysicalTool[], mode: PresentationMode, additions: ToolAdditions): CommandEntry[] {
+    const byTool = new Map(tools.map(tool => [tool.id, tool]));
+    const members = [...profileMembers(profile)];
+    const discovery = members.some(({ node }) => node.type === 'command' && (node as ProfileCommand).discovery
+        && byTool.has((node as ProfileCommand).tool!) && !additions.get((node as ProfileCommand).tool!).hidden);
+    return members.flatMap(({ path, node }) => {
+        if (node.type !== 'command') return [];
+        const command = node as ProfileCommand;
+        const tool = byTool.get(command.tool!);
+        const addition = additions.get(command.tool!);
+        if (!tool || addition.hidden) return [];
+        const presentation = command.presentation?.(tool.parameters, mode, discovery);
+        const doc = (mode === 'ptc' ? addition.ptcDescription : undefined) ?? presentation?.description ?? tool.description;
+        return [{ path, node: command, name: path.split('.').at(-1)!, tool: tool.id, schema: tool.parameters, output: tool.output, doc, presentation,
+            fixedLevel: command.serialize().fixedLevel ?? 0, provided: !command.permissions.removable,
+            preload: presentation?.preload ?? false, signature: presentation?.signature }];
+    });
 }
 
 /** @brief Ignore the ambient global namespace prefix and validate discovery paths. */
@@ -87,69 +80,48 @@ export function normalizeInspectQueries(queries: readonly string[]): string[] {
     });
 }
 
-/** @brief Select exact commands or direct members by following the node chain. */
-export function queryNodes(root: NamespaceNode, queries: readonly string[]): (NamespaceNode | CommandNode)[] {
-    const selected = new Set<NamespaceNode | CommandNode>();
+/** @brief Resolve exact commands or direct namespace members using the snapshot's own node identities. */
+export function queryNodes(profile: ProfileSnapshot, queries: readonly string[]): ProfileMember[] {
+    const selected = new Map<string, ProfileNode>();
     for (const query of normalizeInspectQueries(queries)) {
         const path = query.replace(/\.$/, '');
-        const node = root.resolve(path ? path.split('.') : []);
-        if (!node || node.disabled) continue;
-        if (node instanceof NamespaceNode) for (const child of node.children.values()) { if (!child.disabled) selected.add(child); }
-        else if (node && !query.endsWith('.')) selected.add(node);
+        const node = profile.resolve(path);
+        if (node?.type === 'namespace') {
+            for (const [name, child] of (node as ProfileNamespace).children) {
+                if (!child.disabled) selected.set(path ? `${path}.${name}` : name, child);
+            }
+        } else if (node?.type === 'command' && !query.endsWith('.')) selected.set(path, node);
     }
-    return [...selected];
+    return [...selected].map(([path, node]) => ({ path, node }));
 }
 
-/** @brief Build deterministic, scoped aliases from the current Profile and physical tool catalog. */
-export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Aliases>, mode: PresentationMode = 'ptc', profile?: ProfileSnapshot): NamespaceNode {
-    const tools = registry.tools();
-    const byId = new Map(tools.map(tool => [tool.id, tool]));
-    const state = registry.snapshot();
-    profile ??= registry.definitions.profile(profileTree(state.profile ?? 'Default', registry.configuration(), registry.definitions).save());
-    const template = state.providedRoot ?? registry.definitions.tree(state.profile);
-    const definition = new EditableNamespace('', profile.serialize());
-    const nodeFor = (parts: string[]): ProfileNamespace => parts.reduce((parent, name) => {
-        const node = parent.getOrCreate(name, () => new EditableNamespace(name));
-        if (node.type !== 'namespace') throw new Error(`Expected namespace: ${name}`);
-        return node as ProfileNamespace;
-    }, definition as ProfileNamespace);
-    for (const item of state.namespaces ?? []) nodeFor(item.path.split('.')).setDescription(item.description);
-    const insert = (path: string, tool: string): void => {
-        const parts = path.split('.');
-        const parent = nodeFor(parts.slice(0, -1));
-        const name = parts.at(-1)!;
-        const previous = parent.get(name);
-        if (previous) {
-            if (previous.type === 'command' && (previous as ProfileCommand).tool === tool) return;
-            throw new Error(`Conflicting tool alias: ${path}`);
-        }
-        const node = parent.create(name, () => new EditableCommand(name));
-        if (node.type !== 'command') throw new Error(`Expected command: ${name}`);
-        (node as ProfileCommand).setTool(tool);
-    };
-    const effective = registry.effective().filter(mapping => !mapping.disabled && !registry.definitions.addition(mapping.id).hidden);
-    for (const mapping of effective) {
-        // Unmounted tools have no namespace mount until a plugin or Profile adds one.
-        if (!state.mappings.some(saved => saved.path === mapping.path && saved.id === mapping.id)) continue;
-        const node = profile.resolve(mapping.path);
-        const tool = node?.type === 'command' ? (node as ProfileCommand).tool : undefined;
-        if (tool) insert(mapping.path, tool);
-    }
-    const mounted = new Set(effective.map(mapping => mapping.id));
-    for (const alias of aliases) if (byId.has(alias.tool) && mounted.has(alias.tool)) insert(alias.path, alias.tool);
-    const provided = (path: string): boolean => {
-        let node: ProfileTreeNode | undefined = template;
-        for (const name of path.split('.')) node = node?.children?.[name];
-        return node !== undefined;
-    };
-    return createNamespace({ tools, mode, definitions: definition.serialize(), nodeSettings: state.nodeSettings,
-        addition: tool => registry.definitions.addition(tool), implementation: path => registry.definitions.implementation(path), disabled: path => registry.disabled(path), provided });
+/** @brief Compile one flat contract into the data understood by the isolated VM. */
+export function bindingFor(entry: CommandEntry): CommandBinding {
+    const fields = parameters(entry);
+    const result = resultField(entry);
+    return { path: entry.path, tool: entry.tool,
+        parameters: entry.presentation?.positional ? { kind: 'overloads', layouts: entry.presentation.positional.map(layout => [...layout]) }
+            : fields ? { kind: 'fields', fields: fields.map(field => field.name) } : { kind: 'object' },
+        result: entry.presentation?.discardResult ? { kind: 'discard' } : result ? { kind: 'field', field: result[0] } : { kind: 'identity' } };
 }
 
-
-/** @brief Emit positional signatures and scalar results with decoded Doxygen parameter documentation. */
+/** @brief Render an individual command without constructing namespace node objects. */
 export function declaration(entry: ManifestEntry, nested = true): string {
-    if (entry instanceof CommandNode) return entry.declaration(nested);
-    return namespaceDeclaration([{ path: nested ? entry.path : entry.path.split('.').at(-1)!, declaration: commandDeclaration(entry) }], false);
+    return namespaceDeclaration([{ path: nested ? entry.path : entry.path.split('.').at(-1)!, declaration: entry.presentation
+        ? callableDeclaration({ ...entry.presentation, path: entry.path, description: entry.doc }) : commandDeclaration(entry) }], false);
 }
 
+/** @brief Export browser transport data directly from Profile nodes; no semantic tree is constructed. */
+export function serializeProfile(profile: ProfileSnapshot, tools: readonly PhysicalTool[], mode: PresentationMode, additions: ToolAdditions): SerializedNode {
+    const entries = new Map(commandEntries(profile, tools, mode, additions).map(entry => [entry.path, entry]));
+    const visit = (node: ProfileNode, name: string, path: string): SerializedNode => {
+        const data = node.serialize();
+        if (node.type === 'namespace') return { type: 'tree', name, permissions: node.permissions, description: data.description,
+            disabled: node.disabled, fixedLevel: data.fixedLevel as 0 | 1, children: [...(node as ProfileNamespace).children].map(([name, child]) => visit(child, name, path ? `${path}.${name}` : name)) };
+        const entry = entries.get(path);
+        return { type: 'leaf', name, permissions: node.permissions, disabled: node.disabled, fixedLevel: data.fixedLevel as 0 | 1 | 2,
+            description: entry?.doc ?? data.command?.doc, preload: entry?.preload,
+            command: entry ?? { tool: (node as ProfileCommand).tool!, schema: {}, doc: data.command?.doc ?? '' } };
+    };
+    return visit(profile, '', '');
+}

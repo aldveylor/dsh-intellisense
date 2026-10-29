@@ -23,9 +23,7 @@ export { SemanticRegistry, RegistryConfiguration, RegistryState } from './regist
 export type { Intellisense } from './integration/intellisense.js';
 export type { AgentSessionAddition } from './integration/agent_session_addition.js';
 export { NamespaceComponent } from './namespace/component.js';
-export { NamespaceNode, CommandNode } from './namespace/namespace.js';
-export type { NamespaceInitialization, NamespaceImplementation } from './namespace/nodes/context.js';
-export type { ManifestEntry, NamespaceContext } from './namespace/namespace.js';
+export type { ManifestEntry, CommandEntry, ProfileMember } from './namespace/namespace.js';
 export type { Node, NodeType, Permission, SerializedNode, CommandContract, CommandPresentation } from './namespace/node.js';
 export type { PhysicalTool, Mapping, Namespace, RegistryConfigurationData, RegistryStateData, PinLevel, CommandVisibility } from './registry/registry.js';
 export type { Profile, ProfileSnapshot, ProfileCollection, ProfileFactory } from './registry/profile/profile.js';

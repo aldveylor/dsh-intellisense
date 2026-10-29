@@ -13,10 +13,10 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import type { SemanticRegistry } from '../registry/registry.js';
 import type { NamespaceIntegration } from '../integration/namespace_integration.js';
 import type { ProfileSessions } from '../registry/profiles.js';
-import { type CommandBrief, profileTree, profileAnnotation } from '../registry/profile_tree.js';
+import { type CommandBrief, profileAnnotation } from '../registry/profile_tree.js';
 
 /** @brief Register Profile management commands and data access. */
-export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, profiles: ProfileSessions, registryFor: (agent: Agent) => Promise<SemanticRegistry>, changed: (agent: Agent) => Promise<void>, commands: (agent: Agent) => Promise<CommandBrief[]>, namespace?: NamespaceIntegration): void {
+export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, profiles: ProfileSessions, changed: (agent: Agent) => Promise<void>, commands: (agent: Agent) => Promise<CommandBrief[]>, namespace?: NamespaceIntegration): void {
     /** @brief Resolve mode-specific comments in the registration scope. */
     const contract = (tool: string) => projectBuiltin(pluginCommands.find(tool)!, 'native');
     const lock = new ProfileLock();
@@ -35,8 +35,9 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         execute: async (args, execution) => {
             if (!execution.agent) throw new ConversationRequiredError();
             const { name } = z.strictObject({ name: z.string().optional() }).parse(args);
-            const registry = name === undefined ? await registryFor(execution.agent) : catalog;
-            return JSON.parse(JSON.stringify(profileTree(name ?? registry.snapshot().profile!, registry.configuration(name), catalog.definitions))) as Record<string, z.infer<ReturnType<typeof z.json>>>;
+            const addition = await profiles.addition(execution.agent.session);
+            const snapshot = name === undefined ? addition.profile.snapshot : (await catalog.reference(name)).snapshot;
+            return JSON.parse(JSON.stringify({ name: name ?? addition.name, root: snapshot.serialize(), brief: snapshot.brief })) as Record<string, z.infer<ReturnType<typeof z.json>>>;
         },
     })));
     ctx.effect(() => register(defineTool({
@@ -71,7 +72,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         execute: async (args, execution) => {
             if (!execution.agent) throw new ConversationRequiredError();
             const { name, profile } = z.strictObject({ name: z.string().optional(), profile: ProfileWriteSchema }).parse(args);
-            const target = name ?? (await registryFor(execution.agent)).snapshot().profile!;
+            const target = name ?? (await profiles.addition(execution.agent.session)).name;
             return writeProfile(namespace ?? execution.agent.ctx.get('namespaceIntegration')!, execution.agent, name ?? target, profile, 'save');
         },
     })));
@@ -93,7 +94,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         execute: async (args, execution) => {
             if (!execution.agent) throw new ConversationRequiredError();
             const { name } = z.strictObject({ name: z.string().min(1) }).parse(args);
-            const selected = (await registryFor(execution.agent)).snapshot().profile!;
+            const selected = (await profiles.addition(execution.agent.session)).name;
             const target = name;
             if (target === selected) throw new CurrentProfileDeletionError(target);
             await catalog.manageProfile('delete', target, catalog.revision);
@@ -105,8 +106,8 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         output: { ...output, schema: { type: 'object', properties: { profiles: { type: 'array', items: { type: 'string' }, required: true }, selected: { type: 'string', required: true } }, additionalProperties: false } },
         execute: async (_args, execution) => {
             if (!execution.agent) throw new ConversationRequiredError();
-            const registry = await registryFor(execution.agent);
-            return { profiles: catalog.snapshot().profiles ?? [], selected: registry.snapshot().profile! };
+            const addition = await profiles.addition(execution.agent.session);
+            return { profiles: catalog.profileSelection().profiles, selected: addition.name };
         },
     })));
     ctx.effect(() => register(defineTool({

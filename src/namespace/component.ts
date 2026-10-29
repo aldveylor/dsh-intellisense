@@ -29,7 +29,7 @@ export class NamespaceComponent implements ToolsNamespace {
     async get(name: string): Promise<ProfileSnapshot | undefined> {
         const registry = this.registry;
         if (!registry.profileSelection().profiles.includes(name)) return undefined;
-        return this.registry.definitions.profile(profileTree(name, registry.configuration(name), registry.definitions).save());
+        return (await registry.reference(name)).snapshot;
     }
 
     /** @brief Create a Profile using the collection factory and return its independent anonymous snapshot. */
@@ -56,7 +56,7 @@ export class NamespaceComponent implements ToolsNamespace {
             const registry = this.registry;
             const current = registry.configuration(name);
             const revision = registry.revision;
-            const input = this.registry.definitions.profile(profileTree(name, current, registry.definitions).save());
+            const input = (await registry.reference(name)).snapshot;
             const output = modifier(input);
             if (!output || typeof output.serialize !== 'function') throw new Error('Profile modifier must return a snapshot');
             const published = registry.definitions.profile({ brief: output.brief, root: output.serialize() });

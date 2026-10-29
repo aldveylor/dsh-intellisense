@@ -16,7 +16,7 @@ function ToolCard({ tool, mappings, builtinPath, calls, queries, busy, select, d
     detailed?: boolean; tool: PhysicalTool; mappings: Mapping[]; builtinPath?: string; calls: number; queries: number; busy: boolean; select: (tool: PhysicalTool) => void;
 }) {
     const t = useTranslation();
-    const fixed = tool.addition ? !!tool.addition.fixed : !!builtinPath;
+    const fixed = tool.provided ?? !!builtinPath;
     const tooltip = useTooltip();
     const pointerHandlers = {
         onPointerEnter: (event: PointerEvent<HTMLElement>) => tooltip.show(<><ActionHint action={t('add_tools')} description={t(fixed ? 'builtin_tool_card_hint' : 'add_tool_card_hint')} /><ToolDetails tool={tool} calls={calls} queries={queries} /></>, event.clientX, event.clientY),
@@ -73,7 +73,7 @@ export function ToolPicker({ parent, tools, mappings, unmountedOnly = false, pro
         return { cards, mappingsByTool, protectedPaths };
     }, [tools, mappings, protectedTools]);
     const matches = cards.filter(card => {
-        const category = (card.tool.addition ? card.tool.addition.fixed : protectedPaths.has(card.tool.id)) ? 'fixed' : (mappingsByTool.has(card.tool.id) || protectedPaths.has(card.tool.id)) ? 'mounted' : 'unmounted';
+        const category = (card.tool.provided ?? protectedPaths.has(card.tool.id)) ? 'fixed' : (mappingsByTool.has(card.tool.id) || protectedPaths.has(card.tool.id)) ? 'mounted' : 'unmounted';
         return categories.includes(category) && card.search.includes(filter);
     }).map(card => card.tool);
     if (sort !== 'default') matches.sort((a, b) => {
@@ -86,7 +86,7 @@ export function ToolPicker({ parent, tools, mappings, unmountedOnly = false, pro
 
     const groups = new Map<string, PhysicalTool[]>();
     for (const tool of matches) {
-        const key = grouping === 'type' ? ((tool.addition ? tool.addition.fixed : protectedPaths.has(tool.id)) ? 'fixed' : (mappingsByTool.has(tool.id) || protectedPaths.has(tool.id)) ? 'mounted' : 'unmounted')
+        const key = grouping === 'type' ? ((tool.provided ?? protectedPaths.has(tool.id)) ? 'fixed' : (mappingsByTool.has(tool.id) || protectedPaths.has(tool.id)) ? 'mounted' : 'unmounted')
             : grouping === 'source' ? tool.source?.trim() || '' : '';
         const group = groups.get(key);
         if (group) group.push(tool);

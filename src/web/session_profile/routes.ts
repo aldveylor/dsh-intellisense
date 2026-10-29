@@ -32,8 +32,8 @@ export function registerSessionProfiles(ctx: Context, catalog: SemanticRegistry,
                 await namespaces.profiles.load(agent.session, profile);
                 await namespaces.configurationChanged(agent);
             }
-            const registry = await namespaces.registryFor(agent);
-            return Response.json({ enabled: true, ...(locked ? { locked } : {}), profile: registry.snapshot().profile, profiles: catalog.snapshot().profiles ?? [], profileBriefs: catalog.profileBriefs() } satisfies SessionProfileState, { headers });
+            const addition = await namespaces.addition(agent);
+            return Response.json({ enabled: true, ...(locked ? { locked } : {}), profile: addition.name, profiles: catalog.snapshot().profiles ?? [], profileBriefs: catalog.profileBriefs() } satisfies SessionProfileState, { headers });
         } catch (error) { return Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: 400, headers }); }
     } });
 }

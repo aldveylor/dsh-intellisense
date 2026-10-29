@@ -3,32 +3,16 @@ import type { ProfileData } from '../registry/profile_tree.js';
 import type { ProfileFactory, ProfileSnapshot } from '../registry/profile/profile.js';
 import type { NamespaceTreeNode } from '../registry/profile_node.js';
 import type { ProfileSaveEffect, ProfileSaveEvent, ToolsNamespace } from './service.js';
-import type { NamespaceImplementation } from './nodes/context.js';
 import { registerBuiltinDefinitions } from './builtin_profile.js';
 
 /** @brief Own shared recursive node definitions and reversible physical-tool registrations. */
 export class NamespaceDefinitions implements Pick<ToolsNamespace, 'createInitialProfile' | 'effect'> {
-    private implementations = new Map<string, Map<object, NamespaceImplementation>>();
     private saveEffects = new Set<ProfileSaveEffect>();
     private profileFactory: ProfileFactory = () => new EditableSnapshot();
     private cachedTree?: NamespaceTreeNode;
     revision = 0;
 
     constructor(private readonly changed: () => void = () => {}) { registerBuiltinDefinitions(this); }
-
-    /** @brief Layer provider implementations without making the tree builder recognize their names. */
-    setNamespaceImplementation(path: string, implementation: NamespaceImplementation): () => void {
-        if (!path || typeof implementation !== 'function') throw new Error('Invalid namespace implementation');
-        const token = {};
-        let layers = this.implementations.get(path);
-        if (!layers) this.implementations.set(path, layers = new Map());
-        layers.set(token, implementation);
-        this.touch();
-        return () => { if (layers.delete(token)) { if (!layers.size) this.implementations.delete(path); this.touch(); } };
-    }
-
-    /** @brief Resolve the current implementation of a namespace path. */
-    implementation(path: string): NamespaceImplementation | undefined { return [...this.implementations.get(path)?.values() ?? []].at(-1); }
 
     /** @brief Register an ordered save processor with reversible lifetime. */
     effect(_event: 'save', handler: ProfileSaveEffect): () => void {

@@ -6,7 +6,7 @@ import { NamespaceDefinitions } from '../namespace/definitions.js';
 import { ToolAdditions, type ToolAddition } from '../integration/tool_additions/tool_additions.js';
 import { settingsAt, ProfileNodeSettingsSchema } from './profile/node_settings.js';
 import { ProfileNotFoundError } from '../error.js';
-import { CommandNode, NamespaceNode, createNamespace } from '../namespace/namespace.js';
+import type { ProfileSnapshot } from './profile/profile.js';
 import { toolName, validatePath } from './path.js';
 export { validatePath } from './path.js';
 import { storageVersion } from '../storage/version.js';
@@ -17,6 +17,7 @@ import { RegistryConfiguration, RegistryState, type RegistryConfigurationData, t
 export interface PhysicalTool {
     id: string;
     addition?: Pick<ToolAddition, 'hidden' | 'ptcDescription'>;
+    provided?: boolean;
     source?: string;
     description: string;
     parameters: Record<string, unknown>;
@@ -55,9 +56,9 @@ export class SemanticRegistry {
     private physical = new Map<string, PhysicalTool>();
     private physicalFingerprint = '';
     private physicalRevision = 0;
-    private protectedCache?: { revision: number; root: NamespaceNode };
-    private get protectedNodes(): NamespaceNode {
-        if (this.protectedCache?.revision !== this.definitions.revision) this.protectedCache = { revision: this.definitions.revision, root: createNamespace({ tools: [], includeUnavailable: true, definitions: this.definitions.tree(), implementation: path => this.definitions.implementation(path) }) };
+    private protectedCache?: { revision: number; root: ProfileSnapshot };
+    private get protectedNodes(): ProfileSnapshot {
+        if (this.protectedCache?.revision !== this.definitions.revision) this.protectedCache = { revision: this.definitions.revision, root: this.definitions.createInitialProfile() };
         return this.protectedCache.root;
     }
     private state = new RegistryState({ inactiveProfiles: {} });
@@ -153,24 +154,24 @@ export class SemanticRegistry {
     /** @brief Drop obsolete protected-node preferences on load while retaining configured namespace paths. */
     private pruneProtectedPreferences(configuration: Partial<RegistryConfigurationData>): boolean {
         const before = JSON.stringify(configuration);
-        const protectedRoot = configuration.providedRoot ? createNamespace({ tools: [], includeUnavailable: true, definitions: configuration.providedRoot, nodeSettings: configuration.nodeSettings }) : this.protectedNodes;
+        const protectedRoot = configuration.providedRoot ? this.definitions.profile({ root: configuration.providedRoot }) : this.protectedNodes;
         const paths = [
             ...(Array.isArray(configuration.mappings) ? configuration.mappings.map(item => item?.path) : []),
             ...(Array.isArray(configuration.namespaces) ? configuration.namespaces.map(item => item?.path) : []),
         ].filter((path): path is string => typeof path === 'string');
-        const namespaceExists = (path: string): boolean => protectedRoot.resolve(path.split('.')) instanceof NamespaceNode
+        const namespaceExists = (path: string): boolean => protectedRoot.resolve(path)?.type === 'namespace'
             || paths.some(configured => configured === path || configured.startsWith(path + '.'));
         if (Array.isArray(configuration.builtinDisabled)) configuration.builtinDisabled = configuration.builtinDisabled.filter(path =>
-            typeof path !== 'string' || !!protectedRoot.resolve(path.split('.'))?.permissions.disableable);
+            typeof path !== 'string' || !!protectedRoot.resolve(path)?.permissions.disableable);
         if (configuration.builtinVisible && typeof configuration.builtinVisible === 'object' && !Array.isArray(configuration.builtinVisible)) {
             configuration.builtinVisible = Object.fromEntries(Object.entries(configuration.builtinVisible).filter(([path]) =>
-                protectedRoot.resolve(path.split('.')) instanceof CommandNode));
+                protectedRoot.resolve(path)?.type === 'command'));
         }
         if (configuration.namespaceVisible && typeof configuration.namespaceVisible === 'object' && !Array.isArray(configuration.namespaceVisible)) {
             configuration.namespaceVisible = Object.fromEntries(Object.entries(configuration.namespaceVisible).filter(([path]) => namespaceExists(path)));
         }
         if (Array.isArray(configuration.order)) configuration.order = configuration.order.filter(path => typeof path !== 'string'
-            || !!protectedRoot.resolve(path.split('.')) || namespaceExists(path));
+            || !!protectedRoot.resolve(path) || namespaceExists(path));
         return before !== JSON.stringify(configuration);
     }
 
@@ -380,7 +381,7 @@ export class SemanticRegistry {
 
     /** @brief Resolve explicit command and inherited namespace disablement without dropping editor state. */
     disabled(path: string): boolean {
-        const node = this.protectedNodes.resolve(path.split('.'));
+        const node = this.protectedNodes.resolve(path);
         if (node && !node.permissions.disableable) return false;
         return [...(this.state.builtinDisabled ?? []), ...(this.state.namespaces ?? []).filter(node => node.disabled).map(node => node.path)]
             .some(prefix => path === prefix || path.startsWith(prefix + '.'))
@@ -391,13 +392,13 @@ export class SemanticRegistry {
     private validateDisabled(paths: string[] | undefined, providedRoot?: import('./profile_node.js').NamespaceTreeNode): void {
         if (paths !== undefined && (!Array.isArray(paths) || paths.some(path => {
             if (typeof path !== 'string') return true;
-            const root = providedRoot ? createNamespace({ tools: [], includeUnavailable: true, definitions: providedRoot }) : this.protectedNodes;
-            const node = root.resolve(path.split('.'));
+            const root = providedRoot ? this.definitions.profile({ root: providedRoot }) : this.protectedNodes;
+            const node = root.resolve(path);
             return !node || !node.permissions.disableable;
         }))) throw new Error('Invalid disabled protected-node paths');
     }
 
-    tools(): PhysicalTool[] { return structuredClone([...this.physical.values()].filter(tool => !this.toolAdditions.get(tool.id).hidden).map(tool => ({ ...tool, addition: (({ hidden, ptcDescription }) => ({ ...(hidden === undefined ? {} : { hidden }), ...(ptcDescription === undefined ? {} : { ptcDescription }) }))(this.toolAdditions.get(tool.id)) }))); }
+    tools(): PhysicalTool[] { return structuredClone([...this.physical.values()].filter(tool => !this.toolAdditions.get(tool.id).hidden).map(tool => ({ ...tool, provided: this.owns(tool.id), addition: (({ hidden, ptcDescription }) => ({ ...(hidden === undefined ? {} : { hidden }), ...(ptcDescription === undefined ? {} : { ptcDescription }) }))(this.toolAdditions.get(tool.id)) }))); }
 
     /** @brief Resolve a mount's description before the shared physical-tool preference. */
     description(path: string, tool: string): string | undefined {

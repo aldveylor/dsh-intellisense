@@ -1,9 +1,10 @@
+import type { ProfileSnapshot } from '../registry/profile/profile.js';
 import { outputSchema } from '../output_schema.js';
 import { createHash } from 'node:crypto';
-import { normalizeInspectQueries, queryNodes, CommandNode, NamespaceNode } from './namespace.js';
+import { normalizeInspectQueries, queryNodes, type CommandEntry } from './namespace.js';
 
 /** @brief Bind namespace paths to unique API-safe names without shadowing physical tools. */
-export function nativeBindings(entries: CommandNode[], reserved: Iterable<string>): { entry: CommandNode; name: string }[] {
+export function nativeBindings(entries: CommandEntry[], reserved: Iterable<string>): { entry: CommandEntry; name: string }[] {
     const physical = new Set(reserved);
     const used = new Set<string>();
     const counters = new Map<string, number>();
@@ -22,21 +23,24 @@ export function nativeBindings(entries: CommandNode[], reserved: Iterable<string
     });
 }
 
-/** @brief Select only explicitly queried command paths for native tool registration. */
-export function nativeQueryEntries(queries: readonly string[], root: NamespaceNode): CommandNode[] {
+/** @brief Select only exact commands from original Profile nodes and their available physical contracts. */
+export function nativeQueryEntries(queries: readonly string[], profile: ProfileSnapshot, entries: readonly CommandEntry[]): CommandEntry[] {
     const exact = new Set(normalizeInspectQueries(queries));
-    return queryNodes(root, queries).filter((node): node is CommandNode => node instanceof CommandNode && exact.has(node.path));
+    const paths = new Set(queryNodes(profile, queries).filter(({ path, node }) => node.type === 'command' && exact.has(path)).map(({ path }) => path));
+    return entries.filter(entry => paths.has(entry.path));
 }
 
-/** @brief Render shallow native discovery and exact named-argument contracts as JSON. */
-export function nativeDiscovery(queries: readonly string[], root: NamespaceNode, brief: (tool: string, path: string) => string | undefined = () => undefined): string {
+/** @brief Render shallow discovery directly from Profile nodes and flat physical metadata. */
+export function nativeDiscovery(queries: readonly string[], profile: ProfileSnapshot, entries: readonly CommandEntry[]): string {
     const exact = new Set(normalizeInspectQueries(queries));
-    const members = queryNodes(root, queries).sort((a, b) => a.path.localeCompare(b.path)).map(node => {
-        const description = node instanceof NamespaceNode ? node.description : brief(node.tool, node.path) ?? node.doc.trim().split(/\r?\n/, 1)[0];
-        return { path: node.path, ...(description?.trim() ? { brief: description } : {}),
-            ...(node instanceof NamespaceNode ? { namespace: true } : {
-                ...(exact.has(node.path) ? { description: node.doc, parameters: node.schema, output: outputSchema(node.output) } : {}),
-            }) };
+    const byPath = new Map(entries.map(entry => [entry.path, entry]));
+    const members = queryNodes(profile, queries).sort((a, b) => a.path.localeCompare(b.path)).flatMap<Record<string, unknown>>(({ path, node }) => {
+        const data = node.serialize();
+        if (node.type === 'namespace') return [{ path, namespace: true, ...(data.description?.trim() ? { brief: data.description } : {}) }];
+        const entry = byPath.get(path);
+        if (!entry) return [];
+        const brief = entry.provided ? entry.doc : data.command?.doc ?? entry.doc.trim().split(/\r?\n/, 1)[0];
+        return [{ path, ...(brief?.trim() ? { brief } : {}), ...(exact.has(path) ? { description: entry.doc, parameters: entry.schema, output: outputSchema(entry.output) } : {}) }];
     });
     return JSON.stringify({ members }, null, 2);
 }

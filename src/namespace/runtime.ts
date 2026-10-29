@@ -1,3 +1,4 @@
+import { bindingFor } from './namespace.js';
 import { Service, type Context } from '@deepseek-ai/cordis';
 import { CodeRunFailedError, defineTool, type ToolRunContext } from '@deepseek-ai/dsh-tools';
 import type {} from './plugin.js';
@@ -69,24 +70,24 @@ export class NamespaceRuntime extends Service {
         const pending = new Set<Promise<unknown>>();
         let sequence = 0;
         try {
-            const registry = await namespaces.registryFor(agent);
-            let revision = registry.revision;
-            const resolved = await namespaces.entries(agent, registry);
+            const addition = await namespaces.addition(agent);
+            let revision = addition.profile.pointer;
+            const resolved = await namespaces.entries(agent);
             const entries = resolved.filter(entry => !entry.preload);
-            const preloaded = await namespaces.values(agent, registry);
-            const result = await this.runtime.execute(agent.id, `run-code-${++this.sequence}`, code, entries.map(entry => entry.binding()), async (tool, input, signal) => {
+            const preloaded = await namespaces.values(agent, resolved);
+            const result = await this.runtime.execute(agent.id, `run-code-${++this.sequence}`, code, entries.map(bindingFor), async (tool, input, signal) => {
                 signal.throwIfAborted();
                 const work = namespaces.dispatchTool(agent, tool, input, { ...parent, signal: controller.signal }, ++sequence);
                 pending.add(work);
                 void work.finally(() => { pending.delete(work); }).catch(() => {});
                 return bindingResult(work, signal);
             }, controller.signal, preloaded, async () => {
-                const currentRevision = registry.revision;
+                const currentRevision = addition.profile.pointer;
                 const values: Record<string, z.infer<ReturnType<typeof z.json>>> = {};
                 for (const entry of resolved) {
-                    const producer = registry.toolAdditions.get(entry.tool).value;
-                    if (Object.hasOwn(preloaded, entry.path) && producer && (producer.refresh === 'call' || (producer.refresh === 'revision' && currentRevision !== revision))) {
-                        values[entry.path] = await producer.read({ commandBriefs: current => namespaces.commandBriefs(agent, current), profileNames: current => namespaces.profileNames(agent, current) }, registry);
+                    const producer = entry.node;
+                    if (Object.hasOwn(preloaded, entry.path) && producer.readValue && (producer.refresh === 'call' || (producer.refresh === 'revision' && currentRevision !== revision))) {
+                        values[entry.path] = await producer.readValue({ commandBriefs: () => namespaces.commandBriefs(agent), profileNames: () => namespaces.profileNames(agent) }) as z.infer<ReturnType<typeof z.json>>;
                     }
                 }
                 revision = currentRevision;
