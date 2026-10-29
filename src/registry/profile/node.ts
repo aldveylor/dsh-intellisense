@@ -1,8 +1,21 @@
 import { nodePermissions, type Permission } from '../../namespace/node.js';
 import type { ProfileTreeNode } from '../profile_node.js';
 
-/** @brief Shared editable node state for trusted plugin-side Profile construction. */
-export abstract class ProfileNode {
+/** @brief Portable node contract shared by namespace and command interfaces. */
+export interface ProfileNode {
+    readonly name: string;
+    readonly type: 'command' | 'namespace';
+    readonly permissions: Permission;
+    /** @brief Merge explicit permission overrides. */
+    setPermissions(value: Partial<Permission>): this;
+    /** @brief Set this node's explicit disabled state. */
+    setDisabled(value: boolean): this;
+    /** @brief Export recursive transport data. */
+    serialize(): ProfileTreeNode;
+}
+
+/** @brief Shared implementation for trusted plugin-side Profile node editing. */
+export abstract class EditableNode implements ProfileNode {
     protected settings: Pick<ProfileTreeNode, 'permissions' | 'disabled' | 'fixedLevel'> = {};
 
     constructor(readonly name = '') {}

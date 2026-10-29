@@ -1,8 +1,21 @@
-import { ProfileNode } from './node.js';
+import { EditableNode, type ProfileNode } from './node.js';
 import type { CommandNode } from '../profile_node.js';
 
-/** @brief An editable Profile leaf bound to one physical tool. */
-export class ProfileCommand extends ProfileNode {
+/** @brief Portable command editing contract. */
+export interface ProfileCommand extends ProfileNode {
+    readonly type: 'command';
+    readonly tool: string | undefined;
+    /** @brief Bind an exact physical tool identity. */
+    setTool(tool: string): this;
+    /** @brief Set the Profile-specific summary. */
+    setDescription(value: string): this;
+    /** @brief Set requested prompt visibility. */
+    setFixedLevel(value: 0 | 1 | 2): this;
+    serialize(): CommandNode;
+}
+
+/** @brief Class implementation of a portable command interface. */
+export class EditableCommand extends EditableNode implements ProfileCommand {
     readonly type = 'command';
     private binding?: string;
     private description?: string;
