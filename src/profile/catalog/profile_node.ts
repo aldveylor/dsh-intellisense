@@ -11,13 +11,13 @@ export interface ProfileNode {
     disabled?: boolean;
 }
 
-/** @brief Physical command mounted at a named Profile member. */
-export interface CommandNode extends ProfileNode {
-    type: 'command';
+/** @brief Physical tool mounted as a function at a named Profile member. */
+export interface FunctionNode extends ProfileNode {
+    type: 'function';
     fixedLevel?: 0 | 1 | 2;
-    command: {
+    function: {
         tool: string;
-        /** @brief One-sentence summary of the command functionality; cannot modify the original command documentation or schema. */
+        /** @brief One-sentence summary of the function functionality; cannot modify the original tool documentation or schema. */
         doc?: string;
     };
     children?: never;
@@ -28,10 +28,10 @@ export interface CommandNode extends ProfileNode {
 export interface NamespaceTreeNode extends ProfileNode {
     type: 'namespace';
     fixedLevel?: 0 | 1;
-    children?: Record<string, CommandNode | NamespaceTreeNode>;
+    children?: Record<string, FunctionNode | NamespaceTreeNode>;
     description?: string;
-    command?: never;
+    function?: never;
 }
 
-/** @brief Editable command or namespace in a Profile. */
-export type ProfileTreeNode = CommandNode | NamespaceTreeNode;
+/** @brief Editable function or namespace in a Profile. */
+export type ProfileTreeNode = FunctionNode | NamespaceTreeNode;

@@ -37,7 +37,7 @@ export function resultFor(entry: ManifestEntry, value: unknown): unknown {
 }
 
 /** @brief Project one manifest contract into a leaf declaration for the shared namespace tree. */
-export function commandDeclaration(entry: ManifestEntry): string {
+export function functionDeclaration(entry: ManifestEntry): string {
     const name = entry.path.split('.').at(-1)!;
     const doc = (text: string): string => decodeHTML(text).replaceAll('*/', '* /');
     const types: string[] = [];

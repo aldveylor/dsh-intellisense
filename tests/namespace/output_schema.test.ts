@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { outputSchema } from '../../src/output_schema.js';
-import { commandDeclaration } from '../../src/profile/namespace/command_contract/command_contract.js';
+import { functionDeclaration } from '../../src/profile/namespace/function_contract/function_contract.js';
 import { nativeDiscovery } from './fixtures.js';
 import { returnTypeDeclaration } from '../../src/web/server/return_type.js';
 import { namespace } from './fixtures.js';
@@ -28,7 +28,7 @@ test('output projections omit nested descriptions while preserving fields, liter
     const entry = { path: 'files.inspect', tool: 'inspect', schema: {}, output, doc: 'Inspect files' };
     const native = JSON.parse(nativeDiscovery([entry.path], namespace([entry])));
     assert.deepEqual(native.members[0].output, clean);
-    for (const text of [commandDeclaration(entry), returnTypeDeclaration(output), JSON.stringify(clean)]) {
+    for (const text of [functionDeclaration(entry), returnTypeDeclaration(output), JSON.stringify(clean)]) {
         assert(!text.includes('return documentation'));
         assert(!text.includes('@returns'));
         assert(text.includes('description'));

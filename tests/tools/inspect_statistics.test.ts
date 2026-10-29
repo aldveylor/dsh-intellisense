@@ -11,14 +11,14 @@ import { NamespaceIntegration } from '../../src/integration/namespace_integratio
 import { inspectQueryTargets, registerInspect } from '../../src/tools/inspect.js';
 import { RootNamespace } from '../../src/tools/profile_nodes/root_namespace.js';
 import { EditableNamespace } from '../../src/profile/namespace.js';
-import { EditableCommand } from '../../src/profile/command.js';
+import { EditableFunction } from '../../src/profile/function.js';
 import { ProfileReference } from '../../src/profile/snapshot_store.js';
 import { NamespaceDefinitions } from '../../src/profile/namespace/definitions.js';
 import { namespace } from '../namespace/fixtures.js';
 
 test('query targets count normalized occurrences without expanding members or runtime APIs', async () => {
     const root = new RootNamespace();
-    root.create('std', () => new EditableNamespace()).create('read', () => new EditableCommand()).setTool('read');
+    root.create('std', () => new EditableNamespace()).create('read', () => new EditableFunction()).setTool('read');
     assert.deepEqual(inspectQueryTargets(['', 'global.std.', 'std', 'std.read', 'global.std.read', 'std.read.', 'missing', 'console.', 'console.log'], root), [
         { path: '', namespace: true }, { path: 'std', namespace: true }, { path: 'std', namespace: true },
         { path: 'std.read', namespace: false, tool: 'read' }, { path: 'std.read', namespace: false, tool: 'read' },
@@ -47,7 +47,7 @@ test('dispatch counts physical tools once for both entry and direct dispatch, in
 for (const ptc of [false, true]) test(`physical Inspect records query targets internally in ${ptc ? 'PTC' : 'native'} mode`, async () => {
     const statistics = new CommandStatistics(new MemoryStore());
     const profile = new RootNamespace();
-    profile.create('std', () => new EditableNamespace()).create('read', () => new EditableCommand()).setTool('read');
+    profile.create('std', () => new EditableNamespace()).create('read', () => new EditableFunction()).setTool('read');
     let selected = 'Default';
     const namespaces = {
         statistics, inspectStatistics: new Statistics(new MemoryStore(), 'inspect_statistics'),

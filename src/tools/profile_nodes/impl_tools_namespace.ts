@@ -1,7 +1,7 @@
 import { ImplBuiltinNamespace } from './impl_builtin_namespace.js';
 import { ImplToolsProfileNamespace } from './impl_tools_profile_namespace.js';
-import { ImplToolsInspectCommand } from './impl_tools_inspect_command.js';
-import { ImplToolsCommand } from './impl_tools_command.js';
+import { ImplToolsInspectFunction } from './impl_tools_inspect_function.js';
+import { ImplToolsFunction } from './impl_tools_function.js';
 import type { ProfileNode } from '../../profile/node.js';
 import type { NamespaceTreeNode, ProfileTreeNode } from '../../profile/catalog/profile_node.js';
 import { nodePermissions, type Permission } from '../../profile/namespace/node.js';
@@ -11,7 +11,7 @@ import { pluginCommands, projectBuiltin } from '../../runtime/builtins.js';
 export class ImplToolsNamespace extends ImplBuiltinNamespace {
     constructor(data?: NamespaceTreeNode) {
         const children = Object.fromEntries([pluginCommands.discoveryCommand, pluginCommands.searchCommand].map(command => [command.path.split('.').at(-1)!, {
-            type: 'command' as const, command: { tool: command.tool, doc: projectBuiltin(command, 'ptc').description }, ...(command === pluginCommands.discoveryCommand ? { fixedLevel: 2 as const } : {}),
+            type: 'function' as const, function: { tool: command.tool, doc: projectBuiltin(command, 'ptc').description }, ...(command === pluginCommands.discoveryCommand ? { fixedLevel: 2 as const } : {}),
         }]));
         super('tools', { ...data, type: 'namespace', fixedLevel: 0, description: 'Tool discovery and Profile management',
             children: { ...children, profile: new ImplToolsProfileNamespace().serialize(), ...data?.children } });
@@ -26,9 +26,9 @@ export class ImplToolsNamespace extends ImplBuiltinNamespace {
     protected override makeChild(name: string, data: ProfileTreeNode): ProfileNode {
         if (name === 'profile' && data.type === 'namespace') return new ImplToolsProfileNamespace(data);
         const command = [pluginCommands.discoveryCommand, pluginCommands.searchCommand].find(command => command.path.split('.').at(-1) === name);
-        if (!command || data.type !== 'command') throw new Error(`Invalid builtin tools member: ${name}`);
-        const value = { ...data, command: { tool: command.tool, doc: projectBuiltin(command, 'ptc').description } };
-        return name === 'inspect' ? new ImplToolsInspectCommand(`tools.${name}`, command.tool, value) : new ImplToolsCommand(`tools.${name}`, command.tool, value);
+        if (!command || data.type !== 'function') throw new Error(`Invalid builtin tools member: ${name}`);
+        const value = { ...data, function: { tool: command.tool, doc: projectBuiltin(command, 'ptc').description } };
+        return name === 'inspect' ? new ImplToolsInspectFunction(`tools.${name}`, command.tool, value) : new ImplToolsFunction(`tools.${name}`, command.tool, value);
     }
 
     /** @brief Saving a target restores fixed namespace values and preserves the documented default disabling rule. */

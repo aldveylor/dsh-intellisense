@@ -5,10 +5,10 @@ import type { Context } from '@deepseek-ai/cordis';
 import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools';
 import { codeBlock } from '../protocol/code_block.js';
 import { appendPluginRecord } from '@deepseek-ai/dsh-session';
-import { declaration, normalizeInspectQueries, queryNodes, type CommandEntry } from '../profile/namespace/namespace.js';
+import { declaration, normalizeInspectQueries, queryNodes, type FunctionEntry } from '../profile/namespace/namespace.js';
 import type { NamespaceIntegration } from '../integration/namespace_integration.js';
 import type { ProfileSnapshot } from '../profile/profile.js';
-import type { ProfileCommand } from '../profile/command.js';
+import type { ProfileFunction } from '../profile/function.js';
 
 /** @brief A valid query target resolved against the active Profile tree. */
 export interface QueryTarget { path: string; namespace: boolean; tool?: string }
@@ -20,12 +20,12 @@ export function inspectQueryTargets(queries: readonly string[], profile: Profile
         const node = profile.resolve(path);
         if (!node) return [];
         if (node.type === 'namespace') return [{ path, namespace: true }];
-        return node.type === 'command' && !query.endsWith('.') ? [{ path, namespace: false, tool: (node as ProfileCommand).tool }] : [];
+        return node.type === 'function' && !query.endsWith('.') ? [{ path, namespace: false, tool: (node as ProfileFunction).tool }] : [];
     });
 }
 
 /** @brief Render selected original nodes and supplement commands with scoped physical contracts. */
-export function inspect(queries: readonly string[], profile: ProfileSnapshot, entries: readonly CommandEntry[], runtime = false): string {
+export function inspect(queries: readonly string[], profile: ProfileSnapshot, entries: readonly FunctionEntry[], runtime = false): string {
     const selected = new Map<string, NamespaceDeclaration>();
     const exact = new Set(normalizeInspectQueries(queries));
     const byPath = new Map(entries.map(entry => [entry.path, entry]));
@@ -37,7 +37,7 @@ export function inspect(queries: readonly string[], profile: ProfileSnapshot, en
         }
         const entry = byPath.get(path);
         if (!entry) continue;
-        selected.set(path, { path, description: entry.provided ? entry.doc : data.command?.doc ?? entry.doc.trim().split(/\r?\n/, 1)[0],
+        selected.set(path, { path, description: entry.provided ? entry.doc : data.function?.doc ?? entry.doc.trim().split(/\r?\n/, 1)[0],
             ...(runtime && entry.preload ? { valueType: entry.signature } : exact.has(path) ? { declaration: declaration(entry, false) } : {}) });
     }
     for (const query of exact) {

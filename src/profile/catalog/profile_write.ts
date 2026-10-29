@@ -1,14 +1,14 @@
 import { z } from 'zod';
-import type { CommandNode, NamespaceTreeNode, ProfileTreeNode } from './profile_node.js';
+import type { FunctionNode, NamespaceTreeNode, ProfileTreeNode } from './profile_node.js';
 import type { ProfileData } from './profile_tree.js';
 import { ValidationError } from '../../error.js';
 
-/** @brief Writable command data; permissions belong exclusively to the server. */
-export interface CommandWrite extends Omit<CommandNode, 'permissions'> {}
+/** @brief Writable function data; permissions belong exclusively to the server. */
+export interface FunctionWrite extends Omit<FunctionNode, 'permissions'> {}
 
 /** @brief Writable namespace with recursively writable members. */
 export interface NamespaceWrite extends Omit<NamespaceTreeNode, 'permissions' | 'children'> {
-    children?: Record<string, CommandWrite | NamespaceWrite>;
+    children?: Record<string, FunctionWrite | NamespaceWrite>;
 }
 
 /** @brief Save input; the target name is a separate argument, never editable tree data. */
@@ -22,8 +22,8 @@ export type ProfilePatch<T = ProfileWrite> = { [K in keyof T]?: T[K] extends obj
 
 const common = { fixedLevel: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(), disabled: z.boolean().optional() };
 /** @brief Strict writable node schema selected by its type discriminator. */
-const nodeSchema: z.ZodType<CommandWrite | NamespaceWrite> = z.lazy(() => z.discriminatedUnion('type', [
-    z.strictObject({ ...common, type: z.literal('command'), command: z.strictObject({ tool: z.string(), doc: z.string().optional() }) }),
+const nodeSchema: z.ZodType<FunctionWrite | NamespaceWrite> = z.lazy(() => z.discriminatedUnion('type', [
+    z.strictObject({ ...common, type: z.literal('function'), function: z.strictObject({ tool: z.string(), doc: z.string().optional() }) }),
     z.strictObject({ ...common, fixedLevel: z.union([z.literal(0), z.literal(1)]).optional(), type: z.literal('namespace'), description: z.string().optional(), children: z.record(z.string(), nodeSchema).optional() }),
 ]));
 
@@ -32,16 +32,16 @@ export const ProfileWriteSchema: z.ZodType<ProfileWrite> = z.strictObject({ brie
 
 /** @brief Reject readonly and unknown patch fields before deletion or merging can hide them. */
 export function validateProfilePatch(value: Record<string, unknown>): void {
-    const check = (object: Record<string, unknown>, allowed: string[], path: string, kind: 'profile' | 'root' | 'node' | 'children' | 'command'): void => {
+    const check = (object: Record<string, unknown>, allowed: string[], path: string, kind: 'profile' | 'root' | 'node' | 'children' | 'function'): void => {
         for (const [key, child] of Object.entries(object)) {
             const at = path ? `${path}.${key}` : key;
             if (kind !== 'children' && !allowed.includes(key)) throw new ValidationError([{ path: at, message: 'Unknown or read-only field' }]);
-            if (child === null && ['root', 'type', 'command', 'tool'].includes(key) && kind !== 'children') throw new ValidationError([{ path: at, message: 'Required field cannot be deleted (received null)' }]);
+            if (child === null && ['root', 'type', 'function', 'tool'].includes(key) && kind !== 'children') throw new ValidationError([{ path: at, message: 'Required field cannot be deleted (received null)' }]);
             if (!child || typeof child !== 'object' || Array.isArray(child)) continue;
             if (key === 'root' && kind === 'profile') check(child as Record<string, unknown>, ['type', 'children'], at, 'root');
-            else if (kind === 'children') check(child as Record<string, unknown>, ['type', 'fixedLevel', 'disabled', 'description', 'children', 'command'], at, 'node');
+            else if (kind === 'children') check(child as Record<string, unknown>, ['type', 'fixedLevel', 'disabled', 'description', 'children', 'function'], at, 'node');
             else if (key === 'children') check(child as Record<string, unknown>, [], at, 'children');
-            else if (key === 'command') check(child as Record<string, unknown>, ['tool', 'doc'], at, 'command');
+            else if (key === 'function') check(child as Record<string, unknown>, ['tool', 'doc'], at, 'function');
         }
     };
     check(value, ['brief', 'root'], '', 'profile');
@@ -49,9 +49,9 @@ export function validateProfilePatch(value: Record<string, unknown>): void {
 
 /** @brief Explicit projection for callers saving a loaded tree; no readonly fields are submitted. */
 export function profileWrite(profile: ProfileData): ProfileWrite {
-    const copy = (node: ProfileTreeNode): CommandWrite | NamespaceWrite => {
+    const copy = (node: ProfileTreeNode): FunctionWrite | NamespaceWrite => {
         const { permissions: _permissions, children, ...data } = node;
-        return { ...data, ...(children ? { children: Object.fromEntries(Object.entries(children).map(([name, child]) => [name, copy(child)])) } : {}) } as CommandWrite | NamespaceWrite;
+        return { ...data, ...(children ? { children: Object.fromEntries(Object.entries(children).map(([name, child]) => [name, copy(child)])) } : {}) } as FunctionWrite | NamespaceWrite;
     };
     const { type, children } = copy(profile.root) as NamespaceWrite;
     return { ...(profile.brief === undefined ? {} : { brief: profile.brief }), root: { type, ...(children ? { children } : {}) } };

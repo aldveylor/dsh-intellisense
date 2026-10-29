@@ -30,9 +30,9 @@ namespaceVisible 为随 Profile 保存的命名空间路径 → 固定提示布�
 
 `tree_nodes/` 按类拆分客户端节点，统一实现 Node 接口和 leaf/tree 类型，详见其 model.md。`tree_node.ts` 只负责组织 NamespaceTree：普通匿名 NamespaceTreeNode 作为根，组合服务器描述的受保护子树和本地草稿映射，路径从 parent 引用派生。父节点 remove 检查子节点 permissions.removable。
 
-服务端 API 的 provided 字段传递完整 SerializedNode 子树及 Permission，包括 removable 和 availableFixLevels；TreeProvider 不导入内置命令表、不按名称分类。ProvidedCommandTreeNode 和 ProvidedNamespaceTreeNode 仅代理这些描述。固定、禁用、删除、拖动和插入均读取权限。固定状态通过通用 namespaceVisible 路径映射保存；协议无 consolePinned/pinField 等特殊字段。受保护命令按钮从左到右为禁用、固定；不可禁用时不渲染禁用按钮，固定等级只有一个选择时锁定。
+服务端 API 的 provided 字段传递完整 SerializedNode 子树及 Permission，包括 removable 和 availableFixLevels；TreeProvider 不导入内置命令表、不按名称分类。ProvidedFunctionTreeNode 和 ProvidedNamespaceTreeNode 仅代理这些描述。固定、禁用、删除、拖动和插入均读取权限。固定状态通过通用 namespaceVisible 路径映射保存；协议无 consolePinned/pinField 等特殊字段。受保护命令按钮从左到右为禁用、固定；不可禁用时不渲染禁用按钮，固定等级只有一个选择时锁定。
 
-命名空间与命令节点及其按钮、可编辑文本在聚焦时不显示高亮边框或焦点轮廓；输入框编辑状态、无效命令边框和拖放位置反馈保持各自样式。
+命名空间与函数节点及其按钮、可编辑文本在聚焦时不显示高亮边框或焦点轮廓；输入框编辑状态、无效命令边框和拖放位置反馈保持各自样式。
 
 树行使用 TooltipProvider 共享浮层，移除名称和注释的原生 title。命名空间展示名称、路径、注释；命令展示名称、灰色命名空间、原始物理名、简化注释、完整文档、全局物理调用次数。原始名可打开工具卡片详情二层 Tooltip。标题后工具 SVG 按钮打开全部工具选择器；未挂载入口保留筛选。
 

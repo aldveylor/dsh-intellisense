@@ -1,10 +1,10 @@
 import { nodePermissions, type Node, type NodeType, type Permission, type SerializedNode } from '../../../profile/namespace/node.js';
 import type { NamespaceTreeNode } from './namespace_tree_node.js';
-import type { CommandTreeNode } from './command_tree_node.js';
+import type { FunctionTreeNode } from './function_tree_node.js';
 
-/** @brief Render tree nodes through their concrete command or namespace behavior. */
+/** @brief Render tree nodes through their concrete function or namespace behavior. */
 export interface TreeRenderer<T> {
-    command(node: CommandTreeNode): T;
+    function(node: FunctionTreeNode): T;
     namespace(node: NamespaceTreeNode): T;
 }
 

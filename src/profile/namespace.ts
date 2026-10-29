@@ -1,5 +1,5 @@
 import { EditableNode, type ProfileNode, type ProfileCheckContext } from './node.js';
-import { EditableCommand } from './command.js';
+import { EditableFunction } from './function.js';
 import { ProfilePermissionError } from '../error.js';
 import type { NamespaceTreeNode, ProfileTreeNode } from './catalog/profile_node.js';
 
@@ -77,7 +77,7 @@ export class EditableNamespace extends EditableNode implements ProfileNamespace 
     /** @brief Hydration installs declared members without invoking external mutation methods. */
     protected makeChild(name: string, data: ProfileTreeNode): ProfileNode {
         const path = this.memberName ? `${this.memberName}.${name}` : name;
-        return data.type === 'namespace' ? new EditableNamespace(path, data) : new EditableCommand(path, data);
+        return data.type === 'namespace' ? new EditableNamespace(path, data) : new EditableFunction(path, data);
     }
 
     /** @brief Removing a namespace also asks every descendant whether it may be removed. */

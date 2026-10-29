@@ -55,7 +55,7 @@ test('editor discovers standing preset tools without live agents and keeps execu
         const scoped = await component.addition(agent);
         assert.deepEqual(component.physical(agent).map(tool => tool.id).sort(), ['read_file', 'working_directory']);
         assert.deepEqual((await component.entries(agent)).map(entry => entry.path), ['fs.read']);
-        assert.equal(scoped.profile.snapshot.resolve('fs.write')?.type, 'command');
+        assert.equal(scoped.profile.snapshot.resolve('fs.write')?.type, 'function');
         // An unavailable mapping becomes usable again when its physical tool is mounted.
         register(agent.ctx, 'write_file');
         assert.deepEqual((await component.entries(agent)).map(entry => entry.path).sort(), ['fs.read', 'fs.write']);

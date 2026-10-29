@@ -28,13 +28,13 @@ export { toPlaneProfile } from './profile/plane/to_plane_profile.js';
 export type { Intellisense } from './integration/intellisense.js';
 export type { AgentSessionAddition } from './integration/agent_session_addition.js';
 export { NamespaceComponent } from './profile/component.js';
-export type { ManifestEntry, CommandEntry, ProfileMember } from './profile/namespace/namespace.js';
-export type { Node, NodeType, Permission, SerializedNode, CommandContract, CommandPresentation } from './profile/namespace/node.js';
+export type { ManifestEntry, FunctionEntry, ProfileMember } from './profile/namespace/namespace.js';
+export type { Node, NodeType, Permission, SerializedNode, FunctionContract, FunctionPresentation } from './profile/namespace/node.js';
 export type { PhysicalTool, Mapping, Namespace, ProfileCatalogData, PinLevel, CommandVisibility } from './profile/catalog/registry.js';
 export type { Profile, ProfileSnapshot, ProfileCollection, ProfileFactory, ProfileVersion } from './profile/profile.js';
 export type { ProfileNode } from './profile/node.js';
 export type { ProfileNamespace } from './profile/namespace.js';
-export type { ProfileCommand } from './profile/command.js';
+export type { ProfileFunction } from './profile/function.js';
 export { ToolAdditions } from './integration/tool_additions/tool_additions.js';
 export type { ToolAddition } from './integration/tool_additions/tool_additions.js';
 export { ProfileReference, SnapshotStore } from './profile/snapshot_store.js';
@@ -53,15 +53,15 @@ export { Statistics } from './statistics/statistics.js';
 export type { Counts, Counter } from './statistics/statistics.js';
 
 export { profileWrite } from './profile/catalog/profile_write.js';
-export type { ProfileWrite, ProfileRootWrite, ProfilePatch, CommandWrite, NamespaceWrite } from './profile/catalog/profile_write.js';
+export type { ProfileWrite, ProfileRootWrite, ProfilePatch, FunctionWrite, NamespaceWrite } from './profile/catalog/profile_write.js';
 export { ConversationRequiredError, ProfileLockedError, CurrentProfileDeletionError, UnknownCommandError, ZodError, normalizeError, ValidationError, ProfilePermissionError, ProfileNotFoundError, ToolCallError, PositionalArgumentError } from './error.js';
 export type { ErrorData, ErrorIssue } from './error.js';
 
 export { RootNamespace } from './tools/profile_nodes/root_namespace.js';
 export { ImplToolsNamespace } from './tools/profile_nodes/impl_tools_namespace.js';
 export { ImplToolsProfileNamespace } from './tools/profile_nodes/impl_tools_profile_namespace.js';
-export { ImplToolsCommand } from './tools/profile_nodes/impl_tools_command.js';
-export { ImplToolsInspectCommand } from './tools/profile_nodes/impl_tools_inspect_command.js';
+export { ImplToolsFunction } from './tools/profile_nodes/impl_tools_function.js';
+export { ImplToolsInspectFunction } from './tools/profile_nodes/impl_tools_inspect_function.js';
 
 export type { ToolCatalog } from './integration/tool_catalog.js';
 export { applyProfile } from './profile/edit.js';

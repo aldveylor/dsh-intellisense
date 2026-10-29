@@ -1,7 +1,7 @@
 import type { ProfileSnapshot } from './profile.js';
 import type { ProfileNode } from './node.js';
 import { EditableNamespace, type ProfileNamespace } from './namespace.js';
-import { EditableCommand, type ProfileCommand } from './command.js';
+import { EditableFunction, type ProfileFunction } from './function.js';
 import { profileWrite, ProfileWriteSchema, validateProfilePatch, type ProfilePatch } from './catalog/profile_write.js';
 import { mergeProfilePatch } from './patch.js';
 import { ProfilePermissionError } from '../error.js';
@@ -14,9 +14,9 @@ export function applyProfile(profile: ProfileSnapshot, patch: ProfilePatch): Pro
     const visit = (node: ProfileNode, change: Record<string, unknown>): void => {
         if (change.type !== undefined && change.type !== node.type) throw new ProfilePermissionError('Protected node cannot be replaced');
         if (Object.hasOwn(change, 'disabled')) node.setDisabled(!!change.disabled);
-        if (node.type === 'command') {
-            const command = node as ProfileCommand;
-            const fields = change.command as { tool?: string; doc?: string | null } | undefined;
+        if (node.type === 'function') {
+            const command = node as ProfileFunction;
+            const fields = change.function as { tool?: string; doc?: string | null } | undefined;
             if (fields?.tool !== undefined) command.setTool(fields.tool);
             if (fields && Object.hasOwn(fields, 'doc')) command.setDescription(fields.doc ?? undefined);
             if (Object.hasOwn(change, 'fixedLevel')) command.setFixedLevel((change.fixedLevel ?? 0) as 0 | 1 | 2);
@@ -29,13 +29,13 @@ export function applyProfile(profile: ProfileSnapshot, patch: ProfilePatch): Pro
             if (value === null) { namespace.remove(name); continue; }
             let child = namespace.get(name);
             if (child && ((value.type !== undefined && value.type !== child.type)
-                || (child.type === 'command' && (value.command as { tool?: string } | undefined)?.tool !== undefined
-                    && (value.command as { tool: string }).tool !== (child as ProfileCommand).tool))) {
+                || (child.type === 'function' && (value.function as { tool?: string } | undefined)?.tool !== undefined
+                    && (value.function as { tool: string }).tool !== (child as ProfileFunction).tool))) {
                 namespace.remove(name);
                 child = undefined;
             }
-            if (!child) child = value.type === 'command'
-                ? namespace.create(name, () => new EditableCommand()) : namespace.create(name, () => new EditableNamespace());
+            if (!child) child = value.type === 'function'
+                ? namespace.create(name, () => new EditableFunction()) : namespace.create(name, () => new EditableNamespace());
             visit(child, value);
         }
     };

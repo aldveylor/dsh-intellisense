@@ -14,7 +14,7 @@ export function toPlaneProfile(profile: ProfileSnapshot | ProfileData, current: 
     const result = new PlaneProfile({ ...current, brief: value.brief, mappings: [], namespaces: [], order: [], builtinVisible: {}, builtinDisabled: [], namespaceVisible: {}, nodeSettings: {} });
     const template = definitions.tree(value.name);
     const select = (node: ProfileTreeNode, defined?: ProfileTreeNode, ownedParent = false): ProfileTreeNode | undefined => {
-        if (node.type === 'command') return ownedParent || defined?.command?.tool === node.command.tool ? structuredClone(node) : undefined;
+        if (node.type === 'function') return ownedParent || defined?.function?.tool === node.function.tool ? structuredClone(node) : undefined;
         const owned = ownedParent || defined?.type === 'namespace';
         const children = Object.fromEntries(Object.entries(node.children ?? {}).flatMap(([name, child]) => {
             const selected = select(child, defined?.children?.[name], owned && !!defined?.children);
@@ -35,25 +35,25 @@ export function toPlaneProfile(profile: ProfileSnapshot | ProfileData, current: 
     const baseline = profileTree(value.name, current, definitions).root;
     const visit = (node: ProfileTreeNode, path: string, settings: ProfileNodeSettings, defined?: ProfileTreeNode, original?: ProfileTreeNode): void => {
         if (path && !defined) validatePath(node.type === 'namespace' ? `${path}.namespace_check` : path);
-        const defaults = nodePermissions(node.type === 'command' ? 'leaf' : 'tree');
+        const defaults = nodePermissions(node.type === 'function' ? 'leaf' : 'tree');
         const overrides = Object.fromEntries(Object.entries(node.permissions ?? original?.permissions ?? {}).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(defaults[key as keyof typeof defaults])));
         if (Object.keys(overrides).length) settings.permissions = overrides;
         const previous = settingsAt(current.nodeSettings, path ? path.split('.') : []);
         if (previous?.description !== undefined) settings.description = previous.description;
         if (defined && path) {
-            const description = node.type === 'namespace' ? node.description : node.command.doc;
-            const oldDescription = original?.type === 'namespace' ? original.description : original?.command?.doc;
+            const description = node.type === 'namespace' ? node.description : node.function.doc;
+            const oldDescription = original?.type === 'namespace' ? original.description : original?.function?.doc;
             if (description !== undefined && description !== oldDescription) settings.description = description;
         }
-        const owned = defined?.type === node.type && (node.type !== 'command' || defined?.command?.tool === node.command.tool);
-        if (node.type === 'command') {
+        const owned = defined?.type === node.type && (node.type !== 'function' || defined?.function?.tool === node.function.tool);
+        if (node.type === 'function') {
             if (owned) {
                 result.builtinVisible[path] = node.fixedLevel ?? 0;
                 if (node.disabled) result.builtinDisabled.push(path);
             } else {
-                const previous = current.mappings.find(mapping => mapping.id === node.command.tool && mapping.path === path);
-                const description = node.command.doc === original?.command?.doc ? previous?.description : node.command.doc;
-                result.mappings.push({ id: node.command.tool, path, pinned: previous?.pinned ?? false,
+                const previous = current.mappings.find(mapping => mapping.id === node.function.tool && mapping.path === path);
+                const description = node.function.doc === original?.function?.doc ? previous?.description : node.function.doc;
+                result.mappings.push({ id: node.function.tool, path, pinned: previous?.pinned ?? false,
                     ...(description === undefined ? {} : { description }),
                     ...(node.fixedLevel || previous?.alwaysVisible !== undefined ? { alwaysVisible: node.fixedLevel ?? 0 } : {}),
                     ...(node.disabled || previous?.disabled !== undefined ? { disabled: node.disabled ?? false } : {}),

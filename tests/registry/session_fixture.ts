@@ -15,14 +15,14 @@ export function sessionFor(owner: ProfileSessionCollection, id: string): Session
 /** @brief Configure a test session through its real snapshot publication API. */
 export async function configureSession(namespaces: import('../../src/integration/namespace_integration.js').NamespaceIntegration, agent: import('@deepseek-ai/dsh-agent').Agent, mappings: readonly import('../../src/profile/catalog/registry.js').Mapping[]): Promise<void> {
     const { EditableNamespace } = await import('../../src/profile/namespace.js');
-    const { EditableCommand } = await import('../../src/profile/command.js');
+    const { EditableFunction } = await import('../../src/profile/function.js');
     const addition = await namespaces.addition(agent);
     const snapshot = addition.profile.snapshot;
     for (const mapping of mappings) {
         const parts = mapping.path.split('.');
         let parent: import('../../src/profile/namespace.js').ProfileNamespace = snapshot;
         for (const name of parts.slice(0, -1)) parent = parent.getOrCreate(name, () => new EditableNamespace()) as import('../../src/profile/namespace.js').ProfileNamespace;
-        const command = parent.getOrCreate(parts.at(-1)!, () => new EditableCommand()) as import('../../src/profile/command.js').ProfileCommand;
+        const command = parent.getOrCreate(parts.at(-1)!, () => new EditableFunction()) as import('../../src/profile/function.js').ProfileFunction;
         command.setTool(mapping.id);
         if (mapping.description !== undefined) command.setDescription(mapping.description);
         if (mapping.alwaysVisible !== undefined) command.setFixedLevel(mapping.alwaysVisible);

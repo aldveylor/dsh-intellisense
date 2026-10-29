@@ -55,7 +55,7 @@ export function registerManagement(ctx: Context, profiles: ToolsNamespace, adapt
                 const queriesByPath = await adapter.inspectStatistics?.snapshot(profile) ?? {};
                 const generation = `${profiles.revision}:${adapter.catalog.generation}`;
                 if (catalog?.generation !== generation) {
-                    const owned = new Set([...profileMembers(profiles.createInitialProfile(), false)].filter(({ node }) => node.type === 'command' && !node.permissions.removable).map(({ node }) => (node as import('../../profile/command.js').ProfileCommand).tool));
+                    const owned = new Set([...profileMembers(profiles.createInitialProfile(), false)].filter(({ node }) => node.type === 'function' && !node.permissions.removable).map(({ node }) => (node as import('../../profile/function.js').ProfileFunction).tool));
                     const tools = adapter.catalog.tools().map(tool => ({ ...tool, provided: owned.has(tool.id) }));
                     catalog = {
                         generation,

@@ -1,6 +1,6 @@
 import { EditableNamespace } from '../namespace.js';
-import { EditableCommand } from '../command.js';
-import type { ProfileCommand } from '../command.js';
+import { EditableFunction } from '../function.js';
+import type { ProfileFunction } from '../function.js';
 import type { ProfileNamespace } from '../namespace.js';
 import { applyProfile } from '../edit.js';
 import { compareProfile } from '../compare.js';
@@ -45,7 +45,7 @@ export class ProfileDocument implements Saveable<ProfileData> {
 function compactProfileNode(node: ProfileTreeNode): ProfileTreeNode {
     const { children, ...data } = node;
     const result = structuredClone(data) as ProfileTreeNode;
-    const defaults = nodePermissions(node.type === 'command' ? 'leaf' : 'tree');
+    const defaults = nodePermissions(node.type === 'function' ? 'leaf' : 'tree');
     const permissions = Object.fromEntries(Object.entries(result.permissions ?? {}).filter(([key, value]) =>
         value !== undefined && JSON.stringify(value) !== JSON.stringify(defaults[key as keyof typeof defaults])));
     if (Object.keys(permissions).length) result.permissions = permissions;
@@ -58,7 +58,7 @@ function compactProfileNode(node: ProfileTreeNode): ProfileTreeNode {
 
 /** @brief Validate shared permissions without trusting them as the server's authority. */
 const permissionSchema = z.strictObject({
-    commentable: z.boolean().optional().describe('Whether description/command.doc may be edited in the saved Profile; when false, preserve the original description; forbidden changes throw.'),
+    commentable: z.boolean().optional().describe('Whether description/function.doc may be edited in the saved Profile; when false, preserve the original description; forbidden changes throw.'),
     renamable: z.boolean().optional().describe('Whether this member may be renamed in the saved Profile; when false, preserve its original name.'),
     movable: z.boolean().optional().describe('Whether this member may be moved in the saved Profile; when false, preserve its original parent and path.'),
     removable: z.boolean().optional().describe('Whether this member may be omitted from the saved Profile; when false, retain it in the Profile tree even if unused (omitting protected members throws).'),
@@ -69,7 +69,7 @@ const permissionSchema = z.strictObject({
 
 /** @brief Shared editable node properties. */
 const nodeProperties = {
-    permissions: permissionSchema.optional().describe('Constraints on the saved Profile tree: retain protected members with their required names, paths and command identities. Protection belongs only to the plugin-owned tools subtree; ordinary mounted commands such as fs.* and bash are removable and are not restored when omitted. Read-only server rules returned by load; save/apply reject permissions. Defaults: commentable, renamable, movable, removable and disableable true; acceptsChildren false for commands, true for namespaces; availableFixLevels [0,1,2] for commands, [0,1] for namespaces. Omitted permissions or fields use ordinary defaults and do not imply protection; server restrictions remain authoritative.'),
+    permissions: permissionSchema.optional().describe('Constraints on the saved Profile tree: retain protected members with their required names, paths and command identities. Protection belongs only to the plugin-owned tools subtree; ordinary mounted commands such as fs.* and bash are removable and are not restored when omitted. Read-only server rules returned by load; save/apply reject permissions. Defaults: commentable, renamable, movable, removable and disableable true; acceptsChildren false for functions, true for namespaces; availableFixLevels [0,1,2] for functions, [0,1] for namespaces. Omitted permissions or fields use ordinary defaults and do not imply protection; server restrictions remain authoritative.'),
     fixedLevel: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional().describe('Pin level (default 0, omitted): 0 none, 1 brief, 2 detailed; allowed values come from permissions.availableFixLevels.'),
     disabled: z.boolean().optional().describe('Default false (omitted). Disabled nodes and descendants are excluded from discovery, runtime bindings, native tools, preloaded values and pinned prompts; configuration is retained for re-enabling. Disabling tools also removes tools.inspect guidance.'),
 };
@@ -79,7 +79,7 @@ const memberNameSchema = z.string().regex(/^[A-Za-z_][\w$]*$/, 'Invalid namespac
     name => !Object.hasOwn(Object.prototype, name) && !['prototype', 'then'].includes(name) && !name.startsWith('__'),
     'Reserved JavaScript member name');
 
-/** @brief Recursive namespace transport with directly nested command or namespace members. */
+/** @brief Recursive namespace transport with directly nested function or namespace members. */
 const namespaceSchema: z.ZodType<NamespaceTreeNode> = z.lazy(() => z.strictObject({
     ...nodeProperties, type: z.literal('namespace'), fixedLevel: z.union([z.literal(0), z.literal(1)]).optional().describe('Namespace pin level (default 0, omitted): 0 none, 1 visible; allowed values come from permissions.availableFixLevels.'), children: z.preprocess((value, context) => {
         if (value && typeof value === 'object' && !Array.isArray(value)) {
@@ -92,12 +92,12 @@ const namespaceSchema: z.ZodType<NamespaceTreeNode> = z.lazy(() => z.strictObjec
     description: z.string().optional().describe('Editable namespace description.'),
 }));
 
-/** @brief Validate command and namespace members by their discriminator. */
+/** @brief Validate function and namespace members by their discriminator. */
 const nodeSchema: z.ZodType<ProfileTreeNode> = z.lazy(() => z.union([
     namespaceSchema,
     z.strictObject({
-        ...nodeProperties, type: z.literal('command'),
-        command: z.strictObject({ tool: z.string().describe('Exact physical tool name from tools.profile.tools, including unmounted tools; do not use a namespace path.'), doc: z.string().optional().describe('One-sentence summary of the command functionality; cannot modify the original command documentation or schema.') }),
+        ...nodeProperties, type: z.literal('function'),
+        function: z.strictObject({ tool: z.string().describe('Exact physical tool name from tools.profile.tools, including unmounted tools; do not use a namespace path.'), doc: z.string().optional().describe('One-sentence summary of the function functionality; cannot modify the original tool documentation or schema.') }),
     }),
 ]));
 
@@ -117,9 +117,9 @@ export function profileTree(name: string, configuration: PlaneProfileData, defin
         const parts = mapping.path.split('.');
         const parent = nodeFor(parts.slice(0, -1));
         if (parent.get(parts.at(-1)!)) continue;
-        const node = parent.create(parts.at(-1)!, () => new EditableCommand(parts.at(-1)!));
-        if (node.type !== 'command') throw new Error(`Expected command: ${mapping.path}`);
-        const command = (node as ProfileCommand).setTool(mapping.id);
+        const node = parent.create(parts.at(-1)!, () => new EditableFunction(parts.at(-1)!));
+        if (node.type !== 'function') throw new Error(`Expected function: ${mapping.path}`);
+        const command = (node as ProfileFunction).setTool(mapping.id);
         const description = mapping.description ?? configuration.toolComments?.[mapping.id];
         if (description !== undefined) command.setDescription(description);
     }
@@ -129,15 +129,15 @@ export function profileTree(name: string, configuration: PlaneProfileData, defin
         const setting = settingsAt(configuration.nodeSettings, path ? path.split('.') : []);
         if (setting?.description !== undefined) {
             if (node.type === 'namespace') node.description = setting.description;
-            else node.command.doc = setting.description;
+            else node.function.doc = setting.description;
         }
         const mapping = configuration.mappings.find(item => item.path === path);
         const namespace = configuration.namespaces.find(item => item.path === path);
-        const permissions = path ? nodePermissions(node.type === 'command' ? 'leaf' : 'tree', { ...node.permissions, ...setting?.permissions }) : definitions.createInitialProfile().permissions;
+        const permissions = path ? nodePermissions(node.type === 'function' ? 'leaf' : 'tree', { ...node.permissions, ...setting?.permissions }) : definitions.createInitialProfile().permissions;
         const declared = path.split('.').reduce<ProfileTreeNode | undefined>((parent, name) => parent?.children?.[name], path ? initial : undefined);
-        const level = fixLevel(permissions, node.type === 'command' ? configuration.builtinVisible?.[path] ?? mapping?.alwaysVisible ?? (declared ? declared.fixedLevel ?? 0 : node.fixedLevel ?? 0)
+        const level = fixLevel(permissions, node.type === 'function' ? configuration.builtinVisible?.[path] ?? mapping?.alwaysVisible ?? (declared ? declared.fixedLevel ?? 0 : node.fixedLevel ?? 0)
             : namespace?.alwaysVisible || configuration.namespaceVisible?.[path] ? 1 : 0);
-        if (node.type === 'command') node.fixedLevel = level;
+        if (node.type === 'function') node.fixedLevel = level;
         else node.fixedLevel = level === 2 ? 1 : level;
         node.permissions = permissions;
         node.disabled = permissions.disableable && (!!mapping?.disabled || !!namespace?.disabled || (configuration.builtinDisabled ?? []).includes(path));
@@ -163,7 +163,7 @@ interface ToolBrief { name: string; brief: string; paths: string[]; totalCalls: 
 interface Profiles { profiles: string[]; selected: string; }
 /** @brief Server-owned constraints on edits to the saved Profile tree. Read-only metadata returned by load; save/apply reject permissions at every depth. */
 interface Permission {
-    /** @brief When false, preserve the original Profile description/command.doc; forbidden changes throw. */
+    /** @brief When false, preserve the original Profile description/function.doc; forbidden changes throw. */
     /** @default true */
     commentable?: boolean;
     /** @brief When false, retain this member under its original name in the saved Profile. */
@@ -186,7 +186,7 @@ interface Permission {
     availableFixLevels?: (0 | 1 | 2)[];
 }
 /** @brief The live runtime namespace tree must not be mutated: do not assign, delete, rename, move or add runtime namespace members, regardless of Profile permissions. Profile permissions govern the saved configuration tree.
- * To mount a new command, assign children.cwd = { type: 'command', command: { tool: '<exact physical name>', doc: '<one sentence>' } } on an ordinary namespace. Use an exact physical tool name from tools.profile.tools, including unmounted tools. Member names are children record keys; rename or move members by changing their keys or parent records.
+ * To mount a new function, assign children.cwd = { type: 'function', function: { tool: '<exact physical name>', doc: '<one sentence>' } } on an ordinary namespace. Use an exact physical tool name from tools.profile.tools, including unmounted tools. Member names are children record keys; rename or move members by changing their keys or parent records.
  */
 /** @brief Shared editable type and visibility. Default values are omitted from serialization. disabled applies to the node and its subtree: they disappear from discovery, runtime bindings, native tools, preloaded values and pinned prompts, while their configuration is retained for re-enabling. Disabling tools also removes tools.inspect guidance. fixedLevel controls pinning (0: none, 1: brief, 2: detailed). */
 interface ProfileNode {
@@ -199,15 +199,15 @@ interface ProfileNode {
     /** @default false */
     disabled?: boolean;
 }
-/** @brief Physical command mounted at a named Profile member. */
-interface CommandNode extends ProfileNode {
-    type: 'command';
+/** @brief Physical tool mounted as a function at a named Profile member. */
+interface FunctionNode extends ProfileNode {
+    type: 'function';
     /** @default 0 */
     fixedLevel?: 0 | 1 | 2;
-    command: {
+    function: {
         tool: string;
-        /** @brief One-sentence summary of the command functionality; cannot modify the original tool's documentation or schema. */
-        /** @default Original command brief */
+        /** @brief One-sentence summary of the function functionality; cannot modify the original tool's documentation or schema. */
+        /** @default Original tool brief */
         doc?: string;
     };
 }
@@ -216,16 +216,16 @@ interface NamespaceTreeNode extends ProfileNode {
     type: 'namespace';
     /** @default 0 */
     fixedLevel?: 0 | 1;
-    children?: Record<string, CommandNode | NamespaceTreeNode>;
+    children?: Record<string, FunctionNode | NamespaceTreeNode>;
     description?: string;
 }
 /** @brief Named namespace configuration with an anonymous root. */
 interface Profile { name: string; brief?: string; root: NamespaceTreeNode; }
-/** @brief Writable command; never submit permissions. */
-interface CommandWrite extends Omit<CommandNode, 'permissions'> {}
+/** @brief Writable function; never submit permissions. */
+interface FunctionWrite extends Omit<FunctionNode, 'permissions'> {}
 /** @brief Writable namespace; recursively omit permissions. */
 interface NamespaceWrite extends Omit<NamespaceTreeNode, 'permissions' | 'children'> {
-    children?: Record<string, CommandWrite | NamespaceWrite>;
+    children?: Record<string, FunctionWrite | NamespaceWrite>;
 }
 /** @brief save input. Target name is a separate argument; omit name and all permissions from load data. */
 /** @brief Anonymous root has no persisted visibility, pin or description settings. */

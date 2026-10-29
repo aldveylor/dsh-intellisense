@@ -1,5 +1,5 @@
 import { EditableNamespace, type ProfileNamespace } from '../namespace.js';
-import { EditableCommand, type ProfileCommand } from '../command.js';
+import { EditableFunction, type ProfileFunction } from '../function.js';
 import { profileMembers } from '../namespace/namespace.js';
 import { toPlaneProfile } from '../plane/to_plane_profile.js';
 import { SnapshotStore } from '../snapshot_store.js';
@@ -82,7 +82,7 @@ export class SemanticRegistry {
     setAliases(aliases: readonly { path: string; tool: string }[]): void { this.aliases = structuredClone(aliases); this.aliasChecks = new WeakSet(); }
 
     private withAliases(snapshot: ProfileSnapshot): ProfileSnapshot {
-        const mounted = new Set([...profileMembers(snapshot)].filter(({ node }) => node.type === 'command').map(({ node }) => (node as ProfileCommand).tool));
+        const mounted = new Set([...profileMembers(snapshot)].filter(({ node }) => node.type === 'function').map(({ node }) => (node as ProfileFunction).tool));
         for (const alias of this.aliases) {
             if (!mounted.has(alias.tool)) continue;
             const parts = alias.path.split('.');
@@ -95,8 +95,8 @@ export class SemanticRegistry {
             const name = parts.at(-1)!;
             const previous = parent.get(name);
             if (previous) {
-                if (previous.type !== 'command' || (previous as ProfileCommand).tool !== alias.tool) throw new Error(`Conflicting tool alias: ${alias.path}`);
-            } else parent.create(name, () => new EditableCommand()).setTool(alias.tool);
+                if (previous.type !== 'function' || (previous as ProfileFunction).tool !== alias.tool) throw new Error(`Conflicting tool alias: ${alias.path}`);
+            } else parent.create(name, () => new EditableFunction()).setTool(alias.tool);
         }
         return snapshot;
     }
@@ -403,8 +403,8 @@ export class SemanticRegistry {
 
     /** @brief Fixed identities are derived from the initial Profile's concrete protected nodes. */
     owns(tool: string): boolean {
-        const visit = (node: import('../node.js').ProfileNode): boolean => node.type === 'command'
-            ? (node as import('../command.js').ProfileCommand).tool === tool && !node.permissions.removable
+        const visit = (node: import('../node.js').ProfileNode): boolean => node.type === 'function'
+            ? (node as import('../function.js').ProfileFunction).tool === tool && !node.permissions.removable
             : node.type === 'namespace' && [...(node as import('../namespace.js').ProfileNamespace).children.values()].some(visit);
         return visit(this.definitions.createInitialProfile());
     }

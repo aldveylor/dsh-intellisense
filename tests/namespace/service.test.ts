@@ -1,9 +1,9 @@
 import { sessionFor } from '../registry/session_fixture.js';
 import { NamespaceIntegration } from '../../src/integration/namespace_integration.js';
-import { EditableCommand } from '../../src/profile/command.js';
+import { EditableFunction } from '../../src/profile/function.js';
 import { EditableNamespace } from '../../src/profile/namespace.js';
 import type { ProfileNamespace } from '../../src/profile/namespace.js';
-import type { ProfileCommand } from '../../src/profile/command.js';
+import type { ProfileFunction } from '../../src/profile/function.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Context } from '@deepseek-ai/cordis';
@@ -13,7 +13,7 @@ import { manifest } from './fixtures.js';
 import { EditableSnapshot } from '../../src/profile/snapshot.js';
 import { RootNamespace } from '../../src/tools/profile_nodes/root_namespace.js';
 import { ImplToolsNamespace } from '../../src/tools/profile_nodes/impl_tools_namespace.js';
-import { ImplToolsInspectCommand } from '../../src/tools/profile_nodes/impl_tools_inspect_command.js';
+import { ImplToolsInspectFunction } from '../../src/tools/profile_nodes/impl_tools_inspect_function.js';
 import { SemanticRegistry } from '../../src/profile/catalog/registry.js';
 import { ProfileSessions } from '../../src/profile/catalog/profiles.js';
 import { profileConfiguration, profileTree } from '../../src/profile/catalog/profile_tree.js';
@@ -26,9 +26,9 @@ function namespaceNode(node: import('../../src/profile/node.js').ProfileNode | u
 }
 
 /** @brief Read the discriminator before narrowing a generic command member. */
-function commandNode(node: import('../../src/profile/node.js').ProfileNode | undefined): ProfileCommand {
-    assert.equal(node?.type, 'command');
-    return node as ProfileCommand;
+function functionNode(node: import('../../src/profile/node.js').ProfileNode | undefined): ProfileFunction {
+    assert.equal(node?.type, 'function');
+    return node as ProfileFunction;
 }
 
 /** @brief Use portable interfaces against real persistence and namespace projection. */
@@ -48,12 +48,12 @@ test('default Profiles contain concrete builtin implementations and independent 
     const initial = await service.create('Development');
     assert(initial instanceof RootNamespace);
     assert(initial.get('tools') instanceof ImplToolsNamespace);
-    assert(namespaceNode(initial.get('tools')).get('inspect') instanceof ImplToolsInspectCommand);
+    assert(namespaceNode(initial.get('tools')).get('inspect') instanceof ImplToolsInspectFunction);
     assert.equal((await service.get('Development'))!.children.size, 1);
     assert.equal('name' in initial, false);
     assert.equal('root' in initial, false);
     assert.equal('commit' in initial, false);
-    initial.create('files', () => new EditableNamespace('files')).create('read', () => new EditableCommand('read')).setTool('read');
+    initial.create('files', () => new EditableNamespace('files')).create('read', () => new EditableFunction('read')).setTool('read');
     assert.equal((await service.get('Development'))!.children.size, 1);
     assert.throws(() => initial.create('files', () => new EditableNamespace('files')), /already exists/);
     assert.equal(initial.getOrCreate('files', () => new EditableNamespace('files')).type, 'namespace');
@@ -98,13 +98,13 @@ test('edit publishes a complete recursive snapshot and preserves explicit permis
     const value = await service.edit('Development', snapshot => {
         snapshot.setBrief('Development tools');
         const files = snapshot.create('files', () => new EditableNamespace('files')).setDescription('File operations');
-        files.create('read', () => new EditableCommand('read')).setTool('read').setFixedLevel(2).setPermissions({ removable: false });
+        files.create('read', () => new EditableFunction('read')).setTool('read').setFixedLevel(2).setPermissions({ removable: false });
         files.setPermissions({ acceptsChildren: false });
         return snapshot;
     });
     assert.equal(registry.profileSelection().selected, 'Default');
-    assert.equal(commandNode(namespaceNode(value.get('files')).get('read')).tool, 'read');
-    assert.equal(commandNode(namespaceNode(value.get('files')).get('read')).permissions.removable, false);
+    assert.equal(functionNode(namespaceNode(value.get('files')).get('read')).tool, 'read');
+    assert.equal(functionNode(namespaceNode(value.get('files')).get('read')).permissions.removable, false);
     assert(!Object.hasOwn(value.serialize().children!, 'files.read'));
     const restored = new SemanticRegistry(store);
     await restored.load();
@@ -118,12 +118,12 @@ test('get-or-create is atomic and modifiers run in order against the latest comm
     await Promise.all([service.getOrCreate('Shared'), service.getOrCreate('Shared')]);
     await assert.rejects(service.create('Shared'), /profile_name_exists/);
     await Promise.all([
-        service.edit('Shared', snapshot => { snapshot.create('first', () => new EditableCommand('first')).setTool('read'); return snapshot; }),
-        service.edit('Shared', snapshot => { snapshot.create('second', () => new EditableCommand('second')).setTool('read'); return snapshot; }),
+        service.edit('Shared', snapshot => { snapshot.create('first', () => new EditableFunction('first')).setTool('read'); return snapshot; }),
+        service.edit('Shared', snapshot => { snapshot.create('second', () => new EditableFunction('second')).setTool('read'); return snapshot; }),
     ]);
     assert.deepEqual([...(await service.get('Shared'))!.children.keys()], ['tools', 'first', 'second']);
     const replacement = (await service.create('Replacement')).setBrief('Replacement tree');
-    replacement.create('replacement', () => new EditableCommand('replacement')).setTool('read');
+    replacement.create('replacement', () => new EditableFunction('replacement')).setTool('read');
     await service.edit('Shared', () => replacement);
     assert.deepEqual([...(await service.get('Shared'))!.children.keys()], ['tools', 'replacement']);
     assert.equal((await service.get('Shared'))!.brief, 'Replacement tree');
@@ -133,15 +133,15 @@ test('failed modifiers, validation and persistence leave the entire Profile unch
     const { store, service, registry } = fixture();
     await service.create('Work');
     const before = registry.configuration('Work').save();
-    await assert.rejects(service.edit('Work', snapshot => { snapshot.create('read', () => new EditableCommand('read')).setTool('read'); throw new Error('Abort edit'); }), /Abort edit/);
-    await assert.rejects(service.edit('Work', snapshot => { snapshot.create('unbound', () => new EditableCommand('unbound')); return snapshot; }), /no physical tool/);
+    await assert.rejects(service.edit('Work', snapshot => { snapshot.create('read', () => new EditableFunction('read')).setTool('read'); throw new Error('Abort edit'); }), /Abort edit/);
+    await assert.rejects(service.edit('Work', snapshot => { snapshot.create('unbound', () => new EditableFunction('unbound')); return snapshot; }), /no physical tool/);
     assert.deepEqual(registry.configuration('Work').save(), before);
     const save = store.save.bind(store);
     store.save = async () => { throw new Error('Disk failed'); };
-    await assert.rejects(service.edit('Work', snapshot => { snapshot.create('read', () => new EditableCommand('read')).setTool('read'); return snapshot; }), /Disk failed/);
+    await assert.rejects(service.edit('Work', snapshot => { snapshot.create('read', () => new EditableFunction('read')).setTool('read'); return snapshot; }), /Disk failed/);
     assert.deepEqual(registry.configuration('Work').save(), before);
     store.save = save;
-    await service.edit('Work', snapshot => { snapshot.create('read', () => new EditableCommand('read')).setTool('read'); return snapshot; });
+    await service.edit('Work', snapshot => { snapshot.create('read', () => new EditableFunction('read')).setTool('read'); return snapshot; });
     assert.equal((await service.get('Work'))!.children.size, 2);
 });
 
@@ -151,12 +151,12 @@ test('global edits preserve the current session snapshot until an explicit switc
     const live = sessionFor(sessions.profiles, 'session');
     const addition = await sessions.profiles.load(live, 'Work');
     const pointer = addition.profile.pointer;
-    await service.edit('Work', snapshot => { snapshot.create('read', () => new EditableCommand()).setTool('read'); return snapshot; });
+    await service.edit('Work', snapshot => { snapshot.create('read', () => new EditableFunction()).setTool('read'); return snapshot; });
     assert.equal(addition.profile.pointer, pointer);
     assert.equal(addition.profile.snapshot.resolve('read'), undefined);
     await sessions.profiles.load(live, 'Work');
     assert(addition.profile.pointer > pointer);
-    assert.equal(commandNode(addition.profile.snapshot.resolve('read')).tool, 'read');
+    assert.equal(functionNode(addition.profile.snapshot.resolve('read')).tool, 'read');
 });
 
 test('builtin fixed identities belong to node classes and tool additions contain only metadata', async () => {
@@ -197,7 +197,7 @@ test('builtin namespaces are explicitly installed with edit and custom permissio
     assert.equal((await service.get('Plugin'))!.children.size, 1);
     assert((await service.get('Plugin'))!.get('tools'));
     await service.edit('Plugin', snapshot => {
-        snapshot.create('files', () => new EditableNamespace('files')).create('read', () => new EditableCommand('read')).setTool('read').setPermissions({ removable: false, commentable: false });
+        snapshot.create('files', () => new EditableNamespace('files')).create('read', () => new EditableFunction('read')).setTool('read').setPermissions({ removable: false, commentable: false });
         return snapshot;
     });
     const current = registry.configuration('Plugin');
@@ -207,27 +207,27 @@ test('builtin namespaces are explicitly installed with edit and custom permissio
     assert.throws(() => profileConfiguration(input, current, commands, registry.definitions), /cannot be removed: files.read/);
     const forged = profileTree('Plugin', current, registry.definitions).save();
     forged.root.children!.files!.children!.read!.permissions = { removable: true, commentable: true };
-    forged.root.children!.files!.children!.read!.command!.doc = 'Forged';
+    forged.root.children!.files!.children!.read!.function!.doc = 'Forged';
     assert.throws(() => profileConfiguration(forged, current, commands, registry.definitions), /documentation cannot be changed/);
 });
 
 test('custom command classes own callable projections and preloaded values', async () => {
     const { registry, service } = fixture();
     /** @brief Provider-owned behavior travels with the actual Profile command class. */
-    class ProviderCommand extends EditableCommand {
+    class ProviderFunction extends EditableFunction {
         presentation() { return { signature: '(value: string) => Promise<void>', description: 'Provider projection', positional: [['value']], discardResult: true, preload: true }; }
         async readValue() { return { source: 'provider' }; }
     }
     const create = service.createInitialProfile;
     service.createInitialProfile = () => {
         const root = create();
-        root.create('external', () => new EditableNamespace()).create('data', () => new ProviderCommand()).setTool('read');
+        root.create('external', () => new EditableNamespace()).create('data', () => new ProviderFunction()).setTool('read');
         return root;
     };
     await service.create('Provider');
     await registry.manageProfile('select', 'Provider', registry.revision);
     const command = manifest(registry, []).commands().find(entry => entry.tool === 'read')!;
-    assert(command.node instanceof ProviderCommand);
+    assert(command.node instanceof ProviderFunction);
     assert.equal(command.signature, '(value: string) => Promise<void>');
     assert.deepEqual(command.binding().parameters, { kind: 'overloads', layouts: [['value']] });
     assert.deepEqual(command.binding().result, { kind: 'discard' });
@@ -240,7 +240,7 @@ test('tools namespace implementations block child mutation independently of disp
     const tools = namespaceNode(root.get('tools'));
     assert(tools instanceof ImplToolsNamespace);
     assert.throws(() => tools.setPermissions({ acceptsChildren: true }), /permissions cannot be changed/);
-    assert.throws(() => tools.create('extra', () => new EditableCommand('extra')), /does not accept children/);
+    assert.throws(() => tools.create('extra', () => new EditableFunction('extra')), /does not accept children/);
     assert.throws(() => tools.remove('inspect'), /cannot be removed/);
     const exposed = tools.children as Map<string, unknown>;
     exposed.clear();
@@ -262,7 +262,7 @@ test('collection factory initializes every new Profile and hydration preserves e
     assert(restored instanceof RootNamespace);
     assert(restored.get('custom'));
     assert(restored.get('added'));
-    assert(namespaceNode(restored.get('tools')).get('inspect') instanceof ImplToolsInspectCommand);
+    assert(namespaceNode(restored.get('tools')).get('inspect') instanceof ImplToolsInspectFunction);
     assert(calls > 0);
     service.createInitialProfile = () => new EditableSnapshot();
     assert.equal((await service.create('Empty')).children.size, 0);
@@ -303,7 +303,7 @@ test('factory-declared node subclasses survive collection reads and independent 
         const node = snapshot.get('declared');
         assert.equal(node?.type, 'namespace');
         assert(node instanceof FactoryNamespace);
-        node.create('read', () => new EditableCommand('read')).setTool('read');
+        node.create('read', () => new EditableFunction('read')).setTool('read');
         return snapshot;
     });
     const snapshot = (await service.get('Typed'))!;
@@ -330,7 +330,7 @@ test('snapshot resolve returns enabled nodes by identity without service executi
     const { service, registry } = fixture();
     await service.create('Work');
     await service.edit('Work', snapshot => {
-        snapshot.create('files', () => new EditableNamespace('files')).create('read', () => new EditableCommand('read')).setTool('read');
+        snapshot.create('files', () => new EditableNamespace('files')).create('read', () => new EditableFunction('read')).setTool('read');
         return snapshot;
     });
     const snapshot = (await service.get('Work'))!;
@@ -348,11 +348,11 @@ test('snapshot resolve returns enabled nodes by identity without service executi
     namespaceNode(snapshot.get('files')).setDisabled(true);
     assert.equal(snapshot.resolve('files.read'), undefined);
     namespaceNode(snapshot.get('files')).setDisabled(false);
-    commandNode(namespaceNode(snapshot.get('files')).get('read')).setDisabled(true);
+    functionNode(namespaceNode(snapshot.get('files')).get('read')).setDisabled(true);
     assert.equal(snapshot.resolve('files.read'), undefined);
     const editable = (await service.get('Work'))!;
-    editable.create('unbound', () => new EditableCommand('unbound'));
-    assert.equal(commandNode(editable.resolve('files.read')).tool, 'read');
+    editable.create('unbound', () => new EditableFunction('unbound'));
+    assert.equal(functionNode(editable.resolve('files.read')).tool, 'read');
     assert.equal(editable.resolve('unbound'), editable.get('unbound'));
     const disabled = new EditableSnapshot({ root: { type: 'namespace', disabled: true } });
     assert.equal(disabled.resolve(''), undefined);

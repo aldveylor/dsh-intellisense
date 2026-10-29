@@ -26,7 +26,7 @@ tools.profile.tools 中各项 totalCalls 使用 VM 内只读 getter，从预加�
 
 `builtins.ts` 的 `PluginCommands` 持有插件命令契约表，通过共享实例 `pluginCommands` 提供物理命令查找、搜索签名、默认提示等级及运行时/UI 投影所需的命令分组。
 
-exec、run_code 与插件自有执行入口由 ctx.intellisense.toolAdditions 标记 hidden: true；物理目录和管理选择器消费同一元数据。命令类提供预加载与调用契约，PTC 直接从原始 Profile 节点导出扁平绑定，不生成服务端运行时语义树。
+exec、run_code 与插件自有执行入口由 ctx.intellisense.toolAdditions 标记 hidden: true；物理目录和管理选择器消费同一元数据。函数类提供预加载与调用契约，PTC 直接从原始 Profile 节点导出扁平绑定，不生成服务端运行时语义树。
 
 PTC 初始化先建立运行时环境（包括 console 输出对象），再安装生成的命令与预加载数据。每次初始化移除上次生成的命名空间根，再部署当前命令和值；生成的根属性可配置但不可赋值，子树冻结。部署只写入环境中不存在的根属性，不覆盖已有 console、标准对象或其它运行时全局。生成树内重复命令或命令/值冲突会明确拒绝，不以后写覆盖先写。运行时全局对象不作为命名空间节点参与 Inspect 查询。
 

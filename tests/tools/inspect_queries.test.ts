@@ -12,7 +12,7 @@ import { inspect } from '../namespace/fixtures.js';
 import type { NamespaceIntegration } from '../../src/integration/namespace_integration.js';
 import { EditableSnapshot } from '../../src/profile/snapshot.js';
 import { EditableNamespace } from '../../src/profile/namespace.js';
-import { EditableCommand } from '../../src/profile/command.js';
+import { EditableFunction } from '../../src/profile/function.js';
 import { SemanticRegistry } from '../../src/profile/catalog/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
 import { nativeDiscovery, nativeQueryEntries } from '../namespace/fixtures.js';
@@ -98,8 +98,8 @@ test('PTC declarations omit explicitly disabled namespaces and their descendants
 test('inspection reads session nodes and summaries without registry mounts or aliases', () => {
     const profile = new EditableSnapshot();
     const files = profile.create('session_files', () => new EditableNamespace()).setDescription('Session namespace');
-    files.create('read', () => new EditableCommand()).setTool('read').setDescription('Session summary');
-    files.create('disabled', () => new EditableCommand()).setTool('read').setDisabled(true);
+    files.create('read', () => new EditableFunction()).setTool('read').setDescription('Session summary');
+    files.create('disabled', () => new EditableFunction()).setTool('read').setDisabled(true);
     const registry = new SemanticRegistry(new MemoryStore());
     registry.refresh([{ id: 'read', description: 'Physical documentation', parameters: { path: { type: 'string', required: true } }, output: { type: 'string' } }]);
     const root = profileFixture(profile, registry.tools(), 'ptc', registry.toolAdditions);

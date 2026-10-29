@@ -4,15 +4,15 @@ import { EditableText } from '../../ui/controls/editable_text.js';
 import { PinButton, RemoveButton, DisableButton } from './tree_controls.js';
 import { acceptTreeDrag, leaveTreeDrag } from './native_drag.js';
 import { nameWidth } from './name_width.js';
-import type { CommandTreeNode } from '../tree_node.js';
+import type { FunctionTreeNode } from '../tree_node.js';
 import { CommandDetails, useTreeTooltip } from './tree_details.js';
 
-/** @brief Render commands with shared fixed, read-only and movement policies supplied by their data source. */
-export function CommandNode({ node, tree }: { node: CommandTreeNode; tree: TreeProps }) {
+/** @brief Render functions with shared fixed, read-only and movement policies supplied by their data source. */
+export function FunctionNode({ node, tree }: { node: FunctionTreeNode; tree: TreeProps }) {
     const t = useTranslation();
-    const { path, mapping, command, fixed, description } = node;
+    const { path, mapping, function: command, fixed, description } = node;
     const id = mapping?.id ?? command?.id;
-    const contract = node.serialize().command;
+    const contract = node.serialize().function;
     const tool = (id ? tree.toolsById.get(id) : undefined) ?? {
         id: id ?? contract?.tool ?? path, description: description ?? '', parameters: contract?.schema ?? {}, output: contract?.output,
     };

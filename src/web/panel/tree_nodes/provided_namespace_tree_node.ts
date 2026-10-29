@@ -1,5 +1,5 @@
 import { NamespaceTreeNode } from './namespace_tree_node.js';
-import { ProvidedCommandTreeNode } from './provided_command_tree_node.js';
+import { ProvidedFunctionTreeNode } from './provided_function_tree_node.js';
 import type { ProvidedNamespace } from '../tree_provider.js';
 import type { Permission } from '../../../profile/namespace/node.js';
 
@@ -8,7 +8,7 @@ export class ProvidedNamespaceTreeNode extends NamespaceTreeNode {
 
     constructor(private readonly contract: ProvidedNamespace, parent: NamespaceTreeNode) {
         super(contract.path.split('.').at(-1)!, parent);
-        this.add(...contract.commands.map(command => new ProvidedCommandTreeNode(command, this)),
+        this.add(...contract.commands.map(command => new ProvidedFunctionTreeNode(command, this)),
             ...(contract.children ?? []).map(namespace => new ProvidedNamespaceTreeNode(namespace, this)));
     }
 

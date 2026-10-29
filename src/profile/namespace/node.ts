@@ -1,5 +1,5 @@
 /** @brief Optional callable projection registered by a physical-tool provider. */
-export interface CommandPresentation {
+export interface FunctionPresentation {
     signature: string;
     description: string;
     parameterDocs?: Readonly<Record<string, string>>;
@@ -10,7 +10,7 @@ export interface CommandPresentation {
 }
 
 /** @brief Public callable contract shared by executable and management nodes. */
-export interface CommandContract { tool: string; schema: Record<string, unknown>; output?: unknown; doc: string; presentation?: CommandPresentation }
+export interface FunctionContract { tool: string; schema: Record<string, unknown>; output?: unknown; doc: string; presentation?: FunctionPresentation }
 
 /** @brief Discriminator for executable namespace nodes. */
 export type NodeType = 'leaf' | 'tree';
@@ -35,7 +35,7 @@ export interface SerializedNode {
     name: string;
     permissions: Permission;
     children?: SerializedNode[];
-    command?: CommandContract;
+    function?: FunctionContract;
     description?: string;
     preload?: boolean;
     fixedLevel?: 0 | 1 | 2;

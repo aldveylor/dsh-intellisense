@@ -538,11 +538,11 @@ test('Profile organization mounts catalog commands and applies briefs without mu
             const names = ['read', 'write', 'edit', 'glob', 'grep', 'working_directory', 'tools_external'];
             if (names.some(name => !tools.profile.tools.some(node => node.name === name))) throw new Error('Missing catalog command');
             profile.root.children['files'] = { type: 'namespace', description: 'File operations', permissions,
-                children: Object.fromEntries(names.map(name => [name, { type: 'command', permissions: { ...permissions, acceptsChildren: false, availableFixLevels: [0, 1, 2] },
-                    command: { tool: name, doc: 'Brief ' + name } }])) };
+                children: Object.fromEntries(names.map(name => [name, { type: 'function', permissions: { ...permissions, acceptsChildren: false, availableFixLevels: [0, 1, 2] },
+                    function: { tool: name, doc: 'Brief ' + name } }])) };
             await tools.profile.save('Organized', writable(profile));
             const invalid = JSON.parse(JSON.stringify(profile));
-            invalid.root.children['tools'].children['inspect'].command.tool = 'read';
+            invalid.root.children['tools'].children['inspect'].function.tool = 'read';
             let rejected = 0;
             try { await tools.profile.save('Organized', writable(invalid)); } catch { rejected++; }
             try { await tools.profile.remove('Missing'); } catch { rejected++; }
@@ -558,8 +558,8 @@ test('Profile organization mounts catalog commands and applies briefs without mu
         assert.deepEqual(invoked.value, { logs: [], result: 'working_directory' });
         const tree = await namespaces.get(agent);
         assert.equal(tree.resolve('files')?.serialize().description, 'File operations');
-        assert.equal(tree.resolve('files.read')?.serialize().command?.doc, 'Brief read');
-        assert.equal(tree.resolve('files.tools_external')?.serialize().command?.doc, 'Brief tools_external');
+        assert.equal(tree.resolve('files.read')?.serialize().function?.doc, 'Brief read');
+        assert.equal(tree.resolve('files.tools_external')?.serialize().function?.doc, 'Brief tools_external');
         const discovery = await run('return await tools.inspect(["files.read"]);');
         assert.equal(discovery.isError, false, JSON.stringify(discovery));
         assert.match(JSON.stringify(discovery.value), /Original read/);
@@ -590,7 +590,7 @@ test('PTC Profile save repairs protected nodes and preserves session state', asy
                 const invalid = JSON.parse(catalogBefore);
                 const members = invalid.root.children['tools'].children['profile'].children;
                 if (change === 'remove') delete members['load'];
-                else members['save'].command.doc = 'Forbidden protected comment';
+                else members['save'].function.doc = 'Forbidden protected comment';
                 try { await tools.profile.save('Protected', writable(invalid)); }
                 catch (error) { errors.push(error.message); }
             }
@@ -640,7 +640,7 @@ test('Profile command paths preserve session mounts after apply and refresh held
         const result = await run(`
             const entry = tools.profile.tools.find(command => command.name === 'working_directory');
             const before = entry.paths;
-            await tools.profile.apply({root: {children: {cwd: {type: 'command', command: {tool: 'working_directory'}}}}});
+            await tools.profile.apply({root: {children: {cwd: {type: 'function', function: {tool: 'working_directory'}}}}});
             const afterApply = entry.paths;
             const catalog = await tools.profile.load('Default');
             const draft = await tools.profile.load();

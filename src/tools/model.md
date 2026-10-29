@@ -8,7 +8,7 @@
 
 `tool_commands.ts` 注册 Profile load/save/apply/remove/switch/setdefault/annotation/tools/profiles。save 支持显式名称或当前会话名称，验证递归树与物理命令身份，仅发布目录，保留当前会话配置和选择，显式 switch(name) 后应用保存的配置；load 无名称只返回当前会话不可变快照，有名称只从全局目录读取指定配置并返回可序列化的 Profile 数据，不替换会话快照、不刷新工具提示。`../profile/namespace/runtime.ts` 将 annotation 和原始工具列表作为数据传给 VM init，不安装同名函数。
 
-Profile load/save/annotation 统一使用继承 ProfileNode 的 CommandNode（type: command）与 NamespaceTreeNode（type: namespace）；节点不含 name，命名空间 children 使用名称为键的 Record；apply 对 children 按键递归合并，null 删除对应成员。基类 fixedLevel 为可选 number，具体节点限制支持的等级。Profile 数据模型声明通过 tools.profile.annotation 按需读取；tools_inspect 查询结果不自动附加这些声明。
+Profile load/save/annotation 统一使用继承 ProfileNode 的 FunctionNode（type: command）与 NamespaceTreeNode（type: namespace）；节点不含 name，命名空间 children 使用名称为键的 Record；apply 对 children 按键递归合并，null 删除对应成员。基类 fixedLevel 为可选 number，具体节点限制支持的等级。Profile 数据模型声明通过 tools.profile.annotation 按需读取；tools_inspect 查询结果不自动附加这些声明。
 
 `builtin_trace.ts` 在 presentation 作用域包装内置工具注册，保存实际参数/输出 schema、调用参数、返回值、错误与耗时到独立插件审计。结果保持原始模型内容，字符串结果不再额外 JSON 编码。审计和 Profile annotation 通过调用者上下文的 get() 获取命名空间服务，不要求调用者插件显式注入内部 namespaceIntegration。
 
@@ -62,12 +62,12 @@ Profile 写入模型使用 `profile/catalog/profile_write.ts` 的 ProfileWrite�
 `src/error.ts` 定义 ValidationError、ProfilePermissionError、ProfileNotFoundError、ToolCallError 和 PositionalArgumentError。normalizeError 尝试将原生 ZodError 转换为 src/error.ts 自定义 ZodError，使用 ErrorData/ErrorIssue 结构与 type、path/message 紧凑 JSON；不判断长度、不修改原错误，转换不适用或失败时返回原错误；guest 的位置参数错误为带 toolName/code 的 ToolCallError 子类，服务端错误码随 IPC 回复传递。
 
 
-ProfileRootWrite 的匿名根只允许 type/children，拒绝没有持久化表示的根级 disabled、fixedLevel、description（包括 apply 的 null 删除）；普通成员仍使用 NamespaceWrite/CommandWrite。ConversationRequiredError、ProfileLockedError、CurrentProfileDeletionError 与 UnknownCommandError 在 src/error.ts 定义，不再用普通 Error 或权限错误表达这些 Profile 失败；非法 patch 键使用 ValidationError。
+ProfileRootWrite 的匿名根只允许 type/children，拒绝没有持久化表示的根级 disabled、fixedLevel、description（包括 apply 的 null 删除）；普通成员仍使用 NamespaceWrite/FunctionWrite。ConversationRequiredError、ProfileLockedError、CurrentProfileDeletionError 与 UnknownCommandError 在 src/error.ts 定义，不再用普通 Error 或权限错误表达这些 Profile 失败；非法 patch 键使用 ValidationError。
 
 
 `profile_lock.ts` 的 ProfileLock 为当前命名空间组件提供共享 FIFO 异步互斥锁。所有 `tools.profile.*` 操作共用该锁，读写均在获取锁后执行；apply 的读取、合并、校验及目录持久化位于同一临界区，避免跨会话并发增量保存丢失更新。等待结束后再次检查取消信号，失败或取消通过 finally 释放锁，不阻塞后续操作。锁只协调本组件的 Profile 工具调用，不提供跨进程或绕过工具接口的存储事务。
 
-工具附加属性由 ctx.intellisense.toolAdditions 提供 hidden 与 ptcDescription。固定身份来自节点权限，内置契约和预加载由命令类实现；ToolsNamespace 不处理 ToolAddition。插件侧编辑使用 toolsNamespace.edit(name, snapshot => snapshot)，仅更新全局版本。
+工具附加属性由 ctx.intellisense.toolAdditions 提供 hidden 与 ptcDescription。固定身份来自节点权限，内置契约和预加载由函数类实现；ToolsNamespace 不处理 ToolAddition。插件侧编辑使用 toolsNamespace.edit(name, snapshot => snapshot)，仅更新全局版本。
 
 工具直接读取当前会话引用的原始 Profile 节点，输出契约为携带原节点引用的扁平数据。permissions 保留为只读说明，检查与修正在 RootNamespace 和各子节点中执行。
 

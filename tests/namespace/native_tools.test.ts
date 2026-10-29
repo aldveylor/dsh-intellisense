@@ -18,14 +18,14 @@ test('native names satisfy API limits and avoid path and physical name collision
     const paths = ['std.cwd', 'std__cwd', 'std.$cwd', 'std._24_cwd', 'std.' + 'a'.repeat(100)];
     const entries = paths.map(path => ({ path, tool: path, doc: '', schema: {}, output: {} }) as ManifestEntry);
     const reserved = ['ns_std__cwd', 'ns_std__cwd_1'];
-    const names = nativeBindings(entries as import('../../src/profile/namespace/namespace.js').CommandEntry[], reserved).map(binding => binding.name);
+    const names = nativeBindings(entries as import('../../src/profile/namespace/namespace.js').FunctionEntry[], reserved).map(binding => binding.name);
     assert.equal(new Set(names).size, paths.length);
     assert.equal(names[0], 'ns_std__cwd_2');
     for (const name of names) {
         assert.match(name, /^ns_[a-zA-Z0-9_-]{1,61}$/);
         assert(!reserved.includes(name));
     }
-    assert.deepEqual(nativeBindings(entries as import('../../src/profile/namespace/namespace.js').CommandEntry[], reserved).map(binding => binding.name), names);
+    assert.deepEqual(nativeBindings(entries as import('../../src/profile/namespace/namespace.js').FunctionEntry[], reserved).map(binding => binding.name), names);
 });
 
 test('native aliases publish callable names, preserve native arguments and revoke stale handlers', async () => {
@@ -77,7 +77,7 @@ test('native aliases publish callable names, preserve native arguments and revok
 
 test('native discovery shows original documentation only for exact functions', () => {
     const root = namespace([{ path: 'fs.read', tool: 'read_file', doc: 'Read file\nFull file documentation.', schema: {}, output: {} }]);
-    (root.profile.resolve('fs.read') as import('../../src/profile/command.js').ProfileCommand).setDescription('Profile brief');
+    (root.profile.resolve('fs.read') as import('../../src/profile/function.js').ProfileFunction).setDescription('Profile brief');
     for (const queries of [['fs.'], ['fs.read']]) {
         const discovery = JSON.parse(nativeDiscovery(queries, root));
         assert.equal(discovery.members[0].brief, 'Profile brief');
@@ -96,7 +96,7 @@ test('native discovery omits empty namespace, command and Profile briefs', () =>
     }
     const documented = namespace([{ path: 'fs.read', tool: 'read_file', doc: 'Full documentation', schema: {}, output: {} }]);
     for (const brief of ['', '  \n ']) {
-        (documented.profile.resolve('fs.read') as import('../../src/profile/command.js').ProfileCommand).setDescription(brief);
+        (documented.profile.resolve('fs.read') as import('../../src/profile/function.js').ProfileFunction).setDescription(brief);
         const discovery = JSON.parse(nativeDiscovery(['fs.read'], documented));
         assert(!Object.hasOwn(discovery.members[0], 'brief'));
     }

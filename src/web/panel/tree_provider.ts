@@ -2,14 +2,14 @@ import type { Mapping, PhysicalTool, PinLevel, CommandVisibility } from '../../p
 import { fixLevel, type Permission, type SerializedNode } from '../../profile/namespace/node.js';
 
 /** @brief Client command metadata comes entirely from the server's node description. */
-export interface ProvidedCommand {
+export interface ProvidedFunction {
     path: string; id?: string; description: string;
     permissions: Permission; alwaysVisible: PinLevel; disabled?: boolean;
     node: SerializedNode;
 }
 
 /** @brief A protected subtree is projected without client knowledge of its names or server classes. */
-export interface ProvidedNamespace { path: string; description: string; permissions: Permission; commands: ProvidedCommand[]; children?: ProvidedNamespace[]; node: SerializedNode }
+export interface ProvidedNamespace { path: string; description: string; permissions: Permission; commands: ProvidedFunction[]; children?: ProvidedNamespace[]; node: SerializedNode }
 
 /** @brief List physical tools that have neither a mapping nor a server-owned node. */
 export function unmountedTools(tools: PhysicalTool[], mappings: Mapping[], provided: readonly ProvidedNamespace[] = []): PhysicalTool[] {
@@ -27,8 +27,8 @@ export function TreeProvider(nodes: readonly SerializedNode[], visible: CommandV
     const visit = (node: SerializedNode, parent: string): ProvidedNamespace => {
         const path = parent ? `${parent}.${node.name}` : node.name;
         return { path, description: node.description ?? '', permissions: node.permissions, node,
-            commands: (node.children ?? []).filter(child => child.type === 'leaf').map(child => ({ path: `${path}.${child.name}`, id: child.command?.tool,
-                description: child.description ?? child.command?.doc ?? '', permissions: child.permissions,
+            commands: (node.children ?? []).filter(child => child.type === 'leaf').map(child => ({ path: `${path}.${child.name}`, id: child.function?.tool,
+                description: child.description ?? child.function?.doc ?? '', permissions: child.permissions,
                 alwaysVisible: fixLevel(child.permissions, visible[`${path}.${child.name}`] ?? 0), node: child })),
             children: (node.children ?? []).filter(child => child.type === 'tree').map(child => visit(child, path)) };
     };
@@ -48,7 +48,7 @@ export function providedNamespace(path: string, roots: readonly ProvidedNamespac
 export function providedTools(roots: readonly ProvidedNamespace[], tools: readonly PhysicalTool[]): Array<{ tool: PhysicalTool; path: string }> {
     return roots.flatMap(namespace => [
         ...namespace.commands.flatMap(command => command.id ? [{ path: command.path, tool: tools.find(tool => tool.id === command.id) ?? {
-            id: command.id, provided: true, description: command.description, parameters: command.node.command?.schema ?? {}, output: command.node.command?.output,
+            id: command.id, provided: true, description: command.description, parameters: command.node.function?.schema ?? {}, output: command.node.function?.output,
         } }] : []),
         ...providedTools(namespace.children ?? [], tools),
     ]);

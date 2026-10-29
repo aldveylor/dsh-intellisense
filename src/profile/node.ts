@@ -62,7 +62,7 @@ export abstract class EditableNode implements ProfileNode {
 
     abstract readonly type: string;
 
-    get permissions(): Permission { return nodePermissions(this.type === 'command' ? 'leaf' : 'tree', structuredClone(this.settings.permissions)); }
+    get permissions(): Permission { return nodePermissions(this.type === 'function' ? 'leaf' : 'tree', structuredClone(this.settings.permissions)); }
 
     get fixedLevel(): number | undefined { return this.settings.fixedLevel; }
 

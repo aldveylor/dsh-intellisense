@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EditableSnapshot } from '../../src/profile/snapshot.js';
 import { EditableNamespace } from '../../src/profile/namespace.js';
-import { EditableCommand } from '../../src/profile/command.js';
+import { EditableFunction } from '../../src/profile/function.js';
 import { PlaneProfile } from '../../src/profile/plane/profile.js';
 import { toPlaneProfile } from '../../src/profile/plane/to_plane_profile.js';
 import { profileTree } from '../../src/profile/catalog/profile_tree.js';
@@ -10,7 +10,7 @@ import { profileTree } from '../../src/profile/catalog/profile_tree.js';
 test('toPlaneProfile flattens snapshots and retains detached editor preferences and node settings', () => {
     const profile = new EditableSnapshot().setBrief('Workspace commands');
     const files = profile.create('files', () => new EditableNamespace()).setDescription('File operations').setFixedLevel(1);
-    files.create('read', () => new EditableCommand('', { type: 'command', command: { tool: 'read_file', doc: 'Read a file' }, fixedLevel: 2, disabled: true }));
+    files.create('read', () => new EditableFunction('', { type: 'function', function: { tool: 'read_file', doc: 'Read a file' }, fixedLevel: 2, disabled: true }));
     const current = new PlaneProfile({ mappings: [{ id: 'read_file', path: 'files.read', pinned: true }],
         unmountedVisible: { other_tool: 1 }, toolComments: { other_tool: 'Other command' } });
 

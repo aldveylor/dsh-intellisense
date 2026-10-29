@@ -15,7 +15,7 @@ test('archived builtin restrictions survive global edits and restart', async () 
     const original = session.profile.pointer;
     await catalog.saveProfile('Default', { ...catalog.configuration(), builtinDisabled: ['tools'], builtinVisible: { 'tools.profile.load': 2 } }, { trusted: true });
     assert.equal(session.profile.pointer, original);
-    assert.equal(session.profile.snapshot.resolve('tools.inspect')?.type, 'command');
+    assert.equal(session.profile.snapshot.resolve('tools.inspect')?.type, 'function');
     const restoredCatalog = new SemanticRegistry(store);
     await restoredCatalog.load();
     const restoredSessions = new ProfileSessions(new NamespaceComponent(new Context(), restoredCatalog), store);

@@ -21,7 +21,7 @@ export function searchDefinition(namespaces: Pick<NamespaceIntegration, 'entries
             execution.signal.throwIfAborted();
             const addition = await namespaces.addition(agent);
             if (!addition.profile.snapshot.resolve(pluginCommands.searchCommand.path)) throw new Error('Execution denied: tools.search');
-            const entries = (await namespaces.entries(agent)).map(entry => ({ path: entry.path, tool: entry.tool, schema: entry.schema, output: entry.output, doc: entry.node.serialize().command.doc ?? entry.doc }));
+            const entries = (await namespaces.entries(agent)).map(entry => ({ path: entry.path, tool: entry.tool, schema: entry.schema, output: entry.output, doc: entry.node.serialize().function.doc ?? entry.doc }));
             const generation = JSON.stringify([addition.profile.pointer, entries]);
             let cached = corpora.get(agent);
             if (cached?.generation !== generation) {

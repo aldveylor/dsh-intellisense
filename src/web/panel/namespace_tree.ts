@@ -23,7 +23,7 @@ export function namespacePaths(draft: Pick<TreeDraft, 'mappings' | 'namespaces'>
 /** @brief Match a namespace and its complete subtree without matching similarly named siblings. */
 export function inNamespace(path: string, namespace: string): boolean { return path === namespace || path.startsWith(`${namespace}.`); }
 
-/** @brief Preserve mixed namespace/command ordering, appending newly created nodes. */
+/** @brief Preserve mixed namespace/function ordering, appending newly created nodes. */
 export function orderedPaths(paths: string[], order: string[]): string[] {
     const rank = new Map([...new Set([...order, ...paths])].map((path, i) => [path, i]));
     return [...paths].sort((a, b) => rank.get(a)! - rank.get(b)!);
@@ -73,7 +73,7 @@ export interface TreeDragSource { namespace: boolean; path?: string; id?: string
 export interface TreeDropTarget { path: string; position: 'inside' | 'before' | 'after' }
 
 /** @brief Move or mount any tree node atomically, including cross-namespace insertion beside commands. */
-export function dropTree(draft: TreeDraft, source: TreeDragSource, target: TreeDropTarget, defaultName = 'command'): TreeDraft {
+export function dropTree(draft: TreeDraft, source: TreeDragSource, target: TreeDropTarget, defaultName = 'function'): TreeDraft {
     const parent = target.position === 'inside' ? target.path : target.path.split('.').slice(0, -1).join('.');
     if (isFixedNamespace(parent, draft.provided)) throw new Error('fixed_drop_target');
     if ((source.namespace && source.path && isFixedNamespace(source.path)) || (source.path && providedNamespace(source.path, draft.provided)?.commands.some(command => command.path === source.path && !command.permissions.movable))) throw new Error('fixed_move_source');

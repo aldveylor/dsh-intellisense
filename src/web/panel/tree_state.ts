@@ -10,7 +10,7 @@ export function treeDisabledState(roots: readonly TreeNode[], builtinDisabled: r
         const path = node.path;
         const disabled = ancestor || disabledNamespaces.has(path);
         states.set(path, { disabled: node.permissions.disableable && (disabled || disabledCommands.has(path)), disabledByAncestor: ancestor });
-        node.render({ command: () => {}, namespace: namespace => namespace.children.forEach(child => visit(child, disabled)) });
+        node.render({ function: () => {}, namespace: namespace => namespace.children.forEach(child => visit(child, disabled)) });
     };
     roots.forEach(node => visit(node, false));
     return states;

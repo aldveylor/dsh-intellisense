@@ -1,6 +1,6 @@
 import { NamespaceComponent } from '../../src/profile/component.js';
 import { EditableNamespace } from '../../src/profile/namespace.js';
-import { EditableCommand } from '../../src/profile/command.js';
+import { EditableFunction } from '../../src/profile/function.js';
 import { Statistics } from '../../src/statistics/statistics.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -247,7 +247,7 @@ test('tool metadata hides private tools while concrete nodes identify fixed tool
     const factory = registry.definitions.createInitialProfile;
     registry.definitions.createInitialProfile = () => {
         const root = factory();
-        root.create('custom', () => new EditableNamespace()).create('fixed', () => new EditableCommand()).setTool('fixed_custom').setPermissions({ removable: false });
+        root.create('custom', () => new EditableNamespace()).create('fixed', () => new EditableFunction()).setTool('fixed_custom').setPermissions({ removable: false });
         return root;
     };
     registry.toolAdditions.set('hidden_custom', { hidden: true });

@@ -375,8 +375,8 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
         const visit = (node: TreeNode): void => {
             if (tree.disabled(node.path)) return;
             node.render({
-                command: command => {
-                    if (command.path === 'tools.inspect') inspectAvailable = toolsById.has(command.command?.id ?? '');
+                function: command => {
+                    if (command.path === 'tools.inspect') inspectAvailable = toolsById.has(command.function?.id ?? '');
                     else if (command.level !== 2) incompletePins = true;
                 },
                 namespace: namespace => namespace.children.forEach(visit),

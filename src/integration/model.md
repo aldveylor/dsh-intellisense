@@ -2,7 +2,7 @@
 
 presentation.ts 按作用域选择 native/PTC，均通过 DSH native 工具执行。PTC 在自己的作用域创建 namespaceRuntime/codeRuntime，不替换全局后端。profile 配置可锁定初始化名称；现有同名会话仍保留原快照版本。没有显式 presentation 的会话不启用此插件。
 
-ctx.intellisense 包含 profiles（同 ctx.toolsNamespace）、toolAdditions、statistics、inspectStatistics、searchEngines。toolAdditions 位于 tool_additions/，只保存独立工具元数据；内置固定身份、契约与预加载行为由实际 Profile 命令类实现。
+ctx.intellisense 包含 profiles（同 ctx.toolsNamespace）、toolAdditions、statistics、inspectStatistics、searchEngines。toolAdditions 位于 tool_additions/，只保存独立工具元数据；内置固定身份、契约与预加载行为由实际 Profile 函数类实现。
 
 agent_session_addition.ts 公开只读 name、profile: ProfileReference、会话统计和 save()。profile.pointer 是全局递增版本号，profile.snapshot 返回独立值，不能借此修改会话版本。save() 只保存引用。会话初始化、父子继承、恢复和显式 switch 由 ProfileSessions 负责，不生成内部会话 registry。
 

@@ -129,7 +129,7 @@ The native column uses namespace shorthand: the actual call is, for example, `ns
 
 `load` returns a Profile containing `name` and optional readonly `permissions`. `ProfileWrite` only accepts optional `brief` and `root`. It forbids `name` and recursively forbids `permissions`. The anonymous root only accepts `type: 'namespace'` and `children`. Host extensions can import `profileWrite(loaded)` from the package root to project loaded data into the write model. Models can read `tools.profile.annotation` for full declarations.
 
-Ordinary namespace nodes accept `type: 'namespace'`, `description?`, `children?`, `fixedLevel?: 0 | 1` and `disabled?: boolean`. Command nodes accept `type: 'command'`, `command: { tool: string, doc?: string }`, `fixedLevel?: 0 | 1 | 2` and `disabled?: boolean`. Keys in `children` are member names. Fixed level 0 means unpinned, 1 means brief hints, and 2 means detailed hints and direct native registration.
+Ordinary namespace nodes accept `type: 'namespace'`, `description?`, `children?`, `fixedLevel?: 0 | 1` and `disabled?: boolean`. Function nodes accept `type: 'function'`, `function: { tool: string, doc?: string }`, `fixedLevel?: 0 | 1 | 2` and `disabled?: boolean`. Keys in `children` are member names. Fixed level 0 means unpinned, 1 means brief hints, and 2 means detailed hints and direct native registration.
 
 A complete `save` must retain the protected `tools` subtree, including identities, paths and documentation. Omitted ordinary mounts are removed. In `save`, `tools` defaults to disabled; explicitly set `disabled: false` to keep it enabled.
 

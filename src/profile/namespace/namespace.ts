@@ -1,16 +1,16 @@
 import type { ProfileSnapshot } from '../profile.js';
 import type { ProfileNode } from '../node.js';
-import type { ProfileCommand } from '../command.js';
+import type { ProfileFunction } from '../function.js';
 import type { ProfileNamespace } from '../namespace.js';
 import type { PresentationMode } from '../../integration/presentation.js';
 import type { ToolAdditions } from '../../integration/tool_additions/tool_additions.js';
 import type { PhysicalTool } from '../catalog/registry.js';
-import type { CommandContract, SerializedNode } from './node.js';
+import type { FunctionContract, SerializedNode } from './node.js';
 import type { CommandBinding } from '../../runtime/protocol.js';
 import { namespaceDeclaration, callableDeclaration } from './declaration.js';
-import { commandDeclaration, parameters, resultField } from './command_contract/command_contract.js';
+import { functionDeclaration, parameters, resultField } from './function_contract/function_contract.js';
 import { z } from 'zod';
-export { nativeArgumentsFor, resultFor } from './command_contract/command_contract.js';
+export { nativeArgumentsFor, resultFor } from './function_contract/function_contract.js';
 export type { Node, NodeType, Permission, SerializedNode } from './node.js';
 
 /** @brief YAML aliases mount physical tools at additional namespace paths. */
@@ -25,11 +25,11 @@ export const Aliases = z.array(z.strictObject({ path: z.string().regex(/^[A-Za-z
 });
 
 /** @brief Flat output contract for a physical tool at one Profile path. */
-export interface ManifestEntry extends CommandContract { path: string }
+export interface ManifestEntry extends FunctionContract { path: string }
 
-/** @brief A derived command contract retaining its original Profile node, without a second node hierarchy. */
-export interface CommandEntry extends ManifestEntry {
-    node: ProfileCommand;
+/** @brief A derived function contract retaining its original Profile node, without a second node hierarchy. */
+export interface FunctionEntry extends ManifestEntry {
+    node: ProfileFunction;
     name: string;
     fixedLevel: 0 | 1 | 2;
     provided: boolean;
@@ -51,15 +51,15 @@ export function* profileMembers(root: ProfileNamespace, enabled = true, parent =
     }
 }
 
-/** @brief Supplement original commands with scoped physical contracts only at a consumer boundary. */
-export function commandEntries(profile: ProfileSnapshot, tools: readonly PhysicalTool[], mode: PresentationMode, additions: ToolAdditions): CommandEntry[] {
+/** @brief Supplement original functions with scoped physical contracts only at a consumer boundary. */
+export function functionEntries(profile: ProfileSnapshot, tools: readonly PhysicalTool[], mode: PresentationMode, additions: ToolAdditions): FunctionEntry[] {
     const byTool = new Map(tools.map(tool => [tool.id, tool]));
     const members = [...profileMembers(profile)];
-    const discovery = members.some(({ node }) => node.type === 'command' && (node as ProfileCommand).discovery
-        && byTool.has((node as ProfileCommand).tool!) && !additions.get((node as ProfileCommand).tool!).hidden);
+    const discovery = members.some(({ node }) => node.type === 'function' && (node as ProfileFunction).discovery
+        && byTool.has((node as ProfileFunction).tool!) && !additions.get((node as ProfileFunction).tool!).hidden);
     return members.flatMap(({ path, node }) => {
-        if (node.type !== 'command') return [];
-        const command = node as ProfileCommand;
+        if (node.type !== 'function') return [];
+        const command = node as ProfileFunction;
         const tool = byTool.get(command.tool!);
         const addition = additions.get(command.tool!);
         if (!tool || addition.hidden) return [];
@@ -80,7 +80,7 @@ export function normalizeInspectQueries(queries: readonly string[]): string[] {
     });
 }
 
-/** @brief Resolve exact commands or direct namespace members using the snapshot's own node identities. */
+/** @brief Resolve exact functions or direct namespace members using the snapshot's own node identities. */
 export function queryNodes(profile: ProfileSnapshot, queries: readonly string[]): ProfileMember[] {
     const selected = new Map<string, ProfileNode>();
     for (const query of normalizeInspectQueries(queries)) {
@@ -90,13 +90,13 @@ export function queryNodes(profile: ProfileSnapshot, queries: readonly string[])
             for (const [name, child] of (node as ProfileNamespace).children) {
                 if (!child.disabled) selected.set(path ? `${path}.${name}` : name, child);
             }
-        } else if (node?.type === 'command' && !query.endsWith('.')) selected.set(path, node);
+        } else if (node?.type === 'function' && !query.endsWith('.')) selected.set(path, node);
     }
     return [...selected].map(([path, node]) => ({ path, node }));
 }
 
 /** @brief Compile one flat contract into the data understood by the isolated VM. */
-export function bindingFor(entry: CommandEntry): CommandBinding {
+export function bindingFor(entry: FunctionEntry): CommandBinding {
     const fields = parameters(entry);
     const result = resultField(entry);
     return { path: entry.path, tool: entry.tool,
@@ -105,23 +105,23 @@ export function bindingFor(entry: CommandEntry): CommandBinding {
         result: entry.presentation?.discardResult ? { kind: 'discard' } : result ? { kind: 'field', field: result[0] } : { kind: 'identity' } };
 }
 
-/** @brief Render an individual command without constructing namespace node objects. */
+/** @brief Render an individual function without constructing namespace node objects. */
 export function declaration(entry: ManifestEntry, nested = true): string {
     return namespaceDeclaration([{ path: nested ? entry.path : entry.path.split('.').at(-1)!, declaration: entry.presentation
-        ? callableDeclaration({ ...entry.presentation, path: entry.path, description: entry.doc }) : commandDeclaration(entry) }], false);
+        ? callableDeclaration({ ...entry.presentation, path: entry.path, description: entry.doc }) : functionDeclaration(entry) }], false);
 }
 
 /** @brief Export browser transport data directly from Profile nodes; no semantic tree is constructed. */
 export function serializeProfile(profile: ProfileSnapshot, tools: readonly PhysicalTool[], mode: PresentationMode, additions: ToolAdditions): SerializedNode {
-    const entries = new Map(commandEntries(profile, tools, mode, additions).map(entry => [entry.path, entry]));
+    const entries = new Map(functionEntries(profile, tools, mode, additions).map(entry => [entry.path, entry]));
     const visit = (node: ProfileNode, name: string, path: string): SerializedNode => {
         const data = node.serialize();
         if (node.type === 'namespace') return { type: 'tree', name, permissions: node.permissions, description: data.description,
             disabled: node.disabled, fixedLevel: data.fixedLevel as 0 | 1, children: [...(node as ProfileNamespace).children].map(([name, child]) => visit(child, name, path ? `${path}.${name}` : name)) };
         const entry = entries.get(path);
         return { type: 'leaf', name, permissions: node.permissions, disabled: node.disabled, fixedLevel: data.fixedLevel as 0 | 1 | 2,
-            description: entry?.doc ?? data.command?.doc, preload: entry?.preload,
-            command: entry ? { tool: entry.tool, schema: entry.schema, output: entry.output, doc: entry.doc, presentation: entry.presentation } : { tool: (node as ProfileCommand).tool!, schema: {}, doc: data.command?.doc ?? '' } };
+            description: entry?.doc ?? data.function?.doc, preload: entry?.preload,
+            function: entry ? { tool: entry.tool, schema: entry.schema, output: entry.output, doc: entry.doc, presentation: entry.presentation } : { tool: (node as ProfileFunction).tool!, schema: {}, doc: data.function?.doc ?? '' } };
     };
     return visit(profile, '', '');
 }

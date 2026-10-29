@@ -42,7 +42,7 @@ test('namespace deletion removes the subtree while retaining outside mappings an
     assert.deepEqual(next.order, ['other', 'other.read']);
 });
 
-test('mixed namespace/command order changes only for siblings and survives a namespace rename', () => {
+test('mixed namespace/function order changes only for siblings and survives a namespace rename', () => {
     const current = draft();
     const before = dropTree(current, { namespace: true, path: 'files.disk' }, { path: 'files.write', position: 'before' });
     assert.deepEqual(orderedPaths(['files.write', 'files.disk'], before.order), ['files.disk', 'files.write']);

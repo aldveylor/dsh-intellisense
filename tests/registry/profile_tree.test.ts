@@ -38,7 +38,7 @@ test('Profile schema rejects invalid nodes and configuration rejects missing pro
     delete missing.root.children!['tools'];
     assert.throws(() => profileConfiguration(missing, current, commands), /Node cannot be removed: tools/);
     const replaced = structuredClone(profile);
-    replaced.root.children!['tools']!.children!['inspect']!.command!.tool = 'read';
+    replaced.root.children!['tools']!.children!['inspect']!.function!.tool = 'read';
     assert.throws(() => profileConfiguration(replaced, current, []), /cannot be removed|cannot be replaced/);
 });
 
@@ -50,8 +50,8 @@ test('Profile members use record keys and reject redundant names and array child
     assert.equal('name' in profile.root.children!['files']!.children!['read']!, false);
     assert.equal(ProfileSchema.safeParse({ ...profile, root: { ...profile.root, name: '' } }).success, false);
     assert.equal(ProfileSchema.safeParse({ ...profile, root: { ...profile.root, children: [] } }).success, false);
-    profile.root.children!['files']!.children!['read'] = { type: 'command', command: { tool: 'write' } };
-    assert.equal(ProfileSchema.parse(profile).root.children!['files']!.children!['read']!.command!.tool, 'write');
+    profile.root.children!['files']!.children!['read'] = { type: 'function', function: { tool: 'write' } };
+    assert.equal(ProfileSchema.parse(profile).root.children!['files']!.children!['read']!.function!.tool, 'write');
 });
 
 test('protected diagnostics reject rename and move and removal', () => {
@@ -95,8 +95,8 @@ test('save rejects missing protected descendants and forbidden documentation or 
     for (const edit of [
         (value: typeof profile) => { delete value.root.children!['tools']!.children!['profile']!.children!['save']; },
         (value: typeof profile) => { value.root.children!['tools']!.description = 'Forged'; },
-        (value: typeof profile) => { value.root.children!['tools']!.children!['inspect']!.command!.doc = 'Forged'; },
-        (value: typeof profile) => { delete value.root.children!['tools']!.children!['inspect']!.command!.doc; },
+        (value: typeof profile) => { value.root.children!['tools']!.children!['inspect']!.function!.doc = 'Forged'; },
+        (value: typeof profile) => { delete value.root.children!['tools']!.children!['inspect']!.function!.doc; },
         (value: typeof profile) => { value.root.children!['tools']!.children!['inspect']!.fixedLevel = 0; },
     ]) {
         const input = new ProfileDocument(profile.save());
@@ -134,12 +134,12 @@ test('ordinary namespaces may share protected member names without replacing pro
 });
 
 
-test('Profile command contracts reject removed argument mappings', () => {
+test('Profile function contracts reject removed argument mappings', () => {
     const { profile } = fixture();
     const files = profile.root.children!['files'];
     const command = files!.children!['read']!;
-    assert(command.type === 'command');
-    const invalid = { ...command, command: { ...command.command, argMap: { filename: 'path' } } };
+    assert(command.type === 'function');
+    const invalid = { ...command, function: { ...command.function, argMap: { filename: 'path' } } };
     files!.children!['read'] = invalid;
     assert.equal(ProfileSchema.safeParse(profile).success, false);
 });

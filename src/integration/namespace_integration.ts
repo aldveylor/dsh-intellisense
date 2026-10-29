@@ -11,9 +11,9 @@ import { type ScopeKey } from '@deepseek-ai/dsh-scope';
 import '@deepseek-ai/dsh-agent-preset-registry';
 import type { PhysicalTool } from '../profile/catalog/registry.js';
 import type { ProfileSessionCollection } from '../profile/session.js';
-import { declaration, commandEntries, profileMembers, queryNodes, normalizeInspectQueries, nativeArgumentsFor, resultFor, type Aliases, type CommandEntry } from '../profile/namespace/namespace.js';
+import { declaration, functionEntries, profileMembers, queryNodes, normalizeInspectQueries, nativeArgumentsFor, resultFor, type Aliases, type FunctionEntry } from '../profile/namespace/namespace.js';
 import type { AgentSessionAddition } from './agent_session_addition.js';
-import type { ProfileCommand } from '../profile/command.js';
+import type { ProfileFunction } from '../profile/function.js';
 import { inspect } from '../tools/inspect.js';
 import { namespaceDirectory, nativeDirectory, type NamespaceHint } from '../profile/namespace/prompt.js';
 
@@ -73,8 +73,8 @@ export class NamespaceIntegration {
         const profile = agent ? await this.get(agent) : (await this.namespace.reference()).snapshot;
         const paths = new Map<string, string[]>();
         for (const { path, node } of profileMembers(profile, false)) {
-            if (node.type !== 'command') continue;
-            const tool = (node as ProfileCommand).tool!;
+            if (node.type !== 'function') continue;
+            const tool = (node as ProfileFunction).tool!;
             if (!paths.has(tool)) paths.set(tool, []);
             paths.get(tool)!.push(path);
         }
@@ -86,7 +86,7 @@ export class NamespaceIntegration {
 
     /** @brief Derive protected physical identities from the service's initial node interfaces. */
     owns(tool: string): boolean {
-        return [...profileMembers(this.namespace.createInitialProfile(), false)].some(({ node }) => node.type === 'command' && !node.permissions.removable && (node as ProfileCommand).tool === tool);
+        return [...profileMembers(this.namespace.createInitialProfile(), false)].some(({ node }) => node.type === 'function' && !node.permissions.removable && (node as ProfileFunction).tool === tool);
     }
 
     /** @brief Read catalog names independently from a session's selected name and old version. */
@@ -95,7 +95,7 @@ export class NamespaceIntegration {
     }
 
     /** @brief Ask concrete commands for enabled preloaded values. */
-    async values(agent: Agent, entries?: CommandEntry[]): Promise<Record<string, z.infer<ReturnType<typeof z.json>>>> {
+    async values(agent: Agent, entries?: FunctionEntry[]): Promise<Record<string, z.infer<ReturnType<typeof z.json>>>> {
         const values: Record<string, z.infer<ReturnType<typeof z.json>>> = {};
         for (const entry of entries ?? await this.entries(agent)) {
             if (entry.preload && entry.node.readValue) values[entry.path] = await entry.node.readValue({ toolBriefs: () => this.toolBriefs(agent), profileNames: () => this.profileNames(agent) }) as z.infer<ReturnType<typeof z.json>>;
@@ -174,8 +174,8 @@ export class NamespaceIntegration {
     }
 
     /** @brief Derive flat physical contracts while retaining references to the original Profile commands. */
-    async entries(agent: Agent, profile?: ProfileSnapshot): Promise<CommandEntry[]> {
-        return commandEntries(profile ?? await this.get(agent), this.physical(agent), this.isPtc(agent) ? 'ptc' : 'native', this.intellisense.toolAdditions);
+    async entries(agent: Agent, profile?: ProfileSnapshot): Promise<FunctionEntry[]> {
+        return functionEntries(profile ?? await this.get(agent), this.physical(agent), this.isPtc(agent) ? 'ptc' : 'native', this.intellisense.toolAdditions);
     }
 
     /** @brief Refresh tool presentation after the conversation configuration changes. */
@@ -192,7 +192,7 @@ export class NamespaceIntegration {
         const hints = new Map<string, NamespaceHint>();
         for (const entry of entries) {
             const level = entry.fixedLevel;
-            const description = entry.provided ? entry.doc : entry.node.serialize().command.doc ?? entry.doc.trim().split(/\r?\n/, 1)[0]!;
+            const description = entry.provided ? entry.doc : entry.node.serialize().function.doc ?? entry.doc.trim().split(/\r?\n/, 1)[0]!;
             if (level && (ptc || level === 1)) hints.set(entry.path, { path: entry.path, description,
                 ...(level === 2 ? { declaration: entry.preload ? `/** @brief ${description} */\nconst ${entry.name}: ${entry.signature};` : declaration({ ...entry, doc: description }, false) } : {}) });
         }
@@ -221,7 +221,7 @@ export class NamespaceIntegration {
         let discovered = this.discovered.get(agent.id);
         if (!discovered) this.discovered.set(agent.id, discovered = new Set());
         for (const { path, node } of queryNodes(profile, queries)) {
-            if (node.type !== 'command' || !exact.has(path) || !available.has(path)) continue;
+            if (node.type !== 'function' || !exact.has(path) || !available.has(path)) continue;
             discovered.delete(path);
             discovered.add(path);
         }
@@ -232,14 +232,14 @@ export class NamespaceIntegration {
     }
 
     /** @brief Register native tools from flat contracts without constructing another node hierarchy. */
-    async syncNative(agent: Agent, current?: CommandEntry[]): Promise<string[]> {
+    async syncNative(agent: Agent, current?: FunctionEntry[]): Promise<string[]> {
         const addition = await this.addition(agent);
         const entries = current ?? await this.entries(agent);
         const discovered = this.discovered.get(agent.id);
         const available = new Set(entries.map(entry => entry.path));
         for (const path of discovered ?? []) if (!available.has(path)) discovered!.delete(path);
         const bindings = nativeBindings(entries, this.physical(agent).map(tool => tool.id)).filter(({ entry }) => entry.fixedLevel === 2 || discovered?.has(entry.path));
-        const descriptionFor = (entry: CommandEntry): string => entry.node.serialize().command.doc ?? entry.doc.trim().split(/\r?\n/, 1)[0]!;
+        const descriptionFor = (entry: FunctionEntry): string => entry.node.serialize().function.doc ?? entry.doc.trim().split(/\r?\n/, 1)[0]!;
         const fingerprint = JSON.stringify([addition.profile.pointer, bindings.map(({ entry, name }) => ({ name, path: entry.path, doc: entry.doc, schema: entry.schema, output: entry.output, description: descriptionFor(entry) }))]);
         const previous = this.nativeTools.get(agent.id);
         const names = bindings.map(binding => binding.name);
@@ -268,7 +268,7 @@ export class NamespaceIntegration {
     }
 
     /** @brief Dispatch a namespace call through native permission checks and paired child audit records. */
-    async dispatch(agent: Agent, entry: CommandEntry, args: unknown, parent: ToolRunContext, sequence: number): Promise<unknown> {
+    async dispatch(agent: Agent, entry: FunctionEntry, args: unknown, parent: ToolRunContext, sequence: number): Promise<unknown> {
         const value = await this.dispatchTool(agent, entry.tool, args, parent, sequence);
         return entry.presentation?.discardResult ? undefined : resultFor(entry, value);
     }

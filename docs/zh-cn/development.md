@@ -129,7 +129,7 @@ Native 表格使用命名空间简写，实际调用例如 `ns_tools__profile__p
 
 `load` 返回含 `name` 的 Profile 及可选只读 `permissions`。写入的 `ProfileWrite` 仅包含可选 `brief` 和 `root`，禁止 `name` 及任意层级的 `permissions`；匿名 `root` 只允许 `type: 'namespace'` 与 `children`。宿主扩展可从包根入口导入 `profileWrite(loaded)` 投影为写入模型。模型内可读取 `tools.profile.annotation` 获取完整类型。
 
-普通命名空间节点允许 `type: 'namespace'`、`description?`、`children?`、`fixedLevel?: 0 | 1`、`disabled?: boolean`；命令节点允许 `type: 'command'`、`command: { tool: string, doc?: string }`、`fixedLevel?: 0 | 1 | 2`、`disabled?: boolean`。`children` 的键就是成员名。固定等级 0 表示不固定，1 表示简略提示，2 表示详细提示（native 中直接注册命令）。
+普通命名空间节点允许 `type: 'namespace'`、`description?`、`children?`、`fixedLevel?: 0 | 1`、`disabled?: boolean`；函数节点允许 `type: 'function'`、`function: { tool: string, doc?: string }`、`fixedLevel?: 0 | 1 | 2`、`disabled?: boolean`。`children` 的键就是成员名。固定等级 0 表示不固定，1 表示简略提示，2 表示详细提示（native 中直接注册命令）。
 
 完整 `save` 必须保留受保护的 `tools` 子树及其身份、路径与文档，省略普通挂载会删除该挂载。`tools` 在 `save` 中默认禁用，需显式写 `disabled: false` 保持启用。
 

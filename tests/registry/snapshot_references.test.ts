@@ -6,7 +6,7 @@ import { MemoryStore } from '../../src/storage/store.js';
 import { SemanticRegistry } from '../../src/profile/catalog/registry.js';
 import { ProfileSessions } from '../../src/profile/catalog/profiles.js';
 import { EditableNamespace } from '../../src/profile/namespace.js';
-import { EditableCommand } from '../../src/profile/command.js';
+import { EditableFunction } from '../../src/profile/function.js';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
 import { ToolAdditions } from '../../src/integration/tool_additions/tool_additions.js';
 
@@ -54,7 +54,7 @@ test('session snapshots are immutable and switch archives an existing global poi
     assert.equal(parent.profile, child.profile);
     const initial = parent.profile.pointer;
     const draft = parent.profile.snapshot;
-    draft.create('files', () => new EditableNamespace()).create('read', () => new EditableCommand()).setTool('read');
+    draft.create('files', () => new EditableNamespace()).create('read', () => new EditableFunction()).setTool('read');
     assert.equal(parent.profile.snapshot.resolve('files'), undefined);
     await parent.save();
     assert.equal(parent.profile.pointer, initial);
@@ -112,8 +112,8 @@ test('tool additions contain metadata while concrete command classes own builtin
     assert.throws(() => additions.set('read', { fixed: true } as never), /Invalid tool addition/);
     const catalog = new SemanticRegistry(new MemoryStore());
     const inspect = (await catalog.reference()).snapshot.resolve('tools.inspect');
-    assert.equal(inspect?.type, 'command');
-    assert.equal((inspect as import('../../src/profile/command.js').ProfileCommand).discovery, true);
+    assert.equal(inspect?.type, 'function');
+    assert.equal((inspect as import('../../src/profile/function.js').ProfileFunction).discovery, true);
     assert.equal('setToolAddition' in catalog.definitions, false);
     assert.equal('addition' in catalog.definitions, false);
 });

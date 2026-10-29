@@ -1,13 +1,13 @@
 import { pluginCommands } from '../../src/runtime/builtins.js';
 import { NamespaceIntegration } from '../../src/integration/namespace_integration.js';
 import type { Agent } from '@deepseek-ai/dsh-agent';
-import { commandEntries, bindingFor, declaration, profileMembers, nativeArgumentsFor, serializeProfile, type ManifestEntry } from '../../src/profile/namespace/namespace.js';
+import { functionEntries, bindingFor, declaration, profileMembers, nativeArgumentsFor, serializeProfile, type ManifestEntry } from '../../src/profile/namespace/namespace.js';
 import { inspect as renderInspect } from '../../src/tools/inspect.js';
 import { nativeDiscovery as renderNative, nativeQueryEntries as selectNative } from '../../src/profile/namespace/native_tools.js';
 import { profileTree } from '../../src/profile/catalog/profile_tree.js';
 import { RootNamespace } from '../../src/tools/profile_nodes/root_namespace.js';
 import { EditableNamespace, type ProfileNamespace } from '../../src/profile/namespace.js';
-import { EditableCommand } from '../../src/profile/command.js';
+import { EditableFunction } from '../../src/profile/function.js';
 import type { ProfileSnapshot } from '../../src/profile/profile.js';
 import type { SemanticRegistry, PhysicalTool } from '../../src/profile/catalog/registry.js';
 import { ToolAdditions } from '../../src/integration/tool_additions/tool_additions.js';
@@ -15,7 +15,7 @@ import { RuntimeHost } from '../../src/runtime/host.js';
 
 /** @brief Test conveniences over actual Profile nodes and flat contracts, with no shadow node graph. */
 export function profileFixture(profile: ProfileSnapshot, tools: PhysicalTool[], mode: 'native' | 'ptc' = 'ptc', additions = new ToolAdditions()) {
-    const entries = commandEntries(profile, tools, mode, additions).map(entry => Object.assign(entry, {
+    const entries = functionEntries(profile, tools, mode, additions).map(entry => Object.assign(entry, {
         binding: () => bindingFor(entry), declaration: (nested = true) => declaration(entry, nested),
         serialize: () => ({ description: entry.doc }),
     }));
@@ -31,7 +31,7 @@ export function namespace(entries: readonly ManifestEntry[] = []) {
         const parts = entry.path.split('.');
         let parent: ProfileNamespace = profile;
         for (const name of parts.slice(0, -1)) parent = parent.getOrCreate(name, () => new EditableNamespace()) as ProfileNamespace;
-        if (!parent.children.has(parts.at(-1)!)) parent.create(parts.at(-1)!, () => new EditableCommand()).setTool(entry.tool);
+        if (!parent.children.has(parts.at(-1)!)) parent.create(parts.at(-1)!, () => new EditableFunction()).setTool(entry.tool);
     }
     return profileFixture(profile, entries.map(entry => ({ id: entry.tool, description: entry.doc, parameters: entry.schema, output: entry.output })));
 }
@@ -39,14 +39,14 @@ export function namespace(entries: readonly ManifestEntry[] = []) {
 /** @brief Exercise global editor conversion independently from session runtime state. */
 export function manifest(registry: SemanticRegistry, aliases: readonly { path: string; tool: string }[] = [], mode: 'native' | 'ptc' = 'ptc') {
     const profile = registry.definitions.profile(profileTree(registry.profileSelection().selected, registry.configuration(), registry.definitions).save());
-    const mounted = new Set([...profileMembers(profile)].filter(({ node }) => node.type === 'command').map(({ node }) => (node as import('../../src/profile/command.js').ProfileCommand).tool));
+    const mounted = new Set([...profileMembers(profile)].filter(({ node }) => node.type === 'function').map(({ node }) => (node as import('../../src/profile/function.js').ProfileFunction).tool));
     for (const alias of aliases) {
         if (!mounted.has(alias.tool)) continue;
         if (!registry.tools().some(tool => tool.id === alias.tool)) continue;
         const parts = alias.path.split('.');
         let parent: ProfileNamespace = profile;
         for (const name of parts.slice(0, -1)) parent = parent.getOrCreate(name, () => new EditableNamespace()) as ProfileNamespace;
-        if (!parent.children.has(parts.at(-1)!)) parent.create(parts.at(-1)!, () => new EditableCommand()).setTool(alias.tool);
+        if (!parent.children.has(parts.at(-1)!)) parent.create(parts.at(-1)!, () => new EditableFunction()).setTool(alias.tool);
     }
     return profileFixture(profile, registry.tools(), mode, registry.toolAdditions);
 }

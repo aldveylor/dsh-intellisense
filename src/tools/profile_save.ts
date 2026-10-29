@@ -18,8 +18,8 @@ export function profileSaveInformation(profile: ProfileData, tools: readonly str
     let incompletePins = false;
     const visit = (node: ProfileTreeNode, path: string): void => {
         if (node.disabled) return;
-        if (node.type === 'command') {
-            if (path === discovery) canDiscover ||= available.has(node.command.tool);
+        if (node.type === 'function') {
+            if (path === discovery) canDiscover ||= available.has(node.function.tool);
             else if (node.fixedLevel !== 2) incompletePins = true;
             return;
         }

@@ -3,13 +3,13 @@ import type { PhysicalTool } from '../../profile/catalog/registry.js';
 import type { ProvidedNamespace } from './tree_provider.js';
 import { namespacePaths, orderedPaths, type TreeDraft } from './namespace_tree.js';
 import { NamespaceTreeNode } from './tree_nodes/namespace_tree_node.js';
-import { CommandTreeNode } from './tree_nodes/command_tree_node.js';
+import { FunctionTreeNode } from './tree_nodes/function_tree_node.js';
 import { ProvidedNamespaceTreeNode } from './tree_nodes/provided_namespace_tree_node.js';
 import type { TreeNode } from './tree_nodes/tree_node.js';
 export { TreeNode, type TreeRenderer } from './tree_nodes/tree_node.js';
-export { CommandTreeNode } from './tree_nodes/command_tree_node.js';
+export { FunctionTreeNode } from './tree_nodes/function_tree_node.js';
 export { NamespaceTreeNode } from './tree_nodes/namespace_tree_node.js';
-export { ProvidedCommandTreeNode } from './tree_nodes/provided_command_tree_node.js';
+export { ProvidedFunctionTreeNode } from './tree_nodes/provided_function_tree_node.js';
 export { ProvidedNamespaceTreeNode } from './tree_nodes/provided_namespace_tree_node.js';
 
 /** @brief Assemble an ordered node tree from Profile data and runtime namespace contracts. */
@@ -39,7 +39,7 @@ export class NamespaceTree {
             const parts = path.split('.');
             const parent = ensureNamespace(parts.slice(0, -1).join('.'));
             const tool = toolsById.get(mapping.id);
-            parent.add(new CommandTreeNode(parts.at(-1)!, parent, mapping, tool?.description, tool, permissionsAt(draft.nodeSettings, parts)));
+            parent.add(new FunctionTreeNode(parts.at(-1)!, parent, mapping, tool?.description, tool, permissionsAt(draft.nodeSettings, parts)));
         }
         /** @brief Apply Profile ordering recursively to editable branches. */
         const sort = (parent: NamespaceTreeNode): void => {
