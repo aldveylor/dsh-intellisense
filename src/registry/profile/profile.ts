@@ -18,20 +18,20 @@ export interface Profile extends ProfileNamespace {
 /** @brief Profile and ProfileSnapshot describe the same anonymous editing value. */
 export type ProfileSnapshot = Profile;
 
-/** @brief Construct a fresh typed Profile, optionally hydrating stored data. */
+/** @brief Construct a fresh typed Profile with its initial nodes; use clone to hydrate stored data. */
 export type ProfileFactory = () => ProfileSnapshot;
 
 /** @brief Named snapshot collection with atomic callback-based modification. */
 export interface ProfileCollection {
-    /** @brief Replaceable constructor used for initial Profiles and typed snapshot hydration. */
+    /** @brief Replaceable no-argument constructor used to declare initial Profile nodes and their concrete types. */
     createInitialProfile: ProfileFactory;
     /** @brief List catalog names without Profile data or selection metadata. */
     list(): Promise<string[]>;
     /** @brief Read an independent tree snapshot, or undefined when absent. */
     get(name: string): Promise<ProfileSnapshot | undefined>;
-    /** @brief Create an empty named Profile; duplicate names are rejected. */
+    /** @brief Create an initialized named Profile; duplicate names are rejected. */
     create(name: string): Promise<ProfileSnapshot>;
-    /** @brief Read an existing Profile or atomically create an empty one. */
+    /** @brief Read an existing Profile or atomically create an initialized one. */
     getOrCreate(name: string): Promise<ProfileSnapshot>;
     /** @brief Delete a named Profile, falling back when selected; the last Profile cannot be removed. */
     remove(name: string): Promise<void>;

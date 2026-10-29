@@ -18,11 +18,11 @@ Profile 可同时保存来自多个预设的映射；当前模型作用域未挂
 
 `node.ts` 定义共享 Node、Permission 与 SerializedNode。NodeType 只区分 leaf（命令）和 tree（命名空间），服务端子类身份不进入协议。Permission 包含 commentable、renamable、movable、removable、disableable、acceptsChildren、availableFixLevels；固定等级为 0/1/2。serialize/toJSON 仅输出子树、命令契约、描述和权限，不包含父引用。
 
-`nodes/` 按类拆分实现，详见其 model.md。`namespace.ts` 作为上层入口，通过 createNamespace(context) 组织初始 tools 子树，再由 manifest 注册当前映射及别名。根是普通匿名 NamespaceNode，不存在 RootNamespaceNode。NamespaceNode.add 不覆盖已有成员；remove 由父节点检查子节点 permissions.removable。DefinedNamespaceNode 从递归接口数据构建已有子节点，再对外提供编辑权限。builtin_profile.ts 使用 toolsNamespace.edit 和节点接口显式安装 tools 子树及权限，替代专用 Tools/Profile/Inspect 节点类。tools 允许禁用，后代继承禁用状态。
+`nodes/` 按类拆分实现，详见其 model.md。`namespace.ts` 作为上层入口，通过 createNamespace(context) 组织初始 tools 子树，再由 manifest 注册当前映射及别名。执行投影的根是匿名 NamespaceNode；Profile 的具体操作根为 RootNamespace。NamespaceNode.add 不覆盖已有成员；remove 由父节点检查子节点 permissions.removable。DefinedNamespaceNode 从递归接口数据构建已有子节点，再对外提供编辑权限。builtin_profile.ts 配置默认 Profile 生成函数；RootNamespace、ImplToolsNamespace、ImplToolsProfileNamespace、ImplToolsInspectCommand 与共享的 ImplToolsCommand 直接构造内置树并实现各自约束。tools 允许禁用，后代继承禁用状态。
 
 tools.* 与普通工具共用 CommandNode，通过提供者契约声明重载、丢弃结果及预加载。tools.inspect 的节点权限仅允许固定等级 2，但可禁用。所有成员都在初始化时创建，inspect 查询只调用 queryNodes → resolve，查询期间不生成节点、不覆盖映射。PTC 函数绑定仅选择非 preload 的命令；所有命令节点均绑定物理工具，不再区分 tool/environment 部署类型。
 
-管理 API 将同一初始化树的 SerializedNode 传给客户端，客户端不导入内置命令表、不按 tools 等名称生成权限或节点。Profile.root 同样使用 SerializedNode 描述，保存时由提供者 effect 修复内置结构及固定值并拒绝违规外部插入；不能通过伪造 permissions 改写这些规则。实际工具执行权限仍由 DSH 原生 guard 处理。
+管理 API 将同一初始化树的 SerializedNode 传给客户端，客户端不导入内置命令表、不按 tools 等名称生成权限或节点。Profile.root 同样使用 SerializedNode 描述，保存时由具体根和子节点修正内置结构及固定值并拒绝违规外部插入；不能通过伪造 permissions 改写这些规则。实际工具执行权限仍由 DSH 原生 guard 处理。
 
 `prompt.ts` 根据 native/ptc 配置生成初始说明，PTC 渲染 Profile 选中的部分命名空间树，native 渲染简略固定项的 JSON 目录。初始说明仅保留命令发现入口、模式调用约定和通用运行时语义，不重复列举具体函数调用示例或 Profile API 的读取、切换、保存、删除及预加载字段用法；未知命令先直接查询 tools.inspect；PTC 通过 tools_run_code 调用命名空间，native 直接使用 DSML 命名空间工具。tools.inspect 的参数规则（queries 字符串数组参数、末尾点号、精确路径、global. 前缀与空字符串查询根命名空间）仅在 @param 中说明，函数摘要、执行入口描述与初始提示不重复强调，初始提示不附加查询结果为参考数据的宣示；初始提示强调当前工具基于命名空间，ns_ 标记挂载命令，双下划线 __ 是调用名称中的命名空间分隔符，对应查询路径中的点号；native 不附加完整根目录或工具映射，简略固定项使用 JSON，不生成 TS/JS 声明。
 
@@ -75,18 +75,14 @@ PTC 预加载通过 values 先按当前 Profile 的禁用规则过滤，再计�
 
 统计 counterSnapshot(field, session?) 返回指定字段的独立副本，不复制其它明细或汇总总数；命令摘要使用该接口读取全局 callsByTool。
 
-服务注册名为 toolsNamespace；工具调用路径仍为 tools.*。命令的结构锁定与提示固定独立：Mapping.pinned 阻止移除或改变原映射路径；普通命令的提示等级由 Mapping.alwaysVisible 保存，内置命令由 builtinVisible[path] 保存。CommandNode 携带 permissions 声明，保存约束由提供者 effect 检查，普通固定等级仍可选 0/1/2；内置注册通过节点接口将 tools.inspect 的 availableFixLevels 限为 [2]，因此即使 Profile 请求 0 或 1 也投影为 2，禁用状态仍独立生效。
+服务注册名为 toolsNamespace；工具调用路径仍为 tools.*。命令的结构锁定与提示固定独立：Mapping.pinned 阻止移除或改变原映射路径；普通命令的提示等级由 Mapping.alwaysVisible 保存，内置命令由 builtinVisible[path] 保存。CommandNode 携带 permissions 声明，保存约束由具体 Profile 根和子节点检查，普通固定等级仍可选 0/1/2；内置注册通过节点接口将 tools.inspect 的 availableFixLevels 限为 [2]，因此即使 Profile 请求 0 或 1 也投影为 2，禁用状态仍独立生效。
 
-service.ts 定义 ToolsNamespace interface，NamespaceComponent 实现该接口并继承 ProfileCollection 的 list/get/create/getOrCreate/remove/edit 合约。Profile 是无名称的匿名树 snapshot，初始为空；edit(name, modifier) 原子发布回调返回值，普通 snapshot 编辑不落盘。Profile 节点接口与内部 class 实现在 registry/profile/。
+service.ts 定义 ToolsNamespace interface，NamespaceComponent 实现该接口并继承 ProfileCollection 的 list/get/create/getOrCreate/remove/edit 合约。Profile 是无名称的匿名树 snapshot，默认由 RootNamespace 构造并包含内置 tools 子树；edit(name, modifier) 原子发布回调返回值，普通 snapshot 编辑不落盘。Profile 节点接口与内部 class 实现在 registry/profile/。
 
 ToolAddition 定义 fixed、hidden、ptcDescription 可选属性。fixed 禁止人工及 agent 新增挂载，插件 edit 可显式挂载；hidden 从目录、选择器和发现中排除，PTC 仍独立暴露 tools_run_code。native 采用物理工具原始说明，PTC 优先使用 ptcDescription。definitions.ts 统一管理属性注册及注销，builtin_profile.ts 通过相同注册接口配置内置工具；加载尚未显式物化的内置树时通过 edit 安装，之后以实际提交树为准。
 
+执行投影命令使用 CommandNode，Profile 编辑树使用实际的内置命令类。permissions 作为 agent 和前端可读声明保留，检查与修正在 RootNamespace 和各子节点实现中执行。工具契约与预加载生产器仍由 setToolAddition 注册。
 
-工具节点统一为 CommandNode；permissions 保留为 agent 和前端可读的权限声明，实际阻止由保存 effect 与具体节点实现负责。工具提供者通过 setToolAddition 注册 project（模式契约、签名、参数布局、返回策略）、discovery 标记及 value 生产器/刷新策略；通用树构建不识别内置命令表。默认固定等级由节点定义提供，RegistryConfiguration 不假设 tools.inspect。
+`setNamespaceImplementation(path, factory)` 可扩展执行投影的命名空间类型；Profile 的实际权限实现独立位于 tools/profile_nodes/，通过 createInitialProfile 构造，不依赖执行投影的专用子类。
 
-agent 的 tools.profile.save/apply 统一调用 toolsNamespace.saveProfile，经过 effect('save', handler) 顺序处理独立的 ProfileSaveEvent，由提供者修复与检查后原子持久化；通用保存入口不再通过 profileConfiguration 对内置树执行额外权限判断。事件提供 profile、baseline 可编辑快照、operation、tools 和可修改的 result；异常不写入目录。内置插件自行注册修复 effect，恢复 tools 子树、工具绑定、权限及 inspect 固定等级；save 仍默认禁用 tools，apply 保留原禁用状态。插件侧 edit 是可信编辑入口，不触发 agent 保存 effect；新建 Profile 仍为空。
-
-`setNamespaceImplementation(path, factory)` 为具体路径注册可撤销的命名空间构造器。通用树构建不判断内置名称；插件通过同一接口为 tools 与 tools.profile 安装 `tools/impl_tools_namespace.ts` 的 ImplToolsNamespace。该类自行拒绝 add/remove，并通过 children 的独立 Map 副本阻止外部修改内部集合；初始化安装已有子节点不走外部变更入口。permissions 继续完整提供给 agent 和 UI。
-
-
-当前 Profile 权限实现以 tools/profile_nodes/model.md 为准：默认工厂直接生成 RootNamespace 及全部内置节点类，ProfileCollection.createInitialProfile 是无参数可替换函数。apply 是基础节点操作，save 比较完整目标并应用差异（普通省略成员删除）。检查与修正下沉到根及各子节点，effect 只处理事件和返回信息；不再在 effect 中补装 tools。
+Profile 操作模型详见 registry/profile/model.md 与 tools/profile_nodes/model.md。ProfileCollection.createInitialProfile 是无参数初始生成函数；节点 create/getOrCreate 使用 (name, factory: () => T)，T extends ProfileNode，返回 T；get/set 使用 ProfileNode，type 基础声明为 string。apply 为基础操作，save 比较完整目标再 apply 差异，普通省略节点删除。effect 仅处理事件和返回信息。

@@ -31,6 +31,7 @@ export interface ProfileNode {
 
 /** @brief Shared implementation for trusted plugin-side Profile node editing. */
 export abstract class EditableNode implements ProfileNode {
+    private attached = false;
     protected settings: Pick<ProfileTreeNode, 'permissions' | 'disabled' | 'fixedLevel'> = {};
 
     constructor(protected memberName = '') {}
@@ -43,7 +44,16 @@ export abstract class EditableNode implements ProfileNode {
     }
 
     /** @brief Bind diagnostic paths when a concrete node is installed under a new parent key. */
-    bindName(path: string): void { this.memberName = path; }
+    bindName(path: string): void {
+        if (this.attached && path !== this.memberName) {
+            const before = this.memberName.split('.');
+            const after = path.split('.');
+            if (before.at(-1) !== after.at(-1) && !this.permissions.renamable) throw new ProfilePermissionError(`Node cannot be renamed: ${this.memberName} -> ${path}`);
+            if (before.slice(0, -1).join('.') !== after.slice(0, -1).join('.') && !this.permissions.movable) throw new ProfilePermissionError(`Node cannot be moved: ${this.memberName} -> ${path}`);
+        }
+        this.memberName = path;
+        this.attached = true;
+    }
 
     abstract readonly type: string;
 

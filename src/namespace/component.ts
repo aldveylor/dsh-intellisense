@@ -129,7 +129,7 @@ export class NamespaceComponent implements ToolsNamespace {
         return this.registry.definitions.profile(profileTree(name, registry.configuration(name), registry.definitions).save());
     }
 
-    /** @brief Create an empty Profile and return a separate anonymous snapshot. */
+    /** @brief Create a Profile using the collection factory and return its independent anonymous snapshot. */
     create(name: string): Promise<ProfileSnapshot> {
         return this.profileTransaction(() => this.createProfile(name));
     }
@@ -169,7 +169,7 @@ export class NamespaceComponent implements ToolsNamespace {
         });
     }
 
-    /** @brief Create one empty catalog entry in the registry's atomic name transaction. */
+    /** @brief Create one initialized catalog entry in the registry's atomic name transaction. */
     private async createProfile(name: string): Promise<ProfileSnapshot> {
         const snapshot = this.createInitialProfile();
         const configuration = editedConfiguration({ name, root: snapshot.serialize() }, new RegistryConfiguration(), this.registry.definitions);

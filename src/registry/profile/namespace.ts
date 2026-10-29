@@ -37,7 +37,9 @@ export class EditableNamespace extends EditableNode implements ProfileNamespace 
             this.description = data.description;
             for (const [name, child] of Object.entries(data.children ?? {})) {
                 this.validateName(name);
-                this.members.set(name, this.makeChild(name, child));
+                const node = this.makeChild(name, child);
+                if (node instanceof EditableNode) node.bindName(this.memberName ? `${this.memberName}.${name}` : name);
+                this.members.set(name, node);
             }
         }
     }
@@ -53,7 +55,9 @@ export class EditableNamespace extends EditableNode implements ProfileNamespace 
         for (const [name, data] of Object.entries(value.children ?? {})) {
             this.validateName(name);
             const original = this.members.get(name);
-            node.members.set(name, original instanceof EditableNode && original.type === data.type ? original.copyNode(data) : this.makeChild(name, data));
+            const child = original instanceof EditableNode && original.type === data.type ? original.copyNode(data) : this.makeChild(name, data);
+            if (child instanceof EditableNode) child.bindName(this.memberName ? `${this.memberName}.${name}` : name);
+            node.members.set(name, child);
         }
         for (const [name, child] of this.members) {
             if (!node.members.has(name) && !child.permissions.removable) node.members.set(name, child instanceof EditableNode ? child.copyNode(child.serialize()) : child);

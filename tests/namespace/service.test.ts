@@ -315,3 +315,17 @@ test('factory-declared node subclasses survive collection reads and independent 
     assert(snapshot.get('declared') instanceof FactoryNamespace);
     assert(namespaceNode(snapshot.get('declared')).get('read'));
 });
+
+
+test('RootNamespace cannot alias its tools node or move its protected descendants through generic set', () => {
+    const root = new RootNamespace();
+    const tools = root.get('tools')!;
+    assert.throws(() => root.set('alias', tools), /cannot be renamed/);
+    const ordinary = root.create('ordinary', () => new EditableNamespace('ordinary'));
+    assert.throws(() => ordinary.set('tools', tools), /cannot be moved/);
+    const inspect = namespaceNode(tools).get('inspect')!;
+    assert.throws(() => ordinary.set('inspect', inspect), /cannot be moved/);
+    assert.equal(root.get('tools'), tools);
+    assert.equal(root.get('alias'), undefined);
+    assert.equal(ordinary.get('tools'), undefined);
+});

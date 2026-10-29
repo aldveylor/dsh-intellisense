@@ -68,17 +68,17 @@ namespaceVisible 为随 Profile 保存的命名空间路径 → 固定提示布�
 
 `tools.profile.switch(name: string)` 显式切换当前会话配置，必须指定已有名称；可通过 builtinDisabled 禁用，使用普通内置命令的 disableable 权限。load(name?) 只读取配置数据，不切换当前会话；省略名称读取会话草稿，指定名称读取目录中的配置。
 
-Profile save/apply 通过提供者 effect 恢复内置节点、物理绑定、固定说明及必需固定等级，再由提供者检查禁止的结构变更。校验以目标目录配置为基线，新名称回退当前会话配置。普通命令的 command.doc 仍可省略。
+Profile save/apply 通过具体节点修正 save 目标中的内置节点、物理绑定、固定说明及必需固定等级，apply 则由根和子节点检查每项明确变更。校验以目标目录配置为基线，新名称回退当前会话配置。普通命令的 command.doc 仍可省略。
 
 同一物理工具的每个挂载路径独立保存描述、固定等级及禁用状态；Mapping 不再区分 path 与 aliases，每条记录只代表一个挂载路径，不兼容旧存档。命令目录中的挂载路径包含禁用及当前作用域不可用的配置路径；执行、搜索与提示仍排除禁用路径。
 
-ToolsNamespace 与 Profile 为 interface；Profile 是无 name 的匿名树 snapshot，ProfileCollection 提供 list/get/create/getOrCreate/remove/edit。create 初始为空，edit(name, modifier) 原子保存回调返回的递归树，无 root getter 或 commit。节点由继承的内部 class 实现，公开方法返回 interface。RegistryConfiguration 与 RegistryState 仍为实现 Saveable 的存储类；ProfileDocument 是命名 JSON 传输的内部投影。
+ToolsNamespace 与 Profile 为 interface；Profile 是无 name 的匿名树 snapshot，ProfileCollection 提供 list/get/create/getOrCreate/remove/edit。create 调用 createInitialProfile 默认生成含 tools 的具体节点树，edit(name, modifier) 原子保存回调返回的递归树，无 root getter 或 commit。节点由继承的内部 class 实现，公开方法返回 interface。RegistryConfiguration 与 RegistryState 仍为实现 Saveable 的存储类；ProfileDocument 是命名 JSON 传输的内部投影。
 
 根目录 README.md 为英文完整文档，README.zh-cn.md 为中文完整文档，互相提供语言切换链接；assets/ 仅保存图标、横幅和分语言截图。
 
 `intellisense-presentation` 的 config 可选配置 `profile: <name>`，会话优先使用指定具名 Profile，新对话首页的 Profile 按钮保持显示并置灰；会话选择接口和 tools.profile.switch 拒绝切换。省略时沿用默认及父会话继承行为。
 
-Profile save 覆盖目录树时，受保护 tools 命名空间必须保留，默认禁用（省略 disabled 时禁用），显式 disabled: false 可启用；当前会话仍需显式 switch 才应用保存结果。annotation 与 schema 说明禁用节点及后代退出发现、调用绑定、预加载和提示，保留配置用于重新启用。
+Profile save 比较完整目标并应用差异时，受保护 tools 命名空间必须保留，默认禁用（省略 disabled 时禁用），显式 disabled: false 可启用；当前会话仍需显式 switch 才应用保存结果。annotation 与 schema 说明禁用节点及后代退出发现、调用绑定、预加载和提示，保留配置用于重新启用。
 
 Profile save 保留原生 string | null 返回值：null 表示无提示的成功，inspect 无法调用且其它启用命令未全部固定等级 2 时返回建议字符串；建议不阻止保存，也不自动修改固定等级。权限违规直接抛错。
 
@@ -101,12 +101,8 @@ ProfileRootWrite 的匿名根只允许 type/children，拒绝没有持久化表�
 
 构建配置统一由 scripts/build.mjs 管理，支持 all/server/client；pnpm run build 按服务端、worker、插件客户端、独立页顺序构建，避免 tsc 覆盖最终浏览器产物。package.json 只保留构建脚本入口，脚本间调用统一使用 pnpm。依赖 external、压缩、loader 与宿主注册包装在构建脚本维护。
 
-工具附加属性通过 ToolAddition 的 fixed、hidden、ptcDescription 声明；内置工具也使用 toolsNamespace 的相同接口注册。fixed 禁止人工和 agent 挂载，hidden 隐藏目录及选择器，PTC 注释可独立覆盖且缺省回退物理工具原文。内置节点通过 edit 显式创建；空 Profile 不自动注入节点。
+工具附加属性通过 ToolAddition 的 fixed、hidden、ptcDescription 声明；内置工具也使用 toolsNamespace 的相同接口注册。fixed 禁止人工和 agent 挂载，hidden 隐藏目录及选择器，PTC 注释可独立覆盖且缺省回退物理工具原文。内置节点由 ProfileCollection.createInitialProfile 默认工厂直接构造；自定义工厂可返回其它根实现。
 
+执行投影命令使用 CommandNode，Profile 编辑树使用实际的内置命令类。permissions 作为 agent 和前端可读声明保留，检查与修正在 RootNamespace 和各子节点实现中执行。工具契约与预加载生产器仍由 setToolAddition 注册。
 
-工具节点统一为 CommandNode；permissions 保留为 agent 和前端可读的权限声明，实际阻止由保存 effect 与具体节点实现负责。工具提供者通过 setToolAddition 注册 project（模式契约、签名、参数布局、返回策略）、discovery 标记及 value 生产器/刷新策略；通用树构建不识别内置命令表。默认固定等级由节点定义提供，RegistryConfiguration 不假设 tools.inspect。
-
-agent 的 tools.profile.save/apply 统一调用 toolsNamespace.saveProfile，经过 effect('save', handler) 顺序处理独立的 ProfileSaveEvent，由提供者修复与检查后原子持久化；通用保存入口不再通过 profileConfiguration 对内置树执行额外权限判断。事件提供 profile、baseline 可编辑快照、operation、tools 和可修改的 result；异常不写入目录。内置插件自行注册修复 effect，恢复 tools 子树、工具绑定、权限及 inspect 固定等级；save 仍默认禁用 tools，apply 保留原禁用状态。插件侧 edit 是可信编辑入口，不触发 agent 保存 effect；新建 Profile 仍为空。
-
-
-当前 Profile 权限实现以 tools/profile_nodes/model.md 为准：默认工厂直接生成 RootNamespace 及全部内置节点类，ProfileCollection.createInitialProfile 是无参数可替换函数。apply 是基础节点操作，save 比较完整目标并应用差异（普通省略成员删除）。检查与修正下沉到根及各子节点，effect 只处理事件和返回信息；不再在 effect 中补装 tools。
+Profile 操作模型详见 registry/profile/model.md 与 tools/profile_nodes/model.md。ProfileCollection.createInitialProfile 是无参数初始生成函数；节点 create/getOrCreate 使用 (name, factory: () => T)，T extends ProfileNode，返回 T；get/set 使用 ProfileNode，type 基础声明为 string。apply 为基础操作，save 比较完整目标再 apply 差异，普通省略节点删除。effect 仅处理事件和返回信息。

@@ -44,9 +44,9 @@ export type ProfileSaveEffect = (event: ProfileSaveEvent) => void | Promise<void
 
 /** @brief Portable namespace service with named snapshot editing and execution integration. */
 export interface ToolsNamespace extends ProfileCollection {
-    /** @brief Register ordered, disposable save processing shared by agent save and apply. */
+    /** @brief Register ordered, disposable save events after concrete nodes have processed save or apply. */
     effect(event: 'save', handler: ProfileSaveEffect): () => void;
-    /** @brief Save an untrusted agent tree through provider-owned validation and repair effects. */
+    /** @brief Compare a target tree and apply its differences through concrete Profile nodes. */
     saveProfile(agent: Agent, name: string | undefined, profile: ProfileWrite): Promise<string | null>;
 
     /** @brief Apply an explicit patch using RootNamespace and its child implementations. */
