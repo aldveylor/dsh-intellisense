@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { manifest } from '../namespace/fixtures.js';
 import { NamespaceIntegration } from '../../src/integration/namespace_integration.js';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { pluginCommands } from '../../src/runtime/builtins.js';
@@ -12,6 +13,7 @@ test('preloads skip disabled producers and honor subtree disables', async () => 
     let profiles = 0;
     const component = Object.assign(Object.create(NamespaceIntegration.prototype), {
         namespace: { registry },
+        entries: async () => manifest(registry, []).entries,
         commandBriefs: async () => { commands++; return []; },
         profileNames: async () => { profiles++; return { profiles: ['Default'], selected: 'Default' }; },
     }) as NamespaceIntegration;

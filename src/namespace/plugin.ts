@@ -32,7 +32,7 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
     const aliases = Aliases.parse(config.aliasesFile ? parse(await readFile(config.aliasesFile, 'utf8')) : []);
     const backend = ctx.storage.backend.get('json');
     if (!backend.kv) throw new Error('DSH json backend does not support KV storage');
-    const unit = await backend.kv.open({ name: 'ts_intellisense', version: storageVersion, compatibleVersions: [1], tables: ['state'], hasGlobal: false, layout: 'per-record' });
+    const unit = await backend.kv.open({ name: 'ts_intellisense', version: storageVersion, compatibleVersions: [1, 2], tables: ['state'], hasGlobal: false, layout: 'per-record' });
     const store = new DshStore(unit);
     const snapshotUnit = await backend.kv.open({ name: 'intellisense_profile_snapshots', version: 1, tables: ['state'], hasGlobal: false, layout: 'per-record' });
     const registry = new SemanticRegistry(store, 'global', undefined, new DshStore(snapshotUnit));

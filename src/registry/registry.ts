@@ -1,3 +1,6 @@
+import { EditableNamespace, type ProfileNamespace } from './profile/namespace.js';
+import { EditableCommand, type ProfileCommand } from './profile/command.js';
+import { profileMembers } from '../namespace/namespace.js';
 import { editedConfiguration } from './profile/configuration.js';
 import { SnapshotStore, type ProfileReference } from './profile/snapshot_store.js';
 import { profileTree, ProfileSchema } from './profile_tree.js';
@@ -12,6 +15,15 @@ export { validatePath } from './path.js';
 import { storageVersion } from '../storage/version.js';
 import type { Store } from '../storage/store.js';
 import { RegistryConfiguration, RegistryState, type RegistryConfigurationData, type RegistryStateData } from './configuration.js';
+
+/** @brief Current named Profiles plus numeric versions; session archives are stored independently. */
+export interface ProfileCatalogData {
+    version: number;
+    revision: number;
+    profile: string;
+    profiles: Record<string, { pointer: number; root: import('./profile_node.js').NamespaceTreeNode; brief?: string }>;
+    editor?: Record<string, { order: string[]; unmountedVisible: CommandVisibility; toolComments: Record<string, string>; pinned: string[] }>;
+}
 
 /** @brief Stable physical identity and the enforced native JSON contracts. */
 export interface PhysicalTool {
@@ -64,17 +76,50 @@ export class SemanticRegistry {
     private state = new RegistryState({ inactiveProfiles: {} });
     private writeChain: Promise<unknown> = Promise.resolve();
 
+    private aliases: readonly { path: string; tool: string }[] = [];
+    private aliasChecks = new WeakSet<ProfileReference>();
     readonly snapshots: SnapshotStore;
     readonly toolAdditions = new ToolAdditions();
-    private references: Record<string, ProfileReference> = {};
+    private references: Record<string, ProfileReference> = Object.create(null);
 
     constructor(private store: Store, _scope: 'global' | 'session' = 'global', readonly definitions = new NamespaceDefinitions(), snapshotStore: Store = store) { this.snapshots = new SnapshotStore(snapshotStore, definitions); }
 
     /** @brief Read the immutable version currently published under a catalog name. */
+    /** @brief Import configured aliases into global Profiles before they become session snapshots. */
+    setAliases(aliases: readonly { path: string; tool: string }[]): void { this.aliases = structuredClone(aliases); this.aliasChecks = new WeakSet(); }
+
+    private withAliases(snapshot: ProfileSnapshot): ProfileSnapshot {
+        const mounted = new Set([...profileMembers(snapshot)].filter(({ node }) => node.type === 'command').map(({ node }) => (node as ProfileCommand).tool));
+        for (const alias of this.aliases) {
+            if (!mounted.has(alias.tool)) continue;
+            const parts = alias.path.split('.');
+            let parent: ProfileNamespace = snapshot;
+            for (const name of parts.slice(0, -1)) {
+                const child = parent.getOrCreate(name, () => new EditableNamespace());
+                if (child.type !== 'namespace') throw new Error(`Conflicting tool alias: ${alias.path}`);
+                parent = child as ProfileNamespace;
+            }
+            const name = parts.at(-1)!;
+            const previous = parent.get(name);
+            if (previous) {
+                if (previous.type !== 'command' || (previous as ProfileCommand).tool !== alias.tool) throw new Error(`Conflicting tool alias: ${alias.path}`);
+            } else parent.create(name, () => new EditableCommand()).setTool(alias.tool);
+        }
+        return snapshot;
+    }
+
     async reference(name = this.state.profile): Promise<ProfileReference> {
         if (!this.references[name]) {
             this.configuration(name);
             await this.transaction(async () => { if (!this.references[name]) await this.persist(this.state, [name]); });
+        }
+        const reference = this.references[name]!;
+        if (this.aliases.length && !this.aliasChecks.has(reference)) {
+            const snapshot = reference.snapshot;
+            const before = JSON.stringify(snapshot.serialize());
+            this.withAliases(snapshot);
+            if (JSON.stringify(snapshot.serialize()) !== before) await this.transaction(() => this.persist(this.state, [name]));
+            this.aliasChecks.add(this.references[name]!);
         }
         return this.references[name]!;
     }
@@ -82,146 +127,78 @@ export class SemanticRegistry {
     /** @brief Store current global Profiles and pointers; archive data is written only when a session enters. */
     private async persist(state: RegistryState, updated: readonly string[] = []): Promise<void> {
         const configurations = { ...state.inactiveProfiles, [state.profile]: state };
-        const references: Record<string, ProfileReference> = {};
+        const references: Record<string, ProfileReference> = Object.create(null);
         for (const [name, configuration] of Object.entries(configurations)) {
-            references[name] = this.references[name] && !updated.includes(name) ? this.references[name]!
-                : await this.snapshots.create(this.definitions.profile(profileTree(name, configuration, this.definitions).save()));
+            if (this.references[name] && !updated.includes(name)) references[name] = this.references[name]!;
+            else {
+                const snapshot = this.withAliases(this.definitions.profile(profileTree(name, configuration, this.definitions).save()));
+                references[name] = await this.snapshots.create(snapshot);
+            }
+        }
+        const canonicalConfigurations: [RegistryConfiguration, RegistryConfiguration][] = [];
+        for (const [name, configuration] of Object.entries(configurations)) {
+            if (this.references[name] && !updated.includes(name)) continue;
+            const snapshot = references[name]!.snapshot;
+            const canonical = editedConfiguration({ name, root: snapshot.serialize(), brief: snapshot.brief }, configuration, this.definitions);
+            canonical.order = [...configuration.order];
+            canonical.unmountedVisible = structuredClone(configuration.unmountedVisible);
+            canonical.toolComments = structuredClone(configuration.toolComments);
+            for (const mapping of canonical.mappings) mapping.pinned = configuration.mappings.some(previous => previous.path === mapping.path && previous.pinned);
+            canonicalConfigurations.push([configuration, canonical]);
         }
         await this.store.save('registry', { version: storageVersion, revision: state.revision, profile: state.profile,
-            profiles: Object.fromEntries(Object.entries(references).map(([name, reference]) => [name, { pointer: reference.pointer, ...reference.serialize() }])) });
+            profiles: Object.fromEntries(Object.entries(references).map(([name, reference]) => [name, { pointer: reference.pointer, ...reference.serialize() }])),
+            editor: Object.fromEntries(Object.entries(configurations).map(([name, configuration]) => [name, { order: configuration.order, unmountedVisible: configuration.unmountedVisible, toolComments: configuration.toolComments, pinned: configuration.mappings.filter(mapping => mapping.pinned).map(mapping => mapping.path) }])) } satisfies ProfileCatalogData);
         this.references = references;
+        for (const [configuration, canonical] of canonicalConfigurations) Object.assign(configuration, canonical);
     }
 
     /** @brief Serialize loading and recovery with ordinary configuration writes. */
     load(recover = false): Promise<void> { return this.transaction(() => this.loadSnapshot(recover)); }
 
-    /** @brief Validate or recover persisted settings before publishing a new in-memory state. */
+    /** @brief Restore current referenced Profiles; explicit recovery discards invalid entries without rewriting archives. */
     private async loadSnapshot(recover: boolean): Promise<void> {
         await this.snapshots.load();
-        const catalog = await this.store.load<{ version: number; revision: number; profile: string; profiles: Record<string, { pointer: number; root: import('./profile_node.js').NamespaceTreeNode; brief?: string }> }>('registry');
-        let saved: RegistryStateData | undefined;
-        if (catalog) {
-            if (!catalog.profiles || !Object.hasOwn(catalog.profiles, catalog.profile)) throw new Error('Invalid Profile reference catalog');
-            const configurations: Record<string, RegistryConfiguration> = {};
-            for (const [name, { pointer, root, brief }] of Object.entries(catalog.profiles)) {
-                this.validateProfileName(name);
-                const reference = await this.snapshots.restore(pointer, { root, brief });
-                this.references[name] = reference;
-                const snapshot = reference.snapshot;
-                configurations[name] = editedConfiguration({ name, root: snapshot.serialize(), brief: snapshot.brief }, new RegistryConfiguration(), this.definitions);
+        const saved = await this.store.load<ProfileCatalogData>('registry');
+        if (saved === undefined) return;
+        const configurations: Record<string, RegistryConfiguration> = Object.create(null);
+        const references: Record<string, ProfileReference> = Object.create(null);
+        const valid = saved && saved.version === configurationVersion && Number.isSafeInteger(saved.revision)
+            && saved.revision >= 0 && saved.profiles && typeof saved.profiles === 'object' && !Array.isArray(saved.profiles);
+        if (!valid && !recover) throw new Error('Invalid Profile reference catalog');
+        if (valid) {
+            for (const [name, value] of Object.entries(saved.profiles)) {
+                try {
+                    this.validateProfileName(name);
+                    ProfileSchema.parse({ name, root: value.root, brief: value.brief });
+                    const reference = await this.snapshots.restore(value.pointer, { root: value.root, brief: value.brief });
+                    const snapshot = reference.snapshot;
+                    const configuration = editedConfiguration({ name, root: snapshot.serialize(), brief: snapshot.brief }, new RegistryConfiguration(), this.definitions);
+                    const editor = saved.editor?.[name];
+                    if (editor) {
+                        this.validateVisibility(editor.unmountedVisible);
+                        this.validateComments(editor.toolComments);
+                        if (!Array.isArray(editor.order) || editor.order.some(path => typeof path !== 'string') || !Array.isArray(editor.pinned)) throw new Error('Invalid Profile editor settings');
+                        configuration.unmountedVisible = structuredClone(editor.unmountedVisible);
+                        configuration.toolComments = structuredClone(editor.toolComments);
+                        configuration.order = [...editor.order];
+                        for (const mapping of configuration.mappings) mapping.pinned = editor.pinned.includes(mapping.path);
+                    }
+                    references[name] = reference;
+                    configurations[name] = configuration;
+                } catch (error) { if (!recover) throw error; }
             }
-            saved = new RegistryState({ ...configurations[catalog.profile], version: catalog.version, revision: catalog.revision, profile: catalog.profile, inactiveProfiles: Object.fromEntries(Object.entries(configurations).filter(([name]) => name !== catalog.profile)) }).save();
         }
-        if (saved !== undefined) {
-            const migrate = recover || (saved?.version ?? 0) !== configurationVersion;
-            if (migrate) saved = this.recoverState(saved);
-            saved = structuredClone(saved);
-            let cleaned = this.pruneProtectedPreferences(saved);
-            for (const configuration of Object.values(saved.inactiveProfiles ?? {})) {
-                cleaned = this.pruneProtectedPreferences(configuration) || cleaned;
-            }
-            if (saved.version !== configurationVersion || !Number.isSafeInteger(saved.revision) || !Array.isArray(saved.mappings)) throw new Error('Invalid registry snapshot');
-            this.validateProfileName(saved.profile ?? 'Default');
-            this.validateMappings(saved.mappings);
-            this.validateNamespaces(saved.namespaces ?? [], saved.mappings);
-            this.validateVisibility(saved.unmountedVisible ?? {});
-            this.validateVisibility(saved.builtinVisible ?? {});
-            this.validateDisabled(saved.builtinDisabled, saved.providedRoot);
-            this.validateNamespaceVisible(saved.namespaceVisible);
-            this.validateComments(saved.toolComments ?? {});
-            ProfileNodeSettingsSchema.parse(saved.nodeSettings ?? {});
-            if (saved.providedRoot) ProfileSchema.parse({ name: saved.profile ?? 'Default', root: saved.providedRoot });
-            for (const [name, configuration] of Object.entries(saved.inactiveProfiles ?? {})) {
-                this.validateProfileName(name);
-                if (name === (saved.profile ?? 'Default')) throw new Error('Duplicate active profile');
-                this.validateMappings(configuration.mappings);
-                this.validateNamespaces(configuration.namespaces, configuration.mappings);
-                this.validateVisibility(configuration.unmountedVisible);
-                this.validateVisibility(configuration.builtinVisible ?? {});
-                this.validateDisabled(configuration.builtinDisabled, configuration.providedRoot);
-                this.validateNamespaceVisible(configuration.namespaceVisible);
-                this.validateComments(configuration.toolComments ?? {});
-                ProfileNodeSettingsSchema.parse(configuration.nodeSettings ?? {});
-                if (configuration.providedRoot) ProfileSchema.parse({ name, root: configuration.providedRoot });
-            }
-            const state = new RegistryState(saved);
-            if (migrate || cleaned) await this.persist(state);
-            this.state = state;
-        }
-    }
-
-    /** @brief Drop obsolete protected-node preferences on load while retaining configured namespace paths. */
-    private pruneProtectedPreferences(configuration: Partial<RegistryConfigurationData>): boolean {
-        const before = JSON.stringify(configuration);
-        const protectedRoot = configuration.providedRoot ? this.definitions.profile({ root: configuration.providedRoot }) : this.protectedNodes;
-        const paths = [
-            ...(Array.isArray(configuration.mappings) ? configuration.mappings.map(item => item?.path) : []),
-            ...(Array.isArray(configuration.namespaces) ? configuration.namespaces.map(item => item?.path) : []),
-        ].filter((path): path is string => typeof path === 'string');
-        const namespaceExists = (path: string): boolean => protectedRoot.resolve(path)?.type === 'namespace'
-            || paths.some(configured => configured === path || configured.startsWith(path + '.'));
-        if (Array.isArray(configuration.builtinDisabled)) configuration.builtinDisabled = configuration.builtinDisabled.filter(path =>
-            typeof path !== 'string' || !!protectedRoot.resolve(path)?.permissions.disableable);
-        if (configuration.builtinVisible && typeof configuration.builtinVisible === 'object' && !Array.isArray(configuration.builtinVisible)) {
-            configuration.builtinVisible = Object.fromEntries(Object.entries(configuration.builtinVisible).filter(([path]) =>
-                protectedRoot.resolve(path)?.type === 'command'));
-        }
-        if (configuration.namespaceVisible && typeof configuration.namespaceVisible === 'object' && !Array.isArray(configuration.namespaceVisible)) {
-            configuration.namespaceVisible = Object.fromEntries(Object.entries(configuration.namespaceVisible).filter(([path]) => namespaceExists(path)));
-        }
-        if (Array.isArray(configuration.order)) configuration.order = configuration.order.filter(path => typeof path !== 'string'
-            || !!protectedRoot.resolve(path) || namespaceExists(path));
-        return before !== JSON.stringify(configuration);
-    }
-
-    /** @brief Recover independently loadable settings when the global schema version changes. */
-    private recoverState(value: unknown): RegistryStateData {
-        const saved = this.record(value);
-        const profile = this.accepts(() => this.validateProfileName(saved.profile as string)) ? saved.profile as string : 'Default';
-        const inactiveProfiles: Record<string, RegistryConfigurationData> = {};
-        for (const [name, configuration] of Object.entries(this.record(saved.inactiveProfiles))) {
-            if (name === profile || !this.accepts(() => this.validateProfileName(name))) continue;
-            inactiveProfiles[name] = this.recoverConfiguration(configuration);
-        }
-        return { ...this.recoverConfiguration(saved), version: configurationVersion,
-            revision: Number.isSafeInteger(saved.revision) ? saved.revision as number : 0, profile, inactiveProfiles };
-    }
-
-    /** @brief Discard invalid entries while retaining valid siblings and unrelated preferences. */
-    private recoverConfiguration(value: unknown): RegistryConfigurationData {
-        const saved = this.record(value);
-        const mappings: Mapping[] = [];
-        for (const mapping of Array.isArray(saved.mappings) ? saved.mappings : []) {
-            if (this.accepts(() => this.validateMappings([...mappings, mapping]))) mappings.push(mapping);
-        }
-        const namespaces: Namespace[] = [];
-        for (const namespace of Array.isArray(saved.namespaces) ? saved.namespaces : []) {
-            if (this.accepts(() => this.validateNamespaces([...namespaces, namespace], mappings))) namespaces.push(namespace);
-        }
-        return { ...(typeof saved.brief === 'string' ? { brief: saved.brief } : {}), providedRoot: saved.providedRoot === undefined ? undefined : ProfileSchema.safeParse({ name: 'Recovered', root: saved.providedRoot }).data?.root, nodeSettings: ProfileNodeSettingsSchema.safeParse(saved.nodeSettings).data ?? {}, mappings, namespaces,
-            order: Array.isArray(saved.order) ? [...new Set(saved.order.filter((path): path is string => typeof path === 'string'))] : [],
-            unmountedVisible: this.recoverEntries<PinLevel>(saved.unmountedVisible, entry => this.validateVisibility(entry)),
-            builtinVisible: this.recoverEntries<PinLevel>(saved.builtinVisible, entry => this.validateVisibility(entry)),
-            namespaceVisible: this.recoverEntries<boolean>(saved.namespaceVisible, entry => this.validateNamespaceVisible(entry)),
-            toolComments: this.recoverEntries<string>(saved.toolComments, entry => this.validateComments(entry)),
-            builtinDisabled: Array.isArray(saved.builtinDisabled) ? saved.builtinDisabled.filter((path: unknown): path is string => this.accepts(() => this.validateDisabled([path as string]))) : [],
-        };
-    }
-
-    /** @brief Treat malformed containers as empty without trusting persisted types. */
-    private record(value: unknown): Record<string, unknown> {
-        return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
-    }
-
-    /** @brief Reuse runtime validators to retain only supported dictionary entries. */
-    private recoverEntries<T>(value: unknown, validate: (entry: Record<string, T>) => void): Record<string, T> {
-        return Object.fromEntries(Object.entries(this.record(value)).filter(([key, entry]) => this.accepts(() => validate({ [key]: entry as T })))) as Record<string, T>;
-    }
-
-    /** @brief Convert only synchronous validation failures into discarded configuration data. */
-    private accepts(validate: () => void): boolean {
-        try { validate(); return true; }
-        catch { return false; }
+        let name = valid && Object.hasOwn(configurations, saved.profile) ? saved.profile : Object.keys(configurations)[0];
+        if (!name && !recover) throw new Error('Invalid Profile reference catalog');
+        name ??= 'Default';
+        const state = new RegistryState({ ...configurations[name], version: storageVersion, revision: valid ? saved.revision : 0, profile: name,
+            inactiveProfiles: Object.fromEntries(Object.entries(configurations).filter(([key]) => key !== name)) });
+        const previous = this.references;
+        this.references = references;
+        try { if (recover) await this.persist(state); }
+        catch (error) { this.references = previous; throw error; }
+        this.state = state;
     }
 
     refresh(tools: PhysicalTool[]): void {
@@ -239,7 +216,7 @@ export class SemanticRegistry {
     get revision(): number { return this.state.revision; }
 
     /** @brief Identify configuration and physical-contract changes without copying either snapshot. */
-    get generation(): string { return `${this.state.revision}:${this.physicalRevision}:${this.definitions.revision}`; }
+    get generation(): string { return `${this.state.revision}:${this.physicalRevision}:${this.definitions.revision}:${this.toolAdditions.revision}`; }
 
     /** @brief Read Profile names and selection without cloning configuration data. */
     profileSelection(): { profiles: string[]; selected: string } {
@@ -287,7 +264,7 @@ export class SemanticRegistry {
             this.validateComments(detached.toolComments ?? {});
             const next: RegistryStateData = { ...this.state, ...detached, toolComments: detached.toolComments ?? {}, profile, revision: this.state.revision + 1 };
             const state = new RegistryState(next);
-            await this.persist(state);
+            await this.persist(state, [profile]);
             this.state = state;
         });
     }

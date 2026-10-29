@@ -64,7 +64,7 @@ export function editedConfiguration(value: ProfileData, current: RegistryConfigu
             if (owned) {
                 result.namespaceVisible[path] = !!node.fixedLevel;
                 if (node.disabled) result.builtinDisabled.push(path);
-            } else result.namespaces.push({ path, description: node.description ?? '', alwaysVisible: !!node.fixedLevel, disabled: node.disabled });
+            } else result.namespaces.push({ path, description: node.description ?? '', alwaysVisible: !!node.fixedLevel, ...(node.disabled === undefined ? {} : { disabled: node.disabled }) });
         }
         for (const [name, child] of Object.entries(node.children ?? {})) {
             const childSettings: ProfileNodeSettings = {};

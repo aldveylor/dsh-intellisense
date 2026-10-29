@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { pluginCommands, projectBuiltin, type BuiltinTool } from '../../src/runtime/builtins.js';
-import { createNamespace, CommandNode } from '../../src/namespace/namespace.js';
+import { createNamespace } from '../namespace/fixtures.js';
 
 test('builtin projection resolves each comment while preserving execution metadata and its source', () => {
     const source: BuiltinTool = { tool: 'example', path: 'tools.example', signature: '(name: string) => Promise<void>',
@@ -24,9 +24,9 @@ test('builtin projection resolves each comment while preserving execution metada
 test('namespace builtin descriptions and declarations use the selected execution mode', () => {
     for (const mode of ['native', 'ptc'] as const) {
         const root = createNamespace({ tools: [], includeUnavailable: true, mode });
-        const discovery = root.resolve(['tools', 'inspect']) as CommandNode;
-        const annotation = root.resolve(['tools', 'profile', 'annotation']) as CommandNode;
-        const profiles = root.resolve(['tools', 'profile', 'profiles']) as CommandNode;
+        const discovery = root.resolve(['tools', 'inspect']);
+        const annotation = root.resolve(['tools', 'profile', 'annotation']);
+        const profiles = root.resolve(['tools', 'profile', 'profiles']);
         const contract = projectBuiltin(pluginCommands.discoveryCommand, mode);
         assert.equal(discovery.doc, contract.description);
         assert.equal(discovery.serialize().description, contract.description);

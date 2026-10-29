@@ -1,3 +1,4 @@
+import { configureSession, publishSessionFixture } from '../registry/session_fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -65,8 +66,7 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
             assert.equal(namespaces.enabled(agent), false);
             if (mode !== 'standard') {
                 await agent.ctx.plugin(presentation, { mode });
-                const registry = await namespaces.registryFor(agent);
-                await registry.configure([{ id: 'read_file', path: 'std.fs.read', description: 'Read file contents', pinned: false }], registry.snapshot().revision);
+                await configureSession(namespaces, agent, [{ id: 'read_file', path: 'std.fs.read', description: 'Read file contents', pinned: false }]);
                 await namespaces.configure(agent);
             }
             const errors: unknown[] = [];
@@ -118,10 +118,13 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
                 assert(Object.hasOwn(info.members[0], 'parameters'));
                 await send();
                 assert.deepEqual(model.requests[2]!.tools?.map(tool => tool.name).sort(), ['ns_std__fs__read', 'ns_tools__inspect']);
-                const registry = await namespaces.registryFor(agent);
-                const configuration = registry.configuration();
+                const addition = await namespaces.addition(agent);
+                const configuration = addition.profile.snapshot;
                 for (const path of ['tools.inspect', 'tools']) {
-                    await registry.replaceConfiguration({ ...configuration, builtinDisabled: [path], mappings: configuration.mappings.map(mapping => ({ ...mapping, alwaysVisible: 2 })) }, registry.snapshot().profile!);
+                    const draft = configuration.clone();
+                    draft.resolve(path)!.setDisabled(true);
+                    (draft.resolve('std.fs.read') as import('../../src/registry/profile/command.js').ProfileCommand).setFixedLevel(2);
+                    await publishSessionFixture(namespaces, agent, draft);
                     await namespaces.configurationChanged(agent);
                     await send();
                     const disabledRequest = model.requests.at(-1)!;
@@ -132,14 +135,14 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
                     assert(!prompt.includes('Call native DSML tools'), prompt);
                     assert.deepEqual(disabledRequest.tools?.map(tool => tool.name), ['ns_std__fs__read']);
                 }
-                await registry.replaceConfiguration(configuration, registry.snapshot().profile!);
+                await publishSessionFixture(namespaces, agent, configuration);
                 await namespaces.configurationChanged(agent);
                 await send();
                 assert(systemOf(model.requests.at(-1)!).includes('Use tools.inspect'));
-                await registry.replaceConfiguration({ ...configuration,
-                    mappings: configuration.mappings.map(mapping => ({ ...mapping, alwaysVisible: 1 })),
-                    builtinVisible: { ...configuration.builtinVisible, 'tools.profile.load': 1 },
-                }, registry.snapshot().profile!);
+                const brief = configuration.clone();
+                (brief.resolve('std.fs.read') as import('../../src/registry/profile/command.js').ProfileCommand).setFixedLevel(1);
+                (brief.resolve('tools.profile.load') as import('../../src/registry/profile/command.js').ProfileCommand).setFixedLevel(1);
+                await publishSessionFixture(namespaces, agent, brief);
                 await namespaces.configurationChanged(agent);
                 await send();
                 const briefRequest = model.requests.at(-1)!;

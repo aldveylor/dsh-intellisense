@@ -6,7 +6,8 @@ import assert from 'node:assert/strict';
 import type { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
-import { nativeBindings, nativeDiscovery } from '../../src/namespace/native_tools.js';
+import { nativeBindings } from '../../src/namespace/native_tools.js';
+import { nativeDiscovery } from '../namespace/fixtures.js';
 import { NamespaceIntegration } from '../../src/integration/namespace_integration.js';
 import type { ManifestEntry } from '../../src/namespace/namespace.js';
 import { SemanticRegistry } from '../../src/registry/registry.js';
@@ -17,14 +18,14 @@ test('native names satisfy API limits and avoid path and physical name collision
     const paths = ['std.cwd', 'std__cwd', 'std.$cwd', 'std._24_cwd', 'std.' + 'a'.repeat(100)];
     const entries = paths.map(path => ({ path, tool: path, doc: '', schema: {}, output: {} }) as ManifestEntry);
     const reserved = ['ns_std__cwd', 'ns_std__cwd_1'];
-    const names = nativeBindings(namespace(entries).commands().filter(node => entries.some(entry => entry.path === node.path)), reserved).map(binding => binding.name);
+    const names = nativeBindings(entries as import('../../src/namespace/namespace.js').CommandEntry[], reserved).map(binding => binding.name);
     assert.equal(new Set(names).size, paths.length);
     assert.equal(names[0], 'ns_std__cwd_2');
     for (const name of names) {
         assert.match(name, /^ns_[a-zA-Z0-9_-]{1,61}$/);
         assert(!reserved.includes(name));
     }
-    assert.deepEqual(nativeBindings(namespace(entries).commands().filter(node => entries.some(entry => entry.path === node.path)), reserved).map(binding => binding.name), names);
+    assert.deepEqual(nativeBindings(entries as import('../../src/namespace/namespace.js').CommandEntry[], reserved).map(binding => binding.name), names);
 });
 
 test('native aliases publish callable names, preserve native arguments and revoke stale handlers', async () => {
@@ -76,8 +77,9 @@ test('native aliases publish callable names, preserve native arguments and revok
 
 test('native discovery shows original documentation only for exact functions', () => {
     const root = namespace([{ path: 'fs.read', tool: 'read_file', doc: 'Read file\nFull file documentation.', schema: {}, output: {} }]);
+    (root.profile.resolve('fs.read') as import('../../src/registry/profile/command.js').ProfileCommand).setDescription('Profile brief');
     for (const queries of [['fs.'], ['fs.read']]) {
-        const discovery = JSON.parse(nativeDiscovery(queries, root, () => 'Profile brief'));
+        const discovery = JSON.parse(nativeDiscovery(queries, root));
         assert.equal(discovery.members[0].brief, 'Profile brief');
         if (queries[0] === 'fs.read') assert.equal(discovery.members[0].description, 'Read file\nFull file documentation.');
         else assert(!JSON.stringify(discovery).includes('Full file documentation.'));
@@ -94,7 +96,8 @@ test('native discovery omits empty namespace, command and Profile briefs', () =>
     }
     const documented = namespace([{ path: 'fs.read', tool: 'read_file', doc: 'Full documentation', schema: {}, output: {} }]);
     for (const brief of ['', '  \n ']) {
-        const discovery = JSON.parse(nativeDiscovery(['fs.read'], documented, () => brief));
+        (documented.profile.resolve('fs.read') as import('../../src/registry/profile/command.js').ProfileCommand).setDescription(brief);
+        const discovery = JSON.parse(nativeDiscovery(['fs.read'], documented));
         assert(!Object.hasOwn(discovery.members[0], 'brief'));
     }
 });
@@ -108,10 +111,11 @@ test('native discovery stays detailed when enabled and is revoked by command or 
     const registry = new SemanticRegistry(new MemoryStore());
     registry.refresh([{ id: 'tools_inspect', description: '', parameters: {}, output: {} }]);
     const component = new NamespaceIntegration(ctx, new NamespaceComponent(ctx, registry), new ProfileSessions(registry, new MemoryStore()));
-    component.registryFor = async () => registry;
+    component.physical = () => registry.tools();
     const agent = { id: 'discovery-disable', ctx, session: Session.create(SessionId('discovery-disable')) } as Agent;
     for (const disabled of [[], ['tools.inspect'], [], ['tools'], []]) {
         await registry.replaceConfiguration({ ...registry.configuration(), builtinVisible: {}, builtinDisabled: disabled }, 'Default');
+        await component.profiles.load(agent.session, 'Default');
         assert.deepEqual(await component.syncNative(agent), disabled.length ? [] : ['ns_tools__inspect']);
         assert.equal(definitions.has('ns_tools__inspect'), !disabled.length);
     }
@@ -129,7 +133,7 @@ test('native brief pins publish JSON hints and become callable only after exact 
         { id: 'tools_profile_load', description: 'Load profile', parameters: {}, output: {} },
     ]);
     const component = new NamespaceIntegration(ctx, new NamespaceComponent(ctx, registry), new ProfileSessions(registry, store));
-    component.registryFor = async () => registry;
+    component.physical = () => registry.tools();
     component.isPtc = () => false;
     const agent = { id: 'native-pins', ctx, session: Session.create(SessionId('native-pins')) } as Agent;
     for (const level of [0, 1, 2] as const) {
@@ -138,6 +142,7 @@ test('native brief pins publish JSON hints and become callable only after exact 
             namespaces: [{ path: 'files', description: 'File operations', alwaysVisible: false }],
             builtinVisible: { 'tools.profile.load': level },
         }, 'Default');
+        await component.profiles.load(agent.session, 'Default');
         const names = await component.syncNative(agent);
         assert.equal(names.includes('ns_files__library__read'), level === 2);
         assert.equal(names.includes('ns_tools__profile__load'), level === 2);
@@ -157,6 +162,7 @@ test('native brief pins publish JSON hints and become callable only after exact 
         mappings: registry.configuration().mappings.map(mapping => ({ ...mapping, alwaysVisible: 1 })),
         builtinVisible: {},
     }, 'Default');
+    await component.profiles.load(agent.session, 'Default');
     await component.discover(agent, ['files.library.']);
     assert(!definitions.has('ns_files__library__read'));
     await component.discover(agent, ['files.library.read']);
@@ -166,6 +172,7 @@ test('native brief pins publish JSON hints and become callable only after exact 
     await registry.replaceConfiguration({ ...registry.configuration(),
         namespaces: [{ path: 'files', description: 'File operations', alwaysVisible: false, disabled: true }],
     }, 'Default');
+    await component.profiles.load(agent.session, 'Default');
     assert.deepEqual(await component.syncNative(agent), []);
     assert.equal(await component.prompt(agent), '');
     await component.release(agent.id);

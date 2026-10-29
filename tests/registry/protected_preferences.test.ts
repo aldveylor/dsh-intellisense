@@ -1,52 +1,26 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { RegistryConfiguration, SemanticRegistry, type RegistryStateData } from '../../src/registry/registry.js';
+import { SemanticRegistry } from '../../src/registry/registry.js';
+import { ProfileSessions } from '../../src/registry/profiles.js';
 import { MemoryStore } from '../../src/storage/store.js';
+import { sessionFor } from './session_fixture.js';
 
-/** @brief Persisted preferences containing removed protected namespaces and commands. */
-function staleConfiguration(): RegistryConfiguration {
-    return new RegistryConfiguration({
-        mappings: [{ id: 'read', path: 'files.read', pinned: false }],
-        builtinVisible: { 'console.log': 2, 'tools.removed': 1, 'tools.search': 1 },
-        builtinDisabled: ['console', 'console.log', 'tools.removed', 'tools.inspect', 'tools.search'],
-        namespaceVisible: { console: true, 'tools.removed': true, tools: true, files: true },
-        order: ['console', 'console.log', 'tools.removed', 'tools', 'tools.search', 'files', 'files.read'],
-    });
-}
-
-for (const scope of ['global', 'session'] as const) test(`${scope} load removes stale protected preferences and persists active and archived Profiles`, async () => {
+test('archived builtin restrictions survive global edits and restart', async () => {
     const store = new MemoryStore();
-    await store.save('registry', { ...staleConfiguration().save(), version: 1, revision: 4,
-        inactiveProfiles: { Other: staleConfiguration().save() } });
-    const registry = new SemanticRegistry(store, scope);
-    await registry.load();
-    for (const configuration of [registry.configuration(), registry.configuration('Other')]) {
-        assert.deepEqual(configuration.builtinVisible, { 'tools.search': 1 });
-        assert.deepEqual(configuration.builtinDisabled, ['tools.inspect', 'tools.search']);
-        assert.deepEqual(configuration.namespaceVisible, { tools: true, files: true });
-        assert.deepEqual(configuration.order, ['tools', 'tools.search', 'files', 'files.read']);
-        assert.deepEqual(configuration.mappings, staleConfiguration().mappings);
-    }
-    const saved = await store.load<RegistryStateData>('registry');
-    assert.deepEqual(saved!.builtinDisabled, ['tools.inspect', 'tools.search']);
-    assert.deepEqual(saved!.inactiveProfiles!.Other!.builtinVisible, { 'tools.search': 1 });
-    assert.equal(saved!.revision, 4);
-    store.save = async () => { throw new Error('Unexpected rewrite'); };
-    await new SemanticRegistry(store, scope).load();
-});
-
-test('failed cleanup persistence leaves memory and storage unchanged and permits a later retry', async () => {
-    const store = new MemoryStore();
-    const data = { ...staleConfiguration().save(), version: 1, revision: 4 };
-    await store.save('registry', data);
-    const registry = new SemanticRegistry(store);
-    const before = registry.snapshot();
-    const save = store.save.bind(store);
-    store.save = async () => { throw new Error('Disk failed'); };
-    await assert.rejects(registry.load(), /Disk failed/);
-    assert.deepEqual(registry.snapshot(), before);
-    assert.deepEqual(await store.load('registry'), data);
-    store.save = save;
-    await registry.load();
-    assert.deepEqual(registry.snapshot().builtinDisabled, ['tools.inspect', 'tools.search']);
+    const catalog = new SemanticRegistry(store);
+    const sessions = new ProfileSessions(catalog, store);
+    const session = await sessions.addition(sessionFor(sessions, 'protected'));
+    const original = session.profile.pointer;
+    await catalog.saveProfile('Default', { ...catalog.configuration(), builtinDisabled: ['tools'], builtinVisible: { 'tools.profile.load': 2 } }, { trusted: true });
+    assert.equal(session.profile.pointer, original);
+    assert.equal(session.profile.snapshot.resolve('tools.inspect')?.type, 'command');
+    const restoredCatalog = new SemanticRegistry(store);
+    await restoredCatalog.load();
+    const restoredSessions = new ProfileSessions(restoredCatalog, store);
+    const restored = await restoredSessions.addition(sessionFor(restoredSessions, 'protected'));
+    const inspect = restored.profile.snapshot.resolve('tools.inspect')!;
+    assert.equal(inspect.permissions.removable, false);
+    assert.deepEqual(inspect.permissions.availableFixLevels, [2]);
+    await restoredSessions.load(sessionFor(restoredSessions, 'protected'), 'Default');
+    assert.equal(restored.profile.snapshot.resolve('tools.inspect'), undefined);
 });

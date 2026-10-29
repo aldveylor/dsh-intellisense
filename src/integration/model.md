@@ -1,17 +1,11 @@
 # 集成模型
 
-`presentation.ts` 参考 dsh-agent-tool-presentation 的作用域生命周期，配置 mode 可选，为 ptc/native，默认 native，两个模式均调用 tools.presentAs('native')，避免原生共享 run_code 使用全局后端。PTC 在隔离的 namespaceRuntime/codeRuntime 服务作用域创建插件执行入口。配置按 scope 继承，命名空间组件及初始 prompt 从同一配置读取模式，不依赖 preset ID。无显式 presentation 的会话不启用本插件的工具、运行时或提示词；内置工具在 presentation 作用域注册，PTC 运行时也在该作用域创建。
+presentation.ts 按作用域选择 native/PTC，均通过 DSH native 工具执行。PTC 在自己的作用域创建 namespaceRuntime/codeRuntime，不替换全局后端。profile 配置可锁定初始化名称；现有同名会话仍保留原快照版本。没有显式 presentation 的会话不启用此插件。
 
-预设注册由独立的 `../preset/` 组件提供，integration 只负责作用域内的工具呈现。
+ctx.intellisense 包含 profiles（同 ctx.toolsNamespace）、toolAdditions、statistics、inspectStatistics、searchEngines。toolAdditions 位于 tool_additions/，只保存独立工具元数据；内置固定身份、契约与预加载行为由实际 Profile 命令类实现。
 
-命名空间服务与节点实现在 `../namespace/`；内置工具注册与审计在 `../tools/`。
+agent_session_addition.ts 公开只读 name、profile: ProfileReference、会话统计和 save()。profile.pointer 是全局递增版本号，profile.snapshot 返回独立值，不能借此修改会话版本。save() 只保存引用。会话初始化、父子继承、恢复和显式 switch 由 ProfileSessions 负责，不生成内部会话 registry。
 
-`intellisense-presentation.config.profile` 可选指定已有具名 Profile。与 mode 一起按最近 presentation 作用域继承，显式子作用域未配置 profile 时不继承外层锁定。指定后会话以目录快照初始化，优先于父会话草稿和全局默认；已有会话选择不同名称时切换到指定配置，同名工作快照保留。缺失名称报错。
+NamespaceIntegration 是工具作用域、发现集合、请求位置和代理生命周期的内部编排层。get/entries 直接消费引用对应的 ProfileSnapshot 及其原节点；原生工具、搜索、inspect、提示词、PTC 绑定只生成各自需要的扁平数据或文本。不存在 tree/manifest 或重建语义树的中间层。
 
-`agent_session_addition.ts` 声明 AgentSessionAddition 并扩展 Session.intellisense 可选字段，由 session 直接持有，外部通过 agent.session.intellisense 访问，不额外清理资源。save() 显式保存当前会话快照（包括外部直接编辑），不修改具名 Profile 表；profile 为当前 ProfileSnapshot，statistics.increment([tool]) 只提交本会话工具调用次数。命令名称解析位于快照 resolve；inspect 查询次数由 inspect 工具独立记录。
-
-`namespace_integration.ts` 的 NamespaceIntegration 是内部编排层，持有作用域工具目录缓存、请求位置、原生发现集合、搜索引擎及代理生命周期。presentation、工具、Profile 下拉框和 PTC runtime 使用该内部层；它不作为 AgentSessionAddition 对外暴露。原生和 PTC 工具均经 DSH tools.execute 派发，保留 guard、调用计数、父子审计、附加上下文和结束回合语义。ToolsNamespace 仅负责共享具名 Profile 目录。
-
-`intellisense.ts` 定义全局 ctx.intellisense，插件初始化成功后发布，子作用域继承同一服务。profiles 指向共享 ToolsNamespace 目录，statistics 指向命令统计（calls/queries），inspectStatistics 提供按 Profile 名称隔离的路径计数，searchEngines 为共享搜索引擎注册器。内部 NamespaceIntegration 与该服务引用同一批对象，不复制计数或目录。此全局服务与 session.intellisense 的会话快照状态分开。
-
-NamespaceIntegration.discover 从 agent.session.intellisense.profile 读取发现数据，展示投影不复用运行时 manifest；会话快照决定节点范围、禁用状态与简略说明，物理目录补充签名和 schema。精确查询原生工具后仍通过完整运行时树刷新绑定。
+discover 在当前会话快照上解析精确路径，只将显式查询的可用命令加入原生发现集合。syncNative 从原节点导出契约并注册工具，保留 DSH guard、父子审计、附加上下文和结束回合语义。物理工具作用域变化只改变可调用契约，不修改快照指针。

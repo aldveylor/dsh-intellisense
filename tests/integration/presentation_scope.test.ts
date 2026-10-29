@@ -21,7 +21,7 @@ test('only an explicit Intellisense scope enables namespace configuration and de
     const child = createScope(ctx, {}, { parent: intellisenseKey });
     const standardAgent = { id: 'standard', ctx: standard.ctx } as Agent;
     assert.equal(component.enabled(standardAgent), false);
-    component.registryFor = async () => { throw new Error('Standard mode must not initialize namespaces'); };
+    component.addition = async () => { throw new Error('Standard mode must not initialize namespaces'); };
     await component.configure(standardAgent);
     const registrations: Context[] = [];
     const presentations: string[] = [];

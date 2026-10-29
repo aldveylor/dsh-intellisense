@@ -1,3 +1,5 @@
+import { EditableNamespace } from '../../src/registry/profile/namespace.js';
+import { EditableCommand } from '../../src/registry/profile/command.js';
 import { Statistics } from '../../src/statistics/statistics.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -238,11 +240,16 @@ test('tool category filter combines selections and keeps the picker open on Esca
     } finally { dom.window.close(); }
 });
 
-test('tool additions hide private tools and disable fixed tools without a provided namespace', async () => {
+test('tool metadata hides private tools while concrete nodes identify fixed tools', async () => {
     const registry = new SemanticRegistry(new MemoryStore());
     registry.refresh(['ordinary', 'fixed_custom', 'hidden_custom'].map(id => ({ id, description: id, parameters: {}, output: {} })));
-    registry.definitions.setToolAddition('fixed_custom', { fixed: true });
-    registry.definitions.setToolAddition('hidden_custom', { hidden: true });
+    const factory = registry.definitions.createInitialProfile;
+    registry.definitions.createInitialProfile = () => {
+        const root = factory();
+        root.create('custom', () => new EditableNamespace()).create('fixed', () => new EditableCommand()).setTool('fixed_custom').setPermissions({ removable: false });
+        return root;
+    };
+    registry.toolAdditions.set('hidden_custom', { hidden: true });
     const routes = new Map<string, (request: Request) => Promise<Response>>();
     const ctx = { connection: { fetch: { register: (route: { path: string; fetch: (request: Request) => Promise<Response> }) => routes.set(route.path, route.fetch) } } } as unknown as Context;
     registerManagement(ctx, registry, { refresh: async () => {} });

@@ -63,32 +63,26 @@ test('catalog reads expose detached classes and storage contains plain data', as
     assert.equal(registry.configuration('Other').namespaces[0]!.path, 'other');
     const persisted = await store.load<RegistryStateData>('registry');
     assert.equal(Object.getPrototypeOf(persisted), Object.prototype);
-    assert.equal(Object.getPrototypeOf(persisted!.inactiveProfiles!.Other), Object.prototype);
+    assert.equal(Object.getPrototypeOf((persisted as unknown as { profiles: Record<string, object> }).profiles.Other), Object.prototype);
     const restored = new SemanticRegistry(store);
     await restored.load();
     assert(restored.snapshot() instanceof RegistryState);
     assert.deepEqual(restored.configuration('Other'), registry.configuration('Other'));
 });
 
-test('session snapshots persist plain data and restore classes without sharing catalog state', async () => {
+test('session persistence stores only a name and numeric pointer', async () => {
     const catalog = new SemanticRegistry(new MemoryStore());
+    await catalog.saveProfile('Draft', new RegistryConfiguration({ namespaces: [{ path: 'draft', description: '', alwaysVisible: true }] }));
     const store = new MemoryStore();
     const profiles = new ProfileSessions(catalog, store);
-    const session = await profiles.forSession(sessionFor(profiles, 'session'));
-    await session.replaceConfiguration(new RegistryConfiguration({ namespaces: [{ path: 'draft', description: '', alwaysVisible: true }] }), 'Draft');
+    const session = await profiles.load(sessionFor(profiles, 'session'), 'Draft');
     const key = `profile_session_${createHash('sha256').update('session').digest('hex')}`;
-    const persisted = await store.load<ProfileData>(key);
-    assert.equal(Object.getPrototypeOf(persisted), Object.prototype);
-    assert.equal(persisted!.name, 'Draft');
+    const persisted = await store.load<{ name: string; pointer: number }>(key);
+    assert.deepEqual(persisted, { name: 'Draft', pointer: session.profile.pointer });
     const restoredProfiles = new ProfileSessions(catalog, store);
-    {
-        const restored = await restoredProfiles.forSession(sessionFor(restoredProfiles, 'session'));
-        assert(restored.snapshot() instanceof RegistryState);
-        assert(restored.configuration() instanceof RegistryConfiguration);
-        assert.deepEqual((await restoredProfiles.addition(sessionFor(restoredProfiles, 'session'))).profile.serialize(), (await profiles.addition(sessionFor(profiles, 'session'))).profile.serialize());
-        await restored.replaceConfiguration(new RegistryConfiguration(), 'Default');
-        assert.equal(session.configuration().namespaces[0]!.path, 'draft');
-        assert.deepEqual(catalog.configuration().namespaces, []);
-    }
-    assert.equal((await store.load<ProfileData>(key))!.name, 'Default');
+    const restored = await restoredProfiles.addition(sessionFor(restoredProfiles, 'session'));
+    assert.equal(restored.profile.pointer, session.profile.pointer);
+    await restoredProfiles.load(sessionFor(restoredProfiles, 'session'), 'Default');
+    assert.equal(session.profile.snapshot.resolve('draft')?.type, 'namespace');
+    assert.equal(restored.profile.snapshot.resolve('draft'), undefined);
 });

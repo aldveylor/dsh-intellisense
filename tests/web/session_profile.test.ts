@@ -20,7 +20,7 @@ async function fixture(locked = false) {
     const ctx = { agents: { list: () => agents }, connection: { fetch: { register: (route: { fetch: typeof fetch }) => { fetch = route.fetch; } } } } as unknown as Context;
     const namespaces = {
         fixedProfile: () => locked ? 'Files' : undefined, profiles, enabled: (agent: typeof agents[number]) => agent.enabled,
-        registryFor: (agent: typeof agents[number]) => profiles.forSession(agent.session),
+        addition: (agent: typeof agents[number]) => profiles.forSession(agent.session),
         configurationChanged: async (agent: typeof agents[number]) => { changed.push(agent.id); },
     } as unknown as NamespaceIntegration;
     registerSessionProfiles(ctx, catalog, namespaces);
@@ -34,14 +34,14 @@ test('profile selector loads native and PTC session namespaces independently fro
     const response = await request('native', { profile: 'Files' });
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { enabled: true, profile: 'Files', profiles: ['Default', 'Files'], profileBriefs: { Files: 'File operations' } });
-    assert.equal((await profiles.forSession(sessionFor(profiles, 'native'))).configuration().namespaces[0]?.path, 'files');
-    assert.equal((await profiles.forSession(sessionFor(profiles, 'ptc'))).snapshot().profile, 'Default');
+    assert.equal((await profiles.forSession(sessionFor(profiles, 'native'))).profile.snapshot.resolve('files')?.type, 'namespace');
+    assert.equal((await profiles.forSession(sessionFor(profiles, 'ptc'))).name, 'Default');
     assert.deepEqual(catalog.snapshot(), original);
     assert.deepEqual(changed, ['native']);
     assert.equal((await request('ptc', { profile: 'Files' })).status, 200);
-    assert.equal((await profiles.forSession(sessionFor(profiles, 'ptc'))).snapshot().profile, 'Files');
+    assert.equal((await profiles.forSession(sessionFor(profiles, 'ptc'))).name, 'Files');
     assert.equal((await request('native', { profile: 'Default' })).status, 200);
-    assert.equal((await profiles.forSession(sessionFor(profiles, 'native'))).configuration().namespaces.length, 0);
+    assert.equal((await profiles.forSession(sessionFor(profiles, 'native'))).profile.snapshot.resolve('files'), undefined);
 });
 
 test('profile selector hides for other presets and refuses invalid session or profile selections', async () => {
@@ -52,21 +52,21 @@ test('profile selector hides for other presets and refuses invalid session or pr
     assert.equal((await request('native', { profile: 'Missing' })).status, 400);
     assert.equal((await request('native', { profile: 'Files', activate: true })).status, 400);
     assert.equal((await request('native', { profile: 'Files' }, 'text/plain')).status, 415);
-    assert.equal((await profiles.forSession(sessionFor(profiles, 'native'))).snapshot().profile, 'Default');
+    assert.equal((await profiles.forSession(sessionFor(profiles, 'native'))).name, 'Default');
     assert.deepEqual(changed, []);
 });
 
 test('new conversations capture the configured default rather than the previous conversation selection', async () => {
     const { catalog, profiles, request } = await fixture();
     await request('native', { profile: 'Files' });
-    assert.equal((await profiles.forSession(sessionFor(profiles, 'new_before_default_change'))).snapshot().profile, 'Default');
+    assert.equal((await profiles.forSession(sessionFor(profiles, 'new_before_default_change'))).name, 'Default');
     await catalog.manageProfile('select', 'Files', catalog.snapshot().revision);
     await request('ptc', { profile: 'Default' });
     const created = await profiles.forSession(sessionFor(profiles, 'new_after_default_change'));
-    assert.equal(created.snapshot().profile, 'Files');
-    assert.equal(created.configuration().namespaces[0]?.path, 'files');
-    assert.equal((await profiles.forSession(sessionFor(profiles, 'ptc'))).snapshot().profile, 'Default');
-    assert.equal((await profiles.forSession(sessionFor(profiles, 'new_before_default_change'))).snapshot().profile, 'Default');
+    assert.equal(created.name, 'Files');
+    assert.equal(created.profile.snapshot.resolve('files')?.type, 'namespace');
+    assert.equal((await profiles.forSession(sessionFor(profiles, 'ptc'))).name, 'Default');
+    assert.equal((await profiles.forSession(sessionFor(profiles, 'new_before_default_change'))).name, 'Default');
 });
 
 
@@ -77,7 +77,7 @@ test('a fixed presentation Profile remains visible and rejects session selector 
     assert.equal(response.status, 200);
     assert.equal((await response.json()).locked, true);
     assert.equal((await request('native', { profile: 'Default' })).status, 403);
-    assert.equal((await profiles.forSession(sessionFor(profiles, 'native'))).snapshot().profile, 'Files');
+    assert.equal((await profiles.forSession(sessionFor(profiles, 'native'))).name, 'Files');
     assert.deepEqual(changed, []);
 });
 
@@ -96,6 +96,6 @@ test('invalid session Profile requests return localized keys without changing th
         assert.equal(response.status, 400);
         assert.deepEqual(await response.json(), { error: key });
     }
-    assert.equal((await profiles.forSession(sessionFor(profiles, 'native'))).snapshot().profile, 'Default');
+    assert.equal((await profiles.forSession(sessionFor(profiles, 'native'))).name, 'Default');
     assert.deepEqual(changed, []);
 });

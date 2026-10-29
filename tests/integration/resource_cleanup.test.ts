@@ -25,23 +25,21 @@ test('optional Profile names are omitted and both save overloads retain the Prof
     assert.match(declaration(namespace([entry]).commands().find(node => node.path === entry.path)!), /function save\(profile: ProfileWrite\)/);
 });
 
-test('session edits overwrite one working record and remain available after the live session is replaced', async () => {
+test('global intermediate edits are not archived and existing session pointers survive replacement', async () => {
     const store = new MemoryStore();
-    const records = new Map<string, unknown>();
-    const save = store.save.bind(store);
-    store.save = async (key, value) => { records.set(key, value); await save(key, value); };
     const catalog = new SemanticRegistry(store);
     const profiles = new ProfileSessions(catalog, store);
-    const first = await profiles.forSession(sessionFor(profiles, 'first'));
-    const second = await profiles.forSession(sessionFor(profiles, 'second'));
-    for (let revision = 0; revision < 20; revision++) await first.replaceConfiguration({ ...first.configuration(), brief: `Revision ${revision}` }, 'Default');
-    assert.equal(records.size, 2);
-    assert.equal(second.configuration().brief, undefined);
-    assert.equal(catalog.snapshot().revision, 0);
+    const first = await profiles.addition(sessionFor(profiles, 'first'));
+    const second = await profiles.addition(sessionFor(profiles, 'second'));
+    const pointer = first.profile.pointer;
+    for (let revision = 0; revision < 20; revision++) await catalog.saveProfile('Default', { ...catalog.configuration(), brief: `Revision ${revision}` });
+    assert.equal(first.profile.pointer, pointer);
+    assert.equal(second.profile.pointer, pointer);
+    assert.equal((await store.loadEntries('profile_snapshot_')).filter(([key]) => /_\d+$/.test(key)).length, 1);
     const restoredProfiles = new ProfileSessions(catalog, store);
-    const restored = await restoredProfiles.forSession(sessionFor(restoredProfiles, 'first'));
-    assert.equal(restored.configuration().brief, 'Revision 19');
-    assert.equal(records.size, 2);
+    const restored = await restoredProfiles.addition(sessionFor(restoredProfiles, 'first'));
+    assert.equal(restored.profile.pointer, pointer);
+    assert.equal(restored.profile.snapshot.brief, undefined);
 });
 
 test('DSH store observes external updates and deletes through the KV backend', async () => {

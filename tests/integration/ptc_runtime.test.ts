@@ -1,3 +1,4 @@
+import { configureSession } from '../registry/session_fixture.js';
 import { NamespaceComponent } from '../../src/namespace/component.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -72,11 +73,11 @@ test('PTC worker dispatches and discovery persist session and global statistics 
             agent.ctx.tools.register(defineTool({ name: 'fail_tool', description: 'Fail', parameters: {},
                 output: { schema: { type: 'string' }, render: () => [] }, execute: async () => { throw new Error('Expected failure'); },
             }));
-            const registry = await namespaces.registryFor(agent);
-            await registry.configure([
+            const addition = await namespaces.addition(agent);
+            await configureSession(namespaces, agent, [
                 { id: 'read_tool', path: 'std.read', pinned: false },
                 { id: 'fail_tool', path: 'std.fail', pinned: false },
-            ], registry.snapshot().revision);
+            ]);
             const result = await run('console.log("excluded"); const commands = tools.profile.commands; await tools.inspect(["global.std.", "std.read", "console.log"]); return await Promise.all([std.read(), std.read()]);');
             assert.equal(result.isError, false, JSON.stringify(result));
             assert.deepEqual(result.value, { logs: ['excluded'], result: ['ok', 'ok'] });
@@ -90,7 +91,7 @@ test('PTC worker dispatches and discovery persist session and global statistics 
             } finally { unguard(); }
             expected = await namespaces.statistics.calls.snapshot();
             assert.deepEqual(expected, { tools_inspect: 1, read_tool: 3, fail_tool: 1 });
-            assert.deepEqual(await namespaces.inspectStatistics.snapshot(registry.profileSelection().selected), { std: 1, 'std.read': 1 });
+            assert.deepEqual(await namespaces.inspectStatistics.snapshot(addition.name), { std: 1, 'std.read': 1 });
             assert.deepEqual(await namespaces.statistics.queries.snapshot(), { read_tool: 1 });
             assert.deepEqual(await namespaces.statistics.calls.snapshot(agent.id), expected);
             assert.equal(agent.session.snapshotEvents().filter(event => event.type === 'tool/ptc-dispatch-start').length, 5);
@@ -114,11 +115,11 @@ test('PTC command counts update within a program and refresh from host counts on
         agent.ctx.tools.register(defineTool({ name: 'read_tool', description: 'Read', parameters: {},
             output: { schema: { type: 'string' }, render: () => [] }, execute: async () => 'ok',
         }));
-        const registry = await namespaces.registryFor(agent);
-        await registry.configure([
+        const addition = await namespaces.addition(agent);
+        await configureSession(namespaces, agent, [
             { id: 'read_tool', path: 'std.read', pinned: false },
             { id: 'read_tool', path: 'std.again', pinned: false },
-        ], registry.snapshot().revision);
+        ]);
         const result = await run(`
             const row=tools.profile.commands.find(row=>row.name==='read_tool');
             const before=row.totalCalls;
@@ -149,8 +150,8 @@ test('native commands rereads current global counts after each namespace dispatc
         agent.ctx.tools.register(defineTool({ name: 'read_tool', description: 'Read', parameters: {},
             output: { schema: { type: 'string' }, render: () => [] }, execute: async () => 'ok',
         }));
-        const registry = await namespaces.registryFor(agent);
-        await registry.configure([{ id: 'read_tool', path: 'std.read', pinned: false }], registry.snapshot().revision);
+        const addition = await namespaces.addition(agent);
+        await configureSession(namespaces, agent, [{ id: 'read_tool', path: 'std.read', pinned: false }]);
         await namespaces.discover(agent, ['std.read', 'tools.profile.commands']);
         let sequence = 0;
         const call = (name: string) => ctx.tools.execute({ agent, callId: ToolCallId(`native-statistics-${++sequence}`), name, arguments: {}, signal: new AbortController().signal });
@@ -261,8 +262,8 @@ test('PTC cancellation drains native children and timeout permits the next execu
                 } finally { settled = true; }
             },
         }));
-        const registry = await namespaces.registryFor(agent);
-        await registry.configure([{ id: 'wait_tool', path: 'std.wait', pinned: false }], registry.snapshot().revision);
+        const addition = await namespaces.addition(agent);
+        await configureSession(namespaces, agent, [{ id: 'wait_tool', path: 'std.wait', pinned: false }]);
         const controller = new AbortController();
         const work = run('return await std.wait();', undefined, controller.signal);
         await ready;
@@ -287,8 +288,8 @@ test('PTC projects results once, preserves void results and supports parallel na
             output: { schema: { type: 'object', properties: { value: { type: 'object', properties: { value: { type: 'string', required: true } }, additionalProperties: false, required: true } }, additionalProperties: false }, render: () => [] },
             execute: async ({ path }) => ({ value: { value: path } }),
         }));
-        const registry = await namespaces.registryFor(agent);
-        await registry.configure([{ id: 'read_tool', path: 'std.read', pinned: false }], registry.snapshot().revision);
+        const addition = await namespaces.addition(agent);
+        await configureSession(namespaces, agent, [{ id: 'read_tool', path: 'std.read', pinned: false }]);
         const result = await run('return await Promise.all([std.read("a"), std.read("b")]);');
         assert.equal(result.isError, false, JSON.stringify(result));
         assert.deepEqual(result.value, { logs: [], result: [{ value: 'a' }, { value: 'b' }] });
@@ -315,8 +316,8 @@ test('PTC early returns and failed parallel calls drain native siblings without 
                 return null;
             },
         }));
-        const registry = await namespaces.registryFor(agent);
-        await registry.configure([{ id: 'sibling_tool', path: 'std.sibling', pinned: false }], registry.snapshot().revision);
+        const addition = await namespaces.addition(agent);
+        await configureSession(namespaces, agent, [{ id: 'sibling_tool', path: 'std.sibling', pinned: false }]);
         const early = await run('void std.sibling(false); return 42;');
         assert.equal(early.isError, false, JSON.stringify(early));
         assert.deepEqual(early.value, { logs: [], result: 42 });
@@ -400,15 +401,15 @@ test('PTC Profile switch changes the selection and rejects an omitted name', asy
 test('Profile saves preserve the snapshot and inject notices only when explicitly switched', async () => {
     const { run, injected, namespaces, agent, dispose } = await fixture();
     try {
-        const registry = await namespaces.registryFor(agent);
-        const before = registry.snapshot();
+        const addition = await namespaces.addition(agent);
+        const before = addition.profile;
         const saved = await run(`
             const profile = await tools.profile.load();
             await tools.profile.save('Copy', writable(profile));
             await tools.profile.save(undefined, writable(profile));
         `);
         assert.equal(saved.isError, false, JSON.stringify(saved));
-        assert.deepEqual(registry.snapshot(), before);
+        assert.equal(addition.profile, before);
         assert.equal(injected.length, 0);
         const result = await run(`
             const profile = await tools.profile.load();
@@ -554,16 +555,16 @@ test('Profile organization mounts catalog commands and applies briefs without mu
         `);
         assert.equal(result.isError, false, JSON.stringify(result));
         assert.deepEqual(result.value, { logs: [], result: [1, 'Default', 'File operations'] });
-        assert.equal((await namespaces.tree(agent)).resolve(['files']), undefined);
+        assert.equal((await namespaces.get(agent)).resolve('files'), undefined);
         const switched = await run("await tools.profile.switch('Organized');");
         assert.equal(switched.isError, false, JSON.stringify(switched));
         const invoked = await run('return await files.working_directory();');
         assert.equal(invoked.isError, false, JSON.stringify(invoked));
         assert.deepEqual(invoked.value, { logs: [], result: 'working_directory' });
-        const tree = await namespaces.tree(agent);
-        assert.equal(tree.resolve(['files'])?.serialize().description, 'File operations');
-        assert.equal(tree.resolve(['files', 'read'])?.serialize().command?.doc, 'Original read');
-        assert.equal(tree.resolve(['files', 'tools_external'])?.serialize().command?.doc, 'Original tools_external');
+        const tree = await namespaces.get(agent);
+        assert.equal(tree.resolve('files')?.serialize().description, 'File operations');
+        assert.equal(tree.resolve('files.read')?.serialize().command?.doc, 'Brief read');
+        assert.equal(tree.resolve('files.tools_external')?.serialize().command?.doc, 'Brief tools_external');
         const discovery = await run('return await tools.inspect(["files.read"]);');
         assert.equal(discovery.isError, false, JSON.stringify(discovery));
         assert.match(JSON.stringify(discovery.value), /Original read/);

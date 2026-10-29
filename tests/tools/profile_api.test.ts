@@ -3,6 +3,8 @@ import { NamespaceComponent } from '../../src/namespace/component.js';
 import { EditableCommand } from '../../src/registry/profile/command.js';
 import { EditableNamespace } from '../../src/registry/profile/namespace.js';
 import { ValidationError, CurrentProfileDeletionError, UnknownCommandError, ProfileNotFoundError, ConversationRequiredError } from '../../src/error.js';
+import { editedConfiguration } from '../../src/registry/profile/configuration.js';
+import { RegistryConfiguration, RegistryState } from '../../src/registry/configuration.js';
 import { profileWrite } from '../../src/registry/profile_write.js';
 import { namespace, positionalArguments } from '../namespace/fixtures.js';
 import { test } from 'node:test';
@@ -15,9 +17,9 @@ import { ProfileSessions } from '../../src/registry/profiles.js';
 import { ProfileDocument, ProfileSchema, profileAnnotation, profileTree } from '../../src/registry/profile_tree.js';
 import { MemoryStore } from '../../src/storage/store.js';
 import { registerToolCommands } from '../../src/tools/tool_commands.js';
-import { manifest } from '../../src/namespace/namespace.js';
+import { manifest } from '../namespace/fixtures.js';
 import { nodePermissions } from '../../src/namespace/node.js';
-import { inspect } from '../../src/tools/inspect.js';
+import { inspect } from '../namespace/fixtures.js';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
 import { NamespaceIntegration } from '../../src/integration/namespace_integration.js';
 import { RuntimeHost } from '../../src/runtime/host.js';
@@ -31,14 +33,22 @@ async function fixture() {
     const physical = { id: 'read_file', description: 'Read a file.', parameters: { type: 'object' }, output: { type: 'string' } };
     catalog.refresh([physical]);
     const profiles = new ProfileSessions(catalog, new MemoryStore());
-    const registry = await profiles.forSession(sessionFor(profiles, 'session'));
-    registry.refresh([physical]);
+    const addition = await profiles.addition(sessionFor(profiles, 'session'));
+    // Read-only editor projection for assertions; production sessions contain only a reference.
+    const configuration = () => editedConfiguration({ name: addition.name, root: addition.profile.snapshot.serialize(), brief: addition.profile.snapshot.brief }, new RegistryConfiguration(), catalog.definitions);
+    const registry = {
+        definitions: catalog.definitions, toolAdditions: catalog.toolAdditions,
+        refresh: (tools: Parameters<SemanticRegistry['refresh']>[0]) => catalog.refresh(tools),
+        tools: () => catalog.tools(), configuration,
+        profileSelection: () => ({ selected: addition.name, profiles: [addition.name] }),
+        snapshot: () => new RegistryState({ ...configuration(), profile: addition.name, revision: addition.profile.pointer, profiles: [addition.name] }),
+    } as unknown as SemanticRegistry;
     const changed: string[] = [];
     const serviceContext = new Context();
     const namespaces = new NamespaceIntegration(serviceContext, new NamespaceComponent(serviceContext, catalog), profiles);
-    namespaces.registryFor = async () => registry;
+    namespaces.physical = () => catalog.tools();
     namespaces.commandBriefs = async () => [{ name: physical.id, brief: physical.description, paths: ['files.read', 'files.cat'], totalCalls: 2 }, { name: 'outside_scope', brief: 'Outside this session.', paths: [], totalCalls: 0 }];
-    registerToolCommands(ctx, catalog, profiles, async () => registry, async agent => { changed.push(agent.id); }, agent => namespaces.commandBriefs(agent), namespaces);
+    registerToolCommands(ctx, catalog, profiles, async agent => { changed.push(agent.id); }, agent => namespaces.commandBriefs(agent), namespaces);
     const agentContext = new Context();
     agentContext.provide('namespaceIntegration', { isPtc: () => true } as unknown as Context['namespaceIntegration']);
     const execution = { agent: { id: 'session', inject: () => {}, ctx: agentContext, session: sessionFor(profiles, 'session') }, signal: new AbortController().signal } as unknown as ToolRunContext;
@@ -232,7 +242,7 @@ test('Profile setdefault persists the default for new sessions and preserves exi
     assert.equal(catalog.snapshot().profile, 'Copy');
     assert.deepEqual(registry.snapshot(), before);
     assert.deepEqual(changed, []);
-    assert.equal((await new ProfileSessions(catalog, new MemoryStore()).forSession(Session.create(SessionId('new')))).snapshot().profile, 'Copy');
+    assert.equal((await new ProfileSessions(catalog, new MemoryStore()).addition(Session.create(SessionId('new')))).name, 'Copy');
     const revision = catalog.snapshot().revision;
     await call('tools_profile_setdefault', { name: 'Copy' });
     assert.equal(catalog.snapshot().revision, revision);
@@ -722,7 +732,7 @@ test('agent save effects restore builtin nodes in an explicitly empty plugin Pro
     const { catalog, call, load } = await fixture();
     await catalog.saveProfile('Empty', { ...catalog.configuration(), providedRoot: { type: 'namespace', children: {} }, builtinVisible: {} }, { trusted: true });
     const initial = await load({ name: 'Empty' });
-    assert.deepEqual(initial.root.children, {});
+    assert.equal(initial.root.children!.tools.type, 'namespace');
     await call('tools_profile_save', { name: 'Empty', profile: { root: { type: 'namespace', children: {
         files: { type: 'namespace', children: { read: { type: 'command', command: { tool: 'read_file' }, fixedLevel: 2 } } },
     } } } });

@@ -8,9 +8,9 @@ import type { PhysicalTool } from '../registry/registry.js';
 import type { CommandContract, SerializedNode } from './node.js';
 import type { CommandBinding } from '../runtime/protocol.js';
 import { namespaceDeclaration, callableDeclaration } from './declaration.js';
-import { commandDeclaration, parameters, resultField } from './nodes/command_contract.js';
+import { commandDeclaration, parameters, resultField } from './command_contract/command_contract.js';
 import { z } from 'zod';
-export { nativeArgumentsFor, resultFor } from './nodes/command_contract.js';
+export { nativeArgumentsFor, resultFor } from './command_contract/command_contract.js';
 export type { Node, NodeType, Permission, SerializedNode } from './node.js';
 
 /** @brief YAML aliases mount physical tools at additional namespace paths. */
@@ -121,7 +121,7 @@ export function serializeProfile(profile: ProfileSnapshot, tools: readonly Physi
         const entry = entries.get(path);
         return { type: 'leaf', name, permissions: node.permissions, disabled: node.disabled, fixedLevel: data.fixedLevel as 0 | 1 | 2,
             description: entry?.doc ?? data.command?.doc, preload: entry?.preload,
-            command: entry ?? { tool: (node as ProfileCommand).tool!, schema: {}, doc: data.command?.doc ?? '' } };
+            command: entry ? { tool: entry.tool, schema: entry.schema, output: entry.output, doc: entry.doc, presentation: entry.presentation } : { tool: (node as ProfileCommand).tool!, schema: {}, doc: data.command?.doc ?? '' } };
     };
     return visit(profile, '', '');
 }

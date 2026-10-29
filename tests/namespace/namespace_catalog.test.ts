@@ -1,3 +1,4 @@
+import { configureSession } from '../registry/session_fixture.js';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
 import { NamespaceComponent } from '../../src/namespace/component.js';
 import { test } from 'node:test';
@@ -52,10 +53,10 @@ test('editor discovers standing preset tools without live agents and keeps execu
         assert.deepEqual(component.physical().map(tool => tool.id), ['working_directory']);
         const agent = { id: 'first-session', session: Session.create(SessionId('first-session')) } as Agent;
         Object.assign(agent, { ctx: createScope(toolContext, agent, { parent: first }).ctx });
-        const scoped = await component.registryFor(agent);
-        assert.deepEqual(scoped.tools().map(tool => tool.id).sort(), ['read_file', 'working_directory']);
+        const scoped = await component.addition(agent);
+        assert.deepEqual(component.physical(agent).map(tool => tool.id).sort(), ['read_file', 'working_directory']);
         assert.deepEqual((await component.entries(agent)).map(entry => entry.path), ['fs.read']);
-        assert.deepEqual(scoped.configuration().mappings.map(mapping => mapping.path), ['fs.read', 'fs.write']);
+        assert.equal(scoped.profile.snapshot.resolve('fs.write')?.type, 'command');
         // An unavailable mapping becomes usable again when its physical tool is mounted.
         register(agent.ctx, 'write_file');
         assert.deepEqual((await component.entries(agent)).map(entry => entry.path).sort(), ['fs.read', 'fs.write']);
@@ -97,26 +98,26 @@ test('command briefs expose current session mount paths including disabled paths
             { id: 'write_file', path: 'fs.write', pinned: false },
         ], 0);
         const agent = { id: 'session', ctx, session: Session.create(SessionId('session')) } as Agent;
-        const session = await component.registryFor(agent);
-        await session.configure([
+        await registry.configure([
             { id: 'read_file', path: 'files.read', pinned: false },
             { id: 'read_file', path: 'files.cat', pinned: false },
             { id: 'read_file', path: 'hidden.read', pinned: false },
             { id: 'write_file', path: 'files.write', pinned: false, disabled: true },
-        ], session.snapshot().revision, [{ path: 'hidden', description: '', alwaysVisible: false, disabled: true }]);
+        ], registry.revision, [{ path: 'hidden', description: '', alwaysVisible: false, disabled: true }]);
+        await component.addition(agent);
         await component.statistics.calls.increment(agent.id, ['read_file']);
         const expected = [
-            { name: 'read_file', brief: 'read_file', paths: ['files.read', 'files.cat', 'hidden.read', 'text.read'], totalCalls: 1 },
+            { name: 'read_file', brief: 'read_file', paths: ['hidden.read', 'files.read', 'files.cat', 'text.read'], totalCalls: 1 },
             { name: 'write_file', brief: 'write_file', paths: ['files.write'], totalCalls: 0 },
             { name: 'unmounted', brief: 'unmounted', paths: [], totalCalls: 0 },
         ];
         assert.deepEqual(await component.commandBriefs(agent), expected);
         assert.deepEqual((await component.values(agent))['tools.profile.commands'], expected);
-        assert.deepEqual((await component.commandBriefs())[0]?.paths, ['fs.read', 'fs.cat', 'text.read']);
+        assert.deepEqual((await component.commandBriefs())[0]?.paths, ['hidden.read', 'files.read', 'files.cat', 'text.read']);
     } finally { await ctx.fiber.dispose(); }
 });
 
-test('session catalogs skip unchanged projection and invalidate tool changes, scope rebinds and release', async () => {
+test('scope rebinding changes available contracts while retaining the same session pointer', async () => {
     const { bindScopeParent } = await import('@deepseek-ai/dsh-scope');
     const ctx = new Context();
     try {
@@ -127,35 +128,22 @@ test('session catalogs skip unchanged projection and invalidate tool changes, sc
         await ctx.plugin({ inject: ['tools'], apply: (injected: Context) => { toolContext = injected; } });
         const firstKey = {}, secondKey = {};
         const first = createScope(toolContext, firstKey), second = createScope(toolContext, secondKey);
-        register(first.ctx, 'first_only');
-        register(second.ctx, 'second_only');
+        register(first.ctx, 'first_only'); register(second.ctx, 'second_only');
         const store = new MemoryStore();
         const catalog = new SemanticRegistry(store);
+        catalog.refresh(['first_only', 'second_only'].map(id => ({ id, description: '', parameters: {}, output: {} })));
+        await catalog.configure([{ id: 'first_only', path: 'first.read', pinned: false }, { id: 'second_only', path: 'second.read', pinned: false }], catalog.revision);
         const component = new NamespaceIntegration(ctx, new NamespaceComponent(ctx, catalog), new ProfileSessions(catalog, store));
         const agent = { id: 'cached', ctx, session: Session.create(SessionId('cached')) } as Agent;
         const binding = bindScopeParent(agent, firstKey);
-        const physical = component.physical.bind(component);
-        let reads = 0;
-        component.physical = (...args) => { reads++; return physical(...args); };
-        const registry = await component.registryFor(agent);
-        assert(registry.tools().some(tool => tool.id === 'first_only'));
-        await component.registryFor(agent);
-        assert.equal(reads, 1);
-        register(first.ctx, 'new_tool');
-        await component.registryFor(agent);
-        assert.equal(reads, 2);
-        assert(registry.tools().some(tool => tool.id === 'new_tool'));
+        const addition = await component.addition(agent);
+        const pointer = addition.profile.pointer;
+        assert.deepEqual((await component.entries(agent)).map(entry => entry.path), ['first.read']);
         binding.rebind(secondKey);
-        await component.registryFor(agent);
-        assert.equal(reads, 3);
-        assert(registry.tools().some(tool => tool.id === 'second_only'));
-        assert(!registry.tools().some(tool => tool.id === 'first_only'));
+        assert.deepEqual((await component.entries(agent)).map(entry => entry.path), ['second.read']);
+        assert.equal(addition.profile.pointer, pointer);
         await component.release(agent.id);
-        const reopened = await component.registryFor(agent);
-        assert.equal(reopened, registry);
-        assert(reopened.tools().some(tool => tool.id === 'second_only'));
-        assert.equal(reads, 4);
-        await first.dispose();
-        await second.dispose();
+        assert.equal(await component.addition(agent), addition);
+        await first.dispose(); await second.dispose();
     } finally { await ctx.fiber.dispose(); }
 });

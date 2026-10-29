@@ -1,4 +1,4 @@
-import { namespace, positionalArguments } from '../namespace/fixtures.js';
+import { namespace, positionalArguments, profileFixture } from '../namespace/fixtures.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Context } from '@deepseek-ai/cordis';
@@ -6,15 +6,16 @@ import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { nativeArgumentsFor, type ManifestEntry } from '../../src/namespace/namespace.js';
 import { callableDeclaration, executionInstructions } from '../../src/namespace/prompt.js';
 import { pluginCommands, projectBuiltin } from '../../src/runtime/builtins.js';
-import { NamespaceNode, declaration } from '../../src/namespace/namespace.js';
-import { inspect, inspectionTree, inspectionBrief, registerInspect } from '../../src/tools/inspect.js';
+import { declaration } from '../../src/namespace/namespace.js';
+import { registerInspect } from '../../src/tools/inspect.js';
+import { inspect } from '../namespace/fixtures.js';
 import type { NamespaceIntegration } from '../../src/integration/namespace_integration.js';
 import { EditableSnapshot } from '../../src/registry/profile/snapshot.js';
 import { EditableNamespace } from '../../src/registry/profile/namespace.js';
 import { EditableCommand } from '../../src/registry/profile/command.js';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
-import { nativeDiscovery, nativeQueryEntries } from '../../src/namespace/native_tools.js';
+import { nativeDiscovery, nativeQueryEntries } from '../namespace/fixtures.js';
 
 const entries: ManifestEntry[] = [
     { path: 'std.cwd', tool: 'cwd', doc: 'Current directory', schema: { type: 'object', properties: {}, additionalProperties: false }, output: { type: 'string' } },
@@ -80,10 +81,11 @@ test('global prefix preserves PTC declarations including runtime values and buil
 });
 
 test('PTC declarations omit explicitly disabled namespaces and their descendants', () => {
-    const root = new NamespaceNode('');
-    const hidden = root.add(new NamespaceNode('hidden', root, 'Hidden namespace', undefined, true));
-    hidden.add(new NamespaceNode('nested', hidden));
-    root.add(new NamespaceNode('visible', root, 'Visible namespace'));
+    const profile = new EditableSnapshot();
+    const hidden = profile.create('hidden', () => new EditableNamespace()).setDescription('Hidden namespace').setDisabled(true);
+    hidden.create('nested', () => new EditableNamespace());
+    profile.create('visible', () => new EditableNamespace()).setDescription('Visible namespace');
+    const root = profileFixture(profile, []);
     for (const query of ['hidden', 'hidden.', 'hidden.nested', 'hidden.nested.', 'global.hidden.']) {
         assert.equal(inspect([query], root, true), inspect([], root, true));
     }
@@ -100,19 +102,18 @@ test('inspection reads session nodes and summaries without registry mounts or al
     files.create('disabled', () => new EditableCommand()).setTool('read').setDisabled(true);
     const registry = new SemanticRegistry(new MemoryStore());
     registry.refresh([{ id: 'read', description: 'Physical documentation', parameters: { path: { type: 'string', required: true } }, output: { type: 'string' } }]);
-    const root = inspectionTree(profile, registry, true);
-    const brief = (_tool: string, path: string): string | undefined => inspectionBrief(profile, path);
-    const listing = inspect(['session_files.'], root, true, brief);
+    const root = profileFixture(profile, registry.tools(), 'ptc', registry.toolAdditions);
+    const listing = inspect(['session_files.'], root, true);
     assert.match(listing, /Session namespace/);
     assert.match(listing, /Session summary/);
     assert.doesNotMatch(listing, /disabled/);
-    assert.match(inspect(['session_files.read'], root, true, brief), /Physical documentation/);
-    const native = JSON.parse(nativeDiscovery(['session_files.read'], root, brief));
+    assert.match(inspect(['session_files.read'], root, true), /Physical documentation/);
+    const native = JSON.parse(nativeDiscovery(['session_files.read'], root));
     assert.equal(native.members[0].brief, 'Session summary');
     assert.equal(native.members[0].description, 'Physical documentation');
     assert.equal(native.members[0].parameters.path.type, 'string');
     assert.deepEqual(JSON.parse(nativeDiscovery(['read'], root)).members, []);
     files.setDisabled(true);
-    const disabled = inspectionTree(profile, registry);
+    const disabled = profileFixture(profile, registry.tools(), 'native', registry.toolAdditions);
     assert.deepEqual(JSON.parse(nativeDiscovery(['session_files.read'], disabled)).members, []);
 });

@@ -4,9 +4,10 @@ import assert from 'node:assert/strict';
 import ts from 'typescript';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
-import { Aliases, manifest, resultFor, declaration } from '../../src/namespace/namespace.js';
-import { nativeDiscovery } from '../../src/namespace/native_tools.js';
-import { inspect } from '../../src/tools/inspect.js';
+import { Aliases, resultFor, declaration } from '../../src/namespace/namespace.js';
+import { manifest } from '../namespace/fixtures.js';
+import { nativeDiscovery } from '../namespace/fixtures.js';
+import { inspect } from '../namespace/fixtures.js';
 
 /** @brief Provide a scoped catalog with preserved native command documentation. */
 async function registry(): Promise<SemanticRegistry> {
@@ -30,6 +31,7 @@ test('disabled tools paths are omitted while YAML path aliases validate native a
 test('reserved tools paths reject aliases while physical tools support custom paths', async () => {
     const catalog = await registry();
     catalog.refresh([...catalog.tools(), { id: 'tools_mount', description: 'Mount', parameters: { type: 'object' }, output: {} }]);
+    await catalog.configure([...catalog.configuration().mappings, { id: 'tools_mount', path: 'custom.source', pinned: false }], catalog.revision);
     const entries = manifest(catalog, Aliases.parse([{ path: 'custom.mount', tool: 'tools_mount' }]));
     assert.throws(() => Aliases.parse([{ path: 'tools.read', tool: 'read_file' }]), /Reserved alias path/);
     assert(entries.commands().some(entry => entry.path === 'custom.mount'));

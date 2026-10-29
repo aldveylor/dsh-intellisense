@@ -1,6 +1,6 @@
 import type { Context } from '@deepseek-ai/cordis';
 import { registerManagement } from '../../src/web/server/routes.js';
-import { createNamespace } from '../../src/namespace/namespace.js';
+import { createNamespace } from '../namespace/fixtures.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';

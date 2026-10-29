@@ -1,4 +1,4 @@
-import { createNamespace } from '../../src/namespace/namespace.js';
+import { createNamespace } from '../namespace/fixtures.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { build } from 'esbuild';

@@ -43,7 +43,7 @@ export async function writeProfile(sessions: NamespaceIntegration, agent: Agent,
         const exists = catalog.profileSelection().profiles.includes(target);
         if (operation === 'apply' && name !== undefined && !exists) throw new ProfileNotFoundError(target);
         const baseline = exists ? (await catalog.reference(target)).snapshot : session.profile.snapshot;
-        const snapshot = operation === 'apply' && name === undefined ? session.profile.snapshot : baseline.clone();
+        const snapshot = baseline.clone();
         if (operation === 'save') snapshot.save(input as ProfileWrite);
         else snapshot.apply(input as ProfilePatch);
         snapshot.check({ commands: new Set((await sessions.commandBriefs(agent)).map(command => command.name)),

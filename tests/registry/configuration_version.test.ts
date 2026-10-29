@@ -1,109 +1,54 @@
-import { sessionFor } from './session_fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { SemanticRegistry } from '../../src/registry/registry.js';
-import { ProfileSessions } from '../../src/registry/profiles.js';
-import { storageVersion } from '../../src/storage/version.js';
+import { SemanticRegistry, type ProfileCatalogData } from '../../src/registry/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
+import { storageVersion } from '../../src/storage/version.js';
 
-const mapping = { id: 'read', path: 'files.read', pinned: false };
-
-test('unversioned global settings preserve valid entries and persist the current schema version', async () => {
+/** @brief Create a current-format global catalog with multiple independent named references. */
+async function fixture() {
     const store = new MemoryStore();
-    await store.save('registry', {
-        revision: 7, profile: 'Work', mappings: [mapping, { ...mapping, path: 'files.read.child' }, { id: 'broken' }],
-        namespaces: [{ path: 'files', description: 'Files', alwaysVisible: true }, { path: 'files.read.child', description: '', alwaysVisible: false }],
-        order: ['files', 42, 'files.read'],
-        unmountedVisible: { good: 2, bad: true }, builtinVisible: { 'tools.search': 1, broken: 9 },
-        namespaceVisible: { files: true, broken: 2 }, toolComments: { read: 'Read files', broken: null },
-        builtinDisabled: ['tools.search', 'tools.inspect', null],
-        inactiveProfiles: {
-            Other: { mappings: [{ ...mapping, path: 'other.read' }, null], namespaces: 'broken', unmountedVisible: { other: 1 } },
-            Broken: null, Work: { mappings: [] }, constructor: { mappings: [] },
-        },
-    });
     const registry = new SemanticRegistry(store);
-    await registry.load();
-    const state = registry.snapshot();
-    assert.equal(state.version, storageVersion);
-    assert.equal(state.revision, 7);
-    assert.equal(state.profile, 'Work');
-    assert.deepEqual(state.mappings, [mapping]);
-    assert.deepEqual(state.namespaces, [{ path: 'files', description: 'Files', alwaysVisible: true }]);
-    assert.deepEqual(state.order, ['files', 'files.read']);
-    assert.deepEqual(state.unmountedVisible, { good: 2 });
-    assert.deepEqual(state.builtinVisible, { 'tools.search': 1 });
-    assert.deepEqual(state.namespaceVisible, { files: true });
-    assert.deepEqual(state.toolComments, { read: 'Read files' });
-    assert.deepEqual(state.builtinDisabled, ['tools.search', 'tools.inspect']);
-    assert.deepEqual(state.profiles, ['Broken', 'Other', 'Work']);
-    assert.deepEqual(registry.configuration('Other').mappings, [{ ...mapping, path: 'other.read' }]);
-    assert.deepEqual(registry.configuration('Broken').mappings, []);
-    const persisted = await store.load<{ version: number }>('registry');
-    assert.equal(persisted?.version, storageVersion);
+    await registry.saveProfile('Work', { ...registry.configuration(), brief: 'Work' });
+    return { store, registry, saved: (await store.load<ProfileCatalogData>('registry'))! };
+}
+
+test('global storage contains current anonymous Profiles and numeric pointers', async () => {
+    const { store, registry, saved } = await fixture();
+    assert.equal(saved.version, storageVersion);
+    assert.equal(saved.profiles.Work.brief, 'Work');
+    assert.equal(typeof saved.profiles.Work.pointer, 'number');
+    assert.equal('name' in saved.profiles.Work, false);
     const restored = new SemanticRegistry(store);
     await restored.load();
-    assert.deepEqual(restored.snapshot(), state);
+    assert.equal((await restored.reference('Work')).pointer, (await registry.reference('Work')).pointer);
 });
 
-test('changed global versions recover malformed containers and metadata', async () => {
-    for (const version of [0, 1, storageVersion + 1]) {
-        const store = new MemoryStore();
-        await store.save('registry', { version, revision: 'bad', profile: '__proto__', mappings: null, inactiveProfiles: [] });
-        const registry = new SemanticRegistry(store);
-        await registry.load();
-        assert.equal(registry.snapshot().version, storageVersion);
-        assert.equal(registry.snapshot().revision, 0);
-        assert.equal(registry.snapshot().profile, 'Default');
-        assert.deepEqual(registry.snapshot().mappings, []);
-    }
-});
-
-test('current global version stays strict and does not rewrite valid snapshots', async () => {
+test('obsolete configuration storage is rejected instead of implicitly converted', async () => {
     const store = new MemoryStore();
-    await store.save('registry', { version: storageVersion, revision: 0, mappings: [mapping] });
-    store.save = async () => { throw new Error('Unexpected write'); };
-    await new SemanticRegistry(store).load();
-    store.load = async <T>() => ({ version: storageVersion, revision: 0, mappings: [null] }) as T;
-    await assert.rejects(new SemanticRegistry(store).load(), /Invalid mapping/);
+    await store.save('registry', { version: 2, revision: 0, profile: 'Default', mappings: [] });
+    await assert.rejects(new SemanticRegistry(store).load(), /Invalid Profile reference catalog/);
 });
 
-test('failed migration persistence preserves the loaded in-memory configuration', async () => {
-    const store = new MemoryStore();
-    const registry = new SemanticRegistry(store);
+test('invalid current pointers are rejected and explicit recovery retains valid Profiles', async () => {
+    const { store, saved } = await fixture();
+    saved.profiles.Work.pointer = Number.MAX_SAFE_INTEGER;
+    await store.save('registry', saved);
+    const restored = new SemanticRegistry(store);
+    await assert.rejects(restored.load(), /Invalid Profile reference/);
+    await restored.load(true);
+    assert.deepEqual(restored.profileSelection().profiles, ['Default']);
+});
+
+test('failed recovery persistence preserves the previously published state', async () => {
+    const { store, registry, saved } = await fixture();
     const before = registry.snapshot();
-    await store.save('registry', { mappings: [mapping] });
+    saved.profiles.Work.pointer = -1;
+    await store.save('registry', saved);
+    const save = store.save.bind(store);
     store.save = async () => { throw new Error('Disk failed'); };
-    await assert.rejects(registry.load(), /Disk failed/);
+    await assert.rejects(registry.load(true), /Disk failed/);
     assert.deepEqual(registry.snapshot(), before);
-    assert.deepEqual(await store.load('registry'), { mappings: [mapping] });
-});
-
-test('session hydration reads plain Profile data without registry version metadata or rewrites', async () => {
-    const store = new MemoryStore();
-    const values: unknown[] = [];
-    store.load = async <T>() => ({ name: 'Work', root: { type: 'namespace', children: {
-        files: { type: 'namespace', children: { read: { type: 'command', command: { tool: 'read' } } } },
-    } } }) as T;
-    store.save = async <T>(_key: string, value: T) => { values.push(value); };
-    const catalog = new SemanticRegistry(new MemoryStore());
-    const sessions = new ProfileSessions(catalog, store);
-    const addition = await sessions.addition(sessionFor(sessions, 'existing'));
-    assert.equal(addition.profile.resolve('files.read')?.serialize().command?.tool, 'read');
-    const registry = await sessions.forSession(sessionFor(sessions, 'existing'));
-    assert.equal(registry.profileSelection().selected, 'Work');
-    assert.deepEqual(registry.configuration().mappings, [mapping]);
-    assert.equal(values.length, 0);
-});
-
-test('explicit recovery discards invalid current-version entries and preserves other profiles', async () => {
-    const store = new MemoryStore();
-    await store.save('registry', { version: storageVersion, revision: 2, profile: 'Work', mappings: [mapping, null],
-        inactiveProfiles: { Other: { mappings: [{ ...mapping, path: 'other.read' }] } } });
-    const registry = new SemanticRegistry(store);
-    await assert.rejects(registry.load());
+    store.save = save;
     await registry.load(true);
-    assert.deepEqual(registry.configuration().mappings, [mapping]);
-    assert.deepEqual(registry.configuration('Other').mappings, [{ ...mapping, path: 'other.read' }]);
-    await new SemanticRegistry(store).load();
+    assert.deepEqual(registry.profileSelection().profiles, ['Default']);
 });

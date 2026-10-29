@@ -22,10 +22,10 @@ const mapping = { id: 'read', path: 'file.read', pinned: false, alwaysVisible: 1
 /** @brief Mount the editor against real management routes and record browser requests. */
 async function fixture(prepare: (registry: SemanticRegistry) => Promise<void> = async () => {}, inspectLoading?: (document: Document) => void, failInitialLoad = false) {
     const store = new MemoryStore();
-    await store.save('registry', { version: 1, revision: 19, profile: 'Default', mappings: [{ ...mapping, enabled: true }] });
     const registry = new SemanticRegistry(store);
     await registry.load();
     registry.refresh([{ id: 'read', description: 'Read a file', parameters: {}, output: {} }]);
+    await registry.configure([mapping], registry.revision);
     await prepare(registry);
     const routes = new Map<string, (request: Request) => Promise<Response>>();
     const ctx = { connection: { fetch: { register: (route: { path: string; fetch: (request: Request) => Promise<Response> }) => routes.set(route.path, route.fetch) } }, emit: () => {} } as unknown as Context;

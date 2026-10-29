@@ -4,7 +4,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import { apply } from '../../src/namespace/plugin.js';
 import { storageVersion } from '../../src/storage/version.js';
 
-test('startup loading failures keep management available and reset preserves valid portions', async () => {
+test('startup loading failures keep management available and reset replaces obsolete Profile storage', async () => {
     const records: Record<string, unknown> = {
         registry: { version: storageVersion, revision: 3, mappings: [{ id: 'read', path: 'files.read', pinned: false }] },
         command_queries: { version: storageVersion, counts: { read: 4, broken: -1 } },
@@ -29,7 +29,7 @@ test('startup loading failures keep management available and reset preserves val
     } as unknown as Context;
     await apply(ctx);
     assert.equal(warnings.length, 1);
-    assert.deepEqual(descriptors, [{ name: 'ts_intellisense', version: storageVersion, compatibleVersions: [1], tables: ['state'], hasGlobal: false, layout: 'per-record' }]);
+    assert.deepEqual(descriptors, [{ name: 'ts_intellisense', version: storageVersion, compatibleVersions: [1, 2], tables: ['state'], hasGlobal: false, layout: 'per-record' }, { name: 'intellisense_profile_snapshots', version: 1, tables: ['state'], hasGlobal: false, layout: 'per-record' }]);
     const route = routes.get('/api/ts-intellisense-state')!;
     assert.equal((await route(new Request('https://localhost/api/ts-intellisense-state'))).status, 400);
     const response = await route(new Request('https://localhost/api/ts-intellisense-state', {
@@ -39,7 +39,7 @@ test('startup loading failures keep management available and reset preserves val
     const restored = await route(new Request('https://localhost/api/ts-intellisense-state'));
     assert.equal(restored.status, 200);
     const state = await restored.json();
-    assert.deepEqual(state.state.mappings, [{ id: 'read', path: 'files.read', pinned: false }]);
+    assert.deepEqual(state.state.mappings, []);
     assert.deepEqual(state.queriesByTool, { read: 4 });
 });
 
@@ -62,10 +62,11 @@ test('KV version upgrade retains compatible records for domain-level partial rec
         const store = new DshStore(current);
         const registry = new SemanticRegistry(store);
         const statistics = new CommandStatistics(store);
-        await registry.load();
+        await assert.rejects(registry.load(), /Invalid Profile reference catalog/);
+        await registry.load(true);
         await statistics.load();
         assert.equal(registry.snapshot().version, storageVersion);
-        assert.deepEqual(registry.snapshot().mappings, [{ id: 'read', path: 'files.read', pinned: false }]);
+        assert.deepEqual(registry.snapshot().mappings, []);
         assert.deepEqual((await statistics.queries.snapshot()), { read: 4 });
     } finally { await backend.close(); await rm(directory, { recursive: true, force: true }); }
 });

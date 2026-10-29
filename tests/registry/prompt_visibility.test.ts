@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { SemanticRegistry, type PinLevel } from '../../src/registry/registry.js';
-import { manifest } from '../../src/namespace/namespace.js';
+import { manifest } from '../namespace/fixtures.js';
 import { MemoryStore } from '../../src/storage/store.js';
 
 test('pinned command hints and mixed tree order persist and honor agent visibility', async () => {

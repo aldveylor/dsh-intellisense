@@ -10,7 +10,7 @@ import { settingsAt } from './profile/node_settings.js';
 import { z } from 'zod';
 import { RegistryConfiguration, type RegistryConfigurationData } from './configuration.js';
 import type { Saveable } from '../storage/saveable.js';
-import { fixLevel, nodePermissions, type SerializedNode } from '../namespace/node.js';
+import { fixLevel, nodePermissions } from '../namespace/node.js';
 import type { ProfileTreeNode, NamespaceTreeNode } from './profile_node.js';
 
 /** @brief Physical command identity used by editable Profile trees. */
@@ -53,16 +53,6 @@ function compactProfileNode(node: ProfileTreeNode): ProfileTreeNode {
     if (!result.disabled) delete result.disabled;
     if (children && result.type === 'namespace') result.children = Object.fromEntries(Object.entries(children).map(([name, child]) => [name, compactProfileNode(child)]));
     return result;
-}
-
-/** @brief Project executable nodes into editable Profile data. */
-function profileNode(node: SerializedNode): ProfileTreeNode {
-    const common = { permissions: node.permissions, fixedLevel: node.fixedLevel, disabled: node.disabled };
-    if (node.type === 'leaf') {
-        const { tool, doc } = node.command!;
-        return { ...common, type: 'command', command: { tool, doc } };
-    }
-    return { ...common, type: 'namespace', fixedLevel: node.fixedLevel === 2 ? 1 : node.fixedLevel, description: node.description, children: Object.fromEntries((node.children ?? []).map(child => [child.name, profileNode(child)])) };
 }
 
 /** @brief Validate shared permissions without trusting them as the server's authority. */
@@ -133,6 +123,7 @@ export function profileTree(name: string, configuration: RegistryConfigurationDa
         if (description !== undefined) command.setDescription(description);
     }
     const snapshot = definition.serialize();
+    const initial = definitions.tree(name);
     const apply = (node: ProfileTreeNode, path: string): void => {
         const setting = settingsAt(configuration.nodeSettings, path ? path.split('.') : []);
         if (setting?.description !== undefined) {
@@ -141,8 +132,9 @@ export function profileTree(name: string, configuration: RegistryConfigurationDa
         }
         const mapping = configuration.mappings.find(item => item.path === path);
         const namespace = configuration.namespaces.find(item => item.path === path);
-        const permissions = nodePermissions(node.type === 'command' ? 'leaf' : 'tree', node.permissions);
-        const level = fixLevel(permissions, node.type === 'command' ? configuration.builtinVisible?.[path] ?? mapping?.alwaysVisible ?? node.fixedLevel ?? 0
+        const permissions = path ? nodePermissions(node.type === 'command' ? 'leaf' : 'tree', { ...node.permissions, ...setting?.permissions }) : definitions.createInitialProfile().permissions;
+        const declared = path.split('.').reduce<ProfileTreeNode | undefined>((parent, name) => parent?.children?.[name], path ? initial : undefined);
+        const level = fixLevel(permissions, node.type === 'command' ? configuration.builtinVisible?.[path] ?? mapping?.alwaysVisible ?? (declared ? declared.fixedLevel ?? 0 : node.fixedLevel ?? 0)
             : namespace?.alwaysVisible || configuration.namespaceVisible?.[path] ? 1 : 0);
         if (node.type === 'command') node.fixedLevel = level;
         else node.fixedLevel = level === 2 ? 1 : level;

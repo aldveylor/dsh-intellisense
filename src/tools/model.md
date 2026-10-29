@@ -6,7 +6,7 @@
 
 `inspect.ts` 注册 tools_inspect，固定映射 tools.inspect。工具结果卡片使用代码块展示输入/输出 schema 和查询结果（PTC 为 TypeScript，native 为 JSON，错误为 text），原生命名空间代理沿用此展示及输出 schema。物理工具及 native 代理保留 { queries: string[] } 命名参数；PTC 接口为 function inspect(queries: string[]): Promise<string>，接收单个字符串数组，tools.inspect([""]) 查询根命名空间，派发时使用通用字段适配器生成物理工具的 queries 字段。两种模式查询时均忽略开头的 global. 前缀，global. 等同于根目录查询。尾点查询列出直接子项，精确路径展开签名和文档，PTC 多查询合并为 TypeScript global 命名空间树；命名空间成员查询仅显示命令的 Profile 简略注释（未配置时取原始文档首行），只有精确函数查询显示完整注释和签名。native 返回 JSON 直接成员列表，实际工具条目省略 description 和 tool 字段，增加 brief 简化注释（优先使用 Profile 简略注释，未配置时取原始文档首行）；精确查询仍附带命名参数 schema；仅精确函数路径查询将对应命令加入系统提示词工具集合，命名空间查询只列举成员，不挂载其中的命令。native 查询会更新会话发现集合、同步工具并发出 system-prompt/change，使下一次组装包含新增工具。结果作为普通工具响应进入原生历史，并保存查询审计。会话释放时清除发现集合。
 
-`tool_commands.ts` 注册 Profile load/save/apply/delete/switch/setdefault/annotation/commands/profiles。save 支持显式名称或当前会话名称，验证递归树与物理命令身份，仅发布目录，保留当前会话配置和选择，显式 switch(name) 后应用保存的配置；load 无名称只返回当前会话草稿，有名称只从全局目录读取指定配置并返回可序列化的 Profile 数据，不替换会话快照、不刷新工具提示。`../namespace/runtime.ts` 将 annotation 和原始命令列表作为数据传给 VM init，不安装同名函数。
+`tool_commands.ts` 注册 Profile load/save/apply/delete/switch/setdefault/annotation/commands/profiles。save 支持显式名称或当前会话名称，验证递归树与物理命令身份，仅发布目录，保留当前会话配置和选择，显式 switch(name) 后应用保存的配置；load 无名称只返回当前会话不可变快照，有名称只从全局目录读取指定配置并返回可序列化的 Profile 数据，不替换会话快照、不刷新工具提示。`../namespace/runtime.ts` 将 annotation 和原始命令列表作为数据传给 VM init，不安装同名函数。
 
 Profile load/save/annotation 统一使用继承 ProfileNode 的 CommandNode（type: command）与 NamespaceTreeNode（type: namespace）；节点不含 name，命名空间 children 使用名称为键的 Record；apply 对 children 按键递归合并，null 删除对应成员。基类 fixedLevel 为可选 number，具体节点限制支持的等级。Profile 数据模型声明通过 tools.profile.annotation 按需读取；tools_inspect 查询结果不自动附加这些声明。
 
@@ -48,7 +48,7 @@ Profile save 比较完整目标并应用差异时，tools 仍为受保护命名�
 
 内置命令的功能说明与参数注释统一定义于 `runtime/builtins.ts`（源码根目录下）的 `PluginCommands` 契约表；原生注册、Inspect、固定提示及管理 UI 引用同一来源。BuiltinTool 保存共享或按 native/PTC 区分的描述、参数注释与 discoveryHint，通过 projectBuiltin(command, mode) 投影为纯字符串注释的 BuiltinCommand；原生注册按 presentation 作用域选择模式，会话命名空间按当前执行模式选择，管理目录默认使用 PTC 投影。依赖 inspect 的可选指引由投影后的 discoveryHint 标记，禁用发现时按该标记移除。
 
-`tools.profile.apply(value: ProfilePatch)` / `apply(name: string | undefined, value: ProfilePatch)` 按 load(name?) 规则读取当前会话草稿或已有目录配置，递归合并部分对象 patch 后复用 save 的验证及持久化流程。未提交字段保留，null 删除对象字段，children 对象按成员名递归合并，数组整体替换，不按索引合并。合并结果必须满足 ProfileSchema；受保护节点继续按 save 规则校验，违规修改抛错，返回相同的 string | null 信息。显式名称必须已存在；省略名称读取会话草稿并保存到当前选择的目录名称。保存不更改会话工作快照或选择，不刷新提示，应用仍需显式 switch。`profile_save.ts` 提供对象 patch 合并及保存信息生成。
+`tools.profile.apply(value: ProfilePatch)` / `apply(name: string | undefined, value: ProfilePatch)` 读取目标名称在全局表中的最新版本，递归合并部分对象 patch 后复用 save 的验证及持久化流程。未提交字段保留，null 删除对象字段，children 对象按成员名递归合并，数组整体替换，不按索引合并。合并结果必须满足 ProfileSchema；受保护节点继续按 save 规则校验，违规修改抛错，返回相同的 string | null 信息。显式名称必须已存在；省略名称读取当前选择名称在全局表中的最新版本并保存到该名称。保存不更改会话工作快照或选择，不刷新提示，应用仍需显式 switch。`profile_save.ts` 提供对象 patch 合并及保存信息生成。
 
 apply 不使用 save 对 tools 的默认禁用规则：未提交禁用字段时保留 tools 及其内部命名空间、命令的原状态，显式 disabled 仍可切换状态，null 删除字段后使用节点默认值 false。save 的整树替换默认规则保持不变。
 
@@ -67,12 +67,14 @@ ProfileRootWrite 的匿名根只允许 type/children，拒绝没有持久化表�
 
 `profile_lock.ts` 的 ProfileLock 为当前命名空间组件提供共享 FIFO 异步互斥锁。所有 `tools.profile.*` 操作共用该锁，读写均在获取锁后执行；apply 的读取、合并、校验及目录持久化位于同一临界区，避免跨会话并发增量保存丢失更新。等待结束后再次检查取消信号，失败或取消通过 finally 释放锁，不阻塞后续操作。锁只协调本组件的 Profile 工具调用，不提供跨进程或绕过工具接口的存储事务。
 
-插件侧便携工具附加属性由 namespace/builtin_profile.ts 注册：内置管理工具 fixed=true，exec/run_code/tools_run_code hidden=true，模式差异说明通过可选 ptcDescription 提供。物理工具注册保留 native 注释；PTC 投影读取附加属性。原有 Profile load/save/apply 是 agent JSON 接口，插件侧编辑统一使用 toolsNamespace.edit(name, snapshot => snapshot)，二者共用服务端权限与存储规则。
+工具附加属性由 ctx.intellisense.toolAdditions 提供 hidden 与 ptcDescription。固定身份来自节点权限，内置契约和预加载由命令类实现；ToolsNamespace 不处理 ToolAddition。插件侧编辑使用 toolsNamespace.edit(name, snapshot => snapshot)，仅更新全局版本。
 
-执行投影命令使用 CommandNode，Profile 编辑树使用实际的内置命令类。permissions 作为 agent 和前端可读声明保留，检查与修正在 RootNamespace 和各子节点实现中执行。工具契约与预加载生产器仍由 setToolAddition 注册。
+工具直接读取当前会话引用的原始 Profile 节点，输出契约为携带原节点引用的扁平数据。permissions 保留为只读说明，检查与修正在 RootNamespace 和各子节点中执行。
 
 Profile 操作模型详见 registry/profile/model.md 与 tools/profile_nodes/model.md。ProfileCollection.createInitialProfile 是无参数初始生成函数；节点 create/getOrCreate 使用 (name, factory: () => T)，T extends ProfileNode，返回 T；get/set 使用 ProfileNode，type 基础声明为 string。apply 为基础操作，save 比较完整目标再 apply 差异，普通省略节点删除。effect 仅通知保存事件，不处理返回值。
 
 `profile_save.ts` 为 tools_profile_save/tools_profile_apply 统一执行节点校验、原子持久化及校验提示计算。ProfileSaveEffect 只在提交后观察 name/time/type，不处理返回值，不覆盖工具反馈；处理器可在保存事务结束后继续编辑目录。
 
-Inspect 的查询目标及计数直接通过当前会话 ProfileSnapshot.resolve(path) 读取节点；展示投影只以该快照节点树为输入，物理目录仅补充可用工具的原始文档、签名及 schema，不合并 registry 挂载、命名空间描述或 YAML 别名。Profile 命令简略注释直接从命中节点提取。native 精确查询仍注册对应工具并刷新提示，注册阶段使用完整运行时树。
+Inspect 的查询目标及计数直接通过 ProfileReference.snapshot.resolve(path) 读取实际节点，原节点提供简述与命名空间描述，物理目录补充当前可用工具的文档、签名和 schema。不构建展示树或运行时语义树。
+
+save/apply 只更新全局表并分配新版本号；当前会话快照不可修改。switch(name) 在共享锁内检查目标指针是否归档，已有则复用，否则首次复制后持久化当前会话指针。同指针并发进入只写入一次，switch 不生成新版本号。

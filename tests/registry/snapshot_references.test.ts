@@ -115,3 +115,43 @@ test('tool additions contain metadata while concrete command classes own builtin
     assert.equal('setToolAddition' in catalog.definitions, false);
     assert.equal('addition' in catalog.definitions, false);
 });
+
+test('parallel switches bind pointer checks and archive writes under one lock', async () => {
+    const store = new MemoryStore();
+    const catalog = new SemanticRegistry(store);
+    const sessions = new ProfileSessions(catalog, store);
+    const firstSession = session('parallel_first');
+    const secondSession = session('parallel_second');
+    const first = await sessions.addition(firstSession);
+    const second = await sessions.addition(secondSession);
+    const previous = first.profile.pointer;
+    await catalog.saveProfile('Next', catalog.configuration(), { trusted: true });
+    const next = await catalog.reference('Next');
+    let entered!: () => void;
+    let release!: () => void;
+    const writing = new Promise<void>(resolve => { entered = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const save = store.save.bind(store);
+    let archives = 0;
+    store.save = async (key, value) => {
+        if (key === `profile_snapshot_${next.pointer}`) { archives++; entered(); await gate; }
+        await save(key, value);
+    };
+    const a = sessions.load(firstSession, 'Next');
+    await writing;
+    const b = sessions.load(secondSession, 'Next');
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.equal(first.profile.pointer, previous);
+    assert.equal(second.profile.pointer, previous);
+    assert.equal(archives, 1);
+    release();
+    await Promise.all([a, b]);
+    assert.equal(archives, 1);
+    assert.equal(first.profile, second.profile);
+    assert.equal(first.profile.pointer, next.pointer);
+    const restored = new SemanticRegistry(store);
+    await restored.load();
+    assert.equal((await restored.reference('Next')).pointer, next.pointer);
+    const reopened = await new ProfileSessions(restored, store).addition(session('parallel_first'));
+    assert.equal(reopened.profile.pointer, next.pointer);
+});

@@ -4,7 +4,7 @@ import { NamespaceTree, NamespaceTreeNode } from '../../src/web/panel/tree_node.
 import { treeDisabledState } from '../../src/web/panel/tree_state.js';
 import { inNamespace } from '../../src/web/panel/namespace_tree.js';
 import { TreeProvider } from '../../src/web/panel/tree_provider.js';
-import { createNamespace } from '../../src/namespace/namespace.js';
+import { createNamespace } from '../namespace/fixtures.js';
 
 test('indexed disable flags preserve ancestor, own command and provided node rules', () => {
     const namespaces = [{ path: 'files', disabled: true, description: '', alwaysVisible: false }];

@@ -1,4 +1,6 @@
-import { manifest, createNamespace } from '../../src/namespace/namespace.js';
+import { promptFor } from '../namespace/fixtures.js';
+import { createNamespace } from '../namespace/fixtures.js';
+import { manifest } from '../namespace/fixtures.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Agent } from '@deepseek-ai/dsh-agent';
@@ -14,10 +16,7 @@ const tool = {
 };
 
 /** @brief Render the real prompt assembly with an isolated Profile registry. */
-function prompt(registry: SemanticRegistry): Promise<string> {
-    const component = { registryFor: async () => registry, aliases: [], isPtc: () => true, tree: async () => manifest(registry, []) } as unknown as NamespaceIntegration;
-    return NamespaceIntegration.prototype.prompt.call(component, {} as Agent);
-}
+const prompt = promptFor;
 
 test('three command levels hide, summarize, or publish complete documented signatures', async () => {
     const registry = new SemanticRegistry(new MemoryStore());
@@ -98,8 +97,7 @@ test('disabled or absent discovery disappears from pinned prompts and builtin he
             const text = await prompt(registry);
             assert.equal(text.includes('tools.inspect'), available && !disabled.length);
             assert(text.includes('function read('));
-            const component = { registryFor: async () => registry, isPtc: () => true, aliases: [], tree: NamespaceIntegration.prototype.tree } as unknown as NamespaceIntegration;
-            const entries = await NamespaceIntegration.prototype.entries.call(component, {} as Agent);
+            const entries = manifest(registry, []).entries;
             assert.equal(entries.some(entry => entry.path === 'tools.inspect'), available && !disabled.length);
             assert.equal(entries.some(entry => entry.path === 'tools.search'), !disabled.includes('tools'));
         }

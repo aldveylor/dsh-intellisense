@@ -12,6 +12,8 @@ import { inspectQueryTargets, registerInspect } from '../../src/tools/inspect.js
 import { RootNamespace } from '../../src/tools/profile_nodes/root_namespace.js';
 import { EditableNamespace } from '../../src/registry/profile/namespace.js';
 import { EditableCommand } from '../../src/registry/profile/command.js';
+import { ProfileReference } from '../../src/registry/profile/snapshot_store.js';
+import { NamespaceDefinitions } from '../../src/namespace/definitions.js';
 import { namespace } from '../namespace/fixtures.js';
 
 test('query targets count normalized occurrences without expanding members or runtime APIs', async () => {
@@ -48,7 +50,8 @@ for (const ptc of [false, true]) test(`physical Inspect records query targets in
     profile.create('std', () => new EditableNamespace()).create('read', () => new EditableCommand()).setTool('read');
     let selected = 'Default';
     const namespaces = {
-        statistics, inspectStatistics: new Statistics(new MemoryStore(), 'inspect_statistics'), registryFor: async () => ({ profileSelection: () => ({ selected }), effective: () => [], description: () => undefined, disabled: () => false, revision: 0, snapshot: () => ({ revision: 0 }), tools: () => [{ id: 'read', description: '', parameters: {}, output: {} }], definitions: { addition: () => ({}) } }),
+        statistics, inspectStatistics: new Statistics(new MemoryStore(), 'inspect_statistics'),
+        addition: async () => ({ name: selected, profile: new ProfileReference(1, { root: profile.serialize() }, new NamespaceDefinitions()) }),
         isPtc: () => ptc, discover: async () => '{}', position: () => ({ turn: 0, step: 0 }),
     } as unknown as NamespaceIntegration;
     let definition!: ToolDefinition;
@@ -60,7 +63,6 @@ for (const ptc of [false, true]) test(`physical Inspect records query targets in
         callId: 'query', signal: new AbortController().signal,
         agent: { id: 'session', session: Session.create(SessionId('statistics-query')), ctx: { get: (key: string) => key === 'namespaceIntegration' ? namespaces : undefined } },
     } as unknown as ToolRunContext;
-    execution.agent!.session.intellisense = { profile, statistics: statistics.calls.scope('session'), save: async () => {} };
     await definition.execute({ queries: ['global.std.', 'std.read', 'console.log'] }, execution);
     assert.deepEqual(await namespaces.inspectStatistics.snapshot('Default'), { std: 1, 'std.read': 1 });
     assert.deepEqual(await statistics.calls.snapshot(), {});

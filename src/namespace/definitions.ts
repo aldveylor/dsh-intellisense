@@ -5,7 +5,7 @@ import type { NamespaceTreeNode } from '../registry/profile_node.js';
 import type { ProfileSaveEffect, ProfileSaveEvent, ToolsNamespace } from './service.js';
 import { registerBuiltinDefinitions } from './builtin_profile.js';
 
-/** @brief Own shared recursive node definitions and reversible physical-tool registrations. */
+/** @brief Own the initial Profile factory and completed-save observers. */
 export class NamespaceDefinitions implements Pick<ToolsNamespace, 'createInitialProfile' | 'effect'> {
     private saveEffects = new Set<ProfileSaveEffect>();
     private profileFactory: ProfileFactory = () => new EditableSnapshot();
@@ -48,7 +48,7 @@ export class NamespaceDefinitions implements Pick<ToolsNamespace, 'createInitial
         return structuredClone(tree);
     }
 
-    /** @brief Invalidate projected trees and tool catalogs after registration changes. */
+    /** @brief Invalidate the serialized initial declaration after a factory change. */
     private touch(): void { this.cachedTree = undefined; this.revision++; this.changed(); }
 }
 
