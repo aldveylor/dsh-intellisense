@@ -55,18 +55,18 @@
 
 .ts-tree-tool,.ts-node-block{transition:border-color .2s ease,color .24s ease,background-color .24s ease}
 .ts-tree-children{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .22s ease,opacity .22s ease}
-.ts-tree-children>ul{min-height:0;overflow:hidden;margin-top:0;margin-bottom:0;padding-left:var(--ts-tree-indent,41px)}
-.ts-tree-children>ul>li{position:relative}
-.ts-tree-children>ul>li:where(:not(.ts-tree-tool)){display:flow-root}
-.ts-tree-children>ul>li::before,.ts-tree-children>ul>li::after{content:'';position:absolute;pointer-events:none;border-color:var(--ts-border);border-style:dashed;border-width:0}
-.ts-tree-children>ul>li::before{left:calc(var(--ts-tree-indent,41px) / -2);top:0;bottom:0;border-left-width:1px}
-.ts-tree-children>ul>li::after{left:calc(var(--ts-tree-indent,41px) / -2);top:33px;width:calc(var(--ts-tree-indent,41px) / 2);border-top-width:1px}
-.ts-tree-children>ul>li:last-child::before{bottom:auto;height:33px}
+/* Keep connectors in the row grid area, independent of expanded subtree height. */
+.ts-tree-children>ul{display:flex;flex-direction:column;gap:10px;min-height:0;overflow:hidden;margin:0;padding-top:10px;padding-left:var(--ts-tree-indent,41px)}
+.ts-tree-children>ul>li{--ts-row-border:0px;position:relative;flex-shrink:0;margin:0}
+.ts-tree-children>ul>li:where([data-tree-path]:not(.ts-tree-tool)){display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto}
+.ts-tree-children>ul>li>.ts-node-block{grid-area:1/1;margin:0}
+.ts-tree-children>ul>li>.ts-tree-children{grid-area:2/1}
+.ts-tree-children>ul>:is(.ts-tree-tool,.ts-namespace-placeholder){--ts-row-border:1px}
+.ts-tree-children>ul>li::before,.ts-tree-children>ul>li::after{content:'';position:absolute;pointer-events:none;border-color:var(--ts-border);border-style:dashed;border-width:0;left:calc(var(--ts-tree-indent,41px) / -2 - var(--ts-row-border))}
+.ts-tree-children>ul>li::before{top:calc(-10px - var(--ts-row-border));bottom:calc(0px - var(--ts-row-border));border-left-width:1px}
+.ts-tree-children>ul>li::after{grid-area:1/1/2/2;top:50%;width:calc(var(--ts-tree-indent,41px) / 2);border-top-width:1px}
+.ts-tree-children>ul>li:last-child::before{grid-area:1/1/2/2;bottom:50%}
 .ts-tree-children>ul>.ts-namespace-placeholder{display:flex}
-.ts-tree-children>ul>.ts-namespace-placeholder::before{top:-10px}
-.ts-tree-children>ul>.ts-namespace-placeholder::after{top:50%}
-.ts-tree-children>ul>.ts-namespace-placeholder:last-child::before{height:calc(50% + 10px)}
-.ts-tree-children>ul>li:last-child{margin-bottom:0}
 .ts-tree-children[data-open=true]{grid-template-rows:1fr;opacity:1}
 .ts-tree-children[data-open=false]{pointer-events:none}
 @media(prefers-reduced-motion:reduce){
