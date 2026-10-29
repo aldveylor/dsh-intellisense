@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import type { Context } from '@deepseek-ai/cordis';
 import { apply } from '../../src/integration/plugin.js';
 import { apply as applyProfiles } from '../../src/profile/plugin.js';
-import { storageVersion } from '../../src/storage/version.js';
+import { snapshotVersion, storageVersion } from '../../src/storage/version.js';
 
 test('startup loading failures keep management available and reset replaces obsolete Profile storage', async () => {
     const records: Record<string, unknown> = {
@@ -31,7 +31,7 @@ test('startup loading failures keep management available and reset replaces obso
     await applyProfiles(ctx);
     await apply(ctx);
     assert.equal(warnings.length, 1);
-    assert.deepEqual(descriptors, [{ name: 'ts_intellisense', version: storageVersion, compatibleVersions: [1, 2], tables: ['state'], hasGlobal: false, layout: 'per-record' }, { name: 'intellisense_profile_snapshots', version: 1, tables: ['state'], hasGlobal: false, layout: 'per-record' }]);
+    assert.deepEqual(descriptors, [{ name: 'ts_intellisense', version: storageVersion, compatibleVersions: [1, 2], tables: ['state'], hasGlobal: false, layout: 'per-record' }, { name: 'intellisense_profile_snapshots', version: snapshotVersion, tables: ['state'], hasGlobal: false, layout: 'per-record' }]);
     const route = routes.get('/api/ts-intellisense-state')!;
     assert.equal((await route(new Request('https://localhost/api/ts-intellisense-state'))).status, 400);
     const response = await route(new Request('https://localhost/api/ts-intellisense-state', {
@@ -70,6 +70,31 @@ test('KV version upgrade retains compatible records for domain-level partial rec
         assert.equal(registry.snapshot().version, storageVersion);
         assert.deepEqual(registry.snapshot().mappings, []);
         assert.deepEqual((await statistics.queries.snapshot()), { read: 4 });
+    } finally { await backend.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('archived command-node Profiles are discarded when the snapshot schema changes', async () => {
+    const { JsonStorageBackend } = await import('@deepseek-ai/dsh-storage-json');
+    const { mkdtemp, rm } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { DshStore } = await import('../../src/storage/store.js');
+    const { SemanticRegistry } = await import('../../src/profile/catalog/registry.js');
+    const directory = await mkdtemp(join(tmpdir(), 'intellisense-snapshot-'));
+    const backend = new JsonStorageBackend(directory);
+    try {
+        const obsolete = await backend.kv.open({ name: 'intellisense_profile_snapshots', version: 1, tables: ['state'], hasGlobal: false, layout: 'per-record' });
+        await obsolete.putRecord('state', 'profile_snapshot_1', { root: { type: 'namespace', children: {
+            tools: { type: 'namespace', children: { inspect: { type: 'command', command: { tool: 'tools_inspect' } } } },
+        } } });
+        await obsolete.close();
+        const unit = await backend.kv.open({ name: 'ts_intellisense', version: storageVersion, compatibleVersions: [1, 2], tables: ['state'], hasGlobal: false, layout: 'per-record' });
+        const snapshots = await backend.kv.open({ name: 'intellisense_profile_snapshots', version: snapshotVersion, tables: ['state'], hasGlobal: false, layout: 'per-record' });
+        const store = new DshStore(snapshots);
+        assert.deepEqual(await store.loadEntries('profile_snapshot_'), []);
+        const registry = new SemanticRegistry(new DshStore(unit), 'global', undefined, store);
+        await registry.load();
+        assert.deepEqual(registry.profileSelection().profiles, ['Default']);
     } finally { await backend.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
