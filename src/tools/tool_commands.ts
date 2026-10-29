@@ -11,11 +11,12 @@ import type { Agent } from '@deepseek-ai/dsh-agent';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import type { SemanticRegistry } from '../registry/registry.js';
+import type { ToolsNamespace } from '../namespace/service.js';
 import type { ProfileSessions } from '../registry/profiles.js';
 import { type CommandBrief, profileTree, profileAnnotation } from '../registry/profile_tree.js';
 
 /** @brief Register Profile management commands and data access. */
-export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, profiles: ProfileSessions, registryFor: (agent: Agent) => Promise<SemanticRegistry>, changed: (agent: Agent) => Promise<void>, commands: (agent: Agent) => Promise<CommandBrief[]>): void {
+export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, profiles: ProfileSessions, registryFor: (agent: Agent) => Promise<SemanticRegistry>, changed: (agent: Agent) => Promise<void>, commands: (agent: Agent) => Promise<CommandBrief[]>, namespace?: Pick<ToolsNamespace, 'saveProfile'>): void {
     /** @brief Resolve mode-specific comments in the registration scope. */
     const contract = (tool: string) => projectBuiltin(pluginCommands.find(tool)!, 'native');
     const lock = new ProfileLock();
@@ -71,7 +72,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
             if (!execution.agent) throw new ConversationRequiredError();
             const { name, profile } = z.strictObject({ name: z.string().optional(), profile: ProfileWriteSchema }).parse(args);
             const target = name ?? (await registryFor(execution.agent)).snapshot().profile!;
-            return ctx.toolsNamespace.saveProfile(execution.agent, name ?? target, profile);
+            return (namespace ?? execution.agent.ctx.get('toolsNamespace')!).saveProfile(execution.agent, name ?? target, profile);
         },
     })));
     ctx.effect(() => register(defineTool({
@@ -86,7 +87,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
             const target = name ?? registry.snapshot().profile!;
             const profile = profileWrite(profileTree(target, registry.configuration(name), catalog.definitions));
             const merged = ProfileWriteSchema.parse(mergeProfilePatch(profile, value));
-            return ctx.toolsNamespace.saveProfile(execution.agent, name ?? target, merged, 'apply');
+            return (namespace ?? execution.agent.ctx.get('toolsNamespace')!).saveProfile(execution.agent, name ?? target, merged, 'apply');
         },
     })));
     ctx.effect(() => register(defineTool({

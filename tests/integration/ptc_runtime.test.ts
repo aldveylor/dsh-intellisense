@@ -553,7 +553,7 @@ test('Profile organization mounts catalog commands and applies briefs without mu
             return [rejected, tools.profile.profiles.selected, (await tools.profile.load('Organized')).root.children['files'].description];
         `);
         assert.equal(result.isError, false, JSON.stringify(result));
-        assert.deepEqual(result.value, { logs: [], result: [2, 'Default', 'File operations'] });
+        assert.deepEqual(result.value, { logs: [], result: [1, 'Default', 'File operations'] });
         assert.equal((await namespaces.tree(agent)).resolve(['files']), undefined);
         const switched = await run("await tools.profile.switch('Organized');");
         assert.equal(switched.isError, false, JSON.stringify(switched));
@@ -576,7 +576,7 @@ test('Profile organization mounts catalog commands and applies briefs without mu
 });
 
 
-test('PTC Profile save honors protected permissions and leaves catalog and session unchanged on rejection', async () => {
+test('PTC Profile save repairs protected nodes and preserves session state', async () => {
     const { run, dispose } = await fixture();
     try {
         const result = await run(`
@@ -607,9 +607,7 @@ test('PTC Profile save honors protected permissions and leaves catalog and sessi
         `);
         assert.equal(result.isError, false, JSON.stringify(result));
         const value = result.value as { logs: string[]; result: { errors: string[]; levels: number[]; disabled: boolean; catalogUnchanged: boolean; sessionUnchanged: boolean; selected: string } };
-        assert.equal(value.result.errors.length, 2);
-        assert.match(value.result.errors[0]!, /Node cannot be removed: tools\.profile\.load.*permissions\.removable=false/);
-        assert.match(value.result.errors[1]!, /Node documentation cannot be changed: tools\.profile\.save.*permissions\.commentable=false/);
+        assert.equal(value.result.errors.length, 0);
         assert.deepEqual(value, { logs: [], result: { errors: value.result.errors, levels: [2, 1], disabled: true,
             catalogUnchanged: true, sessionUnchanged: true, selected: 'Default' } });
     } finally { await dispose(); }

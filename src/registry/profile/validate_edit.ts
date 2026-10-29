@@ -3,13 +3,13 @@ import { nodePermissions } from '../../namespace/node.js';
 import type { NamespaceTreeNode, ProfileTreeNode } from '../profile_node.js';
 
 /** @brief Check untrusted tree changes against the original server-owned recursive permissions. */
-export function validateProfileEdit(before: NamespaceTreeNode, after: NamespaceTreeNode): void {
+export function validateProfileEdit(before: NamespaceTreeNode, after: NamespaceTreeNode, rootPath = ''): void {
     const submitted: { path: string; node: ProfileTreeNode }[] = [];
     const collect = (node: ProfileTreeNode, path: string): void => {
         submitted.push({ path, node });
         for (const [name, child] of Object.entries(node.children ?? {})) collect(child, path ? `${path}.${name}` : name);
     };
-    collect(after, '');
+    collect(after, rootPath);
     const sameIdentity = (a: ProfileTreeNode, b: ProfileTreeNode): boolean => a.type === b.type && (a.type === 'command'
         ? a.command.tool === b.command?.tool
         : Object.entries(a.children ?? {}).some(([name, child]) => b.children?.[name] && sameIdentity(child, b.children[name]!)));
@@ -31,5 +31,5 @@ export function validateProfileEdit(before: NamespaceTreeNode, after: NamespaceT
         for (const [name, child] of Object.entries(old.children ?? {})) visit(child, value?.children?.[name], path ? `${path}.${name}` : name);
         if (value && old.type === 'namespace' && !permissions.acceptsChildren && Object.keys(value.children ?? {}).some(name => !Object.hasOwn(old.children ?? {}, name))) throw new ProfilePermissionError(`Namespace does not accept children: ${path}`);
     };
-    visit(before, after, '');
+    visit(before, after, rootPath);
 }

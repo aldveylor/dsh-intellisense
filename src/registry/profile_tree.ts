@@ -125,7 +125,7 @@ export function profileTree(name: string, configuration: RegistryConfigurationDa
         const description = mapping.description ?? configuration.toolComments?.[mapping.id];
         if (description !== undefined) command.setDescription(description);
     }
-    const root = createNamespace({ tools: [], includeUnavailable: true, definitions: definition.serialize(), addition: tool => definitions.addition(tool), nodeSettings: configuration.nodeSettings });
+    const root = createNamespace({ tools: [], includeUnavailable: true, definitions: definition.serialize(), addition: tool => definitions.addition(tool), implementation: path => definitions.implementation(path), nodeSettings: configuration.nodeSettings });
     const snapshot = profileNode(root.serialize()) as NamespaceTreeNode;
     const apply = (node: ProfileTreeNode, path: string): void => {
         const setting = settingsAt(configuration.nodeSettings, path ? path.split('.') : []);
@@ -169,13 +169,14 @@ export function profileConfiguration(profile: ProfileData, current: RegistryConf
     validateProfileEdit(baseline, root);
     collect(root, '');
     const visit = (node: ProfileTreeNode, path: string, expected?: NamespaceNode | CommandNode, original?: ProfileTreeNode): void => {
+        if (expected?.permissions.removable && ((node.type === 'command') !== (expected instanceof CommandNode) || (node.type === 'command' && expected instanceof CommandNode && node.command.tool !== expected.tool))) expected = undefined;
         if (path && !expected) validatePath(path);
         if (expected && (node.type === 'command') !== (expected instanceof CommandNode)) throw new ProfilePermissionError(`Protected node cannot be replaced: ${path}`);
         if (expected) {
             const level = node.fixedLevel ?? 0;
             const levels = expected.permissions.availableFixLevels;
             if (levels.length ? !levels.includes(level) : level !== (original?.fixedLevel ?? 0)) throw new ProfilePermissionError(`Node fixed level cannot be changed: ${path} (permissions.availableFixLevels)`);
-            if (!expected.permissions.commentable && (node.type === 'command' ? node.command?.doc !== original?.command?.doc : node.description !== original?.description)) throw new ProfilePermissionError(`Node documentation cannot be changed: ${path} (permissions.commentable=false)`);
+            if (path && !expected.permissions.commentable && (node.type === 'command' ? node.command?.doc !== original?.command?.doc : node.description !== original?.description)) throw new ProfilePermissionError(`Node documentation cannot be changed: ${path} (permissions.commentable=false)`);
         }
         if (node.disabled && expected && !expected.permissions.disableable) throw new ProfilePermissionError(`Node cannot be disabled: ${path}`);
         if (node.type === 'command') {

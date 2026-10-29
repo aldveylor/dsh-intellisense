@@ -71,7 +71,8 @@ export class NamespaceRuntime extends Service {
         try {
             const registry = await namespaces.registryFor(agent);
             let revision = registry.revision;
-            const entries = (await namespaces.entries(agent, registry)).filter(entry => !entry.preload);
+            const resolved = await namespaces.entries(agent, registry);
+            const entries = resolved.filter(entry => !entry.preload);
             const preloaded = await namespaces.values(agent, registry);
             const result = await this.runtime.execute(agent.id, `run-code-${++this.sequence}`, code, entries.map(entry => entry.binding()), async (tool, input, signal) => {
                 signal.throwIfAborted();
@@ -81,8 +82,13 @@ export class NamespaceRuntime extends Service {
                 return bindingResult(work, signal);
             }, controller.signal, preloaded, async () => {
                 const currentRevision = registry.revision;
-                const values = await namespaces.values(agent, registry, { revisionChanged: currentRevision !== revision });
-                for (const path of Object.keys(values)) if (!Object.hasOwn(preloaded, path)) delete values[path];
+                const values: Record<string, z.infer<ReturnType<typeof z.json>>> = {};
+                for (const entry of resolved) {
+                    const producer = registry.definitions.addition(entry.tool).value;
+                    if (Object.hasOwn(preloaded, entry.path) && producer && (producer.refresh === 'call' || (producer.refresh === 'revision' && currentRevision !== revision))) {
+                        values[entry.path] = await producer.read(namespaces, agent, registry);
+                    }
+                }
                 revision = currentRevision;
                 return values;
             });

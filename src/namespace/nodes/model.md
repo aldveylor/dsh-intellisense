@@ -12,3 +12,5 @@ context.ts 提供作用域物理目录、执行模式（默认 ptc）、禁用�
 
 
 工具节点统一为 CommandNode，操作许可仅由 permissions 决定。工具提供者通过 setToolAddition 注册 project（模式契约、签名、参数布局、返回策略）、discovery 标记及 value 生产器/刷新策略；通用树构建不识别内置命令表。默认固定等级由节点定义提供，RegistryConfiguration 不假设 tools.inspect。
+
+NamespaceInitialization 与 NamespaceImplementation 描述提供者构造器；类负责自己的变更策略。ImplToolsNamespace 位于 tools/，不属于通用节点模块；InnerCommandNode 已删除。

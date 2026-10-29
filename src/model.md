@@ -68,7 +68,7 @@ namespaceVisible 为随 Profile 保存的命名空间路径 → 固定提示布�
 
 `tools.profile.switch(name: string)` 显式切换当前会话配置，必须指定已有名称；可通过 builtinDisabled 禁用，使用普通内置命令的 disableable 权限。load(name?) 只读取配置数据，不切换当前会话；省略名称读取会话草稿，指定名称读取目录中的配置。
 
-Profile save/apply 对受保护节点的移除、改名、移动、替换、文档修改及不允许的固定等级直接抛错，不再静默补齐或忽略。校验以目标目录配置为基线，新名称回退当前会话配置。普通命令的 command.doc 仍可省略。
+Profile save/apply 通过提供者 effect 恢复内置节点、物理绑定、固定说明及必需固定等级，再由提供者检查禁止的结构变更。校验以目标目录配置为基线，新名称回退当前会话配置。普通命令的 command.doc 仍可省略。
 
 同一物理工具的每个挂载路径独立保存描述、固定等级及禁用状态；Mapping 不再区分 path 与 aliases，每条记录只代表一个挂载路径，不兼容旧存档。命令目录中的挂载路径包含禁用及当前作用域不可用的配置路径；执行、搜索与提示仍排除禁用路径。
 
@@ -104,6 +104,6 @@ ProfileRootWrite 的匿名根只允许 type/children，拒绝没有持久化表�
 工具附加属性通过 ToolAddition 的 fixed、hidden、ptcDescription 声明；内置工具也使用 toolsNamespace 的相同接口注册。fixed 禁止人工和 agent 挂载，hidden 隐藏目录及选择器，PTC 注释可独立覆盖且缺省回退物理工具原文。内置节点通过 edit 显式创建；空 Profile 不自动注入节点。
 
 
-工具节点统一为 CommandNode，操作许可仅由 permissions 决定。工具提供者通过 setToolAddition 注册 project（模式契约、签名、参数布局、返回策略）、discovery 标记及 value 生产器/刷新策略；通用树构建不识别内置命令表。默认固定等级由节点定义提供，RegistryConfiguration 不假设 tools.inspect。
+工具节点统一为 CommandNode；permissions 保留为 agent 和前端可读的权限声明，实际阻止由保存 effect 与具体节点实现负责。工具提供者通过 setToolAddition 注册 project（模式契约、签名、参数布局、返回策略）、discovery 标记及 value 生产器/刷新策略；通用树构建不识别内置命令表。默认固定等级由节点定义提供，RegistryConfiguration 不假设 tools.inspect。
 
-agent 的 tools.profile.save/apply 统一调用 toolsNamespace.saveProfile，经过 effect('save', handler) 顺序处理独立的 ProfileSaveEvent 后，再按服务端权限校验并原子持久化。事件提供 profile、baseline 可编辑快照、operation、tools 和可修改的 result；异常不写入目录。内置插件自行注册修复 effect，恢复 tools 子树、工具绑定、权限及 inspect 固定等级；save 仍默认禁用 tools，apply 保留原禁用状态。插件侧 edit 是可信编辑入口，不触发 agent 保存 effect；新建 Profile 仍为空。
+agent 的 tools.profile.save/apply 统一调用 toolsNamespace.saveProfile，经过 effect('save', handler) 顺序处理独立的 ProfileSaveEvent，由提供者修复与检查后原子持久化；通用保存入口不再通过 profileConfiguration 对内置树执行额外权限判断。事件提供 profile、baseline 可编辑快照、operation、tools 和可修改的 result；异常不写入目录。内置插件自行注册修复 effect，恢复 tools 子树、工具绑定、权限及 inspect 固定等级；save 仍默认禁用 tools，apply 保留原禁用状态。插件侧 edit 是可信编辑入口，不触发 agent 保存 effect；新建 Profile 仍为空。

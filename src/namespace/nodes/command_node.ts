@@ -29,7 +29,7 @@ export class CommandNode implements Node, ManifestEntry {
     /** @brief Data commands are preloaded rather than installed as PTC functions. */
     get preload(): boolean { return this.presentation?.preload ?? false; }
 
-    /** @brief Ordinary commands have no additional source signature. */
+    /** @brief Read an optional signature supplied by the physical-tool provider. */
     get signature(): string | undefined { return this.presentation?.signature; }
 
     serialize(): SerializedNode {

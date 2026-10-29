@@ -19,7 +19,7 @@ import type { ProfileSessions } from '../registry/profiles.js';
 import { declaration, manifest, type Aliases, NamespaceNode, type CommandNode } from './namespace.js';
 import { namespaceDirectory, nativeDirectory, type NamespaceHint } from './prompt.js';
 
-import { type CommandBrief, type Profiles, profileConfiguration } from '../registry/profile_tree.js';
+import { type CommandBrief, type Profiles } from '../registry/profile_tree.js';
 import type { z } from 'zod';
 import { createSearchEngines } from '../search/search.js';
 import { registerSearch } from '../tools/tool_search.js';
@@ -27,6 +27,9 @@ import { registerInspect } from '../tools/inspect.js';
 import { registerToolCommands } from '../tools/tool_commands.js';
 import { nativeBindings, nativeDiscovery, nativeQueryEntries } from './native_tools.js';
 import { CommandStatistics } from './statistics.js';
+import type { NamespaceImplementation } from './nodes/context.js';
+import { UnknownCommandError } from '../error.js';
+import type { ProfileTreeNode } from '../registry/profile_node.js';
 import { MemoryStore } from '../storage/store.js';
 
 /** @brief Profile-backed namespace discovery, independent of any execution runtime. */
@@ -53,7 +56,7 @@ export class NamespaceComponent implements ToolsNamespace {
     /** @brief Register disposable provider processing for agent save and apply. */
     effect(event: 'save', handler: ProfileSaveEffect): () => void { return this.registry.definitions.effect(event, handler); }
 
-    /** @brief Normalize a detached agent save, enforce permissions and publish only after all effects succeed. */
+    /** @brief Process a detached agent save through provider effects and publish only after all processors succeed. */
     saveProfile(agent: Agent, name: string | undefined, input: ProfileWrite, operation: 'save' | 'apply' = 'save'): Promise<string | null> {
         return this.profileTransaction(async () => {
             const profile = ProfileWriteSchema.parse(input);
@@ -68,11 +71,29 @@ export class NamespaceComponent implements ToolsNamespace {
             await catalog.definitions.processSave(event);
             const current = editedConfiguration({ name: target, brief: event.baseline.brief, root: event.baseline.serialize() }, original, catalog.definitions);
             const value = { name: target, brief: event.profile.brief, root: event.profile.serialize() };
-            const configuration = profileConfiguration(value, current, await this.commandBriefs(agent), catalog.definitions);
-            await catalog.saveProfile(target, configuration, { revision });
+            const known = new Set((await this.commandBriefs(agent)).map(command => command.name));
+            const validateCommands = (node: ProfileTreeNode, previous?: ProfileTreeNode): void => {
+                if (node.type === 'command') {
+                    const existing = previous?.type === 'command' && previous.command.tool === node.command.tool;
+                    const addition = catalog.definitions.addition(node.command.tool);
+                    if (!existing && (!known.has(node.command.tool) || addition.fixed || addition.hidden)) throw new UnknownCommandError(node.command.tool);
+                }
+                for (const [name, child] of Object.entries(node.children ?? {})) validateCommands(child, previous?.children?.[name]);
+            };
+            validateCommands(value.root, event.baseline.serialize());
+            const configuration = editedConfiguration(value, current, catalog.definitions);
+            await catalog.saveProfile(target, configuration, { trusted: true, revision });
             this.ctx.emit('system-prompt/change');
             return event.result;
         });
+    }
+
+    /** @brief Install a provider namespace class and invalidate its projected bindings. */
+    setNamespaceImplementation(path: string, implementation: NamespaceImplementation): () => void {
+        const dispose = this.registry.definitions.setNamespaceImplementation(path, implementation);
+        this.catalogRevision++;
+        this.ctx.emit('system-prompt/change');
+        return () => { dispose(); this.catalogRevision++; this.ctx.emit('system-prompt/change'); };
     }
 
     /** @brief Register reversible physical-tool attributes through the shared definitions. */
@@ -157,7 +178,7 @@ export class NamespaceComponent implements ToolsNamespace {
     register(ctx: Context): void {
         registerInspect(ctx, this);
         registerSearch(ctx, this);
-        registerToolCommands(ctx, this.registry, this.profiles, agent => this.registryFor(agent), agent => this.configurationChanged(agent), agent => this.commandBriefs(agent));
+        registerToolCommands(ctx, this.registry, this.profiles, agent => this.registryFor(agent), agent => this.configurationChanged(agent), agent => this.commandBriefs(agent), this);
     }
 
     /** @brief Enable namespaces only for an explicitly configured Intellisense scope. */
@@ -277,14 +298,14 @@ export class NamespaceComponent implements ToolsNamespace {
     }
 
     /** @brief Compute only enabled Profile metadata before guest execution. */
-    async values(agent?: Agent, current?: SemanticRegistry, refresh?: { revisionChanged: boolean }): Promise<Record<string, z.infer<ReturnType<typeof z.json>>>> {
+    async values(agent?: Agent, current?: SemanticRegistry): Promise<Record<string, z.infer<ReturnType<typeof z.json>>>> {
         const registry = current ?? (agent ? await this.registryFor(agent) : this.registry);
         const values: Record<string, z.infer<ReturnType<typeof z.json>>> = {};
         const root = manifest(registry, this.aliases ?? [], agent && !this.isPtc(agent) ? 'native' : 'ptc');
         for (const entry of root.commands()) {
             if (entry.disabled) continue;
             const producer = registry.definitions.addition(entry.tool).value;
-            if (producer && (!refresh || producer.refresh === 'call' || (producer.refresh === 'revision' && refresh.revisionChanged))) values[entry.path] = await producer.read(this, agent, registry);
+            if (producer) values[entry.path] = await producer.read(this, agent, registry);
         }
         return values;
     }
@@ -401,7 +422,7 @@ export class NamespaceComponent implements ToolsNamespace {
                     return await this.dispatch(caller, entry, entry.nativeArguments(args), parent, 1) ?? null;
                 },
             };
-            const physical = agent.ctx.tools.get(entry.tool, agent);
+            const physical = agent.ctx.tools.get?.(entry.tool, agent);
             if (physical?.presentCall) definition.presentCall = args => physical.presentCall!(entry.nativeArguments(args));
             if (physical?.presentResult) definition.presentResult = (args, result) => physical.presentResult!(entry.nativeArguments(args), result);
             this.generatedTools.add(definition);

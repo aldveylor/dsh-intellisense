@@ -43,13 +43,13 @@ SemanticRegistry.generation 由配置 revision 和物理目录内容版本组成
 
 插件侧 Profile 为无 name 的匿名 snapshot interface，与 ProfileSnapshot 同义；ProfileCollection 通过 list/get/create/getOrCreate/remove/edit 管理目录名称，create 初始为空，edit 原子保存回调返回的递归树。节点 interface 与实现 class 位于 profile/，详见其 model.md。ProfileDocument 是现有命名 JSON 传输的内部投影类，用于管理和 agent 数据，不是插件侧 Profile 接口。nodeSettings 和 providedRoot 持久化递归节点规则及显式插件子树。
 
-Profile 读取节点 permissions 为可选的服务端只读权限差异项（save/apply 禁止提交）：commentable/renamable/movable/removable/disableable 默认 true，acceptsChildren 在命令为 false、命名空间为 true，availableFixLevels 在命令为 [0,1,2]、命名空间为 [0,1]。省略对象或字段均使用默认权限，受保护节点权限仍由服务端校验。Profile 构造及 save() 递归省略默认权限字段、空 permissions、fixedLevel=0 和 disabled=false；load 与 annotation/JSON Schema 同步说明默认值；annotation 使用字段级 `/** @default ... */` 注释。提交节点省略 fixedLevel/disabled 时通常使用 0/false；tools.profile.save 对 tools 命名空间缺省使用 disabled=true。缺失受保护节点会抛错。
+Profile 读取节点 permissions 为可选的服务端只读权限差异项（save/apply 禁止提交）：commentable/renamable/movable/removable/disableable 默认 true，acceptsChildren 在命令为 false、命名空间为 true，availableFixLevels 在命令为 [0,1,2]、命名空间为 [0,1]。省略对象或字段均使用默认权限，受保护节点权限仍由服务端校验。Profile 构造及 save() 递归省略默认权限字段、空 permissions、fixedLevel=0 和 disabled=false；load 与 annotation/JSON Schema 同步说明默认值；annotation 使用字段级 `/** @default ... */` 注释。提交节点省略 fixedLevel/disabled 时通常使用 0/false；tools.profile.save 对 tools 命名空间缺省使用 disabled=true。agent 保存时缺失的内置节点由 tools 保存 effect 恢复。
 
 Profile 与配置快照共享可选 brief 字符串，描述配置用途；保存、恢复、会话继承和树转换均保留该字段。profileBriefs() 提供目录名称对应简介，不复制工具树。
 
 ProfileSessions.forSession 可传入固定 profile 名称，首次创建快照时优先于父会话继承与全局默认，持久化会话快照仍优先读取。
 
-Profile save 覆盖目录树时，tools 仍为受保护命名空间，但默认禁用：省略 tools 的 disabled 字段时写入 builtinDisabled，显式 disabled: false 时启用；不切换或修改当前会话。其它合法设置保留，缺失保护节点会抛错。save 的原生说明与 PTC 声明同步描述该规则。annotation 与 JSON Schema 说明禁用节点及后代从发现、运行时绑定、原生工具、预加载值和固定提示中排除，保留配置以供重新启用；禁用 tools 时移除 tools.inspect 指引。
+Profile save 覆盖目录树时，tools 仍为受保护命名空间，但默认禁用：省略 tools 的 disabled 字段时写入 builtinDisabled，显式 disabled: false 时启用；不切换或修改当前会话。其它合法设置保留，agent 保存时缺失的内置节点由 tools 保存 effect 恢复。save 的原生说明与 PTC 声明同步描述该规则。annotation 与 JSON Schema 说明禁用节点及后代从发现、运行时绑定、原生工具、预加载值和固定提示中排除，保留配置以供重新启用；禁用 tools 时移除 tools.inspect 指引。
 
 profileConfiguration 不补齐缺失节点，不提供补全回调；失败时抛出错误，不修改输入树或原配置。
 
@@ -76,6 +76,6 @@ ProfileRootWrite 的匿名根只允许 type/children，拒绝没有持久化表�
 SemanticRegistry.revision 只读配置版本，不构造快照；generation 继续同时标识配置及物理契约版本。
 
 
-工具节点统一为 CommandNode，操作许可仅由 permissions 决定。工具提供者通过 setToolAddition 注册 project（模式契约、签名、参数布局、返回策略）、discovery 标记及 value 生产器/刷新策略；通用树构建不识别内置命令表。默认固定等级由节点定义提供，RegistryConfiguration 不假设 tools.inspect。
+工具节点统一为 CommandNode；permissions 保留为 agent 和前端可读的权限声明，实际阻止由保存 effect 与具体节点实现负责。工具提供者通过 setToolAddition 注册 project（模式契约、签名、参数布局、返回策略）、discovery 标记及 value 生产器/刷新策略；通用树构建不识别内置命令表。默认固定等级由节点定义提供，RegistryConfiguration 不假设 tools.inspect。
 
-agent 的 tools.profile.save/apply 统一调用 toolsNamespace.saveProfile，经过 effect('save', handler) 顺序处理独立的 ProfileSaveEvent 后，再按服务端权限校验并原子持久化。事件提供 profile、baseline 可编辑快照、operation、tools 和可修改的 result；异常不写入目录。内置插件自行注册修复 effect，恢复 tools 子树、工具绑定、权限及 inspect 固定等级；save 仍默认禁用 tools，apply 保留原禁用状态。插件侧 edit 是可信编辑入口，不触发 agent 保存 effect；新建 Profile 仍为空。
+agent 的 tools.profile.save/apply 统一调用 toolsNamespace.saveProfile，经过 effect('save', handler) 顺序处理独立的 ProfileSaveEvent，由提供者修复与检查后原子持久化；通用保存入口不再通过 profileConfiguration 对内置树执行额外权限判断。事件提供 profile、baseline 可编辑快照、operation、tools 和可修改的 result；异常不写入目录。内置插件自行注册修复 effect，恢复 tools 子树、工具绑定、权限及 inspect 固定等级；save 仍默认禁用 tools，apply 保留原禁用状态。插件侧 edit 是可信编辑入口，不触发 agent 保存 effect；新建 Profile 仍为空。

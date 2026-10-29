@@ -14,7 +14,7 @@ import { RegistryConfiguration, RegistryState, type RegistryConfigurationData, t
 /** @brief Stable physical identity and the enforced native JSON contracts. */
 export interface PhysicalTool {
     id: string;
-    addition?: ToolAddition;
+    addition?: Pick<ToolAddition, 'fixed' | 'hidden' | 'ptcDescription'>;
     source?: string;
     description: string;
     parameters: Record<string, unknown>;
@@ -55,7 +55,7 @@ export class SemanticRegistry {
     private physicalRevision = 0;
     private protectedCache?: { revision: number; root: NamespaceNode };
     private get protectedNodes(): NamespaceNode {
-        if (this.protectedCache?.revision !== this.definitions.revision) this.protectedCache = { revision: this.definitions.revision, root: createNamespace({ tools: [], includeUnavailable: true, definitions: this.definitions.tree() }) };
+        if (this.protectedCache?.revision !== this.definitions.revision) this.protectedCache = { revision: this.definitions.revision, root: createNamespace({ tools: [], includeUnavailable: true, definitions: this.definitions.tree(), implementation: path => this.definitions.implementation(path) }) };
         return this.protectedCache.root;
     }
     private state = new RegistryState({ inactiveProfiles: {} });
@@ -352,7 +352,7 @@ export class SemanticRegistry {
         }))) throw new Error('Invalid disabled protected-node paths');
     }
 
-    tools(): PhysicalTool[] { return structuredClone([...this.physical.values()].filter(tool => !this.definitions.addition(tool.id).hidden).map(tool => ({ ...tool, addition: this.definitions.addition(tool.id) }))); }
+    tools(): PhysicalTool[] { return structuredClone([...this.physical.values()].filter(tool => !this.definitions.addition(tool.id).hidden).map(tool => ({ ...tool, addition: (({ fixed, hidden, ptcDescription }) => ({ ...(fixed === undefined ? {} : { fixed }), ...(hidden === undefined ? {} : { hidden }), ...(ptcDescription === undefined ? {} : { ptcDescription }) }))(this.definitions.addition(tool.id)) }))); }
 
     /** @brief Resolve a mount's description before the shared physical-tool preference. */
     description(path: string, tool: string): string | undefined {

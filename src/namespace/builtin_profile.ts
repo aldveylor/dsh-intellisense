@@ -3,10 +3,13 @@ import type { ProfileSnapshot } from '../registry/profile/profile.js';
 import type { ToolsNamespace, ProfileSaveEvent } from './service.js';
 import { profileAnnotation } from '../registry/profile_tree.js';
 import { profileSaveInformation } from '../tools/profile_save.js';
+import { ImplToolsNamespace } from '../tools/impl_tools_namespace.js';
+import type { ProfileTreeNode } from '../registry/profile_node.js';
 import type { ProfileNamespace } from '../registry/profile/namespace.js';
 
 /** @brief Define plugin tools exclusively through the portable namespace registration API. */
-export function registerBuiltinDefinitions(service: Pick<ToolsNamespace, 'setToolAddition' | 'effect'> & { registerProfileInitializer(initialize: (snapshot: ProfileSnapshot) => void): () => void }): void {
+export function registerBuiltinDefinitions(service: Pick<ToolsNamespace, 'setToolAddition' | 'setNamespaceImplementation' | 'effect'> & { registerProfileInitializer(initialize: (snapshot: ProfileSnapshot) => void): () => void }): void {
+    for (const path of ['tools', 'tools.profile']) service.setNamespaceImplementation(path, options => new ImplToolsNamespace(options));
     for (const tool of ['exec', 'run_code', ptcToolName]) service.setToolAddition(tool, { hidden: true });
     for (const command of pluginCommands.builtinTools) service.setToolAddition(command.tool, {
         fixed: true,
@@ -21,7 +24,7 @@ export function registerBuiltinDefinitions(service: Pick<ToolsNamespace, 'setToo
             read: async (namespace, agent, registry) => {
                 if (command.tool === 'tools_profile_annotation') return profileAnnotation;
                 if (command.tool === 'tools_profile_commands') return (await namespace.commandBriefs(agent, registry)).map(item => ({ ...item }));
-                return { ...await namespace.profileNames(agent, registry) };
+                return { ...await namespace.profileNames(agent) };
             },
             ...(command.tool === 'tools_profile_profiles' ? { refresh: 'call' as const } : command.tool === 'tools_profile_commands' ? { refresh: 'revision' as const } : {}),
         } } : {}),
@@ -53,10 +56,19 @@ function configureBuiltinProfile(snapshot: ProfileSnapshot): ProfileSnapshot {
 
 /** @brief Restore provider-owned structure and fixed values within the shared save transaction. */
 function repairBuiltinSave(event: ProfileSaveEvent): void {
-    const submittedTools = event.profile.serialize().children?.tools;
+    const submitted = event.profile.serialize();
+    const submittedTools = submitted.children?.tools;
     configureBuiltinProfile(event.baseline);
     configureBuiltinProfile(event.profile);
     const baseline = event.baseline.serialize();
+    const at = (root: ProfileTreeNode | undefined, parts: readonly string[]): ProfileTreeNode | undefined => parts.reduce<ProfileTreeNode | undefined>((node, name) => node?.children?.[name], root);
+    for (const parts of [['tools'], ['tools', 'profile']]) {
+        if (at(submitted, parts)?.type === 'namespace') continue;
+        const original = at(baseline, parts);
+        let restored: ProfileNamespace = event.profile;
+        for (const name of parts) restored = restored.get(name, 'namespace')!;
+        restored.setDisabled(!!original?.disabled).setFixedLevel((original?.fixedLevel ?? 0) as 0 | 1);
+    }
     for (const command of pluginCommands.builtinTools) {
         const parts = command.path.split('.');
         let original = baseline;
@@ -66,10 +78,15 @@ function repairBuiltinSave(event: ProfileSaveEvent): void {
             parent = parent.get(name, 'namespace')!;
         }
         const name = parts.at(-1)!;
-        const description = original.children![name]!.command!.doc;
-        if (description !== undefined) parent.get(name, 'command')!.setDescription(description);
+        const description = original.children![name]!.command!.doc ?? projectBuiltin(command, 'ptc').description;
+        const restored = parent.get(name, 'command')!.setDescription(description);
+        if (at(submitted, parts)?.type !== 'command') restored.setFixedLevel(original.children![name]!.fixedLevel ?? 0).setDisabled(!!original.children![name]!.disabled);
+        let baselineParent: ProfileNamespace = event.baseline;
+        for (const part of parts.slice(0, -1)) baselineParent = baselineParent.get(part, 'namespace')!;
+        baselineParent.get(name, 'command')!.setDescription(description);
     }
     if (event.operation === 'save') event.profile.get('tools')!.setDisabled(submittedTools?.disabled !== false);
+    ImplToolsNamespace.validateSave(event.baseline.serialize(), event.profile.serialize());
     const information = profileSaveInformation({ name: event.name, root: event.profile.serialize() }, event.tools);
     if (information) event.result = [event.result, information].filter(Boolean).join('\n');
 }

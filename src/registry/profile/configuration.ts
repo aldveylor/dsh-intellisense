@@ -25,12 +25,17 @@ export function editedConfiguration(value: ProfileData, current: RegistryConfigu
         const selected = select(child, template.children?.[name]);
         return selected ? [[name, selected]] : [];
     })) };
+    const clearDisabled = (node: ProfileTreeNode): void => {
+        delete node.disabled;
+        for (const child of Object.values(node.children ?? {})) clearDisabled(child);
+    };
+    clearDisabled(provided);
     result.providedRoot = provided;
     const baseline = profileTree(value.name, current, definitions).root;
     const visit = (node: ProfileTreeNode, path: string, settings: ProfileNodeSettings, defined?: ProfileTreeNode, original?: ProfileTreeNode): void => {
         if (path && !defined) validatePath(node.type === 'namespace' ? `${path}.namespace_check` : path);
         const defaults = nodePermissions(node.type === 'command' ? 'leaf' : 'tree');
-        const overrides = Object.fromEntries(Object.entries(node.permissions ?? {}).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(defaults[key as keyof typeof defaults])));
+        const overrides = Object.fromEntries(Object.entries(node.permissions ?? original?.permissions ?? {}).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(defaults[key as keyof typeof defaults])));
         if (Object.keys(overrides).length) settings.permissions = overrides;
         const previous = settingsAt(current.nodeSettings, path ? path.split('.') : []);
         if (previous?.description !== undefined) settings.description = previous.description;

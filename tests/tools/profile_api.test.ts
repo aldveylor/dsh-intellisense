@@ -15,6 +15,8 @@ import { manifest } from '../../src/namespace/namespace.js';
 import { nodePermissions } from '../../src/namespace/node.js';
 import { inspect } from '../../src/tools/inspect.js';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
+import { validateProfileEdit } from '../../src/registry/profile/validate_edit.js';
+import { NamespaceComponent } from '../../src/namespace/component.js';
 import { RuntimeHost } from '../../src/runtime/host.js';
 
 /** @brief Exercise native command handlers using a real catalog and session references. */
@@ -29,13 +31,17 @@ async function fixture() {
     const registry = await profiles.forSession('session');
     registry.refresh([physical]);
     const changed: string[] = [];
-    registerToolCommands(ctx, catalog, profiles, async () => registry, async agent => { changed.push(agent.id); }, async () => [{ name: physical.id, brief: physical.description, paths: ['files.read', 'files.cat'], totalCalls: 2 }, { name: 'outside_scope', brief: 'Outside this session.', paths: [], totalCalls: 0 }]);
+    const serviceContext = new Context();
+    const namespaces = new NamespaceComponent(serviceContext, catalog, profiles, []);
+    namespaces.registryFor = async () => registry;
+    namespaces.commandBriefs = async () => [{ name: physical.id, brief: physical.description, paths: ['files.read', 'files.cat'], totalCalls: 2 }, { name: 'outside_scope', brief: 'Outside this session.', paths: [], totalCalls: 0 }];
+    registerToolCommands(ctx, catalog, profiles, async () => registry, async agent => { changed.push(agent.id); }, agent => namespaces.commandBriefs(agent), namespaces);
     const agentContext = new Context();
     agentContext.provide('toolsNamespace', { isPtc: () => true } as unknown as Context['toolsNamespace']);
     const execution = { agent: { id: 'session', inject: () => {}, ctx: agentContext, session: Session.create(SessionId('session')) }, signal: new AbortController().signal } as unknown as ToolRunContext;
     const call = (name: string, args: unknown = {}) => definitions.get(name)!.execute(args, execution);
     const load = async (args: unknown = {}) => ProfileSchema.parse(await call('tools_profile_load', args));
-    return { definitions, registry, catalog, call, load, changed, execution, store };
+    return { definitions, registry, catalog, call, load, changed, execution, store, namespaces };
 }
 
 test('native Profile data tools and optional-name save/load use session defaults', async () => {
@@ -297,7 +303,8 @@ test('Profile save defaults protected tools to disabled and honors explicit enab
         const tools = profile.root.children!['tools'];
         if (state === 'missing') {
             delete profile.root.children!['tools'];
-            await assert.rejects(call('tools_profile_save', { name: 'Copy', profile: profileWrite(profile) }), /Node cannot be removed: tools/);
+            await call('tools_profile_save', { name: 'Copy', profile: profileWrite(profile) });
+            assert.equal((await load({ name: 'Copy' })).root.children!.tools.disabled, true);
             continue;
         }
         else if (state === 'omitted') delete tools.disabled;
@@ -330,7 +337,7 @@ test('Profile annotation keeps field semantics without repeating Profile command
     assert(profileAnnotation.includes('children.cwd'));
 });
 
-test('Profile save rejects protected omissions and reports advisory discovery issues without changing pins or blocking persistence', async () => {
+test('Profile save repairs protected omissions and reports advisory discovery issues without changing pins or blocking persistence', async () => {
     const { call, load, catalog, registry, definitions } = await fixture();
     const advisory = 'warning: `tools.inspect` is disabled when there are some enabled commands not fixed with level 2.';
     const profile = await load();
@@ -342,7 +349,8 @@ test('Profile save rejects protected omissions and reports advisory discovery is
     assert.equal(catalog.configuration('Info').mappings[0]!.alwaysVisible, 1);
     assert.deepEqual(registry.snapshot(), before);
     delete profile.root.children!['tools'];
-    await assert.rejects(call('tools_profile_save', { name: 'Info', profile: profileWrite(profile) }), /Node cannot be removed: tools/);
+    assert.equal(await call('tools_profile_save', { name: 'Info', profile: profileWrite(profile) }), advisory);
+    assert((await load({ name: 'Info' })).root.children!.tools);
     profile.root.children!['tools'] = (await load()).root.children!['tools'];
     profile.root.children!['files']!.children!['read']!.fixedLevel = 2;
     await call('tools_profile_save', { name: 'Info', profile: profileWrite(profile) });
@@ -350,7 +358,8 @@ test('Profile save rejects protected omissions and reports advisory discovery is
     assert.equal(await call('tools_profile_save', { name: 'Info', profile: profileWrite(complete) }), null);
     const partial = await load({ name: 'Info' });
     partial.root.children!['tools'].children!['profile'].children = {};
-    await assert.rejects(call('tools_profile_save', { name: 'Info', profile: profileWrite(partial) }), /Node cannot be removed: tools.profile/);
+    await call('tools_profile_save', { name: 'Info', profile: profileWrite(partial) });
+    assert((await load({ name: 'Info' })).root.children!.tools.children!.profile.children!.save);
     const schema = definitions.get('tools_profile_save')!.output.schema;
     assert.deepEqual(schema, { oneOf: [{ type: 'string' }, { type: 'null' }] });
 });
@@ -469,11 +478,6 @@ test('Profile save and apply reject forbidden writes atomically, including raw J
     const before = catalog.snapshot();
     const draft = registry.snapshot();
     const patches = [
-        { root: { children: { tools: null } } },
-        { root: { children: { tools: { description: 'Forged' } } } },
-        { root: { children: { tools: { children: { inspect: null } } } } },
-        { root: { children: { tools: { children: { inspect: { type: 'namespace', command: null } } } } } },
-        { root: { children: { tools: { children: { inspect: { command: { doc: 'Forged' } } } } } } },
         ...['', '$evil', '__proto__', 'constructor', 'prototype', 'then', 'toString'].map(name =>
             JSON.parse(JSON.stringify({ root: { children: { [name]: { type: 'namespace' } } } }))),
     ];
@@ -529,8 +533,8 @@ test('Profile save and apply allow namespaces sharing protected names at differe
         tools: { children: { inspect: { type: 'namespace', command: null, fixedLevel: null } } },
     } } } }), /Required field cannot be deleted/);
     saved.root.children!['tools'].children!['inspect'] = { type: 'namespace' };
-    await assert.rejects(call('tools_profile_save', { name: 'Copy', profile: profileWrite(saved) }), /Protected node cannot be replaced/);
-    assert.deepEqual(await load({ name: 'Copy' }), applied);
+    await call('tools_profile_save', { name: 'Copy', profile: profileWrite(saved) });
+    assert.equal((await load({ name: 'Copy' })).root.children!.tools.children!.inspect.type, 'command');
 });
 
 
@@ -672,7 +676,7 @@ test('Profile lock releases after another conversation fails validation or cance
     aborted.abort();
     const other = { ...execution, agent: { ...execution.agent!, id: 'other' } } as ToolRunContext;
     const results = await Promise.allSettled([
-        apply.execute({ name: 'Default', value: { root: { children: { tools: null } } } }, execution),
+        apply.execute({ name: 'Default', value: { root: { children: { tools: { children: { extra: { type: 'namespace' } } } } } } }, execution),
         apply.execute({ name: 'Default', value: { brief: 'Cancelled' } }, { ...other, signal: aborted.signal }),
         apply.execute({ name: 'Default', value: { brief: 'Saved after failures' } }, other),
     ]);
@@ -711,7 +715,7 @@ test('Profile lock blocks other conversations until persistence completes and ch
 });
 
 
-test('agent saves can edit an explicitly empty plugin Profile without restoring builtin nodes', async () => {
+test('agent save effects restore builtin nodes in an explicitly empty plugin Profile', async () => {
     const { catalog, call, load } = await fixture();
     await catalog.saveProfile('Empty', { ...catalog.configuration(), providedRoot: { type: 'namespace', children: {} }, builtinVisible: {} }, { trusted: true });
     const initial = await load({ name: 'Empty' });
@@ -721,6 +725,73 @@ test('agent saves can edit an explicitly empty plugin Profile without restoring 
     } } } });
     const saved = await load({ name: 'Empty' });
     assert.equal(saved.root.children!.files.children!.read.command!.tool, 'read_file');
-    assert.equal(saved.root.children!.tools, undefined);
-    assert.deepEqual(catalog.configuration('Empty').builtinDisabled, []);
+    assert.equal(saved.root.children!.tools.children!.inspect.fixedLevel, 2);
+    assert.deepEqual(catalog.configuration('Empty').builtinDisabled, ['tools']);
+});
+
+test('agent save and apply run ordered disposable namespace effects and return their result', async () => {
+    const { namespaces, call, load, registry } = await fixture();
+    const operations: string[] = [];
+    const original = registry.snapshot();
+    const first = namespaces.effect('save', async event => {
+        await Promise.resolve();
+        operations.push(`${event.operation}:${event.name}`);
+        event.profile.setBrief('Processed by provider');
+        event.result = 'Saved by provider';
+    });
+    const second = namespaces.effect('save', event => { event.result += ' / second effect'; });
+    assert.equal(await call('tools_profile_save', { name: 'Effects', profile: profileWrite(await load()) }), 'Saved by provider / second effect');
+    assert.equal((await load({ name: 'Effects' })).brief, 'Processed by provider');
+    assert.equal(await call('tools_profile_apply', { name: 'Effects', value: { brief: 'Agent patch' } }), 'Saved by provider / second effect');
+    assert.deepEqual(operations, ['save:Effects', 'apply:Effects']);
+    assert.deepEqual(registry.snapshot(), original);
+    first();
+    second();
+    await call('tools_profile_apply', { name: 'Effects', value: { brief: 'After disposal' } });
+    assert.equal((await load({ name: 'Effects' })).brief, 'After disposal');
+    assert.equal(operations.length, 2);
+});
+
+test('save effect failures and provider-independent permission failures never publish partial changes', async () => {
+    const { namespaces, call, load, catalog, registry } = await fixture();
+    await namespaces.edit('Default', snapshot => {
+        snapshot.create('external').create('read', 'command').setTool('read_file').setPermissions({ removable: false, commentable: false });
+        return snapshot;
+    });
+    const before = catalog.snapshot();
+    const draft = registry.snapshot();
+    namespaces.effect('save', event => validateProfileEdit(event.baseline.serialize(), event.profile.serialize()));
+    const unregister = namespaces.effect('save', event => {
+        event.profile.setBrief('Must not persist');
+        event.result = 'Must not return';
+        throw new Error('Provider rejected save');
+    });
+    await assert.rejects(call('tools_profile_apply', { name: 'Default', value: { brief: 'Changed' } }), /Provider rejected save/);
+    assert.deepEqual(catalog.snapshot(), before);
+    unregister();
+    await assert.rejects(call('tools_profile_apply', { name: 'Default', value: { root: { children: { external: null } } } }), /cannot be removed: external.read/);
+    assert.deepEqual(catalog.snapshot(), before);
+    assert.deepEqual(registry.snapshot(), draft);
+    assert((await load({ name: 'Default' })).root.children!.external);
+});
+
+test('builtin save effects repair command identities, documentation, missing nodes and fixed values', async () => {
+    const { call, load } = await fixture();
+    const profile = profileWrite(await load());
+    const tools = profile.root.children!.tools!;
+    tools.fixedLevel = 1;
+    tools.description = 'Edited tool namespace';
+    tools.children!.inspect = { type: 'command', fixedLevel: 0, command: { tool: 'read_file', doc: 'Edited discovery' } };
+    delete tools.children!.profile;
+    await call('tools_profile_save', { name: 'Repaired', profile });
+    const saved = await load({ name: 'Repaired' });
+    assert.equal(saved.root.children!.tools.fixedLevel ?? 0, 0);
+    assert.equal(saved.root.children!.tools.children!.inspect.fixedLevel, 2);
+    assert.equal(saved.root.children!.tools.children!.inspect.command!.tool, 'tools_inspect');
+    assert.notEqual(saved.root.children!.tools.children!.inspect.command!.doc, 'Edited discovery');
+    assert(saved.root.children!.tools.children!.profile.children!.save);
+    await call('tools_profile_apply', { name: 'Repaired', value: { root: { children: { tools: { disabled: false, children: { inspect: null } } } } } });
+    const applied = await load({ name: 'Repaired' });
+    assert.equal(applied.root.children!.tools.disabled ?? false, false);
+    assert.equal(applied.root.children!.tools.children!.inspect.fixedLevel, 2);
 });

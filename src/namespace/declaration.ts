@@ -65,7 +65,7 @@ export function namespaceDeclaration(items: readonly NamespaceDeclaration[], amb
     return lines.join('\n');
 }
 
-/** @brief Build documented builtin declarations from their shared runtime signatures. */
+/** @brief Build documented provider declarations from their shared runtime signatures. */
 export function callableDeclaration(command: CommandPresentation & { path: string }): string {
     const names: string[] = [];
     let depth = 0;
@@ -80,14 +80,9 @@ export function callableDeclaration(command: CommandPresentation & { path: strin
         } else if ('{[('.includes(char!)) depth++;
         else if ('}])'.includes(char!)) depth--;
     }
-    const descriptions: Record<string, string> = {
-        keywords: 'Keywords to search with OR semantics.', method: 'Registered search method; defaults to the configured engine.',
-        max_results: 'Maximum results; defaults to 10.', target: 'Search name, description, parameters, or all (default).',
-        namespace_path: 'Namespace subtree; an empty string searches the entire tree (default).',
-    };
-    /** @brief Keep builtin documentation inside its comment and prompt fence. */
+    /** @brief Keep provider documentation inside its comment and prompt fence. */
     const clean = (text: string): string => decodeHTML(text).replaceAll('*/', '* /').replace(/[`\r\n\u2028\u2029]/g, ' ').replace(/<\|/g, '< |');
-    const docs = [` * @brief ${clean(command.description)}`, ...names.map(name => ` * @param ${name} ${command.parameterDocs?.[name] ?? descriptions[name] ?? 'Command arguments.'}`)];
+    const docs = [` * @brief ${clean(command.description)}`, ...names.map(name => ` * @param ${name} ${command.parameterDocs?.[name] ?? 'Command arguments.'}`)];
     const signatures = command.preload ? [`() => Promise<${command.signature}>`] : [command.signature, ...command.overloads ?? []];
     return `/**\n${docs.join('\n')}\n */\n${signatures.map(signature => `function ${command.path.split('.').at(-1)}${signature.replace(' => ', ': ')};`).join('\n')}`;
 }

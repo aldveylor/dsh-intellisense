@@ -60,7 +60,7 @@ export function registerManagement(ctx: Context, globalRegistry: SemanticRegistr
                 let provided = catalog.provided.get(profile);
                 if (!provided) {
                     provided = [...createNamespace({ tools: catalog.physical, includeUnavailable: true,
-                        definitions: selected.providedRoot ?? registry.definitions.tree(profile), addition: tool => registry.definitions.addition(tool), nodeSettings: selected.nodeSettings,
+                        definitions: selected.providedRoot ?? registry.definitions.tree(profile), addition: tool => registry.definitions.addition(tool), implementation: path => registry.definitions.implementation(path), nodeSettings: selected.nodeSettings,
                     }).children.values()].map(node => node.serialize());
                     catalog.provided.set(profile, provided);
                 }

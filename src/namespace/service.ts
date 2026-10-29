@@ -7,6 +7,7 @@ import type { SemanticRegistry } from '../registry/registry.js';
 import type { CommandBrief, Profiles } from '../registry/profile_tree.js';
 import type { SearchEngineRegistry } from '../search/engine_registry.js';
 import type { NamespaceNode, CommandNode } from './namespace.js';
+import type { NamespaceImplementation } from './nodes/context.js';
 import type { CommandPresentation } from './node.js';
 import type { PresentationMode } from '../integration/presentation.js';
 import type { ProfileWrite } from '../registry/profile_write.js';
@@ -27,7 +28,7 @@ export interface ToolAddition {
     ptcDescription?: string;
 }
 
-/** @brief Mutable save transaction processed before validation and atomic persistence. */
+/** @brief Mutable save transaction processed by providers before atomic persistence. */
 export interface ProfileSaveEvent {
     readonly name: string;
     readonly operation: 'save' | 'apply';
@@ -45,11 +46,14 @@ export type ProfileSaveEffect = (event: ProfileSaveEvent) => void | Promise<void
 export interface ToolsNamespace extends ProfileCollection {
     /** @brief Register ordered, disposable save processing shared by agent save and apply. */
     effect(event: 'save', handler: ProfileSaveEffect): () => void;
-    /** @brief Save an untrusted agent tree through registered effects and server permissions. */
+    /** @brief Save an untrusted agent tree through provider-owned validation and repair effects. */
     saveProfile(agent: Agent, name: string | undefined, profile: ProfileWrite, operation?: 'save' | 'apply'): Promise<string | null>;
 
     readonly searchEngines: SearchEngineRegistry;
     readonly statistics: CommandStatistics;
+
+    /** @brief Register a namespace implementation whose methods own mutation restrictions. */
+    setNamespaceImplementation(path: string, implementation: NamespaceImplementation): () => void;
 
     /** @brief Register tool attributes until the returned disposer is called. */
     setToolAddition(tool: string, addition: ToolAddition): () => void;
@@ -75,7 +79,7 @@ export interface ToolsNamespace extends ProfileCollection {
     /** @brief Read enabled command bindings at the execution boundary. */
     entries(agent: Agent, current?: SemanticRegistry): Promise<CommandNode[]>;
     /** @brief Read enabled preloaded values. */
-    values(agent?: Agent, current?: SemanticRegistry, refresh?: { revisionChanged: boolean }): Promise<Record<string, z.infer<ReturnType<typeof z.json>>>>;
+    values(agent?: Agent, current?: SemanticRegistry): Promise<Record<string, z.infer<ReturnType<typeof z.json>>>>;
     /** @brief Dispatch through the native guarded and audited tool pipeline. */
     dispatchTool(agent: Agent, tool: string, args: unknown, parent: ToolRunContext, sequence: number): Promise<unknown>;
     /** @brief Read catalog names and the conversation selection. */

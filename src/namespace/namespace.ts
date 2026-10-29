@@ -7,7 +7,7 @@ import { DefinedNamespaceNode } from './nodes/defined_namespace_node.js';
 import { defaultNamespaceDefinitions } from './definitions.js';
 import { permissionsAt, settingsAt } from '../registry/profile/node_settings.js';
 import type { ProfileTreeNode } from '../registry/profile_node.js';
-import type { NamespaceContext } from './nodes/context.js';
+import type { NamespaceContext, NamespaceInitialization } from './nodes/context.js';
 import { commandDeclaration } from './nodes/command_contract.js';
 export { nativeArgumentsFor, resultFor } from './nodes/command_contract.js';
 export { NamespaceNode } from './nodes/node.js';
@@ -49,8 +49,13 @@ export function createNamespace(context: NamespaceContext): NamespaceNode {
     const build = (name: string, data: ProfileTreeNode, parent: NamespaceNode): NamespaceNode | CommandNode | undefined => {
         const path = parent.path ? `${parent.path}.${name}` : name;
         const permissions = nodePermissions(data.type === 'namespace' ? 'tree' : 'leaf', { ...data.permissions, ...permissionsAt(context.nodeSettings, path.split('.')) });
-        if (data.type === 'namespace') return new DefinedNamespaceNode(name, parent, settingsAt(context.nodeSettings, path.split('.'))?.description ?? data.description ?? '', permissions, context.disabled?.(path) ?? !!data.disabled,
-            data.fixedLevel ?? 0, node => Object.entries(data.children ?? {}).flatMap(([name, child]) => build(name, child, node) ?? []));
+        if (data.type === 'namespace') {
+            const options: NamespaceInitialization = { name, parent, description: settingsAt(context.nodeSettings, path.split('.'))?.description ?? data.description ?? '', permissions,
+                disabled: context.disabled?.(path) ?? !!data.disabled, fixedLevel: data.fixedLevel ?? 0,
+                children: node => Object.entries(data.children ?? {}).flatMap(([name, child]) => build(name, child, node) ?? []) };
+            const implementation = (context.implementation ?? (path => defaultNamespaceDefinitions.implementation(path)))(path);
+            return implementation ? implementation(options) : new DefinedNamespaceNode(options.name, options.parent, options.description, options.permissions, options.disabled, options.fixedLevel, options.children);
+        }
         if (context.disabled?.(path) || data.disabled || (context.addition ?? (tool => defaultNamespaceDefinitions.addition(tool)))(data.command.tool).hidden) return undefined;
         const tool = context.tools.find(tool => tool.id === data.command.tool);
         if (!tool && !context.includeUnavailable) return undefined;
@@ -125,7 +130,7 @@ export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Ali
         return node !== undefined;
     };
     return createNamespace({ tools, mode, definitions: definition.serialize(), nodeSettings: state.nodeSettings,
-        addition: tool => registry.definitions.addition(tool), disabled: path => registry.disabled(path), provided });
+        addition: tool => registry.definitions.addition(tool), implementation: path => registry.definitions.implementation(path), disabled: path => registry.disabled(path), provided });
 }
 
 

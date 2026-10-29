@@ -4,7 +4,7 @@ import { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { ToolsNamespace } from '../../src/namespace/service.js';
 import { NamespaceComponent } from '../../src/namespace/component.js';
-import { manifest } from '../../src/namespace/namespace.js';
+import { manifest, createNamespace, NamespaceNode, CommandNode } from '../../src/namespace/namespace.js';
 import { registerBuiltinProfile } from '../../src/namespace/builtin_profile.js';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { ProfileSessions } from '../../src/registry/profiles.js';
@@ -191,4 +191,40 @@ test('builtin namespaces are explicitly installed with edit and custom permissio
     forged.root.children!.files.children!.read.permissions = { removable: true, commentable: true };
     forged.root.children!.files.children!.read.command!.doc = 'Forged';
     assert.throws(() => profileConfiguration(forged, current, commands, registry.definitions), /documentation cannot be changed/);
+});
+
+test('ordinary providers register callable projections and preloaded values at arbitrary paths', async () => {
+    const { service, component, registry } = fixture();
+    const dispose = service.setToolAddition('read', {
+        project: () => ({ signature: '(value: string) => Promise<void>', description: 'Provider projection', positional: [['value']], discardResult: true }),
+        value: { read: async () => ({ source: 'provider' }), refresh: 'call' },
+    });
+    await registry.configure([{ id: 'read', path: 'external.data', pinned: false }], registry.revision);
+    const command = manifest(registry, []).commands()[0]!;
+    assert.equal(command.constructor.name, 'CommandNode');
+    assert.equal(command.permissions.removable, true);
+    assert.equal(command.signature, '(value: string) => Promise<void>');
+    assert.deepEqual(command.binding().parameters, { kind: 'overloads', layouts: [['value']] });
+    assert.deepEqual(command.binding().result, { kind: 'discard' });
+    assert.equal(command.result('discarded'), undefined);
+    assert.deepEqual(await component.values(), { 'external.data': { source: 'provider' } });
+    dispose();
+    assert.deepEqual(await component.values(), {});
+});
+
+
+test('tools namespace implementations block child mutation independently of displayed permissions', () => {
+    const { registry } = fixture();
+    const definition = registry.definitions.tree();
+    definition.children!.tools!.permissions = { acceptsChildren: true, removable: true };
+    definition.children!.tools!.children!.inspect!.permissions = { removable: true };
+    const root = createNamespace({ tools: [], includeUnavailable: true, definitions: definition,
+        implementation: path => registry.definitions.implementation(path) });
+    const tools = root.resolve(['tools']) as NamespaceNode;
+    assert.equal(tools.constructor.name, 'ImplToolsNamespace');
+    assert.equal(tools.permissions.acceptsChildren, true);
+    assert.throws(() => tools.add(new CommandNode('extra', tools, { tool: 'read', schema: {}, doc: '' })), /does not accept children/);
+    assert.throws(() => tools.remove('inspect'), /cannot be removed/);
+    (tools.children as Map<string, NamespaceNode | CommandNode>).clear();
+    assert(tools.resolve(['inspect']));
 });

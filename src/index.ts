@@ -22,6 +22,7 @@ export { RuntimeHost } from './runtime/host.js';
 export { SemanticRegistry, RegistryConfiguration, RegistryState } from './registry/registry.js';
 export { NamespaceComponent } from './namespace/component.js';
 export { NamespaceNode, CommandNode } from './namespace/namespace.js';
+export type { NamespaceInitialization, NamespaceImplementation } from './namespace/nodes/context.js';
 export type { ManifestEntry, NamespaceContext } from './namespace/namespace.js';
 export type { Node, NodeType, Permission, SerializedNode, CommandContract, CommandPresentation } from './namespace/node.js';
 export type { PhysicalTool, Mapping, Namespace, RegistryConfigurationData, RegistryStateData, PinLevel, CommandVisibility } from './registry/registry.js';
