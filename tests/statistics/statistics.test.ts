@@ -1,0 +1,133 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { Statistics } from '../../src/statistics/statistics.js';
+import { CommandStatistics } from '../../src/statistics/command_statistics.js';
+import { MemoryStore } from '../../src/storage/store.js';
+import { storageVersion } from '../../src/storage/version.js';
+
+test('scopes isolate names, aggregate repeated occurrences and persist detached live counters', async () => {
+    const store = new MemoryStore();
+    const statistics = new Statistics(store, 'sample');
+    await statistics.load();
+    await Promise.all(Array.from({ length: 30 }, (_, i) => statistics.scope(i % 2 ? 'first' : 'second').increment(['read'])));
+    await statistics.increment('first', ['', '__proto__', '__proto__']);
+    assert.equal((await statistics.snapshot()).read, 30);
+    assert.equal((await statistics.scope('first').snapshot()).read, 15);
+    assert.deepEqual(await statistics.snapshot('missing'), {});
+    const snapshot = await statistics.snapshot();
+    assert.equal(Object.getOwnPropertyDescriptor(snapshot, '__proto__')?.value, 2);
+    assert.equal(snapshot[''], 1);
+    snapshot.read = 999;
+    await statistics.flush();
+    const restored = new Statistics(store, 'sample');
+    await restored.load();
+    assert.deepEqual(await restored.snapshot(), await statistics.snapshot());
+    assert.deepEqual(await restored.snapshot('first'), await statistics.snapshot('first'));
+    await statistics.dispose();
+});
+
+test('command collections keep calls and tool queries independent of Profile paths', async () => {
+    const store = new MemoryStore();
+    const commands = new CommandStatistics(store);
+    const inspect = new Statistics(store, 'inspect_statistics');
+    await commands.calls.increment('session', ['read']);
+    await commands.queries.increment('session', ['read', 'read']);
+    await inspect.increment('First', ['std', 'std.read']);
+    await inspect.increment('Second', ['files', 'files.read']);
+    assert.deepEqual(await commands.calls.snapshot(), { read: 1 });
+    assert.deepEqual(await commands.queries.snapshot(), { read: 2 });
+    assert.deepEqual(await inspect.snapshot('First'), { std: 1, 'std.read': 1 });
+    assert.deepEqual(await inspect.snapshot('Second'), { files: 1, 'files.read': 1 });
+    await commands.dispose();
+    await inspect.dispose();
+    const restored = new CommandStatistics(store);
+    const restoredInspect = new Statistics(store, 'inspect_statistics');
+    await restored.load();
+    await restoredInspect.load();
+    assert.deepEqual(await restored.queries.snapshot(), { read: 2 });
+    assert.deepEqual(await restoredInspect.snapshot('First'), { std: 1, 'std.read': 1 });
+});
+
+test('timers preserve deadlines, write only dirty scopes, and stop after disposal', async t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const store = new MemoryStore();
+    const statistics = new Statistics(store, 'sample');
+    await statistics.increment('untouched', ['read']);
+    await statistics.flush();
+    const writes: string[] = [];
+    const save = store.save.bind(store);
+    store.save = async (key, value) => { writes.push(key); await save(key, value); };
+    await statistics.increment('target', ['read']);
+    t.mock.timers.tick(15_000);
+    await statistics.increment('target', ['read']);
+    assert.equal(writes.length, 0);
+    t.mock.timers.tick(15_000);
+    await statistics.flush();
+    assert.equal(writes.length, 3);
+    assert.equal(writes.filter(key => key === 'sample_journal').length, 1);
+    t.mock.timers.tick(60_000);
+    await statistics.flush();
+    assert.equal(writes.length, 3);
+    await statistics.increment('last', ['read']);
+    await statistics.dispose();
+    const restored = new Statistics(store, 'sample');
+    await restored.load();
+    assert.equal((await restored.snapshot()).read, 4);
+    await assert.rejects(statistics.increment('last', ['read']), /disposed/);
+});
+
+test('failed writes preserve live counters and retry without double counting', async () => {
+    const store = new MemoryStore();
+    const statistics = new Statistics(store, 'sample');
+    const save = store.save.bind(store);
+    await statistics.increment('first', ['read']);
+    store.save = async () => { throw new Error('injected'); };
+    await assert.rejects(statistics.flush(), /injected/);
+    await statistics.increment('first', ['read']);
+    assert.equal((await statistics.snapshot()).read, 2);
+    store.save = save;
+    await statistics.flush();
+    const restored = new Statistics(store, 'sample');
+    await restored.load();
+    assert.deepEqual(await restored.snapshot(), { read: 2 });
+    await statistics.dispose();
+});
+
+test('updates during IO form the next batch without blocking increments', async () => {
+    const store = new MemoryStore();
+    const save = store.save.bind(store);
+    let started!: () => void;
+    let finish!: () => void;
+    const writing = new Promise<void>(resolve => { started = resolve; });
+    const gate = new Promise<void>(resolve => { finish = resolve; });
+    let delayed = false;
+    store.save = async (key, value) => { if (!delayed) { delayed = true; started(); await gate; } await save(key, value); };
+    const statistics = new Statistics(store, 'sample');
+    await statistics.increment('first', ['read']);
+    const pending = statistics.flush();
+    await writing;
+    await statistics.increment('second', ['read']);
+    assert.deepEqual(await statistics.snapshot(), { read: 2 });
+    finish();
+    await pending;
+    const restored = new Statistics(store, 'sample');
+    await restored.load();
+    assert.deepEqual(await restored.snapshot(), { read: 1 });
+    await statistics.flush();
+    await restored.load();
+    assert.deepEqual(await restored.snapshot(), { read: 2 });
+    await statistics.dispose();
+});
+
+test('strict loading and recovery retain valid counts and reject atomic overflow', async () => {
+    const store = new MemoryStore();
+    await store.save('sample', { version: storageVersion, counts: { read: Number.MAX_SAFE_INTEGER, bad: -1 } });
+    const statistics = new Statistics(store, 'sample');
+    await assert.rejects(statistics.load());
+    await statistics.load(true);
+    assert.deepEqual(await statistics.snapshot(), { read: Number.MAX_SAFE_INTEGER });
+    await assert.rejects(statistics.increment('new', ['write', 'read']));
+    assert.deepEqual(await statistics.snapshot('new'), {});
+    assert.deepEqual(await statistics.snapshot(), { read: Number.MAX_SAFE_INTEGER });
+    await statistics.dispose();
+});
