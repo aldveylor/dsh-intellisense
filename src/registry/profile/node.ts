@@ -3,7 +3,6 @@ import type { ProfileTreeNode } from '../profile_node.js';
 
 /** @brief Portable node contract shared by namespace and command interfaces. */
 export interface ProfileNode {
-    readonly name: string;
     readonly type: 'command' | 'namespace';
     readonly permissions: Permission;
     /** @brief Merge explicit permission overrides. */
@@ -18,7 +17,7 @@ export interface ProfileNode {
 export abstract class EditableNode implements ProfileNode {
     protected settings: Pick<ProfileTreeNode, 'permissions' | 'disabled' | 'fixedLevel'> = {};
 
-    constructor(readonly name = '') {}
+    constructor(protected readonly memberName = '') {}
 
     abstract readonly type: 'command' | 'namespace';
 

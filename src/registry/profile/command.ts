@@ -41,7 +41,7 @@ export class EditableCommand extends EditableNode implements ProfileCommand {
     setFixedLevel(value: 0 | 1 | 2): this { this.settings.fixedLevel = value; return this; }
 
     serialize(): CommandNode {
-        if (!this.binding) throw new Error(`Command has no physical tool: ${this.name}`);
+        if (!this.binding) throw new Error(`Command has no physical tool: ${this.memberName}`);
         return structuredClone({ ...this.settings, type: this.type, command: { tool: this.binding, ...(this.description === undefined ? {} : { doc: this.description }) } });
     }
 }

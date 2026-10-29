@@ -1,3 +1,8 @@
+import { profileTree, ProfileSchema } from './profile_tree.js';
+import { validateProfileEdit } from './profile/validate_edit.js';
+import { NamespaceDefinitions } from '../namespace/definitions.js';
+import type { ToolAddition } from '../namespace/service.js';
+import { settingsAt, ProfileNodeSettingsSchema } from './profile/node_settings.js';
 import { ProfileNotFoundError } from '../error.js';
 import { CommandNode, NamespaceNode, createNamespace } from '../namespace/namespace.js';
 import { pluginCommands } from '../runtime/builtins.js';
@@ -10,6 +15,7 @@ import { RegistryConfiguration, RegistryState, type RegistryConfigurationData, t
 /** @brief Stable physical identity and the enforced native JSON contracts. */
 export interface PhysicalTool {
     id: string;
+    addition?: ToolAddition;
     source?: string;
     description: string;
     parameters: Record<string, unknown>;
@@ -48,11 +54,15 @@ export class SemanticRegistry {
     private physical = new Map<string, PhysicalTool>();
     private physicalFingerprint = '';
     private physicalRevision = 0;
-    private readonly protectedNodes = createNamespace({ tools: [], includeUnavailable: true });
+    private protectedCache?: { revision: number; root: NamespaceNode };
+    private get protectedNodes(): NamespaceNode {
+        if (this.protectedCache?.revision !== this.definitions.revision) this.protectedCache = { revision: this.definitions.revision, root: createNamespace({ tools: [], includeUnavailable: true, definitions: this.definitions.tree() }) };
+        return this.protectedCache.root;
+    }
     private state = new RegistryState({ inactiveProfiles: {} });
     private writeChain: Promise<unknown> = Promise.resolve();
 
-    constructor(private store: Store, _scope: 'global' | 'session' = 'global') {}
+    constructor(private store: Store, _scope: 'global' | 'session' = 'global', readonly definitions = new NamespaceDefinitions()) {}
 
     /** @brief Serialize loading and recovery with ordinary configuration writes. */
     load(recover = false): Promise<void> { return this.transaction(() => this.loadSnapshot(recover)); }
@@ -74,9 +84,11 @@ export class SemanticRegistry {
             this.validateNamespaces(saved.namespaces ?? [], saved.mappings);
             this.validateVisibility(saved.unmountedVisible ?? {});
             this.validateVisibility(saved.builtinVisible ?? {});
-            this.validateDisabled(saved.builtinDisabled);
+            this.validateDisabled(saved.builtinDisabled, saved.providedRoot);
             this.validateNamespaceVisible(saved.namespaceVisible);
             this.validateComments(saved.toolComments ?? {});
+            ProfileNodeSettingsSchema.parse(saved.nodeSettings ?? {});
+            if (saved.providedRoot) ProfileSchema.parse({ name: saved.profile ?? 'Default', root: saved.providedRoot });
             for (const [name, configuration] of Object.entries(saved.inactiveProfiles ?? {})) {
                 this.validateProfileName(name);
                 if (name === (saved.profile ?? 'Default')) throw new Error('Duplicate active profile');
@@ -84,9 +96,11 @@ export class SemanticRegistry {
                 this.validateNamespaces(configuration.namespaces, configuration.mappings);
                 this.validateVisibility(configuration.unmountedVisible);
                 this.validateVisibility(configuration.builtinVisible ?? {});
-                this.validateDisabled(configuration.builtinDisabled);
+                this.validateDisabled(configuration.builtinDisabled, configuration.providedRoot);
                 this.validateNamespaceVisible(configuration.namespaceVisible);
                 this.validateComments(configuration.toolComments ?? {});
+                ProfileNodeSettingsSchema.parse(configuration.nodeSettings ?? {});
+                if (configuration.providedRoot) ProfileSchema.parse({ name, root: configuration.providedRoot });
             }
             const state = new RegistryState(saved);
             if (migrate || cleaned) await this.store.save('registry', state.save());
@@ -97,23 +111,24 @@ export class SemanticRegistry {
     /** @brief Drop obsolete protected-node preferences on load while retaining configured namespace paths. */
     private pruneProtectedPreferences(configuration: Partial<RegistryConfigurationData>): boolean {
         const before = JSON.stringify(configuration);
+        const protectedRoot = configuration.providedRoot ? createNamespace({ tools: [], includeUnavailable: true, definitions: configuration.providedRoot, nodeSettings: configuration.nodeSettings }) : this.protectedNodes;
         const paths = [
             ...(Array.isArray(configuration.mappings) ? configuration.mappings.map(item => item?.path) : []),
             ...(Array.isArray(configuration.namespaces) ? configuration.namespaces.map(item => item?.path) : []),
         ].filter((path): path is string => typeof path === 'string');
-        const namespaceExists = (path: string): boolean => this.protectedNodes.resolve(path.split('.')) instanceof NamespaceNode
+        const namespaceExists = (path: string): boolean => protectedRoot.resolve(path.split('.')) instanceof NamespaceNode
             || paths.some(configured => configured === path || configured.startsWith(path + '.'));
         if (Array.isArray(configuration.builtinDisabled)) configuration.builtinDisabled = configuration.builtinDisabled.filter(path =>
-            typeof path !== 'string' || !!this.protectedNodes.resolve(path.split('.'))?.permissions.disableable);
+            typeof path !== 'string' || !!protectedRoot.resolve(path.split('.'))?.permissions.disableable);
         if (configuration.builtinVisible && typeof configuration.builtinVisible === 'object' && !Array.isArray(configuration.builtinVisible)) {
             configuration.builtinVisible = Object.fromEntries(Object.entries(configuration.builtinVisible).filter(([path]) =>
-                this.protectedNodes.resolve(path.split('.')) instanceof CommandNode));
+                protectedRoot.resolve(path.split('.')) instanceof CommandNode));
         }
         if (configuration.namespaceVisible && typeof configuration.namespaceVisible === 'object' && !Array.isArray(configuration.namespaceVisible)) {
             configuration.namespaceVisible = Object.fromEntries(Object.entries(configuration.namespaceVisible).filter(([path]) => namespaceExists(path)));
         }
         if (Array.isArray(configuration.order)) configuration.order = configuration.order.filter(path => typeof path !== 'string'
-            || !!this.protectedNodes.resolve(path.split('.')) || namespaceExists(path));
+            || !!protectedRoot.resolve(path.split('.')) || namespaceExists(path));
         return before !== JSON.stringify(configuration);
     }
 
@@ -141,7 +156,7 @@ export class SemanticRegistry {
         for (const namespace of Array.isArray(saved.namespaces) ? saved.namespaces : []) {
             if (this.accepts(() => this.validateNamespaces([...namespaces, namespace], mappings))) namespaces.push(namespace);
         }
-        return { ...(typeof saved.brief === 'string' ? { brief: saved.brief } : {}), mappings, namespaces,
+        return { ...(typeof saved.brief === 'string' ? { brief: saved.brief } : {}), providedRoot: saved.providedRoot === undefined ? undefined : ProfileSchema.safeParse({ name: 'Recovered', root: saved.providedRoot }).data?.root, nodeSettings: ProfileNodeSettingsSchema.safeParse(saved.nodeSettings).data ?? {}, mappings, namespaces,
             order: Array.isArray(saved.order) ? [...new Set(saved.order.filter((path): path is string => typeof path === 'string'))] : [],
             unmountedVisible: this.recoverEntries<PinLevel>(saved.unmountedVisible, entry => this.validateVisibility(entry)),
             builtinVisible: saved.builtinVisible === undefined ? { ...pluginCommands.defaultBuiltinVisible }
@@ -183,7 +198,7 @@ export class SemanticRegistry {
     get revision(): number { return this.state.revision; }
 
     /** @brief Identify configuration and physical-contract changes without copying either snapshot. */
-    get generation(): string { return `${this.state.revision}:${this.physicalRevision}`; }
+    get generation(): string { return `${this.state.revision}:${this.physicalRevision}:${this.definitions.revision}`; }
 
     /** @brief Read Profile names and selection without cloning configuration data. */
     profileSelection(): { profiles: string[]; selected: string } {
@@ -220,11 +235,13 @@ export class SemanticRegistry {
         const detached = new RegistryConfiguration(configuration);
         await this.transaction(async () => {
             this.validateProfileName(profile);
+            ProfileNodeSettingsSchema.parse(detached.nodeSettings);
+            if (detached.providedRoot) ProfileSchema.parse({ name: 'Validated', root: detached.providedRoot });
             this.validateMappings(detached.mappings);
             this.validateNamespaces(detached.namespaces, detached.mappings);
             this.validateVisibility(detached.unmountedVisible);
             this.validateVisibility(detached.builtinVisible ?? {});
-            this.validateDisabled(detached.builtinDisabled);
+            this.validateDisabled(detached.builtinDisabled, detached.providedRoot);
             this.validateNamespaceVisible(detached.namespaceVisible);
             this.validateComments(detached.toolComments ?? {});
             const next: RegistryStateData = { ...this.state, ...detached, toolComments: detached.toolComments ?? {}, profile, revision: this.state.revision + 1 };
@@ -235,15 +252,25 @@ export class SemanticRegistry {
     }
 
     /** @brief Publish a new named version; existing session references retain their own snapshots. */
-    async saveProfile(name: string, configuration: RegistryConfigurationData): Promise<void> {
+    async saveProfile(name: string, configuration: RegistryConfigurationData, options: { trusted?: boolean; create?: boolean; revision?: number } = {}): Promise<void> {
         const detached = new RegistryConfiguration(configuration);
         await this.transaction(async () => {
             this.validateProfileName(name);
+            if (options.revision !== undefined && options.revision !== this.revision) throw new Error('registry_revision_conflict');
+            const exists = this.profileSelection().profiles.includes(name);
+            if (options.create && exists) throw new Error('profile_name_exists');
+            if (!options.trusted) {
+                const original = exists ? this.configuration(name) : new RegistryConfiguration();
+                this.validateFixedMappings(detached.mappings, original.mappings);
+                validateProfileEdit(profileTree(name, original, this.definitions).root, profileTree(name, detached, this.definitions).root);
+            }
+            ProfileNodeSettingsSchema.parse(detached.nodeSettings);
+            if (detached.providedRoot) ProfileSchema.parse({ name: 'Validated', root: detached.providedRoot });
             this.validateMappings(detached.mappings);
             this.validateNamespaces(detached.namespaces, detached.mappings);
             this.validateVisibility(detached.unmountedVisible);
             this.validateVisibility(detached.builtinVisible ?? {});
-            this.validateDisabled(detached.builtinDisabled);
+            this.validateDisabled(detached.builtinDisabled, detached.providedRoot);
             this.validateNamespaceVisible(detached.namespaceVisible);
             this.validateComments(detached.toolComments ?? {});
             const next: RegistryStateData = { ...this.state, revision: this.state.revision + 1 };
@@ -318,19 +345,20 @@ export class SemanticRegistry {
     }
 
     /** @brief Validate disabled builtin paths against node permissions. */
-    private validateDisabled(paths: string[] | undefined): void {
+    private validateDisabled(paths: string[] | undefined, providedRoot?: import('./profile_node.js').NamespaceTreeNode): void {
         if (paths !== undefined && (!Array.isArray(paths) || paths.some(path => {
             if (typeof path !== 'string') return true;
-            const node = this.protectedNodes.resolve(path.split('.'));
+            const root = providedRoot ? createNamespace({ tools: [], includeUnavailable: true, definitions: providedRoot }) : this.protectedNodes;
+            const node = root.resolve(path.split('.'));
             return !node || !node.permissions.disableable;
         }))) throw new Error('Invalid disabled protected-node paths');
     }
 
-    tools(): PhysicalTool[] { return structuredClone([...this.physical.values()]); }
+    tools(): PhysicalTool[] { return structuredClone([...this.physical.values()].filter(tool => !this.definitions.addition(tool.id).hidden).map(tool => ({ ...tool, addition: this.definitions.addition(tool.id) }))); }
 
     /** @brief Resolve a mount's description before the shared physical-tool preference. */
     description(path: string, tool: string): string | undefined {
-        return this.state.mappings.find(mapping => mapping.path === path && mapping.id === tool)?.description ?? this.state.toolComments?.[tool];
+        return settingsAt(this.state.nodeSettings, path.split('.'))?.description ?? this.state.mappings.find(mapping => mapping.path === path && mapping.id === tool)?.description ?? this.state.toolComments?.[tool];
     }
 
     effective(): Array<Mapping & { tool: PhysicalTool }> {
@@ -358,6 +386,12 @@ export class SemanticRegistry {
             if (paths.some(path => path === m.path || path.startsWith(`${m.path}.`) || m.path.startsWith(`${path}.`))) throw new Error(`Namespace collision: ${m.path}`);
             paths.push(m.path);
         }
+    }
+
+    /** @brief Reject new user mounts of fixed tools, retaining existing plugin-owned mounts. */
+    private validateFixedMappings(mappings: Mapping[], original: Mapping[]): void {
+        for (const mapping of mappings) if ((this.definitions.addition(mapping.id).fixed || this.definitions.addition(mapping.id).hidden)
+            && !original.some(previous => previous.id === mapping.id && previous.path === mapping.path)) throw new Error(`Fixed tool cannot be mounted: ${mapping.id}`);
     }
 
     /** @brief Validate namespace metadata against callable paths and reserved names. */
@@ -401,10 +435,11 @@ export class SemanticRegistry {
                 ? new RegistryConfiguration()
                 : this.configuration(editingProfile);
             this.validateMappings(detached);
+            this.validateFixedMappings(detached, base.mappings);
             this.validateNamespaceVisible(namespaceVisible);
             const comments = structuredClone(toolComments ?? base.toolComments ?? {});
             this.validateComments(comments);
-            this.validateDisabled(builtinDisabled);
+            this.validateDisabled(builtinDisabled, base.providedRoot);
             const builtins = structuredClone(builtinVisible ?? base.builtinVisible ?? pluginCommands.defaultBuiltinVisible);
             this.validateVisibility(builtins);
             const selected = structuredClone(unmountedVisible ?? base.unmountedVisible ?? {});
@@ -428,9 +463,11 @@ export class SemanticRegistry {
             const known = new Set([...metadata.map(n => n.path), ...detached.map(m => m.path)]
                 .flatMap(path => path.split('.').map((_, i, parts) => parts.slice(0, i + 1).join('.'))));
             const treeOrder = [...new Set([...requestedOrder, ...known])].filter(path => known.has(path));
-            const configuration = { brief, builtinDisabled: builtinDisabled ?? base.builtinDisabled ?? [], mappings: detached, namespaces: metadata, order: treeOrder, toolComments: comments, builtinVisible: builtins, namespaceVisible: namespaceVisible ?? base.namespaceVisible ?? {},
+            const configuration = { brief, providedRoot: base.providedRoot, nodeSettings: base.nodeSettings, builtinDisabled: builtinDisabled ?? base.builtinDisabled ?? [], mappings: detached, namespaces: metadata, order: treeOrder, toolComments: comments, builtinVisible: builtins, namespaceVisible: namespaceVisible ?? base.namespaceVisible ?? {},
                 unmountedVisible: Object.fromEntries(Object.entries(selected).filter(([id]) => !detached.some(mapping => mapping.id === id))),
             };
+            const targetName = profile ?? editingProfile ?? this.state.profile;
+            validateProfileEdit(profileTree(targetName, base, this.definitions).root, profileTree(targetName, configuration, this.definitions).root);
             let next: RegistryStateData = { ...this.state, revision: this.state.revision + 1 };
             if (editingProfile !== undefined || !activate) {
                 const target = profile ?? editingProfile ?? this.state.profile ?? 'Default';

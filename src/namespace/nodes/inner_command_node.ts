@@ -8,7 +8,7 @@ import { namespaceDeclaration, builtinDeclaration } from '../declaration.js';
 
 /** @brief Restricted server commands own adapters and policies without exposing their class to clients. */
 export class InnerCommandNode extends CommandNode {
-    constructor(name: string, parent: NamespaceNode, entry: Omit<ManifestEntry, 'path'>, readonly builtin: BuiltinCommand, permissions: Partial<Permission> = {}) {
+    constructor(name: string, parent: NamespaceNode, entry: Omit<ManifestEntry, 'path'>, readonly builtin: BuiltinCommand, permissions: Partial<Permission> = {}, fixedLevel: 0 | 1 | 2 = 0, provided = true) {
         let root = parent;
         while (root.parent) root = root.parent;
         const discovery = root.resolve(['tools', 'inspect']);
@@ -17,7 +17,7 @@ export class InnerCommandNode extends CommandNode {
             builtin = { ...builtin, description };
             entry = { ...entry, doc: description };
         }
-        super(name, parent, entry, nodePermissions('leaf', { renamable: false, commentable: false, movable: false, removable: false, ...permissions }));
+        super(name, parent, entry, nodePermissions('leaf', { renamable: false, commentable: false, movable: false, removable: false, ...permissions }), fixedLevel, provided);
     }
 
     override get preload(): boolean { return this.builtin.preload ?? false; }

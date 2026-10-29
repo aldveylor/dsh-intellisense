@@ -72,7 +72,7 @@ Profile save/apply 对受保护节点的移除、改名、移动、替换、文�
 
 同一物理工具的每个挂载路径独立保存描述、固定等级及禁用状态；Mapping 不再区分 path 与 aliases，每条记录只代表一个挂载路径，不兼容旧存档。命令目录中的挂载路径包含禁用及当前作用域不可用的配置路径；执行、搜索与提示仍排除禁用路径。
 
-Profile、RegistryConfiguration 与 RegistryState 为可导出的运行时类，公共入口导出类及其 Data 类型；均实现 Saveable<T>.save()，通过 constructor(data?) 恢复独立实例。会话和目录内部使用类，存储/HTTP/PTC 传递纯数据；Profile 树的节点结构与操作规则保持不变。
+ToolsNamespace 与 Profile 为 interface；Profile 是无 name 的匿名树 snapshot，ProfileCollection 提供 get/create/getOrCreate/edit。create 初始为空，edit(name, modifier) 原子保存回调返回的递归树，无 root getter 或 commit。节点由继承的内部 class 实现，公开方法返回 interface。RegistryConfiguration 与 RegistryState 仍为实现 Saveable 的存储类；ProfileDocument 是命名 JSON 传输的内部投影。
 
 根目录 README.md 为英文完整文档，README.zh-cn.md 为中文完整文档，互相提供语言切换链接；assets/ 仅保存图标、横幅和分语言截图。
 
@@ -100,3 +100,5 @@ ProfileRootWrite 的匿名根只允许 type/children，拒绝没有持久化表�
 文档截图脚本额外生成配置工具栏 profile_editor.png 与局部命名空间树 namespace_tree.png。new_conversation.png 截取真实 DSH 新对话的模式、配置菜单和输入区，使用浏览器预览示例，不含侧边栏或历史会话。使用文档按操作章节插入局部截图，文档路由继续使用固定名称枚举。
 
 构建配置统一由 scripts/build.mjs 管理，支持 all/server/client；pnpm run build 按服务端、worker、插件客户端、独立页顺序构建，避免 tsc 覆盖最终浏览器产物。package.json 只保留构建脚本入口，脚本间调用统一使用 pnpm。依赖 external、压缩、loader 与宿主注册包装在构建脚本维护。
+
+工具附加属性通过 ToolAddition 的 fixed、hidden、ptcDescription 声明；内置工具也使用 toolsNamespace 的相同接口注册。fixed 禁止人工和 agent 挂载，hidden 隐藏目录及选择器，PTC 注释可独立覆盖且缺省回退物理工具原文。内置节点通过 edit 显式创建；空 Profile 不自动注入节点。

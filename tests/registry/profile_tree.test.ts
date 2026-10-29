@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Profile, ProfileSchema, profileConfiguration, profileTree } from '../../src/registry/profile_tree.js';
+import { ProfileDocument, ProfileSchema, profileConfiguration, profileTree } from '../../src/registry/profile_tree.js';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
 
@@ -99,7 +99,7 @@ test('save rejects missing protected descendants and forbidden documentation or 
         (value: typeof profile) => { delete value.root.children!['tools'].children!['inspect'].command!.doc; },
         (value: typeof profile) => { value.root.children!['tools'].children!['inspect'].fixedLevel = 0; },
     ]) {
-        const input = new Profile(profile.save());
+        const input = new ProfileDocument(profile.save());
         edit(input);
         const before = input.save();
         assert.throws(() => profileConfiguration(input, current, commands), /Node (cannot be removed|documentation cannot be changed|fixed level cannot be changed)/);
@@ -146,11 +146,11 @@ test('Profile command contracts reject removed argument mappings', () => {
 
 test('Profile constructors preserve editable tree data and detach saved and restored trees', () => {
     const { current, profile, commands } = fixture();
-    assert(profile instanceof Profile);
+    assert(profile instanceof ProfileDocument);
     const data = profile.save();
     assert.equal(Object.getPrototypeOf(data), Object.prototype);
     assert.deepEqual(ProfileSchema.parse(data), data);
-    const restored = new Profile(JSON.parse(JSON.stringify(data)));
+    const restored = new ProfileDocument(JSON.parse(JSON.stringify(data)));
     assert.deepEqual(restored, profile);
     data.root.children = {};
     assert(Object.keys(restored.root.children!).length > 0);
@@ -158,7 +158,7 @@ test('Profile constructors preserve editable tree data and detach saved and rest
     files.description = 'Restored files';
     assert.equal(profile.root.children!['files'].description, 'File operations');
     assert.equal(profileConfiguration(restored, current, commands).namespaces[0]!.description, 'Restored files');
-    assert(ProfileSchema.safeParse(new Profile().save()).success);
+    assert(ProfileSchema.safeParse(new ProfileDocument().save()).success);
 });
 
 
@@ -169,7 +169,7 @@ test('Profile brief survives schema, tree conversion and detached persistence', 
     const configuration = { ...registry.configuration(), brief: '日常开发工具' };
     const profile = profileTree('开发', configuration);
     assert.equal(ProfileSchema.parse(profile.save()).brief, configuration.brief);
-    assert.equal(new Profile(profile.save()).brief, configuration.brief);
+    assert.equal(new ProfileDocument(profile.save()).brief, configuration.brief);
     const restored = profileConfiguration(profile, registry.configuration(), []);
     assert.equal(restored.save().brief, configuration.brief);
     await registry.saveProfile('开发', restored);

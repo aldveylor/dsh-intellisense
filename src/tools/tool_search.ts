@@ -1,4 +1,4 @@
-import { presentationFor, type PresentationMode } from '../integration/presentation.js';
+import { type PresentationMode } from '../integration/presentation.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools';
 import { SearchCorpus, searchParameters } from '../search/search.js';
@@ -36,10 +36,10 @@ export function searchDefinition(namespaces: Pick<NamespaceComponent, 'entries' 
 /** @brief Refresh scoped search contracts whenever registered methods or the default change. */
 export function registerSearch(ctx: Context, namespaces: NamespaceComponent): void {
     ctx.effect(() => {
-        let dispose = registerBuiltin(ctx, searchDefinition(namespaces, presentationFor(ctx) ?? 'native'));
+        let dispose = registerBuiltin(ctx, searchDefinition(namespaces));
         const unsubscribe = namespaces.searchEngines.subscribe(() => {
             dispose();
-            dispose = registerBuiltin(ctx, searchDefinition(namespaces, presentationFor(ctx) ?? 'native'));
+            dispose = registerBuiltin(ctx, searchDefinition(namespaces));
             ctx.emit('system-prompt/change');
         });
         return () => { unsubscribe(); dispose(); };

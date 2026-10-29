@@ -1,3 +1,8 @@
+import { EditableNamespace } from './profile/namespace.js';
+import type { ProfileNamespace } from './profile/namespace.js';
+import { validateProfileEdit } from './profile/validate_edit.js';
+import { defaultNamespaceDefinitions, type NamespaceDefinitions } from '../namespace/definitions.js';
+import { settingsAt } from './profile/node_settings.js';
 import { ProfilePermissionError, UnknownCommandError } from '../error.js';
 import { z } from 'zod';
 import { RegistryConfiguration, type RegistryConfigurationData } from './configuration.js';
@@ -20,7 +25,7 @@ export interface Profiles { profiles: string[]; selected: string }
 export interface ProfileData { name: string; brief?: string; root: NamespaceTreeNode }
 
 /** @brief Editable Profile tree retaining its transport shape and independent nested data. */
-export class Profile implements Saveable<ProfileData> {
+export class ProfileDocument implements Saveable<ProfileData> {
     name: string;
     brief?: string;
     root: NamespaceTreeNode;
@@ -108,29 +113,30 @@ const nodeSchema: z.ZodType<ProfileTreeNode> = z.lazy(() => z.union([
 export const ProfileSchema: z.ZodType<ProfileData> = z.strictObject({ name: z.string(), brief: z.string().optional().describe('Short description of the Profile purpose.'), root: namespaceSchema.describe("Anonymous namespace root of editable Profile data. Member names are children record keys. Server-owned node permissions govern edits.") });
 
 /** @brief Create protected children first, then add configured mappings without replacing existing nodes. */
-export function profileTree(name: string, configuration: RegistryConfigurationData): Profile {
-    const root = createNamespace({ tools: [], includeUnavailable: true });
-    const nodeFor = (path: string): NamespaceNode => {
-        const parts = path.split('.').filter(Boolean);
-        const parent = parts.length > 1 ? nodeFor(parts.slice(0, -1).join('.')) : root;
-        if (!parts.length) return root;
-        const child = parent.children.get(parts.at(-1)!);
-        if (child instanceof NamespaceNode) return child;
-        if (child) throw new ProfilePermissionError(`Namespace collides with command: ${path}`);
-        return parent.add(new NamespaceNode(parts.at(-1)!, parent, configuration.namespaces.find(item => item.path === path)?.description));
-    };
-    for (const item of configuration.namespaces) nodeFor(item.path);
+export function profileTree(name: string, configuration: RegistryConfigurationData, definitions: NamespaceDefinitions = defaultNamespaceDefinitions): ProfileDocument {
+    const definition = new EditableNamespace('', configuration.providedRoot ?? definitions.tree(name));
+    const nodeFor = (parts: string[]): ProfileNamespace => parts.reduce((parent, name) => parent.getOrCreate(name), definition as ProfileNamespace);
+    for (const item of configuration.namespaces) nodeFor(item.path.split('.')).setDescription(item.description);
     for (const mapping of configuration.mappings) {
-        const path = mapping.path;
-        const parts = path.split('.');
-        nodeFor(parts.slice(0, -1).join('.')).add(new CommandNode(parts.at(-1)!, nodeFor(parts.slice(0, -1).join('.')), { tool: mapping.id, schema: {}, output: {}, doc: mapping.description ?? configuration.toolComments?.[mapping.id] ?? '' }));
+        const parts = mapping.path.split('.');
+        const parent = nodeFor(parts.slice(0, -1));
+        if (parent.get(parts.at(-1)!)) continue;
+        const command = parent.create(parts.at(-1)!, 'command').setTool(mapping.id);
+        const description = mapping.description ?? configuration.toolComments?.[mapping.id];
+        if (description !== undefined) command.setDescription(description);
     }
+    const root = createNamespace({ tools: [], includeUnavailable: true, definitions: definition.serialize(), addition: tool => definitions.addition(tool), nodeSettings: configuration.nodeSettings });
     const snapshot = profileNode(root.serialize()) as NamespaceTreeNode;
     const apply = (node: ProfileTreeNode, path: string): void => {
+        const setting = settingsAt(configuration.nodeSettings, path ? path.split('.') : []);
+        if (setting?.description !== undefined) {
+            if (node.type === 'namespace') node.description = setting.description;
+            else node.command.doc = setting.description;
+        }
         const mapping = configuration.mappings.find(item => item.path === path);
         const namespace = configuration.namespaces.find(item => item.path === path);
         const permissions = nodePermissions(node.type === 'command' ? 'leaf' : 'tree', node.permissions);
-        const level = fixLevel(permissions, node.type === 'command' ? configuration.builtinVisible?.[path] ?? mapping?.alwaysVisible ?? 0
+        const level = fixLevel(permissions, node.type === 'command' ? configuration.builtinVisible?.[path] ?? mapping?.alwaysVisible ?? node.fixedLevel ?? 0
             : namespace?.alwaysVisible || configuration.namespaceVisible?.[path] ? 1 : 0);
         if (node.type === 'command') node.fixedLevel = level;
         else node.fixedLevel = level === 2 ? 1 : level;
@@ -138,17 +144,17 @@ export function profileTree(name: string, configuration: RegistryConfigurationDa
         for (const [name, child] of Object.entries(node.children ?? {})) apply(child, path ? `${path}.${name}` : name);
     };
     apply(snapshot, '');
-    return new Profile({ name, brief: configuration.brief, root: snapshot });
+    return new ProfileDocument({ name, brief: configuration.brief, root: snapshot });
 }
 
 /** @brief Validate all writes under server-owned permissions, then build independent configuration data. */
-export function profileConfiguration(profile: ProfileData, current: RegistryConfigurationData, commands: readonly CommandBrief[]): RegistryConfiguration {
+export function profileConfiguration(profile: ProfileData, current: RegistryConfigurationData, commands: readonly CommandBrief[], definitions: NamespaceDefinitions = defaultNamespaceDefinitions): RegistryConfiguration {
     profile = ProfileSchema.parse(profile);
-    const protectedRoot = createNamespace({ tools: [], includeUnavailable: true });
+    const protectedRoot = createNamespace({ tools: [], includeUnavailable: true, definitions: current.providedRoot ?? definitions.tree(profile.name), nodeSettings: current.nodeSettings });
     const configuration = new RegistryConfiguration({ ...current, brief: profile.brief, mappings: [], namespaces: [], order: [], toolComments: {}, builtinVisible: {}, builtinDisabled: [], namespaceVisible: {} });
     const submitted: { node: ProfileTreeNode; path: string }[] = [];
     const root = structuredClone(profile.root);
-    const baseline = profileTree(profile.name, current).root;
+    const baseline = profileTree(profile.name, current, definitions).root;
     /** @brief Index submitted nodes by paths derived from member keys. */
     const collect = (node: ProfileTreeNode, path: string): void => {
         submitted.push({ node, path });
@@ -160,6 +166,7 @@ export function profileConfiguration(profile: ProfileData, current: RegistryConf
         return node.type === 'namespace' && [...expected.children.values()].some(child =>
             Object.hasOwn(node.children ?? {}, child.name) && sameIdentity(node.children![child.name]!, child));
     };
+    validateProfileEdit(baseline, root);
     collect(root, '');
     const visit = (node: ProfileTreeNode, path: string, expected?: NamespaceNode | CommandNode, original?: ProfileTreeNode): void => {
         if (path && !expected) validatePath(path);
@@ -179,7 +186,7 @@ export function profileConfiguration(profile: ProfileData, current: RegistryConf
                 if (node.disabled) configuration.builtinDisabled!.push(path);
                 return;
             }
-            if (!commands.some(item => item.name === node.command!.tool)) throw new UnknownCommandError(node.command.tool);
+            if (!commands.some(item => item.name === node.command!.tool) && !(definitions.addition(node.command.tool).fixed && current.mappings.some(mapping => mapping.id === node.command!.tool && mapping.path === path))) throw new UnknownCommandError(node.command.tool);
             configuration.mappings.push({ id: node.command.tool, path, pinned: false, disabled: node.disabled,
                 alwaysVisible: node.fixedLevel ?? 0, description: node.command.doc });
             return;
@@ -211,6 +218,12 @@ export function profileConfiguration(profile: ProfileData, current: RegistryConf
     };
     if (profile.root.type !== 'namespace') throw new ProfilePermissionError('Expected an anonymous namespace root');
     visit(root, '', protectedRoot, baseline);
+    if (current.providedRoot) {
+        const retain = (source: ProfileTreeNode, submitted: ProfileTreeNode): ProfileTreeNode => source.type === 'command' ? structuredClone(source)
+            : { ...structuredClone(source), children: Object.fromEntries(Object.entries(source.children ?? {}).filter(([name]) => Object.hasOwn(submitted.children ?? {}, name))
+                .map(([name, child]) => [name, retain(child, submitted.children![name]!)])) };
+        configuration.providedRoot = retain(current.providedRoot, profile.root) as NamespaceTreeNode;
+    }
     return configuration;
 }
 

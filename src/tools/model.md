@@ -66,3 +66,5 @@ ProfileRootWrite 的匿名根只允许 type/children，拒绝没有持久化表�
 
 
 `profile_lock.ts` 的 ProfileLock 为当前命名空间组件提供共享 FIFO 异步互斥锁。所有 `tools.profile.*` 操作共用该锁，读写均在获取锁后执行；apply 的读取、合并、校验及目录持久化位于同一临界区，避免跨会话并发增量保存丢失更新。等待结束后再次检查取消信号，失败或取消通过 finally 释放锁，不阻塞后续操作。锁只协调本组件的 Profile 工具调用，不提供跨进程或绕过工具接口的存储事务。
+
+插件侧便携工具附加属性由 namespace/builtin_profile.ts 注册：内置管理工具 fixed=true，exec/run_code/tools_run_code hidden=true，模式差异说明通过可选 ptcDescription 提供。物理工具注册保留 native 注释；PTC 投影读取附加属性。原有 Profile load/save/apply 是 agent JSON 接口，插件侧编辑统一使用 toolsNamespace.edit(name, snapshot => snapshot)，二者共用服务端权限与存储规则。

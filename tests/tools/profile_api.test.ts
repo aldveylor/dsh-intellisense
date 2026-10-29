@@ -8,7 +8,7 @@ import { Context } from '@deepseek-ai/cordis';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { ProfileSessions } from '../../src/registry/profiles.js';
-import { Profile, ProfileSchema, profileAnnotation, profileTree } from '../../src/registry/profile_tree.js';
+import { ProfileDocument, ProfileSchema, profileAnnotation, profileTree } from '../../src/registry/profile_tree.js';
 import { MemoryStore } from '../../src/storage/store.js';
 import { registerToolCommands } from '../../src/tools/tool_commands.js';
 import { manifest } from '../../src/namespace/namespace.js';
@@ -250,7 +250,7 @@ test('Profile setdefault persists the default for new sessions and preserves exi
 test('agent Profile load keeps plain JSON data while host profiles are classes', async () => {
     const { registry, call } = await fixture();
     const hostProfile = profileTree('Default', registry.configuration());
-    assert(hostProfile instanceof Profile);
+    assert(hostProfile instanceof ProfileDocument);
     const profile = await call('tools_profile_load');
     assert.equal(Object.getPrototypeOf(profile), Object.prototype);
     assert.deepEqual(Object.keys(profile as object).sort(), ['name', 'root']);

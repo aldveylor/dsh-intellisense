@@ -26,7 +26,7 @@ tools.profile.commands 中各项 totalCalls 使用 VM 内只读 getter，从预�
 
 `builtins.ts` 的 `PluginCommands` 持有插件命令契约表，通过共享实例 `pluginCommands` 提供物理命令查找、搜索签名、默认提示等级及运行时/UI 投影所需的命令分组。
 
-`reservedToolIds` 统一列出 exec、run_code 与插件自有执行入口，供物理工具目录、manifest 和管理选择器过滤使用。
+exec、run_code 与插件自有执行入口通过 toolsNamespace.setToolAddition 注册 hidden: true，物理目录、manifest 和管理选择器统一读取该属性；不再使用 reservedToolIds 静态过滤表。
 
 PTC 初始化先建立运行时环境（包括 console 输出对象），再安装生成的命令与预加载数据。每次初始化移除上次生成的命名空间根，再部署当前命令和值；生成的根属性可配置但不可赋值，子树冻结。部署只写入环境中不存在的根属性，不覆盖已有 console、标准对象或其它运行时全局。生成树内重复命令或命令/值冲突会明确拒绝，不以后写覆盖先写。运行时全局对象不作为命名空间节点参与 Inspect 查询。
 

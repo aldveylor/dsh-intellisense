@@ -1,4 +1,3 @@
-import { presentationFor } from '../integration/presentation.js';
 import { namespaceDeclaration, type NamespaceDeclaration } from '../namespace/declaration.js';
 import { pluginCommands, projectBuiltin } from '../runtime/builtins.js';
 import { registerBuiltin } from './builtin_trace.js';
@@ -55,7 +54,7 @@ export function inspect(queries: readonly string[], root: NamespaceNode, runtime
 
 /** @brief Register batched signature discovery as an ordinary guarded native tool. */
 export function registerInspect(ctx: Context, namespaces: NamespaceComponent): void {
-    const contract = projectBuiltin(pluginCommands.discoveryCommand, presentationFor(ctx) ?? 'native');
+    const contract = projectBuiltin(pluginCommands.discoveryCommand, 'native');
     const definition: ToolDefinition = defineTool({
         name: 'tools_inspect',
         description: contract.description,

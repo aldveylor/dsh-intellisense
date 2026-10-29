@@ -1,15 +1,23 @@
-import type { ProfileData } from '../profile_tree.js';
 import type { ProfileNamespace } from './namespace.js';
 
-/** @brief An independent editable Profile handle backed by a catalog or conversation snapshot. */
-export interface Profile {
-    readonly name: string;
+/** @brief A portable anonymous Profile tree snapshot, independent of its catalog name. */
+export interface Profile extends ProfileNamespace {
     readonly brief: string | undefined;
-    readonly root: ProfileNamespace;
-    /** @brief Set this Profile's purpose. */
+    /** @brief Edit the Profile purpose within this snapshot only. */
     setBrief(value: string): this;
-    /** @brief Export the complete recursive tree without retaining class instances. */
-    serialize(): ProfileData;
-    /** @brief Validate and atomically persist the complete tree. */
-    save(): Promise<void>;
+}
+
+/** @brief Profile and ProfileSnapshot describe the same anonymous editing value. */
+export type ProfileSnapshot = Profile;
+
+/** @brief Named snapshot collection with atomic callback-based modification. */
+export interface ProfileCollection {
+    /** @brief Read an independent tree snapshot, or undefined when absent. */
+    get(name: string): Promise<ProfileSnapshot | undefined>;
+    /** @brief Create an empty named Profile; duplicate names are rejected. */
+    create(name: string): Promise<ProfileSnapshot>;
+    /** @brief Read an existing Profile or atomically create an empty one. */
+    getOrCreate(name: string): Promise<ProfileSnapshot>;
+    /** @brief Publish only the snapshot returned by the modifier after complete validation. */
+    edit(name: string, modifier: (snapshot: ProfileSnapshot) => ProfileSnapshot): Promise<ProfileSnapshot>;
 }

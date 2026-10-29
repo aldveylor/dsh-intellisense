@@ -4,9 +4,6 @@ import type { CommandVisibility } from '../registry/registry.js';
 /** @brief Plugin-owned execution entry, separate from the globally reserved run_code transport. */
 export const ptcToolName = 'tools_run_code';
 
-/** @brief Execution transports excluded from physical namespace mappings and tool pickers. */
-export const reservedToolIds: readonly string[] = Object.freeze(['exec', 'run_code', ptcToolName]);
-
 /** @brief Fixed command metadata shared by runtime declarations, completion and the read-only UI. */
 export interface BuiltinCommand {
     path: string;

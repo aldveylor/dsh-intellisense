@@ -1,23 +1,25 @@
+import { EditableNamespace } from '../registry/profile/namespace.js';
+import type { ProfileNamespace } from '../registry/profile/namespace.js';
 import type { PresentationMode } from '../integration/presentation.js';
 import { NamespaceNode } from './nodes/node.js';
 import { CommandNode } from './nodes/command_node.js';
-import { ToolsNamespaceNode } from './nodes/tools_namespace_node.js';
+import { DefinedNamespaceNode } from './nodes/defined_namespace_node.js';
+import { InnerCommandNode } from './nodes/inner_command_node.js';
+import { defaultNamespaceDefinitions } from './definitions.js';
+import { permissionsAt, settingsAt } from '../registry/profile/node_settings.js';
+import type { ProfileTreeNode } from '../registry/profile_node.js';
 import type { NamespaceContext } from './nodes/context.js';
 import { commandDeclaration } from './nodes/command_contract.js';
 export { nativeArgumentsFor, resultFor } from './nodes/command_contract.js';
 export { NamespaceNode } from './nodes/node.js';
 export { CommandNode } from './nodes/command_node.js';
-export { InnerNamespaceNode } from './nodes/inner_namespace_node.js';
 export { InnerCommandNode } from './nodes/inner_command_node.js';
-export { ToolsNamespaceNode } from './nodes/tools_namespace_node.js';
-export { ProfileNamespaceNode } from './nodes/profile_namespace_node.js';
-export { InspectCommandNode } from './nodes/inspect_command_node.js';
 export type { NamespaceContext } from './nodes/context.js';
 import { nodePermissions, type CommandContract } from './node.js';
 export type { Node, NodeType, Permission, SerializedNode } from './node.js';
 import { namespaceDeclaration } from './declaration.js';
 import { z } from 'zod';
-import { pluginCommands, reservedToolIds } from '../runtime/builtins.js';
+import { pluginCommands, projectBuiltin } from '../runtime/builtins.js';
 import type { SemanticRegistry } from '../registry/registry.js';
 
 /** @brief YAML aliases mount physical tools at additional namespace paths. */
@@ -37,7 +39,31 @@ export interface ManifestEntry extends CommandContract { path: string }
 /** @brief Create an ordinary root container with server-owned protected children before adding mappings. */
 export function createNamespace(context: NamespaceContext): NamespaceNode {
     const root = new NamespaceNode('', undefined, '', nodePermissions('tree', { renamable: false, commentable: false, movable: false, removable: false, disableable: false, availableFixLevels: [] }));
-    root.add(new ToolsNamespaceNode(root, context));
+    const definitions = context.definitions ?? defaultNamespaceDefinitions.tree();
+    const build = (name: string, data: ProfileTreeNode, parent: NamespaceNode): NamespaceNode | CommandNode | undefined => {
+        const path = parent.path ? `${parent.path}.${name}` : name;
+        const permissions = nodePermissions(data.type === 'namespace' ? 'tree' : 'leaf', { ...data.permissions, ...permissionsAt(context.nodeSettings, path.split('.')) });
+        if (data.type === 'namespace') return new DefinedNamespaceNode(name, parent, settingsAt(context.nodeSettings, path.split('.'))?.description ?? data.description ?? '', permissions, context.disabled?.(path) ?? !!data.disabled,
+            data.fixedLevel ?? 0, node => Object.entries(data.children ?? {}).flatMap(([name, child]) => build(name, child, node) ?? []));
+        if (context.disabled?.(path) || data.disabled || (context.addition ?? (tool => defaultNamespaceDefinitions.addition(tool)))(data.command.tool).hidden) return undefined;
+        const tool = context.tools.find(tool => tool.id === data.command.tool);
+        if (!tool && !context.includeUnavailable) return undefined;
+        let source = pluginCommands.find(data.command.tool);
+        if (source === pluginCommands.searchCommand) source = pluginCommands.searchContract(((tool?.parameters.properties as Record<string, { enum?: string[] }> | undefined)?.method?.enum) ?? []);
+        const projected = source && projectBuiltin(source, context.mode ?? 'ptc');
+        const addition = (context.addition ?? (tool => defaultNamespaceDefinitions.addition(tool)))(data.command.tool);
+        const doc = context.mode !== 'native' ? addition.ptcDescription ?? projected?.description ?? tool?.description ?? data.command.doc ?? ''
+            : tool?.description ?? projected?.description ?? data.command.doc ?? '';
+        const builtin = projected && { ...projected, description: doc };
+        const entry = { tool: data.command.tool, schema: tool?.parameters ?? {}, output: tool?.output, doc };
+        return builtin ? new InnerCommandNode(name, parent, entry, { ...builtin, path }, permissions, data.fixedLevel, context.provided?.(path) ?? true)
+            : new CommandNode(name, parent, entry, permissions, data.fixedLevel, context.provided?.(path) ?? true);
+    };
+    for (const [name, data] of Object.entries(definitions.children ?? {})) {
+        const node = build(name, data, root);
+        if (node) root.add(node);
+    }
+    Object.assign(root.permissions, context.nodeSettings?.permissions);
     return root;
 }
 
@@ -67,40 +93,37 @@ export function queryNodes(root: NamespaceNode, queries: readonly string[]): (Na
 export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Aliases>, mode: PresentationMode = 'ptc'): NamespaceNode {
     const tools = registry.tools();
     const byId = new Map(tools.map(tool => [tool.id, tool]));
-    const root = createNamespace({ tools, mode, disabled: path => registry.disabled(path) });
-    const descriptions = new Map(registry.snapshot().namespaces?.map(item => [item.path, item.description]));
-    const insert = (entry: ManifestEntry): void => {
-        if (registry.disabled(entry.path)) return;
-        const parts = entry.path.split('.');
-        if (parts.some(part => ['__proto__', 'constructor', 'prototype', 'then'].includes(part)) || parts[0] === 'globalThis') throw new Error(`Reserved manifest path: ${entry.path}`);
-        let parent: NamespaceNode = root;
-        for (const name of parts.slice(0, -1)) {
-            const existing = parent.children.get(name);
-            if (existing && !(existing instanceof NamespaceNode)) throw new Error(`Namespace overlaps a callable path: ${entry.path}`);
-            if (existing && !existing.permissions.acceptsChildren) throw new Error(`Namespace does not accept mappings: ${entry.path}`);
-            parent = existing ?? parent.add(new NamespaceNode(name, parent, descriptions.get(parent.path ? `${parent.path}.${name}` : name) ?? ''));
-        }
+    const state = registry.snapshot();
+    const template = state.providedRoot ?? registry.definitions.tree(state.profile);
+    const definition = new EditableNamespace('', template);
+    const nodeFor = (parts: string[]): ProfileNamespace => parts.reduce((parent, name) => parent.getOrCreate(name), definition as ProfileNamespace);
+    for (const item of state.namespaces ?? []) nodeFor(item.path.split('.')).setDescription(item.description);
+    const insert = (path: string, tool: string): void => {
+        const parts = path.split('.');
+        const parent = nodeFor(parts.slice(0, -1));
         const name = parts.at(-1)!;
-        const previous = parent.children.get(name);
+        const previous = parent.get(name);
         if (previous) {
-            if (previous instanceof CommandNode && previous.tool === entry.tool) return;
-            throw new Error(`Conflicting tool alias: ${entry.path}`);
+            if (previous.type === 'command' && parent.get(name, 'command')!.tool === tool) return;
+            throw new Error(`Conflicting tool alias: ${path}`);
         }
-        parent.add(new CommandNode(name, parent, entry));
+        parent.create(name, 'command').setTool(tool);
     };
-    const effective = registry.effective().filter(mapping => !mapping.disabled && !pluginCommands.find(mapping.id) && !reservedToolIds.includes(mapping.id));
+    const effective = registry.effective().filter(mapping => !mapping.disabled && !registry.definitions.addition(mapping.id).hidden);
     for (const mapping of effective) {
-        const path = mapping.path;
-        // Unmounted physical tools are not synthesized below the protected tools namespace.
-        if (path.startsWith('tools.')) continue;
-        insert({ path, tool: mapping.id, schema: mapping.tool.parameters, output: mapping.tool.output, doc: mapping.tool.description });
+        // Unmounted tools have no namespace mount until a plugin or Profile adds one.
+        if (!state.mappings.some(saved => saved.path === mapping.path && saved.id === mapping.id)) continue;
+        insert(mapping.path, mapping.id);
     }
     const mounted = new Set(effective.map(mapping => mapping.id));
-    for (const alias of aliases) {
-        const tool = byId.get(alias.tool);
-        if (tool && mounted.has(tool.id)) insert({ ...alias, schema: tool.parameters, output: tool.output, doc: tool.description });
-    }
-    return root;
+    for (const alias of aliases) if (byId.has(alias.tool) && mounted.has(alias.tool)) insert(alias.path, alias.tool);
+    const provided = (path: string): boolean => {
+        let node: ProfileTreeNode | undefined = template;
+        for (const name of path.split('.')) node = node?.children?.[name];
+        return node !== undefined;
+    };
+    return createNamespace({ tools, mode, definitions: definition.serialize(), nodeSettings: state.nodeSettings,
+        addition: tool => registry.definitions.addition(tool), disabled: path => registry.disabled(path), provided });
 }
 
 

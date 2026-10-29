@@ -2,7 +2,7 @@
 
 每个节点类放在同名下划线文件。node.ts 和 command_node.ts 实现普通 tree/leaf、parent 引用、子树序列化、直接成员解析和可执行契约；NamespaceNode 的 add 拒绝覆盖，remove 由父节点校验子对象 removable。
 
-inner_namespace_node.ts 限制外部结构编辑；inner_command_node.ts 实现工具特有绑定、重载、结果与预加载。tools_namespace_node.ts 和 profile_namespace_node.ts 管理自身内部子对象及权限；inspect_command_node.ts 定义固定等级 2 和可禁用策略。
+defined_namespace_node.ts 从递归定义安装拥有的子对象，权限不妨碍内部构建已有成员。inner_command_node.ts 实现工具特有绑定、重载、结果与预加载。内置结构、固定等级及权限通过上层 builtin_profile.ts 调用便携接口设置，移除 Tools/Profile/Inspect 专用命名空间节点类。
 
 tools.profile 命名空间允许在固定等级 0 和 1 之间切换，固定偏好通过 Profile 的 namespaceVisible 保存；结构编辑限制保持不变。
 

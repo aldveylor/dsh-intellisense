@@ -1,16 +1,20 @@
+import type { NamespaceTreeNode } from './profile_node.js';
+import type { ProfileNodeSettings } from './profile/node_settings.js';
 import { storageVersion } from '../storage/version.js';
 import type { Saveable } from '../storage/saveable.js';
 import type { Mapping, Namespace, CommandVisibility } from './registry.js';
 import { pluginCommands } from '../runtime/builtins.js';
 
 /** @brief Versioned complete registry state, committed atomically. */
-export interface RegistryStateData { version: number; revision: number; brief?: string; mappings: Mapping[]; namespaces?: Namespace[]; order?: string[]; unmountedVisible?: CommandVisibility; builtinDisabled?: string[]; builtinVisible?: CommandVisibility; namespaceVisible?: Record<string, boolean>; toolComments?: Record<string, string>; profile?: string; profiles?: string[]; inactiveProfiles?: Record<string, RegistryConfigurationData> }
+export interface RegistryStateData { version: number; revision: number; brief?: string; providedRoot?: NamespaceTreeNode; nodeSettings?: ProfileNodeSettings; mappings: Mapping[]; namespaces?: Namespace[]; order?: string[]; unmountedVisible?: CommandVisibility; builtinDisabled?: string[]; builtinVisible?: CommandVisibility; namespaceVisible?: Record<string, boolean>; toolComments?: Record<string, string>; profile?: string; profiles?: string[]; inactiveProfiles?: Record<string, RegistryConfigurationData> }
 /** @brief A named configuration contains only tool tree settings. */
-export interface RegistryConfigurationData { brief?: string; mappings: Mapping[]; namespaces: Namespace[]; order: string[]; unmountedVisible: CommandVisibility; builtinDisabled?: string[]; builtinVisible?: CommandVisibility; namespaceVisible?: Record<string, boolean>; toolComments?: Record<string, string> }
+export interface RegistryConfigurationData { brief?: string; providedRoot?: NamespaceTreeNode; nodeSettings?: ProfileNodeSettings; mappings: Mapping[]; namespaces: Namespace[]; order: string[]; unmountedVisible: CommandVisibility; builtinDisabled?: string[]; builtinVisible?: CommandVisibility; namespaceVisible?: Record<string, boolean>; toolComments?: Record<string, string> }
 
 /** @brief Owned Profile settings with detached serialization and constructor-based restoration. */
 export class RegistryConfiguration implements Saveable<RegistryConfigurationData> {
     brief?: string;
+    providedRoot?: NamespaceTreeNode;
+    nodeSettings: ProfileNodeSettings;
     mappings: Mapping[];
     namespaces: Namespace[];
     order: string[];
@@ -22,6 +26,8 @@ export class RegistryConfiguration implements Saveable<RegistryConfigurationData
 
     constructor(data?: Partial<RegistryConfigurationData>) {
         this.brief = data?.brief;
+        this.providedRoot = structuredClone(data?.providedRoot);
+        this.nodeSettings = structuredClone(data?.nodeSettings ?? {});
         this.mappings = structuredClone(data?.mappings ?? []);
         this.namespaces = structuredClone(data?.namespaces ?? []);
         this.order = structuredClone(data?.order ?? []);
@@ -33,7 +39,7 @@ export class RegistryConfiguration implements Saveable<RegistryConfigurationData
     }
 
     save(): RegistryConfigurationData {
-        return structuredClone({ ...(this.brief === undefined ? {} : { brief: this.brief }), mappings: this.mappings, namespaces: this.namespaces, order: this.order,
+        return structuredClone({ ...(this.brief === undefined ? {} : { brief: this.brief }), ...(this.providedRoot === undefined ? {} : { providedRoot: this.providedRoot }), nodeSettings: this.nodeSettings, mappings: this.mappings, namespaces: this.namespaces, order: this.order,
             unmountedVisible: this.unmountedVisible, builtinDisabled: this.builtinDisabled,
             builtinVisible: this.builtinVisible, namespaceVisible: this.namespaceVisible, toolComments: this.toolComments });
     }

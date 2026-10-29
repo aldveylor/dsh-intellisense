@@ -1,3 +1,9 @@
+import type { ProfileSnapshot } from '../registry/profile/profile.js';
+import { EditableSnapshot } from '../registry/profile/snapshot.js';
+import { RegistryConfiguration } from '../registry/configuration.js';
+import { editedConfiguration } from '../registry/profile/configuration.js';
+import { profileTree } from '../registry/profile_tree.js';
+import type { ToolAddition, ToolsNamespace } from './service.js';
 import { outputSchema } from '../output_schema.js';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
@@ -11,7 +17,7 @@ import type { PhysicalTool, SemanticRegistry } from '../registry/registry.js';
 import type { ProfileSessions } from '../registry/profiles.js';
 import { declaration, manifest, type Aliases, NamespaceNode, type CommandNode } from './namespace.js';
 import { namespaceDirectory, nativeDirectory, type NamespaceHint } from './prompt.js';
-import { pluginCommands, reservedToolIds } from '../runtime/builtins.js';
+
 import { type CommandBrief, type Profiles, profileAnnotation } from '../registry/profile_tree.js';
 import type { z } from 'zod';
 import { createSearchEngines } from '../search/search.js';
@@ -23,7 +29,8 @@ import { CommandStatistics } from './statistics.js';
 import { MemoryStore } from '../storage/store.js';
 
 /** @brief Profile-backed namespace discovery, independent of any execution runtime. */
-export class NamespaceComponent {
+export class NamespaceComponent implements ToolsNamespace {
+    private profileWrites: Promise<unknown> = Promise.resolve();
     private catalogRevision = 0;
     private refreshedRevision = -1;
     private refreshing?: Promise<void>;
@@ -40,6 +47,71 @@ export class NamespaceComponent {
             if (this.enabled(payload.agent)) this.positions.set(payload.agent.id, { turn: payload.turn, step: payload.step });
             return next();
         });
+    }
+
+    /** @brief Register reversible physical-tool attributes through the shared definitions. */
+    setToolAddition(tool: string, addition: ToolAddition): () => void {
+        const dispose = this.registry.definitions.setToolAddition(tool, addition);
+        this.catalogRevision++;
+        this.ctx.emit('system-prompt/change');
+        return () => { dispose(); this.catalogRevision++; this.ctx.emit('system-prompt/change'); };
+    }
+
+    /** @brief Read an anonymous, independently editable snapshot without publishing changes. */
+    get(name: string): Promise<ProfileSnapshot | undefined>;
+    get(target: { agent: Agent }): Promise<ProfileSnapshot | undefined>;
+    async get(target: string | { agent: Agent }): Promise<ProfileSnapshot | undefined> {
+        const registry = typeof target === 'string' ? this.registry : await this.registryFor(target.agent);
+        const name = typeof target === 'string' ? target : registry.profileSelection().selected;
+        if (!registry.profileSelection().profiles.includes(name)) return undefined;
+        return new EditableSnapshot(profileTree(name, registry.configuration(name), registry.definitions).save());
+    }
+
+    /** @brief Create an empty Profile and return a separate anonymous snapshot. */
+    create(name: string): Promise<ProfileSnapshot> {
+        return this.profileTransaction(() => this.createProfile(name));
+    }
+
+    /** @brief Serialize concurrent get-or-create operations under the collection transaction. */
+    getOrCreate(name: string): Promise<ProfileSnapshot> {
+        return this.profileTransaction(async () => await this.get(name) ?? this.createProfile(name));
+    }
+
+    /** @brief Publish only the callback result, preserving current data when the callback fails. */
+    edit(name: string, modifier: (snapshot: ProfileSnapshot) => ProfileSnapshot): Promise<ProfileSnapshot>;
+    edit(target: { agent: Agent }, modifier: (snapshot: ProfileSnapshot) => ProfileSnapshot): Promise<ProfileSnapshot>;
+    edit(target: string | { agent: Agent }, modifier: (snapshot: ProfileSnapshot) => ProfileSnapshot): Promise<ProfileSnapshot> {
+        return this.profileTransaction(async () => {
+            const registry = typeof target === 'string' ? this.registry : await this.registryFor(target.agent);
+            const name = typeof target === 'string' ? target : registry.profileSelection().selected;
+            const current = registry.configuration(name);
+            const revision = registry.revision;
+            const input = new EditableSnapshot(profileTree(name, current, registry.definitions).save());
+            const output = modifier(input);
+            if (!output || typeof output.serialize !== 'function') throw new Error('Profile modifier must return a snapshot');
+            const value = { name, brief: output.brief, root: output.serialize() };
+            const configuration = editedConfiguration(value, current, registry.definitions);
+            await registry.saveProfile(name, configuration, { trusted: true, revision });
+            if (typeof target !== 'string') await this.configurationChanged(target.agent);
+            else this.ctx.emit('system-prompt/change');
+            return new EditableSnapshot(value);
+        });
+    }
+
+    /** @brief Create one empty catalog entry in the registry's atomic name transaction. */
+    private async createProfile(name: string): Promise<ProfileSnapshot> {
+        const snapshot = new EditableSnapshot();
+        const configuration = editedConfiguration({ name, root: snapshot.serialize() }, new RegistryConfiguration(), this.registry.definitions);
+        await this.registry.saveProfile(name, configuration, { trusted: true, create: true });
+        this.ctx.emit('system-prompt/change');
+        return snapshot;
+    }
+
+    /** @brief Keep asynchronous catalog creation operations in submission order. */
+    private profileTransaction<T>(operation: () => Promise<T>): Promise<T> {
+        const result = this.profileWrites.then(operation);
+        this.profileWrites = result.catch(() => {});
+        return result;
     }
 
     /** @brief Register builtin tools in the owning presentation scope. */
@@ -75,7 +147,7 @@ export class NamespaceComponent {
     physical(agent?: Agent, scope: ScopeKey | undefined = agent): PhysicalTool[] {
         const tools = agent?.ctx.tools ?? this.ctx.tools;
         return tools.schemas(scope).flatMap(tool => {
-            if (reservedToolIds.includes(tool.name)) return [];
+            if (this.registry.definitions.addition(tool.name).hidden) return [];
             const definition = tools.get(tool.name, scope);
             if (!definition) {
                 this.ctx.logger.warn(`Tool schema has no definition: ${tool.name}`);
@@ -154,7 +226,7 @@ export class NamespaceComponent {
             if (!paths.get(tool)!.includes(path)) paths.get(tool)!.push(path);
         }
         const callsByTool = await this.statistics.counterSnapshot('callsByTool');
-        return this.registry.tools().filter(tool => !reservedToolIds.includes(tool.id) && !pluginCommands.find(tool.id)).map(tool => ({
+        return this.registry.tools().filter(tool => !this.registry.definitions.addition(tool.id).hidden && !this.registry.definitions.addition(tool.id).fixed).map(tool => ({
             name: tool.id, brief: tool.description, paths: paths.get(tool.id) ?? [], totalCalls: Object.hasOwn(callsByTool, tool.id) ? callsByTool[tool.id]! : 0,
         }));
     }
@@ -194,8 +266,8 @@ export class NamespaceComponent {
         const mappings = new Map(registry.effective().map(mapping => [mapping.path, mapping]));
         for (const entry of root.commands()) {
             if (entry.disabled) continue;
-            if (!entry.permissions.renamable) {
-                const level = entry.fixLevel((state.builtinVisible ?? pluginCommands.defaultBuiltinVisible)[entry.path] ?? 0);
+            if (entry.provided) {
+                const level = entry.fixLevel(state.builtinVisible?.[entry.path] ?? entry.fixedLevel);
                 if (level && (ptc || level === 1)) hints.push({ path: entry.path, description: entry.doc,
                     ...(level === 2 ? { declaration: entry.preload ? `/** @brief ${entry.doc} */\nconst ${entry.name}: ${entry.signature};` : entry.declaration(false) } : {}) });
                 continue;
@@ -236,7 +308,7 @@ export class NamespaceComponent {
         const pinned = new Set(registry.effective().filter(mapping => mapping.alwaysVisible === 2).map(mapping => mapping.path));
         const available = new Set(entries.map(entry => entry.path));
         for (const path of discovered ?? []) if (!available.has(path)) discovered!.delete(path);
-        return entries.filter(entry => entry.fixLevel(state.builtinVisible?.[entry.path] ?? 0) === 2 || discovered?.has(entry.path)
+        return entries.filter(entry => entry.fixLevel(state.builtinVisible?.[entry.path] ?? entry.fixedLevel) === 2 || discovered?.has(entry.path)
             || pinned.has(entry.path)
         );
     }

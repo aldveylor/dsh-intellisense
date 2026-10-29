@@ -41,7 +41,7 @@ SemanticRegistry.generation 由配置 revision 和物理目录内容版本组成
 
 `configuration.ts` 的 RegistryConfiguration 与 RegistryState 为运行时类，分别承载配置与带版本/revision 的注册表及会话快照；RegistryState 继承配置，非活动目录条目恢复为独立 RegistryConfiguration。各类实现通用 Saveable<T> 接口，save() 导出无方法的独立数据，constructor(data?) 深复制恢复实例。configuration()/snapshot() 返回独立实例，存储成功后才发布新状态；公开 snapshot 不包含非活动目录。RegistryConfigurationData、RegistryStateData 为存储与管理 HTTP 边界数据定义。
 
-Profile 为保留 name/root 结构的类，实现 Saveable<ProfileData>，通过 constructor(data?) 恢复或创建默认受保护树。Profile 树节点继续使用原有数据接口；树投影返回 Profile，导入配置返回 RegistryConfiguration，JSON Schema、PTC annotation 与权限校验规则保持原有数据结构和行为。
+插件侧 Profile 为无 name 的匿名 snapshot interface，与 ProfileSnapshot 同义；ProfileCollection 通过 get/create/getOrCreate/edit 管理目录名称，create 初始为空，edit 原子保存回调返回的递归树。节点 interface 与实现 class 位于 profile/，详见其 model.md。ProfileDocument 是现有命名 JSON 传输的内部投影类，用于管理和 agent 数据，不是插件侧 Profile 接口。nodeSettings 和 providedRoot 持久化递归节点规则及显式插件子树。
 
 Profile 读取节点 permissions 为可选的服务端只读权限差异项（save/apply 禁止提交）：commentable/renamable/movable/removable/disableable 默认 true，acceptsChildren 在命令为 false、命名空间为 true，availableFixLevels 在命令为 [0,1,2]、命名空间为 [0,1]。省略对象或字段均使用默认权限，受保护节点权限仍由服务端校验。Profile 构造及 save() 递归省略默认权限字段、空 permissions、fixedLevel=0 和 disabled=false；load 与 annotation/JSON Schema 同步说明默认值；annotation 使用字段级 `/** @default ... */` 注释。提交节点省略 fixedLevel/disabled 时通常使用 0/false；tools.profile.save 对 tools 命名空间缺省使用 disabled=true。缺失受保护节点会抛错。
 
@@ -55,7 +55,7 @@ profileConfiguration 不补齐缺失节点，不提供补全回调；失败时�
 
 permissions 描述明确约束待保存的 Profile 树：受保护成员即使不使用也须保留原名称、父路径及物理命令身份，不能仅理解为运行时操作限制；各字段分别说明保存时应保留的内容。仅 PTC annotation 强调运行时命名空间树不应直接赋值、增删、改名或移动成员，native JSON Schema 不附加此说明，不受 Profile 编辑权限放宽；配置调整应编辑 load 返回的数据并 save，再 switch 应用。
 
-保护树仅包含插件自身的 tools 子树（inspect、search、profile 及其成员）；宿主提供的 fs.*、bash 等普通物理工具及其挂载不属于保护树，保存省略后不会恢复。annotation、JSON Schema 与 native/PTC save 说明明确此范围；permissions 省略代表普通默认权限（包含 removable=true），不能据此推断受保护。
+默认保护树包含插件自身的 tools 子树（inspect、search、profile 及其成员）；扩展插件可以通过 edit 显式配置其他节点权限；宿主提供的 fs.*、bash 等普通物理工具及其挂载不属于保护树，保存省略后不会恢复。annotation、JSON Schema 与 native/PTC save 说明明确此范围；permissions 省略代表普通默认权限（包含 removable=true），不能据此推断受保护。
 
 profile.apply 增量保存时不应用 tools.profile.save 的 tools 缺省禁用规则，省略的 tools 及后代 disabled 字段保留原状态；删除 disabled 字段后按普通默认值 false 处理。
 

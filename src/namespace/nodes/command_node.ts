@@ -13,7 +13,7 @@ export class CommandNode implements Node, ManifestEntry {
     readonly output: unknown;
     readonly doc: string;
 
-    constructor(readonly name: string, readonly parent: NamespaceNode, entry: Omit<ManifestEntry, 'path'>, readonly permissions: Permission = nodePermissions('leaf')) {
+    constructor(readonly name: string, readonly parent: NamespaceNode, entry: Omit<ManifestEntry, 'path'>, readonly permissions: Permission = nodePermissions('leaf'), readonly fixedLevel: 0 | 1 | 2 = 0, readonly provided = false) {
         this.tool = entry.tool;
         this.schema = entry.schema;
         this.output = entry.output;
@@ -32,14 +32,14 @@ export class CommandNode implements Node, ManifestEntry {
 
     serialize(): SerializedNode {
         return structuredClone({ type: this.type, name: this.name, permissions: this.permissions, description: this.doc,
-            preload: this.preload, command: { tool: this.tool, schema: this.schema, output: this.output, doc: this.doc } });
+            preload: this.preload, fixedLevel: this.fixedLevel, command: { tool: this.tool, schema: this.schema, output: this.output, doc: this.doc } });
     }
 
     /** @brief Keep serialized commands independent of their parent graph. */
     toJSON(): SerializedNode { return this.serialize(); }
 
     /** @brief Resolve a requested pin against this command's available levels. */
-    fixLevel(level: 0 | 1 | 2 = 0): 0 | 1 | 2 { return fixLevel(this.permissions, level); }
+    fixLevel(level: 0 | 1 | 2 = this.fixedLevel): 0 | 1 | 2 { return fixLevel(this.permissions, level); }
 
     /** @brief Compile the physical target and argument/result adapters before VM deployment. */
     binding(): CommandBinding {

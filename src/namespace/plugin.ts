@@ -8,7 +8,9 @@ import { DshStore } from '../storage/store.js';
 import { SemanticRegistry } from '../registry/registry.js';
 import { ProfileSessions } from '../registry/profiles.js';
 import { createSearchEngines } from '../search/search.js';
+import { registerBuiltinProfile } from './builtin_profile.js';
 import { NamespaceComponent } from './component.js';
+import type { ToolsNamespace } from './service.js';
 import { Aliases } from './namespace.js';
 import { registerSessionProfiles } from '../web/session_profile/routes.js';
 import { registerManagement } from '../web/server/routes.js';
@@ -22,7 +24,7 @@ export const inject = ['tools', 'agents', 'systemPrompt', 'storage', storageBack
 export const Config = z.object({ aliasesFile: z.string().optional(), defaultSearchMethod: z.string().regex(/^[a-z][a-z0-9_]*$/).optional() }).prefault({});
 
 /** @brief Independent namespace service shared by native tools, the UI, and optional PTC execution. */
-declare module '@deepseek-ai/cordis' { interface Context { toolsNamespace: NamespaceComponent } }
+declare module '@deepseek-ai/cordis' { interface Context { toolsNamespace: ToolsNamespace } }
 
 /** @brief Mount namespace configuration, initial system hints and native discovery controls. */
 export async function apply(ctx: Context, options: z.input<typeof Config> = {}): Promise<void> {
@@ -49,6 +51,9 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
             await statistics.load(recover);
             if (namespaces) return;
             const component = new NamespaceComponent(ctx, registry, profiles, aliases, createSearchEngines(config.defaultSearchMethod), statistics);
+            for (const name of registry.profileSelection().profiles) {
+                if (registry.configuration(name).providedRoot === undefined) await registerBuiltinProfile(component, name);
+            }
             namespaces = component;
             ctx.provide('toolsNamespace', component);
             registerSessionProfiles(ctx, registry, component);
