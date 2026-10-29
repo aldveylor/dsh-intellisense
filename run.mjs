@@ -35,7 +35,8 @@ process.env.DSH_HOME = process.env.DSH_HOME?.trim()
 process.chdir(workspaceDir);
 console.log(`Workspace: ${workspaceDir}\nDSH_HOME: ${process.env.DSH_HOME}`);
 
-const { initProfile, loadLayeredEnv, PROFILE_TEMPLATES, resolveProfileDir } = await import('@deepseek-ai/dsh-app-boot');
+const { initProfile, loadLayeredEnv, resolveProfileDir } = await import('@deepseek-ai/dsh-app-boot');
+const { PROFILE_TEMPLATES } = await import('@deepseek-ai/dsh-official-bundles');
 const { registerLocalPlugin } = await import('./scripts/local_plugin.mjs');
 // Each checkout and local plugin selection owns a separate development profile.
 const profileName = `intellisense_${createHash('sha256').update(JSON.stringify([...plugins].map(directory => realpathSync(directory)).sort())).digest('hex').slice(0, 16)}`;
