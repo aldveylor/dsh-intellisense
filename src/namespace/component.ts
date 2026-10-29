@@ -1,7 +1,6 @@
 import type { ProfileFactory, ProfileSnapshot } from '../registry/profile/profile.js';
 import { RegistryConfiguration } from '../registry/configuration.js';
 import { editedConfiguration } from '../registry/profile/configuration.js';
-import { profileTree } from '../registry/profile_tree.js';
 import type { ProfileSaveEffect, ToolsNamespace } from './service.js';
 import type { Context } from '@deepseek-ai/cordis';
 import type { SemanticRegistry } from '../registry/registry.js';

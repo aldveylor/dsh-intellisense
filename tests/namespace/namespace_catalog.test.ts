@@ -1,4 +1,3 @@
-import { configureSession } from '../registry/session_fixture.js';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
 import { NamespaceComponent } from '../../src/namespace/component.js';
 import { test } from 'node:test';

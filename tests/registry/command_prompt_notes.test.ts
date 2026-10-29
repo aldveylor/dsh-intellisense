@@ -1,10 +1,8 @@
 import { promptFor } from '../namespace/fixtures.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Agent } from '@deepseek-ai/dsh-agent';
 import { SemanticRegistry, type Mapping } from '../../src/registry/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
-import { NamespaceIntegration } from '../../src/integration/namespace_integration.js';
 import { manifest } from '../namespace/fixtures.js';
 import { inspect } from '../namespace/fixtures.js';
 

@@ -24,9 +24,9 @@ test('builtin projection resolves each comment while preserving execution metada
 test('namespace builtin descriptions and declarations use the selected execution mode', () => {
     for (const mode of ['native', 'ptc'] as const) {
         const root = createNamespace({ tools: [], includeUnavailable: true, mode });
-        const discovery = root.resolve(['tools', 'inspect']);
-        const annotation = root.resolve(['tools', 'profile', 'annotation']);
-        const profiles = root.resolve(['tools', 'profile', 'profiles']);
+        const discovery = root.entries.find(entry => entry.path === 'tools.inspect')!;
+        const annotation = root.entries.find(entry => entry.path === 'tools.profile.annotation')!;
+        const profiles = root.entries.find(entry => entry.path === 'tools.profile.profiles')!;
         const contract = projectBuiltin(pluginCommands.discoveryCommand, mode);
         assert.equal(discovery.doc, contract.description);
         assert.equal(discovery.serialize().description, contract.description);

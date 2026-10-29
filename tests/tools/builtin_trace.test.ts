@@ -54,7 +54,7 @@ for (const ptc of [false, true]) test(`builtin discovery and Profile annotation 
                 output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
                 execute: async () => 'discovered commands',
             }));
-            registerToolCommands(scope, catalog, new ProfileSessions(catalog, new MemoryStore()), async () => catalog, async () => {}, async () => []);
+            registerToolCommands(scope, catalog, new ProfileSessions(catalog, new MemoryStore()), async () => {}, async () => []);
         },
     });
     try {

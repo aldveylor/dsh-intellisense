@@ -15,9 +15,9 @@ async function fixture() {
 test('global storage contains current anonymous Profiles and numeric pointers', async () => {
     const { store, registry, saved } = await fixture();
     assert.equal(saved.version, storageVersion);
-    assert.equal(saved.profiles.Work.brief, 'Work');
-    assert.equal(typeof saved.profiles.Work.pointer, 'number');
-    assert.equal('name' in saved.profiles.Work, false);
+    assert.equal(saved.profiles.Work!.brief, 'Work');
+    assert.equal(typeof saved.profiles.Work!.pointer, 'number');
+    assert.equal('name' in saved.profiles.Work!, false);
     const restored = new SemanticRegistry(store);
     await restored.load();
     assert.equal((await restored.reference('Work')).pointer, (await registry.reference('Work')).pointer);
@@ -31,7 +31,7 @@ test('obsolete configuration storage is rejected instead of implicitly converted
 
 test('invalid current pointers are rejected and explicit recovery retains valid Profiles', async () => {
     const { store, saved } = await fixture();
-    saved.profiles.Work.pointer = Number.MAX_SAFE_INTEGER;
+    saved.profiles.Work!.pointer = Number.MAX_SAFE_INTEGER;
     await store.save('registry', saved);
     const restored = new SemanticRegistry(store);
     await assert.rejects(restored.load(), /Invalid Profile reference/);
@@ -42,7 +42,7 @@ test('invalid current pointers are rejected and explicit recovery retains valid 
 test('failed recovery persistence preserves the previously published state', async () => {
     const { store, registry, saved } = await fixture();
     const before = registry.snapshot();
-    saved.profiles.Work.pointer = -1;
+    saved.profiles.Work!.pointer = -1;
     await store.save('registry', saved);
     const save = store.save.bind(store);
     store.save = async () => { throw new Error('Disk failed'); };

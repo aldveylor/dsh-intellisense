@@ -78,7 +78,7 @@ test('disable controls retain visible nodes, precede deletion and save command a
         click('[data-namespace-path="files"] .ts-disable');
         await until(() => document.querySelector('li[data-tree-path="files"]')?.getAttribute('data-disabled') === 'true');
         click('.ts-namespace-profile button[aria-label="Save"]');
-        await until(() => registry.snapshot().mappings[0]?.disabled === true && registry.snapshot().namespaces?.[0]?.disabled === true);
+        await until(() => registry.snapshot().mappings.find(mapping => mapping.path === 'files.read')?.disabled === true && registry.snapshot().namespaces?.find(namespace => namespace.path === 'files')?.disabled === true);
         assert(document.querySelector('[data-tree-path="files.read"]'));
         await until(() => document.querySelector('.ts-namespace-profile')?.getAttribute('aria-busy') !== 'true');
         document.querySelector('[data-action="save"]')!.dispatchEvent(new dom.window.Event('animationiteration', { bubbles: true }));

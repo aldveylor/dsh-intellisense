@@ -93,8 +93,9 @@ test('editor loads and saves a renamed default without assuming a Default catalo
 test('editor selection, local creation and saving remain independent from the default selector', async () => {
     const { registry, dom, document, button } = await fixture();
     try {
+        const revision = registry.revision;
         button('.ts-namespace-profile button[aria-label="Save"]').click();
-        await until(() => registry.snapshot().revision === 20);
+        await until(() => registry.revision === revision + 1);
         await until(() => document.querySelector('.ts-namespace-profile')?.getAttribute('aria-busy') !== 'true');
         assert.deepEqual(registry.snapshot().mappings, [mapping]);
         const saveAnimation = document.querySelector('[data-action="save"]')!;

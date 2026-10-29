@@ -7,7 +7,6 @@ import type { ProfileCommand } from '../../src/registry/profile/command.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Context } from '@deepseek-ai/cordis';
-import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { ToolsNamespace } from '../../src/namespace/service.js';
 import { NamespaceComponent } from '../../src/namespace/component.js';
 import { manifest } from '../namespace/fixtures.js';
@@ -19,7 +18,6 @@ import { SemanticRegistry } from '../../src/registry/registry.js';
 import { ProfileSessions } from '../../src/registry/profiles.js';
 import { profileConfiguration, profileTree } from '../../src/registry/profile_tree.js';
 import { MemoryStore } from '../../src/storage/store.js';
-import { unmountedTools } from '../../src/web/panel/tree_provider.js';
 
 /** @brief Read the discriminator before narrowing a generic member. */
 function namespaceNode(node: import('../../src/registry/profile/node.js').ProfileNode | undefined): ProfileNamespace {
@@ -111,8 +109,8 @@ test('edit publishes a complete recursive snapshot and preserves explicit permis
     const restored = new SemanticRegistry(store);
     await restored.load();
     const tree = profileTree('Development', restored.configuration('Development'), restored.definitions).root;
-    assert.equal(tree.children!.files.children!.read.permissions!.removable, false);
-    assert.equal(tree.children!.files.permissions!.acceptsChildren, false);
+    assert.equal(tree.children!.files!.children!.read!.permissions!.removable, false);
+    assert.equal(tree.children!.files!.permissions!.acceptsChildren, false);
 });
 
 test('get-or-create is atomic and modifiers run in order against the latest committed snapshot', async () => {
@@ -205,11 +203,11 @@ test('builtin namespaces are explicitly installed with edit and custom permissio
     const current = registry.configuration('Plugin');
     const input = profileTree('Plugin', current, registry.definitions).save();
     const commands = [{ name: 'read', brief: '', paths: [], totalCalls: 0 }];
-    delete input.root.children!.files.children!.read;
+    delete input.root.children!.files!.children!.read;
     assert.throws(() => profileConfiguration(input, current, commands, registry.definitions), /cannot be removed: files.read/);
     const forged = profileTree('Plugin', current, registry.definitions).save();
-    forged.root.children!.files.children!.read.permissions = { removable: true, commentable: true };
-    forged.root.children!.files.children!.read.command!.doc = 'Forged';
+    forged.root.children!.files!.children!.read!.permissions = { removable: true, commentable: true };
+    forged.root.children!.files!.children!.read!.command!.doc = 'Forged';
     assert.throws(() => profileConfiguration(forged, current, commands, registry.definitions), /documentation cannot be changed/);
 });
 
@@ -233,7 +231,7 @@ test('custom command classes own callable projections and preloaded values', asy
     assert.equal(command.signature, '(value: string) => Promise<void>');
     assert.deepEqual(command.binding().parameters, { kind: 'overloads', layouts: [['value']] });
     assert.deepEqual(command.binding().result, { kind: 'discard' });
-    assert.deepEqual(await command.node.readValue!({ commandBriefs: async () => [], profileNames: async () => ({ profiles: [], selected: '' }) }), { source: 'provider' });
+    assert.deepEqual(await command.node.readValue!(), { source: 'provider' });
 });
 
 test('tools namespace implementations block child mutation independently of displayed permissions', () => {

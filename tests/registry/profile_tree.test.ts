@@ -24,7 +24,7 @@ test('Profile trees round-trip nested namespaces, independent mounts, comments a
     assert.equal(configuration.namespaces[0]?.description, 'File operations');
     assert.equal(configuration.namespaces[0]?.alwaysVisible, true);
     assert.equal(configuration.namespaceVisible?.tools, false);
-    assert.equal(profile.root.children!['tools'].fixedLevel, undefined);
+    assert.equal(profile.root.children!['tools']!.fixedLevel, undefined);
     assert.equal(configuration.builtinVisible?.['tools.profile.load'], 2);
     assert.deepEqual(profileTree('Work', configuration), profile);
 });
@@ -38,7 +38,7 @@ test('Profile schema rejects invalid nodes and configuration rejects missing pro
     delete missing.root.children!['tools'];
     assert.throws(() => profileConfiguration(missing, current, commands), /Node cannot be removed: tools/);
     const replaced = structuredClone(profile);
-    replaced.root.children!['tools'].children!['inspect'].command!.tool = 'read';
+    replaced.root.children!['tools']!.children!['inspect']!.command!.tool = 'read';
     assert.throws(() => profileConfiguration(replaced, current, []), /cannot be removed|cannot be replaced/);
 });
 
@@ -93,11 +93,11 @@ test('root info and log namespaces coexist with protected tools without a consol
 test('save rejects missing protected descendants and forbidden documentation or pin edits', () => {
     const { current, profile, commands } = fixture();
     for (const edit of [
-        (value: typeof profile) => { delete value.root.children!['tools'].children!['profile'].children!['save']; },
-        (value: typeof profile) => { value.root.children!['tools'].description = 'Forged'; },
-        (value: typeof profile) => { value.root.children!['tools'].children!['inspect'].command!.doc = 'Forged'; },
-        (value: typeof profile) => { delete value.root.children!['tools'].children!['inspect'].command!.doc; },
-        (value: typeof profile) => { value.root.children!['tools'].children!['inspect'].fixedLevel = 0; },
+        (value: typeof profile) => { delete value.root.children!['tools']!.children!['profile']!.children!['save']; },
+        (value: typeof profile) => { value.root.children!['tools']!.description = 'Forged'; },
+        (value: typeof profile) => { value.root.children!['tools']!.children!['inspect']!.command!.doc = 'Forged'; },
+        (value: typeof profile) => { delete value.root.children!['tools']!.children!['inspect']!.command!.doc; },
+        (value: typeof profile) => { value.root.children!['tools']!.children!['inspect']!.fixedLevel = 0; },
     ]) {
         const input = new ProfileDocument(profile.save());
         edit(input);
@@ -114,7 +114,7 @@ test('Profile schema rejects empty, invalid and JavaScript convention keys befor
         const input = profile.save();
         input.root.children = JSON.parse(JSON.stringify({ ...input.root.children, [name]: { type: 'namespace' } }));
         assert.equal(ProfileSchema.safeParse(input).success, false, name);
-        assert.throws(() => profileConfiguration(input, current, commands), undefined, name);
+        assert.throws(() => profileConfiguration(input, current, commands), Error, name);
     }
 });
 
@@ -129,7 +129,7 @@ test('ordinary namespaces may share protected member names without replacing pro
         assert.deepEqual(profileTree('Work', configuration).root.children!['tools'], profile.root.children!['tools']);
     }
     const input = profile.save();
-    input.root.children!['tools'].children!['inspect'] = { type: 'namespace' };
+    input.root.children!['tools']!.children!['inspect'] = { type: 'namespace' };
     assert.throws(() => profileConfiguration(input, current, commands), /cannot be removed|cannot be replaced/);
 });
 
@@ -137,10 +137,10 @@ test('ordinary namespaces may share protected member names without replacing pro
 test('Profile command contracts reject removed argument mappings', () => {
     const { profile } = fixture();
     const files = profile.root.children!['files'];
-    const command = files.children!['read']!;
+    const command = files!.children!['read']!;
     assert(command.type === 'command');
     const invalid = { ...command, command: { ...command.command, argMap: { filename: 'path' } } };
-    files.children!['read'] = invalid;
+    files!.children!['read'] = invalid;
     assert.equal(ProfileSchema.safeParse(profile).success, false);
 });
 
@@ -155,8 +155,8 @@ test('Profile constructors preserve editable tree data and detach saved and rest
     data.root.children = {};
     assert(Object.keys(restored.root.children!).length > 0);
     const files = restored.root.children!['files'];
-    files.description = 'Restored files';
-    assert.equal(profile.root.children!['files'].description, 'File operations');
+    files!.description = 'Restored files';
+    assert.equal(profile.root.children!['files']!.description, 'File operations');
     assert.equal(profileConfiguration(restored, current, commands).namespaces[0]!.description, 'Restored files');
     assert(ProfileSchema.safeParse(new ProfileDocument().save()).success);
 });

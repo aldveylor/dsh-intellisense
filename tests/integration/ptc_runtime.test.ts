@@ -115,7 +115,6 @@ test('PTC command counts update within a program and refresh from host counts on
         agent.ctx.tools.register(defineTool({ name: 'read_tool', description: 'Read', parameters: {},
             output: { schema: { type: 'string' }, render: () => [] }, execute: async () => 'ok',
         }));
-        const addition = await namespaces.addition(agent);
         await configureSession(namespaces, agent, [
             { id: 'read_tool', path: 'std.read', pinned: false },
             { id: 'read_tool', path: 'std.again', pinned: false },
@@ -150,7 +149,6 @@ test('native commands rereads current global counts after each namespace dispatc
         agent.ctx.tools.register(defineTool({ name: 'read_tool', description: 'Read', parameters: {},
             output: { schema: { type: 'string' }, render: () => [] }, execute: async () => 'ok',
         }));
-        const addition = await namespaces.addition(agent);
         await configureSession(namespaces, agent, [{ id: 'read_tool', path: 'std.read', pinned: false }]);
         await namespaces.discover(agent, ['std.read', 'tools.profile.commands']);
         let sequence = 0;
@@ -262,7 +260,6 @@ test('PTC cancellation drains native children and timeout permits the next execu
                 } finally { settled = true; }
             },
         }));
-        const addition = await namespaces.addition(agent);
         await configureSession(namespaces, agent, [{ id: 'wait_tool', path: 'std.wait', pinned: false }]);
         const controller = new AbortController();
         const work = run('return await std.wait();', undefined, controller.signal);
@@ -288,7 +285,6 @@ test('PTC projects results once, preserves void results and supports parallel na
             output: { schema: { type: 'object', properties: { value: { type: 'object', properties: { value: { type: 'string', required: true } }, additionalProperties: false, required: true } }, additionalProperties: false }, render: () => [] },
             execute: async ({ path }) => ({ value: { value: path } }),
         }));
-        const addition = await namespaces.addition(agent);
         await configureSession(namespaces, agent, [{ id: 'read_tool', path: 'std.read', pinned: false }]);
         const result = await run('return await Promise.all([std.read("a"), std.read("b")]);');
         assert.equal(result.isError, false, JSON.stringify(result));
@@ -316,7 +312,6 @@ test('PTC early returns and failed parallel calls drain native siblings without 
                 return null;
             },
         }));
-        const addition = await namespaces.addition(agent);
         await configureSession(namespaces, agent, [{ id: 'sibling_tool', path: 'std.sibling', pinned: false }]);
         const early = await run('void std.sibling(false); return 42;');
         assert.equal(early.isError, false, JSON.stringify(early));

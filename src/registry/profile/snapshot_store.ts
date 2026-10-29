@@ -6,10 +6,16 @@ import type { NamespaceDefinitions } from '../../namespace/definitions.js';
 
 /** @brief A numeric identity and immutable anonymous Profile; editing values are always detached. */
 export class ProfileReference {
-    constructor(readonly pointer: number, private readonly data: Pick<ProfileData, 'root' | 'brief'>, private readonly definitions: NamespaceDefinitions) { this.data = structuredClone(data); Object.freeze(this); }
+    private readonly template: ProfileSnapshot;
+
+    constructor(readonly pointer: number, private readonly data: Pick<ProfileData, 'root' | 'brief'>, definitions: NamespaceDefinitions) {
+        this.data = structuredClone(data);
+        this.template = definitions.profile(this.data);
+        Object.freeze(this);
+    }
 
     /** @brief Return a detached value for global editing; it cannot modify the referenced snapshot. */
-    get snapshot(): ProfileSnapshot { return this.definitions.profile(this.data); }
+    get snapshot(): ProfileSnapshot { return this.template.clone(this.data); }
 
     /** @brief Export anonymous data without exposing the stored value to mutation. */
     serialize(): Pick<ProfileData, 'root' | 'brief'> { return structuredClone(this.data); }
@@ -39,8 +45,7 @@ export class SnapshotStore {
                 }
                 const pointer = Number(key.slice('profile_snapshot_'.length));
                 if (!Number.isSafeInteger(pointer) || pointer <= 0) throw new Error('Invalid Profile snapshot identity');
-                const snapshot = this.definitions.profile(value as Pick<ProfileData, 'root' | 'brief'>);
-                this.references.set(pointer, new ProfileReference(pointer, { root: snapshot.serialize(), brief: snapshot.brief }, this.definitions));
+                this.references.set(pointer, new ProfileReference(pointer, value as Pick<ProfileData, 'root' | 'brief'>, this.definitions));
                 this.sequence = Math.max(this.sequence, pointer);
             }
         })();
@@ -79,7 +84,9 @@ export class SnapshotStore {
     use<T>(reference: ProfileReference, publish: (reference: ProfileReference) => Promise<T>): Promise<T> {
         return this.write(async () => {
             await this.load();
+            if (!Number.isSafeInteger(reference.pointer) || reference.pointer <= 0 || reference.pointer > this.sequence) throw new Error('Invalid Profile reference');
             let archived = this.references.get(reference.pointer);
+            if (archived && JSON.stringify(archived.serialize()) !== JSON.stringify(reference.serialize())) throw new Error('Conflicting Profile snapshot');
             if (!archived) {
                 await this.journal.commit([[`profile_snapshot_${reference.pointer}`, reference.serialize()]]);
                 archived = reference;

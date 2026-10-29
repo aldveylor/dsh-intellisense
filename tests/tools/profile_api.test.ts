@@ -155,7 +155,7 @@ test('Profile save validates input and undefined name overwrites the current sel
     assert.deepEqual(catalog.snapshot().profiles, ['Default']);
     await call('tools_profile_save', { name: 'Copy', profile: profileWrite(profile) });
     const updated = { ...profile, name: 'Ignored', root: { ...profile.root, children: { ...profile.root.children, business: {
-        type: 'namespace', permissions: profile.root.permissions, children: {},
+        type: 'namespace' as const, permissions: profile.root.permissions, children: {},
     } } } };
     const before = registry.snapshot();
     await call('tools_profile_save', { profile: profileWrite(updated) });
@@ -198,16 +198,16 @@ test('Profile switch requires a name and supports disabling through server permi
         await assert.rejects(call('tools_profile_switch', args));
     }
     const edited = await load();
-    const command = edited.root.children!['tools'].children!['profile'].children!['switch'];
-    assert.equal(command.permissions?.disableable, undefined);
-    assert.equal(nodePermissions('leaf', command.permissions).disableable, true);
-    command.disabled = true;
+    const command = edited.root.children!['tools']!.children!['profile']!.children!['switch'];
+    assert.equal(command!.permissions?.disableable, undefined);
+    assert.equal(nodePermissions('leaf', command!.permissions).disableable, true);
+    command!.disabled = true;
     await call('tools_profile_save', { profile: profileWrite(edited) });
     assert(!registry.configuration().builtinDisabled?.includes('tools.profile.switch'));
     await call('tools_profile_switch', { name: 'Copy' });
     registry.refresh([...definitions.values()].map(tool => ({ id: tool.name, description: tool.description, parameters: tool.parameters, output: tool.output.schema })));
     assert(!manifest(registry, []).commands().some(node => node.path === 'tools.profile.switch'));
-    assert((await load()).root.children!['tools'].children!['profile'].children!['switch'].disabled);
+    assert((await load()).root.children!['tools']!.children!['profile']!.children!['switch']!.disabled);
 });
 
 
@@ -257,10 +257,10 @@ test('Profile setdefault persists the default for new sessions and preserves exi
     assert.deepEqual(await positionalArguments(entry, ['Copy']), { name: 'Copy' });
     assert(inspect(['tools.profile.setdefault'], manifest(registry, []), true).includes('setdefault(name: string)'));
     const edited = await load();
-    const command = edited.root.children!['tools'].children!['profile'].children!['setdefault'];
-    assert.equal(command.permissions?.disableable, undefined);
-    assert.equal(nodePermissions('leaf', command.permissions).disableable, true);
-    command.disabled = true;
+    const command = edited.root.children!['tools']!.children!['profile']!.children!['setdefault'];
+    assert.equal(command!.permissions?.disableable, undefined);
+    assert.equal(nodePermissions('leaf', command!.permissions).disableable, true);
+    command!.disabled = true;
     await call('tools_profile_save', { profile: profileWrite(edited) });
     await call('tools_profile_switch', { name: 'Default' });
     assert(!manifest(registry, []).commands().some(node => node.path === 'tools.profile.setdefault'));
@@ -317,15 +317,15 @@ test('Profile save defaults protected tools to disabled and honors explicit enab
         if (state === 'missing') {
             delete profile.root.children!['tools'];
             await call('tools_profile_save', { name: 'Copy', profile: profileWrite(profile) });
-            assert.equal((await load({ name: 'Copy' })).root.children!.tools.disabled, true);
+            assert.equal((await load({ name: 'Copy' })).root.children!.tools!.disabled, true);
             continue;
         }
-        else if (state === 'omitted') delete tools.disabled;
-        else tools.disabled = state;
+        else if (state === 'omitted') delete tools!.disabled;
+        else tools!.disabled = state;
         const input = structuredClone(profile);
         await call('tools_profile_save', { name: 'Copy', profile: profileWrite(profile) });
         const saved = await load({ name: 'Copy' });
-        assert.equal(saved.root.children!['tools'].disabled ?? false, state !== false);
+        assert.equal(saved.root.children!['tools']!.disabled ?? false, state !== false);
         assert.equal(catalog.configuration('Copy').builtinDisabled.includes('tools'), state !== false);
         assert.deepEqual(profile, input);
         assert.deepEqual(registry.snapshot(), before);
@@ -364,15 +364,15 @@ test('Profile save repairs protected omissions and reports advisory discovery is
     delete profile.root.children!['tools'];
     assert.equal(await call('tools_profile_save', { name: 'Info', profile: profileWrite(profile) }), advisory);
     assert((await load({ name: 'Info' })).root.children!.tools);
-    profile.root.children!['tools'] = (await load()).root.children!['tools'];
+    profile.root.children!['tools'] = (await load()).root.children!['tools']!;
     profile.root.children!['files']!.children!['read']!.fixedLevel = 2;
     await call('tools_profile_save', { name: 'Info', profile: profileWrite(profile) });
     const complete = await load({ name: 'Info' });
     assert.equal(await call('tools_profile_save', { name: 'Info', profile: profileWrite(complete) }), null);
     const partial = await load({ name: 'Info' });
-    partial.root.children!['tools'].children!['profile'].children = {};
+    partial.root.children!['tools']!.children!['profile']!.children = {};
     await call('tools_profile_save', { name: 'Info', profile: profileWrite(partial) });
-    assert((await load({ name: 'Info' })).root.children!.tools.children!.profile.children!.save);
+    assert((await load({ name: 'Info' })).root.children!.tools!.children!.profile!.children!.save);
     const schema = definitions.get('tools_profile_save')!.output.schema;
     assert.deepEqual(schema, { oneOf: [{ type: 'string' }, { type: 'null' }] });
 });
@@ -382,16 +382,16 @@ test('Profile save checks enabled descendants and requires callable inspect rega
     registry.refresh([...registry.tools(), ...['tools_inspect', 'tools_search'].map(id => ({ id, description: '', parameters: {}, output: {} }))]);
     const profile = await load();
     const tools = profile.root.children!['tools'];
-    tools.disabled = false;
-    const inspect = tools.children!['inspect'];
-    const search = tools.children!['search'];
+    tools!.disabled = false;
+    const inspect = tools!.children!['inspect'];
+    const search = tools!.children!['search'];
     for (const [inspectDisabled, searchDisabled] of [[true, false], [false, true], [true, true]]) {
-        inspect.disabled = inspectDisabled;
-        search.disabled = searchDisabled;
+        inspect!.disabled = inspectDisabled;
+        search!.disabled = searchDisabled;
         const information = await call('tools_profile_save', { name: 'Discovery', profile: profileWrite(profile) });
         assert.equal(typeof information === 'string', inspectDisabled);
     }
-    tools.children!['profile'].disabled = true;
+    tools!.children!['profile']!.disabled = true;
     assert.equal(await call('tools_profile_save', { name: 'Discovery', profile: profileWrite(profile) }), null);
     profile.root.children!['files'] = { type: 'namespace', disabled: true, children: {
         read: { type: 'command', command: { tool: 'read_file' } },
@@ -534,20 +534,20 @@ test('Profile save and apply allow namespaces sharing protected names at differe
     profile.root.children!['custom'] = { type: 'namespace', children: { tools: { type: 'namespace' } } };
     await call('tools_profile_save', { name: 'Copy', profile: profileWrite(profile) });
     const saved = await load({ name: 'Copy' });
-    for (const name of names) assert.equal(saved.root.children![name].type, 'namespace');
-    assert.equal(saved.root.children!['tools'].children!['inspect'].type, 'command');
+    for (const name of names) assert.equal(saved.root.children![name]!.type, 'namespace');
+    assert.equal(saved.root.children!['tools']!.children!['inspect']!.type, 'command');
     await call('tools_profile_apply', { name: 'Copy', value: { root: { children: {
         custom: { children: { inspect: { type: 'namespace' } } },
     } } } });
     const applied = await load({ name: 'Copy' });
-    assert.equal(applied.root.children!['custom'].children!['inspect'].type, 'namespace');
+    assert.equal(applied.root.children!['custom']!.children!['inspect']!.type, 'namespace');
     assert.deepEqual(applied.root.children!['tools'], saved.root.children!['tools']);
     await assert.rejects(call('tools_profile_apply', { name: 'Copy', value: { root: { children: {
         tools: { children: { inspect: { type: 'namespace', command: null, fixedLevel: null } } },
     } } } }), /Required field cannot be deleted/);
-    saved.root.children!['tools'].children!['inspect'] = { type: 'namespace' };
+    saved.root.children!['tools']!.children!['inspect'] = { type: 'namespace' };
     await call('tools_profile_save', { name: 'Copy', profile: profileWrite(saved) });
-    assert.equal((await load({ name: 'Copy' })).root.children!.tools.children!.inspect.type, 'command');
+    assert.equal((await load({ name: 'Copy' })).root.children!.tools!.children!.inspect!.type, 'command');
 });
 
 
@@ -608,7 +608,7 @@ test('nested rename and move persist in the catalog while session paths change o
     assert.deepEqual(registry.configuration().mappings, []);
     assert(!(await load()).root.children!['file']);
     const saved = await load({ name: 'Default' });
-    assert(!saved.root.children!['file'].children!['read']);
+    assert(!saved.root.children!['file']!.children!['read']);
     await call('tools_profile_switch', { name: 'Default' });
     assert.deepEqual(registry.configuration().mappings.map(item => item.path), ['file.read2']);
     await call('tools_profile_apply', { name: 'Default', value: { root: { children: { file: { children: { read2: null } }, moved: mount } } } });
@@ -678,7 +678,7 @@ test('concurrent conversations preserve independent patches to the same catalog 
         [`mount_${index}`]: { type: 'command', command: { tool: 'read_file' } },
     } } } }, context)));
     const saved = await load({ name: 'Default' });
-    for (let index = 0; index < executions.length; index++) assert.equal(saved.root.children![`mount_${index}`].command!.tool, 'read_file');
+    for (let index = 0; index < executions.length; index++) assert.equal(saved.root.children![`mount_${index}`]!.command!.tool, 'read_file');
     assert.deepEqual(registry.snapshot(), before);
 });
 
@@ -732,13 +732,13 @@ test('agent save effects restore builtin nodes in an explicitly empty plugin Pro
     const { catalog, call, load } = await fixture();
     await catalog.saveProfile('Empty', { ...catalog.configuration(), providedRoot: { type: 'namespace', children: {} }, builtinVisible: {} }, { trusted: true });
     const initial = await load({ name: 'Empty' });
-    assert.equal(initial.root.children!.tools.type, 'namespace');
+    assert.equal(initial.root.children!.tools!.type, 'namespace');
     await call('tools_profile_save', { name: 'Empty', profile: { root: { type: 'namespace', children: {
         files: { type: 'namespace', children: { read: { type: 'command', command: { tool: 'read_file' }, fixedLevel: 2 } } },
     } } } });
     const saved = await load({ name: 'Empty' });
-    assert.equal(saved.root.children!.files.children!.read.command!.tool, 'read_file');
-    assert.equal(saved.root.children!.tools.children!.inspect.fixedLevel, 2);
+    assert.equal(saved.root.children!.files!.children!.read!.command!.tool, 'read_file');
+    assert.equal(saved.root.children!.tools!.children!.inspect!.fixedLevel, 2);
     assert.deepEqual(catalog.configuration('Empty').builtinDisabled, ['tools']);
 });
 
@@ -818,16 +818,16 @@ test('builtin nodes normalize differential saves and reject explicit deletion du
     delete tools.children!.profile;
     await call('tools_profile_save', { name: 'Repaired', profile });
     const saved = await load({ name: 'Repaired' });
-    assert.equal(saved.root.children!.tools.fixedLevel ?? 0, 0);
-    assert.equal(saved.root.children!.tools.children!.inspect.fixedLevel, 2);
-    assert.equal(saved.root.children!.tools.children!.inspect.command!.tool, 'tools_inspect');
-    assert.notEqual(saved.root.children!.tools.children!.inspect.command!.doc, 'Edited discovery');
-    assert(saved.root.children!.tools.children!.profile.children!.save);
+    assert.equal(saved.root.children!.tools!.fixedLevel ?? 0, 0);
+    assert.equal(saved.root.children!.tools!.children!.inspect!.fixedLevel, 2);
+    assert.equal(saved.root.children!.tools!.children!.inspect!.command!.tool, 'tools_inspect');
+    assert.notEqual(saved.root.children!.tools!.children!.inspect!.command!.doc, 'Edited discovery');
+    assert(saved.root.children!.tools!.children!.profile!.children!.save);
     await assert.rejects(call('tools_profile_apply', { name: 'Repaired', value: { root: { children: { tools: { disabled: false, children: { inspect: null } } } } } }), /cannot be removed: tools.inspect/);
     await call('tools_profile_apply', { name: 'Repaired', value: { root: { children: { tools: { disabled: false } } } } });
     const applied = await load({ name: 'Repaired' });
-    assert.equal(applied.root.children!.tools.disabled ?? false, false);
-    assert.equal(applied.root.children!.tools.children!.inspect.fixedLevel, 2);
+    assert.equal(applied.root.children!.tools!.disabled ?? false, false);
+    assert.equal(applied.root.children!.tools!.children!.inspect!.fixedLevel, 2);
 });
 
 
@@ -839,4 +839,27 @@ test('post-save observers can use collection writes without holding the complete
     await call('tools_profile_save', { name: 'Observed', profile: profileWrite(await load()) });
     assert.equal((await load({ name: 'Observed' })).brief, 'Observed after commit');
     remove();
+});
+
+
+test('unnamed apply updates the latest global version and switch reuses its numeric pointer', async () => {
+    const { call, load, catalog, namespaces, execution } = await fixture();
+    const addition = await namespaces.addition(execution.agent!);
+    const previous = addition.profile;
+    await call('tools_profile_apply', { value: { brief: 'First global patch' } });
+    const intermediate = await catalog.reference('Default');
+    await call('tools_profile_apply', { value: { root: { children: { global_only: { type: 'namespace', description: 'Second patch' } } } } });
+    const latest = await catalog.reference('Default');
+    assert(latest.pointer > intermediate.pointer);
+    assert.equal(addition.profile, previous);
+    assert.equal((await load()).brief, undefined);
+    assert.equal((await load({ name: 'Default' })).brief, 'First global patch');
+    assert.equal((await load({ name: 'Default' })).root.children!.global_only!.description, 'Second patch');
+    await assert.rejects(catalog.snapshots.get(intermediate.pointer), /Unknown Profile snapshot/);
+    await assert.rejects(catalog.snapshots.get(latest.pointer), /Unknown Profile snapshot/);
+    await call('tools_profile_switch', { name: 'Default' });
+    assert.equal(addition.profile.pointer, latest.pointer);
+    assert.equal((await catalog.snapshots.get(latest.pointer)).pointer, latest.pointer);
+    await call('tools_profile_switch', { name: 'Default' });
+    assert.equal(addition.profile.pointer, latest.pointer);
 });

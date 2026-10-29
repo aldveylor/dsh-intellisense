@@ -30,7 +30,7 @@ test('catalog saves allocate immutable anonymous versions while sessions retain 
     detached.create('private', () => new EditableNamespace());
     assert.equal(latest.snapshot.resolve('private'), undefined);
     const saved = await state.load<{ profiles: Record<string, { pointer: number }> }>('registry');
-    assert.equal(saved?.profiles.Default.pointer, latest.pointer);
+    assert.equal(saved?.profiles.Default!.pointer, latest.pointer);
     assert.equal('root' in saved!, false);
     const entries = await history.loadEntries<Record<string, unknown>>('profile_snapshot_');
     assert(entries.filter(([key]) => /_\d+$/.test(key)).every(([, value]) => !Object.hasOwn(value, 'name')));
@@ -154,4 +154,23 @@ test('parallel switches bind pointer checks and archive writes under one lock', 
     assert.equal((await restored.reference('Next')).pointer, next.pointer);
     const reopened = await new ProfileSessions(restored, store).addition(session('parallel_first'));
     assert.equal(reopened.profile.pointer, next.pointer);
+});
+
+
+test('changing the global factory never adds nodes to an existing session version', async () => {
+    const store = new MemoryStore();
+    const catalog = new SemanticRegistry(store);
+    const sessions = new ProfileSessions(catalog, store);
+    const current = await sessions.addition(session('factory_change'));
+    const reference = current.profile;
+    const before = reference.snapshot.serialize();
+    const factory = catalog.definitions.createInitialProfile;
+    catalog.definitions.createInitialProfile = () => {
+        const root = factory();
+        root.create('later', () => new EditableNamespace()).setPermissions({ removable: false });
+        return root;
+    };
+    assert.equal(reference.snapshot.resolve('later'), undefined);
+    assert.deepEqual(reference.snapshot.serialize(), before);
+    assert.equal(current.profile, reference);
 });

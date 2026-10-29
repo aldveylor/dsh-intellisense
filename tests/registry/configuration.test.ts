@@ -4,7 +4,6 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { RegistryConfiguration, RegistryState, SemanticRegistry } from '../../src/registry/registry.js';
 import type { RegistryStateData } from '../../src/registry/registry.js';
-import type { ProfileData } from '../../src/registry/profile_tree.js';
 import { ProfileSessions } from '../../src/registry/profiles.js';
 import { MemoryStore } from '../../src/storage/store.js';
 

@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
+// @ts-expect-error Runtime-only JavaScript helper has no declaration file.
 import { collectVersions } from '../../scripts/release/collect_versions.mjs';
 
 /** @brief Create an isolated Git repository for release history scenarios. */

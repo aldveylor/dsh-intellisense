@@ -1,7 +1,7 @@
 import { pluginCommands } from '../../src/runtime/builtins.js';
 import { NamespaceIntegration } from '../../src/integration/namespace_integration.js';
 import type { Agent } from '@deepseek-ai/dsh-agent';
-import { commandEntries, bindingFor, declaration, profileMembers, nativeArgumentsFor, serializeProfile, type ManifestEntry, type CommandEntry } from '../../src/namespace/namespace.js';
+import { commandEntries, bindingFor, declaration, profileMembers, nativeArgumentsFor, serializeProfile, type ManifestEntry } from '../../src/namespace/namespace.js';
 import { inspect as renderInspect } from '../../src/tools/inspect.js';
 import { nativeDiscovery as renderNative, nativeQueryEntries as selectNative } from '../../src/namespace/native_tools.js';
 import { profileTree } from '../../src/registry/profile_tree.js';

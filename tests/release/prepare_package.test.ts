@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+// @ts-expect-error Runtime-only JavaScript helper has no declaration file.
 import { convertReadmeImages, preparePackage } from '../../scripts/release/prepare_package.mjs';
 
 test('routes local images to raw GitHub URLs while preserving external URLs and document links', () => {

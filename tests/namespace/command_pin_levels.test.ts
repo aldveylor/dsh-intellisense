@@ -3,10 +3,8 @@ import { createNamespace } from '../namespace/fixtures.js';
 import { manifest } from '../namespace/fixtures.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Agent } from '@deepseek-ai/dsh-agent';
 import { SemanticRegistry, type Mapping, type PinLevel } from '../../src/registry/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
-import { NamespaceIntegration } from '../../src/integration/namespace_integration.js';
 import { TreeProvider } from '../../src/web/panel/tree_provider.js';
 
 const tool = {

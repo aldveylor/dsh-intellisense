@@ -14,7 +14,6 @@ import type { ProfileSessions } from '../registry/profiles.js';
 import { declaration, commandEntries, profileMembers, queryNodes, normalizeInspectQueries, nativeArgumentsFor, resultFor, type Aliases, type CommandEntry } from '../namespace/namespace.js';
 import type { AgentSessionAddition } from './agent_session_addition.js';
 import type { ProfileCommand } from '../registry/profile/command.js';
-import type { ProfileNamespace } from '../registry/profile/namespace.js';
 import { inspect } from '../tools/inspect.js';
 import { namespaceDirectory, nativeDirectory, type NamespaceHint } from '../namespace/prompt.js';
 

@@ -22,7 +22,7 @@ async function fixture(searchEngines = createSearchEngines()) {
     const physical = { id: 'read', description: 'Read documents', parameters: { type: 'object', properties: { path: { type: 'string' } } }, output: { type: 'string' } };
     registry.refresh([physical]);
     await registry.configure([{ id: 'read', path: 'files.read', pinned: false }], 0);
-    const namespaces = { searchEngines, addition: async () => ({ name: 'Default', profile: await registry.reference() }), entries: async () => manifest(registry, []).commands() };
+    const namespaces = { searchEngines, addition: async () => ({ name: 'Default', profile: await registry.reference(), statistics: { increment: async () => {}, snapshot: async () => ({}) }, save: async () => {} }), entries: async () => manifest(registry, []).commands() };
     const definition = searchDefinition(namespaces);
     registry.refresh([physical, { id: definition.name, description: definition.description, parameters: definition.parameters, output: definition.output.schema }]);
     const execution = { agent: { id: 'search', session: Session.create(SessionId('search')) }, callId: 'search-call', signal: new AbortController().signal } as unknown as ToolRunContext;
@@ -96,7 +96,7 @@ test('search reuses scoped manifest generations and isolates registries with equ
     assert.equal(second.generation, registry.generation);
     let current = registry;
     let projections = 0;
-    namespaces.addition = async () => ({ name: 'Default', profile: await current.reference() });
+    namespaces.addition = async () => ({ name: 'Default', profile: await current.reference(), statistics: { increment: async () => {}, snapshot: async () => ({}) }, save: async () => {} });
     namespaces.entries = async () => { projections++; return manifest(current, []).commands(); };
     const args = { keywords: ['documents'], method: 'accurate', target: 'description' };
     assert.deepEqual(await definition.execute(args, execution), ['files.read']);

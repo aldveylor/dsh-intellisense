@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
+// @ts-expect-error Runtime-only JavaScript helper has no declaration file.
 import { registerLocalPlugin } from '../../scripts/local_plugin.mjs';
 
 test('copies a local bundle and its runtime dependencies when links fail, then refreshes it', async t => {

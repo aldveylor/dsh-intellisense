@@ -18,16 +18,16 @@ test('preloads skip disabled producers and honor subtree disables', async () => 
         profileNames: async () => { profiles++; return { profiles: ['Default'], selected: 'Default' }; },
     }) as NamespaceIntegration;
     await registry.configure([], registry.revision, [], [], {}, undefined, {}, {}, {}, undefined, false, ['tools.profile.commands']);
-    const values = await component.values();
+    const values = await component.values({} as import('@deepseek-ai/dsh-agent').Agent);
     assert.equal(commands, 0);
     assert.equal(profiles, 1);
     assert.equal(Object.hasOwn(values, 'tools.profile.annotation'), true);
     assert.equal(Object.hasOwn(values, 'tools.profile.commands'), false);
     await registry.configure([], registry.revision, [], [], {}, undefined, {}, {}, {}, undefined, false, []);
-    await component.values();
+    await component.values({} as import('@deepseek-ai/dsh-agent').Agent);
     assert.equal(commands, 1);
     await registry.configure([], registry.revision, [], [], {}, undefined, {}, {}, {}, undefined, false, ['tools.profile']);
-    assert.deepEqual(await component.values(), {});
+    assert.deepEqual(await component.values({} as import('@deepseek-ai/dsh-agent').Agent), {});
     assert.equal(commands, 1);
     assert.equal(profiles, 2);
 });
