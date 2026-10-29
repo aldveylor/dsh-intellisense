@@ -8,7 +8,7 @@
 
 `ctx.toolsNamespace` 管理共享具名 Profile 及保存事件；`ctx.intellisense.profiles` 指向同一服务。Profile/ProfileSnapshot 是匿名的原始节点树，节点使用 namespace/command 类型。默认工厂创建 RootNamespace 及具体内置命令类；克隆和恢复保留工厂声明的实际原型。节点类负责权限、校验和修改策略。
 
-全局表保存名称 → 当前数值指针与匿名 Profile。每次 save/apply（包括内容相同的成功保存）分配新的全局递增指针，只更新目标名称，不影响现有会话。重命名或选择默认 Profile 不生成内容版本。全局配置的平铺 RegistryConfiguration/RegistryState 仅作为管理界面的内部编辑适配器，不作为会话状态。
+全局表保存名称 → 当前数值指针与匿名 Profile。每次 save/apply（包括内容相同的成功保存）分配新的全局递增指针，只更新目标名称，不影响现有会话。重命名或选择默认 Profile 不生成内容版本。全局配置的平铺 PlaneProfile/PlaneProfileState 仅作为管理界面的内部编辑适配器，不作为会话状态。
 
 `agent.session.intellisense?.profile` 是只读 ProfileReference，包含数值 pointer。snapshot getter 提供可供全局编辑的独立值，修改该值不会改变会话快照。会话不提供快照编辑或版本发布能力；name 与 profile 为只读 getter，save() 仅持久化当前引用。
 

@@ -10,7 +10,7 @@ import { ErrorDialog } from './error_dialog.js';
 import { useLayoutMotion } from '../ui/animation/layout_motion.js';
 import { NamespaceTree, type TreeNode } from './tree_node.js';
 import { useEffect, useMemo, useRef, useState, type ComponentType, type DragEvent } from 'react';
-import type { Namespace, Mapping, PhysicalTool, RegistryStateData as RegistryState, PinLevel, CommandVisibility, RegistryConfigurationData as RegistryConfiguration } from '../../profile/catalog/registry.js';
+import type { Namespace, Mapping, PhysicalTool, PlaneProfileStateData as PlaneProfileState, PinLevel, CommandVisibility, PlaneProfileData as PlaneProfile } from '../../profile/catalog/registry.js';
 import { nextFixLevel, type SerializedNode } from '../../profile/namespace/node.js';
 import { validateNodePath as validatePath } from '../../profile/namespace/node.js';
 import { TreeProvider, unmountedTools, providedNamespace, providedTools } from './tree_provider.js';
@@ -26,7 +26,7 @@ interface View {
     provided: SerializedNode[];
     defaultProfile: string;
     profileBriefs?: Record<string, string>;
-    state: RegistryState;
+    state: PlaneProfileState;
     tools: PhysicalTool[];
     callsByTool?: Record<string, number>;
     queriesByTool?: Record<string, number>;
@@ -49,7 +49,7 @@ async function request<T>(api: string, body?: unknown, signal?: AbortSignal): Pr
 }
 
 /** @brief Normalize the same Profile configuration for comparison and persistence. */
-function profileDraft(state: Pick<RegistryState, keyof RegistryConfiguration>, provided: readonly SerializedNode[] = []): RegistryConfiguration {
+function profileDraft(state: Pick<PlaneProfileState, keyof PlaneProfile>, provided: readonly SerializedNode[] = []): PlaneProfile {
     const mappings = state.mappings.map(({ id, path, description, pinned, disabled, alwaysVisible }) => ({
         id, path: path.trim(), description, pinned, disabled, alwaysVisible,
     }));
@@ -110,7 +110,7 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
     }
 
     /** @brief Apply local edits without replacing the server snapshot used for dirty detection. */
-    function applyDraft(state: Pick<RegistryState, keyof RegistryConfiguration>, nodes = view?.provided ?? []): void {
+    function applyDraft(state: Pick<PlaneProfileState, keyof PlaneProfile>, nodes = view?.provided ?? []): void {
         setBrief(state.brief);
         setMappings(current => retain(current, state.mappings));
         setNamespaces(current => retain(current, state.namespaces ?? []));
@@ -169,7 +169,7 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
     async function uploadProfile(file: File): Promise<void> {
         if (!view) return;
         await action('', async () => {
-            let configuration: RegistryConfiguration;
+            let configuration: PlaneProfile;
             try { configuration = parseProfileJson(await file.text()); }
             catch { throw new Error(t('invalid_profile_json')); }
             applyDraft(configuration);

@@ -1,6 +1,6 @@
 import type { ProfileFactory, ProfileSnapshot } from './profile.js';
-import { RegistryConfiguration } from './catalog/configuration.js';
-import { editedConfiguration } from './configuration.js';
+import { PlaneProfile } from './plane/profile.js';
+import { toPlaneProfile } from './plane/to_plane_profile.js';
 import type { ProfileSaveEffect, ToolsNamespace } from './service.js';
 import type { Context } from '@deepseek-ai/cordis';
 import type { SemanticRegistry } from './catalog/registry.js';
@@ -60,7 +60,7 @@ export class NamespaceComponent implements ToolsNamespace {
             if (!output || typeof output.serialize !== 'function') throw new Error('Profile modifier must return a snapshot');
             const published = registry.definitions.profile({ brief: output.brief, root: output.serialize() });
             const value = { name, brief: published.brief, root: published.serialize() };
-            const configuration = editedConfiguration(value, current, registry.definitions);
+            const configuration = toPlaneProfile(value, current, registry.definitions);
             await registry.saveProfile(name, configuration, { trusted: true, revision });
             this.ctx.emit('system-prompt/change');
             return this.registry.definitions.profile(value);
@@ -70,7 +70,7 @@ export class NamespaceComponent implements ToolsNamespace {
     /** @brief Create one initialized catalog entry in the registry's atomic name transaction. */
     private async createProfile(name: string): Promise<ProfileSnapshot> {
         const snapshot = this.createInitialProfile();
-        const configuration = editedConfiguration({ name, root: snapshot.serialize() }, new RegistryConfiguration(), this.registry.definitions);
+        const configuration = toPlaneProfile({ name, root: snapshot.serialize() }, new PlaneProfile(), this.registry.definitions);
         await this.registry.saveProfile(name, configuration, { trusted: true, create: true });
         this.ctx.emit('system-prompt/change');
         return snapshot;

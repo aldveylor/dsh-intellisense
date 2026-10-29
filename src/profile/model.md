@@ -1,6 +1,6 @@
 # Profile 节点与版本引用
 
-`service.ts` 定义 ToolsNamespace、ProfileSaveEvent 与 ProfileSaveEffect，`component.ts` 实现具名 Profile 服务；`ctx.toolsNamespace` 与 `ctx.intellisense.profiles` 使用此处的同一接口。`namespace/` 管理命名空间消费投影、声明、提示和运行时装配；`catalog/` 管理全局目录、编辑配置与会话引用。原 src/registry 与 src/namespace 已迁入本模块。
+`service.ts` 定义 ToolsNamespace、ProfileSaveEvent 与 ProfileSaveEffect，`component.ts` 实现具名 Profile 服务；`ctx.toolsNamespace` 与 `ctx.intellisense.profiles` 使用此处的同一接口。`namespace/` 管理命名空间消费投影、声明、提示和运行时装配；`catalog/` 管理全局目录与会话引用；`plane/` 保存扁平编辑状态 PlaneProfile/PlaneProfileState 及 toPlaneProfile 转换接口。原 src/registry 与 src/namespace 已迁入本模块。
 
 Profile 与 ProfileSnapshot 是同义匿名节点树接口。EditableNode、EditableNamespace、EditableCommand、EditableSnapshot 提供普通实现；默认 RootNamespace 与内置子节点位于 tools/profile_nodes/。create/getOrCreate 接受无参数工厂并返回实际对象，get/set 使用 ProfileNode，按 type 区分 namespace/command。clone 按工厂声明的原型恢复节点，不退化自定义类。
 

@@ -3,12 +3,12 @@ import { EditableCommand } from '../command.js';
 import type { ProfileCommand } from '../command.js';
 import type { ProfileNamespace } from '../namespace.js';
 import { compareProfile } from '../compare.js';
-import { editedConfiguration } from '../configuration.js';
+import { toPlaneProfile } from '../plane/to_plane_profile.js';
 import { profileWrite } from './profile_write.js';
 import { defaultNamespaceDefinitions, type NamespaceDefinitions } from '../namespace/definitions.js';
 import { settingsAt } from '../node_settings.js';
 import { z } from 'zod';
-import { RegistryConfiguration, type RegistryConfigurationData } from './configuration.js';
+import { PlaneProfile, type PlaneProfileData } from '../plane/profile.js';
 import type { Saveable } from '../../storage/saveable.js';
 import { fixLevel, nodePermissions } from '../namespace/node.js';
 import type { ProfileTreeNode, NamespaceTreeNode } from './profile_node.js';
@@ -104,7 +104,7 @@ const nodeSchema: z.ZodType<ProfileTreeNode> = z.lazy(() => z.union([
 export const ProfileSchema: z.ZodType<ProfileData> = z.strictObject({ name: z.string(), brief: z.string().optional().describe('Short description of the Profile purpose.'), root: namespaceSchema.describe("Anonymous namespace root of editable Profile data. Member names are children record keys. Server-owned node permissions govern edits.") });
 
 /** @brief Create protected children first, then add configured mappings without replacing existing nodes. */
-export function profileTree(name: string, configuration: RegistryConfigurationData, definitions: NamespaceDefinitions = defaultNamespaceDefinitions): ProfileDocument {
+export function profileTree(name: string, configuration: PlaneProfileData, definitions: NamespaceDefinitions = defaultNamespaceDefinitions): ProfileDocument {
     const definition = new EditableNamespace('', configuration.providedRoot ?? definitions.tree(name));
     const nodeFor = (parts: string[]): ProfileNamespace => parts.reduce((parent, name) => {
         const node = parent.getOrCreate(name, () => new EditableNamespace(name));
@@ -147,13 +147,13 @@ export function profileTree(name: string, configuration: RegistryConfigurationDa
 }
 
 /** @brief Project an untrusted target by applying its difference through the actual root and child classes. */
-export function profileConfiguration(profile: ProfileData, current: RegistryConfigurationData, commands: readonly CommandBrief[], definitions: NamespaceDefinitions = defaultNamespaceDefinitions): RegistryConfiguration {
+export function profileConfiguration(profile: ProfileData, current: PlaneProfileData, commands: readonly CommandBrief[], definitions: NamespaceDefinitions = defaultNamespaceDefinitions): PlaneProfile {
     profile = ProfileSchema.parse(profile);
     const before = profileTree(profile.name, current, definitions).save();
     const snapshot = definitions.profile(before);
     snapshot.apply(compareProfile(profileWrite(before), profileWrite(profile)));
     snapshot.check({ commands: new Set(commands.map(command => command.name)), addition: () => ({}), original: before.root });
-    return editedConfiguration({ name: profile.name, brief: snapshot.brief, root: snapshot.serialize() }, current, definitions);
+    return toPlaneProfile({ name: profile.name, brief: snapshot.brief, root: snapshot.serialize() }, current, definitions);
 }
 
 /** @brief Shared Profile transport definition preloaded for PTC programs. */

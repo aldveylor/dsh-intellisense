@@ -1,16 +1,17 @@
-import { RegistryConfiguration, type RegistryConfigurationData } from './catalog/configuration.js';
-import { profileTree, ProfileSchema, type ProfileData } from './catalog/profile_tree.js';
-import type { ProfileTreeNode } from './catalog/profile_node.js';
-import { nodePermissions } from './namespace/node.js';
-import type { NamespaceDefinitions } from './namespace/definitions.js';
-import { validatePath } from './catalog/path.js';
-import { settingsAt, type ProfileNodeSettings } from './node_settings.js';
+import { PlaneProfile, type PlaneProfileData } from './profile.js';
+import { profileTree, ProfileSchema, type ProfileData } from '../catalog/profile_tree.js';
+import type { ProfileTreeNode } from '../catalog/profile_node.js';
+import { nodePermissions } from '../namespace/node.js';
+import { defaultNamespaceDefinitions, type NamespaceDefinitions } from '../namespace/definitions.js';
+import { validatePath } from '../catalog/path.js';
+import { settingsAt, type ProfileNodeSettings } from '../node_settings.js';
+import type { ProfileSnapshot } from '../profile.js';
 
-/** @brief Project a trusted recursive edit into storage, retaining permissions as a recursive tree. */
-export function editedConfiguration(value: ProfileData, current: RegistryConfigurationData, definitions: NamespaceDefinitions): RegistryConfiguration {
-    value = ProfileSchema.parse(value);
+/** @brief Project a Profile snapshot or named transport tree into detached flat editor state, preserving supplied editor preferences. */
+export function toPlaneProfile(profile: ProfileSnapshot | ProfileData, current: PlaneProfileData = new PlaneProfile(), definitions: NamespaceDefinitions = defaultNamespaceDefinitions): PlaneProfile {
+    const value = ProfileSchema.parse('serialize' in profile ? { name: '', root: profile.serialize(), brief: profile.brief } : profile);
     if (value.root.disabled || value.root.fixedLevel || value.root.description) throw new Error('Anonymous Profile root only supports children and permissions');
-    const result = new RegistryConfiguration({ ...current, brief: value.brief, mappings: [], namespaces: [], order: [], builtinVisible: {}, builtinDisabled: [], namespaceVisible: {}, nodeSettings: {} });
+    const result = new PlaneProfile({ ...current, brief: value.brief, mappings: [], namespaces: [], order: [], builtinVisible: {}, builtinDisabled: [], namespaceVisible: {}, nodeSettings: {} });
     const template = definitions.tree(value.name);
     const select = (node: ProfileTreeNode, defined?: ProfileTreeNode, ownedParent = false): ProfileTreeNode | undefined => {
         if (node.type === 'command') return ownedParent || defined?.command?.tool === node.command.tool ? structuredClone(node) : undefined;

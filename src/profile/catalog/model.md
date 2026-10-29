@@ -2,7 +2,7 @@
 
 SemanticRegistry 管理全局当前目录、默认名称、编辑事务和物理工具目录。持久化 ProfileCatalogData 包含 version/revision/profile，profiles 为名称 → {pointer, root, brief?}；记录中的 Profile 无名。editor 独立保存不能从 Profile 树派生的顺序、未挂载工具固定偏好、工具简述与固定映射标记，不进入会话快照。
 
-RegistryConfiguration/RegistryState 是管理界面使用的全局编辑适配器。profile_tree.ts 与 ../configuration.ts 在平铺编辑字段和原始 ProfileNode 数据间转换；没有会话 registry，也不通过可执行语义树中转。保存验证委托真实节点类，提交失败不发布状态。
+../plane/profile.ts 的 PlaneProfile/PlaneProfileState 是管理界面使用的全局编辑适配器。profile_tree.ts 与 ../plane/to_plane_profile.ts 在平铺编辑字段和原始 ProfileNode 数据间转换；没有会话 registry，也不通过可执行语义树中转。保存验证委托真实节点类，提交失败不发布状态。
 
 每次 saveProfile/configure/replaceConfiguration 成功修改目标时分配新的全局递增指针，内容相同也更新。创建、选择默认值、重命名与删除在同一全局写锁中完成；重命名复用原版本，删除不删除旧快照。全局表只保存各名称当前版本，不归档未被会话引用的中间版本。
 

@@ -19,13 +19,16 @@ export async function apply(ctx: Context, options: Config = {}): Promise<void> {
 }
 
 export { RuntimeHost } from './runtime/host.js';
-export { SemanticRegistry, RegistryConfiguration, RegistryState } from './profile/catalog/registry.js';
+export { SemanticRegistry } from './profile/catalog/registry.js';
+export { PlaneProfile, PlaneProfileState } from './profile/plane/profile.js';
+export type { PlaneProfileData, PlaneProfileStateData } from './profile/plane/profile.js';
+export { toPlaneProfile } from './profile/plane/to_plane_profile.js';
 export type { Intellisense } from './integration/intellisense.js';
 export type { AgentSessionAddition } from './integration/agent_session_addition.js';
 export { NamespaceComponent } from './profile/component.js';
 export type { ManifestEntry, CommandEntry, ProfileMember } from './profile/namespace/namespace.js';
 export type { Node, NodeType, Permission, SerializedNode, CommandContract, CommandPresentation } from './profile/namespace/node.js';
-export type { PhysicalTool, Mapping, Namespace, ProfileCatalogData, RegistryConfigurationData, RegistryStateData, PinLevel, CommandVisibility } from './profile/catalog/registry.js';
+export type { PhysicalTool, Mapping, Namespace, ProfileCatalogData, PinLevel, CommandVisibility } from './profile/catalog/registry.js';
 export type { Profile, ProfileSnapshot, ProfileCollection, ProfileFactory } from './profile/profile.js';
 export type { ProfileNode } from './profile/node.js';
 export type { ProfileNamespace } from './profile/namespace.js';

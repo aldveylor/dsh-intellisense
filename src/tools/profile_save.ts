@@ -2,8 +2,8 @@ import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { NamespaceIntegration } from '../integration/namespace_integration.js';
 import type { ProfileSaveEvent } from '../profile/service.js';
 import type { ProfilePatch, ProfileWrite } from '../profile/catalog/profile_write.js';
-import { RegistryConfiguration } from '../profile/catalog/configuration.js';
-import { editedConfiguration } from '../profile/configuration.js';
+import { PlaneProfile } from '../profile/plane/profile.js';
+import { toPlaneProfile } from '../profile/plane/to_plane_profile.js';
 import { ProfileNotFoundError } from '../error.js';
 
 import type { ProfileData } from '../profile/catalog/profile_tree.js';
@@ -50,7 +50,7 @@ export async function writeProfile(sessions: NamespaceIntegration, agent: Agent,
             addition: tool => sessions.intellisense.toolAdditions.get(tool), owns: tool => catalog.owns(tool), original: baseline.serialize() });
         const value = { name: target, brief: snapshot.brief, root: snapshot.serialize() };
         const information = profileSaveInformation(value, sessions.physical(agent).map(tool => tool.id));
-        const configuration = editedConfiguration(value, exists ? catalog.configuration(target) : new RegistryConfiguration(), catalog.definitions);
+        const configuration = toPlaneProfile(value, exists ? catalog.configuration(target) : new PlaneProfile(), catalog.definitions);
         await catalog.saveProfile(target, configuration, { trusted: true, revision });
         agent.ctx.emit('system-prompt/change');
         const event: ProfileSaveEvent = Object.freeze({ name: target, time: new Date().toISOString(), type: operation });

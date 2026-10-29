@@ -3,8 +3,8 @@ import { NamespaceComponent } from '../../src/profile/component.js';
 import { EditableCommand } from '../../src/profile/command.js';
 import { EditableNamespace } from '../../src/profile/namespace.js';
 import { ValidationError, CurrentProfileDeletionError, UnknownCommandError, ProfileNotFoundError, ConversationRequiredError } from '../../src/error.js';
-import { editedConfiguration } from '../../src/profile/configuration.js';
-import { RegistryConfiguration, RegistryState } from '../../src/profile/catalog/configuration.js';
+import { toPlaneProfile } from '../../src/profile/plane/to_plane_profile.js';
+import { PlaneProfile, PlaneProfileState } from '../../src/profile/plane/profile.js';
 import { profileWrite } from '../../src/profile/catalog/profile_write.js';
 import { namespace, positionalArguments } from '../namespace/fixtures.js';
 import { test } from 'node:test';
@@ -35,13 +35,13 @@ async function fixture() {
     const profiles = new ProfileSessions(catalog, new MemoryStore());
     const addition = await profiles.addition(sessionFor(profiles, 'session'));
     // Read-only editor projection for assertions; production sessions contain only a reference.
-    const configuration = () => editedConfiguration({ name: addition.name, root: addition.profile.snapshot.serialize(), brief: addition.profile.snapshot.brief }, new RegistryConfiguration(), catalog.definitions);
+    const configuration = () => toPlaneProfile({ name: addition.name, root: addition.profile.snapshot.serialize(), brief: addition.profile.snapshot.brief }, new PlaneProfile(), catalog.definitions);
     const registry = {
         definitions: catalog.definitions, toolAdditions: catalog.toolAdditions,
         refresh: (tools: Parameters<SemanticRegistry['refresh']>[0]) => catalog.refresh(tools),
         tools: () => catalog.tools(), configuration,
         profileSelection: () => ({ selected: addition.name, profiles: [addition.name] }),
-        snapshot: () => new RegistryState({ ...configuration(), profile: addition.name, revision: addition.profile.pointer, profiles: [addition.name] }),
+        snapshot: () => new PlaneProfileState({ ...configuration(), profile: addition.name, revision: addition.profile.pointer, profiles: [addition.name] }),
     } as unknown as SemanticRegistry;
     const changed: string[] = [];
     const serviceContext = new Context();

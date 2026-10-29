@@ -33,10 +33,10 @@ export async function configureSession(namespaces: import('../../src/integration
 
 /** @brief Publish a test setup globally and explicitly switch its session to the new version. */
 export async function publishSessionFixture(namespaces: import('../../src/integration/namespace_integration.js').NamespaceIntegration, agent: import('@deepseek-ai/dsh-agent').Agent, snapshot: import('../../src/profile/profile.js').ProfileSnapshot): Promise<void> {
-    const { editedConfiguration } = await import('../../src/profile/configuration.js');
+    const { toPlaneProfile } = await import('../../src/profile/plane/to_plane_profile.js');
     const addition = await namespaces.addition(agent);
     const catalog = namespaces.namespace.registry;
-    await catalog.saveProfile(addition.name, editedConfiguration({ name: addition.name, root: snapshot.serialize(), brief: snapshot.brief }, catalog.configuration(addition.name), catalog.definitions), { trusted: true });
+    await catalog.saveProfile(addition.name, toPlaneProfile({ name: addition.name, root: snapshot.serialize(), brief: snapshot.brief }, catalog.configuration(addition.name), catalog.definitions), { trusted: true });
     await namespaces.profiles.load(agent.session, addition.name);
     await namespaces.configurationChanged(agent);
 }

@@ -1,7 +1,7 @@
 import { EditableNamespace, type ProfileNamespace } from '../namespace.js';
 import { EditableCommand, type ProfileCommand } from '../command.js';
 import { profileMembers } from '../namespace/namespace.js';
-import { editedConfiguration } from '../configuration.js';
+import { toPlaneProfile } from '../plane/to_plane_profile.js';
 import { SnapshotStore, type ProfileReference } from '../snapshot_store.js';
 import { profileTree, ProfileSchema } from './profile_tree.js';
 import { validateProfileEdit } from '../validate_edit.js';
@@ -14,7 +14,7 @@ import { toolName, validatePath } from './path.js';
 export { validatePath } from './path.js';
 import { storageVersion } from '../../storage/version.js';
 import type { Store } from '../../storage/store.js';
-import { RegistryConfiguration, RegistryState, type RegistryConfigurationData, type RegistryStateData } from './configuration.js';
+import { PlaneProfile, PlaneProfileState, type PlaneProfileData, type PlaneProfileStateData } from '../plane/profile.js';
 
 /** @brief Current named Profiles plus numeric versions; session archives are stored independently. */
 export interface ProfileCatalogData {
@@ -38,27 +38,11 @@ export interface PhysicalTool {
     outputDeclaration?: string;
 }
 
-/** @brief Command prompt exposure: hidden, brief, or fully documented. */
-export type PinLevel = 0 | 1 | 2;
+import type { PinLevel, CommandVisibility, Mapping, Namespace } from '../plane/profile.js';
+export type { PinLevel, CommandVisibility, Mapping, Namespace } from '../plane/profile.js';
 
-/** @brief Profile pin levels indexed by physical tool ID or builtin path. */
-export type CommandVisibility = Record<string, PinLevel>;
-
-/** @brief Semantic naming, exposure and stable path configuration. */
-export interface Mapping {
-    id: string;
-    path: string;
-    description?: string;
-    pinned: boolean;
-    alwaysVisible?: PinLevel;
-    disabled?: boolean;
-}
-
-/** @brief Persisted namespace documentation and unconditional prompt visibility. */
-export interface Namespace { disabled?: boolean; path: string; alwaysVisible: boolean; description: string }
-
-export { RegistryConfiguration, RegistryState } from './configuration.js';
-export type { RegistryConfigurationData, RegistryStateData } from './configuration.js';
+export { PlaneProfile, PlaneProfileState } from '../plane/profile.js';
+export type { PlaneProfileData, PlaneProfileStateData } from '../plane/profile.js';
 
 /** @brief Global configuration schema version, independent of the package version. */
 const configurationVersion = storageVersion;
@@ -73,7 +57,7 @@ export class SemanticRegistry {
         if (this.protectedCache?.revision !== this.definitions.revision) this.protectedCache = { revision: this.definitions.revision, root: this.definitions.createInitialProfile() };
         return this.protectedCache.root;
     }
-    private state = new RegistryState({ inactiveProfiles: {} });
+    private state = new PlaneProfileState({ inactiveProfiles: {} });
     private writeChain: Promise<unknown> = Promise.resolve();
 
     private aliases: readonly { path: string; tool: string }[] = [];
@@ -125,7 +109,7 @@ export class SemanticRegistry {
     }
 
     /** @brief Store current global Profiles and pointers; archive data is written only when a session enters. */
-    private async persist(state: RegistryState, updated: readonly string[] = []): Promise<void> {
+    private async persist(state: PlaneProfileState, updated: readonly string[] = []): Promise<void> {
         const configurations = { ...state.inactiveProfiles, [state.profile]: state };
         const references: Record<string, ProfileReference> = Object.create(null);
         for (const [name, configuration] of Object.entries(configurations)) {
@@ -135,11 +119,11 @@ export class SemanticRegistry {
                 references[name] = await this.snapshots.create(snapshot);
             }
         }
-        const canonicalConfigurations: [RegistryConfiguration, RegistryConfiguration][] = [];
+        const canonicalConfigurations: [PlaneProfile, PlaneProfile][] = [];
         for (const [name, configuration] of Object.entries(configurations)) {
             if (this.references[name] && !updated.includes(name)) continue;
             const snapshot = references[name]!.snapshot;
-            const canonical = editedConfiguration({ name, root: snapshot.serialize(), brief: snapshot.brief }, configuration, this.definitions);
+            const canonical = toPlaneProfile({ name, root: snapshot.serialize(), brief: snapshot.brief }, configuration, this.definitions);
             canonical.order = [...configuration.order];
             canonical.unmountedVisible = structuredClone(configuration.unmountedVisible);
             canonical.toolComments = structuredClone(configuration.toolComments);
@@ -161,7 +145,7 @@ export class SemanticRegistry {
         await this.snapshots.load();
         const saved = await this.store.load<ProfileCatalogData>('registry');
         if (saved === undefined) return;
-        const configurations: Record<string, RegistryConfiguration> = Object.create(null);
+        const configurations: Record<string, PlaneProfile> = Object.create(null);
         const references: Record<string, ProfileReference> = Object.create(null);
         const valid = saved && saved.version === configurationVersion && Number.isSafeInteger(saved.revision)
             && saved.revision >= 0 && saved.profiles && typeof saved.profiles === 'object' && !Array.isArray(saved.profiles);
@@ -173,7 +157,7 @@ export class SemanticRegistry {
                     ProfileSchema.parse({ name, root: value.root, brief: value.brief });
                     const reference = await this.snapshots.restore(value.pointer, { root: value.root, brief: value.brief });
                     const snapshot = reference.snapshot;
-                    const configuration = editedConfiguration({ name, root: snapshot.serialize(), brief: snapshot.brief }, new RegistryConfiguration(), this.definitions);
+                    const configuration = toPlaneProfile({ name, root: snapshot.serialize(), brief: snapshot.brief }, new PlaneProfile(), this.definitions);
                     const editor = saved.editor?.[name];
                     if (editor) {
                         this.validateVisibility(editor.unmountedVisible);
@@ -192,7 +176,7 @@ export class SemanticRegistry {
         let name = valid && Object.hasOwn(configurations, saved.profile) ? saved.profile : Object.keys(configurations)[0];
         if (!name && !recover) throw new Error('Invalid Profile reference catalog');
         name ??= 'Default';
-        const state = new RegistryState({ ...configurations[name], version: storageVersion, revision: valid ? saved.revision : 0, profile: name,
+        const state = new PlaneProfileState({ ...configurations[name], version: storageVersion, revision: valid ? saved.revision : 0, profile: name,
             inactiveProfiles: Object.fromEntries(Object.entries(configurations).filter(([key]) => key !== name)) });
         const previous = this.references;
         this.references = references;
@@ -224,10 +208,10 @@ export class SemanticRegistry {
         return { selected, profiles: [selected, ...Object.keys(this.state.inactiveProfiles ?? {})].sort((a, b) => a.localeCompare(b)) };
     }
 
-    snapshot(): RegistryState {
+    snapshot(): PlaneProfileState {
         const { inactiveProfiles: _inactiveProfiles, ...current } = this.state;
         const { selected: profile, profiles } = this.profileSelection();
-        return new RegistryState({ ...current, profile, profiles });
+        return new PlaneProfileState({ ...current, profile, profiles });
     }
 
     /** @brief Read catalog descriptions without copying namespace trees. */
@@ -238,19 +222,19 @@ export class SemanticRegistry {
     }
 
     /** @brief Extract only the configurable fields when archiving an active profile. */
-    configuration(name = this.state.profile ?? 'Default'): RegistryConfiguration {
+    configuration(name = this.state.profile ?? 'Default'): PlaneProfile {
         this.validateProfileName(name);
         if (name !== (this.state.profile ?? 'Default')) {
             const configuration = Object.hasOwn(this.state.inactiveProfiles ?? {}, name) ? this.state.inactiveProfiles![name] : undefined;
             if (!configuration) throw new ProfileNotFoundError(name);
-            return new RegistryConfiguration(configuration);
+            return new PlaneProfile(configuration);
         }
-        return new RegistryConfiguration(this.state);
+        return new PlaneProfile(this.state);
     }
 
     /** @brief Replace one reference's working configuration without modifying other holders. */
-    async replaceConfiguration(configuration: RegistryConfigurationData, profile: string): Promise<void> {
-        const detached = new RegistryConfiguration(configuration);
+    async replaceConfiguration(configuration: PlaneProfileData, profile: string): Promise<void> {
+        const detached = new PlaneProfile(configuration);
         await this.transaction(async () => {
             this.validateProfileName(profile);
             ProfileNodeSettingsSchema.parse(detached.nodeSettings);
@@ -262,23 +246,23 @@ export class SemanticRegistry {
             this.validateDisabled(detached.builtinDisabled, detached.providedRoot);
             this.validateNamespaceVisible(detached.namespaceVisible);
             this.validateComments(detached.toolComments ?? {});
-            const next: RegistryStateData = { ...this.state, ...detached, toolComments: detached.toolComments ?? {}, profile, revision: this.state.revision + 1 };
-            const state = new RegistryState(next);
+            const next: PlaneProfileStateData = { ...this.state, ...detached, toolComments: detached.toolComments ?? {}, profile, revision: this.state.revision + 1 };
+            const state = new PlaneProfileState(next);
             await this.persist(state, [profile]);
             this.state = state;
         });
     }
 
     /** @brief Publish a new named version; existing session references retain their own snapshots. */
-    async saveProfile(name: string, configuration: RegistryConfigurationData, options: { trusted?: boolean; create?: boolean; revision?: number } = {}): Promise<void> {
-        const detached = new RegistryConfiguration(configuration);
+    async saveProfile(name: string, configuration: PlaneProfileData, options: { trusted?: boolean; create?: boolean; revision?: number } = {}): Promise<void> {
+        const detached = new PlaneProfile(configuration);
         await this.transaction(async () => {
             this.validateProfileName(name);
             if (options.revision !== undefined && options.revision !== this.revision) throw new Error('registry_revision_conflict');
             const exists = this.profileSelection().profiles.includes(name);
             if (options.create && exists) throw new Error('profile_name_exists');
             if (!options.trusted) {
-                const original = exists ? this.configuration(name) : new RegistryConfiguration();
+                const original = exists ? this.configuration(name) : new PlaneProfile();
                 this.validateFixedMappings(detached.mappings, original.mappings);
                 validateProfileEdit(profileTree(name, original, this.definitions).root, profileTree(name, detached, this.definitions).root, this.definitions);
             }
@@ -291,10 +275,10 @@ export class SemanticRegistry {
             this.validateDisabled(detached.builtinDisabled, detached.providedRoot);
             this.validateNamespaceVisible(detached.namespaceVisible);
             this.validateComments(detached.toolComments ?? {});
-            const next: RegistryStateData = { ...this.state, revision: this.state.revision + 1 };
+            const next: PlaneProfileStateData = { ...this.state, revision: this.state.revision + 1 };
             if (name === (this.state.profile ?? 'Default')) Object.assign(next, detached, { toolComments: detached.toolComments ?? {} });
             else next.inactiveProfiles = { ...this.state.inactiveProfiles, [name]: detached };
-            const state = new RegistryState(next);
+            const state = new PlaneProfileState(next);
             await this.persist(state, [name]);
             this.state = state;
         });
@@ -318,10 +302,10 @@ export class SemanticRegistry {
             const active = this.state.profile ?? 'Default';
             const archive = this.state.save().inactiveProfiles ?? {};
             const exists = (name: string): boolean => name === active || Object.hasOwn(archive, name);
-            let next: RegistryStateData = { ...this.state, revision: revision + 1, inactiveProfiles: archive };
+            let next: PlaneProfileStateData = { ...this.state, revision: revision + 1, inactiveProfiles: archive };
             if (action === 'create') {
                 if (exists(name)) throw new Error('profile_name_exists');
-                const empty = new RegistryConfiguration();
+                const empty = new PlaneProfile();
                 if (activate) {
                     archive[active] = this.configuration();
                     next = { ...next, ...empty, profile: name };
@@ -347,7 +331,7 @@ export class SemanticRegistry {
                     } else delete archive[name];
                 } else throw new Error('Invalid profile action');
             }
-            const state = new RegistryState(next);
+            const state = new PlaneProfileState(next);
             const previousReferences = this.references;
             if (action === 'rename') this.references = { ...this.references, [newName!]: this.references[name]! };
             try { await this.persist(state); } catch (error) { this.references = previousReferences; throw error; }
@@ -459,8 +443,8 @@ export class SemanticRegistry {
                 this.validateProfileName(profile);
                 if (profile === (this.state.profile ?? 'Default') || Object.hasOwn(this.state.inactiveProfiles ?? {}, profile)) throw new Error('profile_name_exists');
             }
-            const base: RegistryConfigurationData = !activate && profile !== undefined && editingProfile === undefined
-                ? new RegistryConfiguration()
+            const base: PlaneProfileData = !activate && profile !== undefined && editingProfile === undefined
+                ? new PlaneProfile()
                 : this.configuration(editingProfile);
             this.validateMappings(detached);
             this.validateFixedMappings(detached, base.mappings);
@@ -496,7 +480,7 @@ export class SemanticRegistry {
             };
             const targetName = profile ?? editingProfile ?? this.state.profile;
             validateProfileEdit(profileTree(targetName, base, this.definitions).root, profileTree(targetName, configuration, this.definitions).root, this.definitions);
-            let next: RegistryStateData = { ...this.state, revision: this.state.revision + 1 };
+            let next: PlaneProfileStateData = { ...this.state, revision: this.state.revision + 1 };
             if (editingProfile !== undefined || !activate) {
                 const target = profile ?? editingProfile ?? this.state.profile ?? 'Default';
                 if (target === (this.state.profile ?? 'Default')) next = { ...next, ...configuration };
@@ -508,7 +492,7 @@ export class SemanticRegistry {
                     next.profile = profile;
                 }
             }
-            const state = new RegistryState(next);
+            const state = new PlaneProfileState(next);
             await this.persist(state, [targetName]);
             this.state = state;
         });
