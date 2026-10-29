@@ -19,7 +19,7 @@ export function unmountedTools(tools: PhysicalTool[], mappings: Mapping[], provi
         for (const child of namespace.children ?? []) visit(child);
     };
     provided.forEach(visit);
-    return tools.filter(tool => !mounted.has(tool.id));
+    return tools.filter(tool => !mounted.has(tool.id) && !tool.addition?.fixed && !tool.addition?.hidden);
 }
 
 /** @brief Convert serialized tree/leaf descriptions into view contracts and apply the local draft. */
@@ -48,7 +48,7 @@ export function providedNamespace(path: string, roots: readonly ProvidedNamespac
 export function providedTools(roots: readonly ProvidedNamespace[], tools: readonly PhysicalTool[]): Array<{ tool: PhysicalTool; path: string }> {
     return roots.flatMap(namespace => [
         ...namespace.commands.flatMap(command => command.id ? [{ path: command.path, tool: tools.find(tool => tool.id === command.id) ?? {
-            id: command.id, description: command.description, parameters: command.node.command?.schema ?? {}, output: command.node.command?.output,
+            id: command.id, addition: { fixed: true }, description: command.description, parameters: command.node.command?.schema ?? {}, output: command.node.command?.output,
         } }] : []),
         ...providedTools(namespace.children ?? [], tools),
     ]);

@@ -28,7 +28,7 @@ const managementRequest = z.discriminatedUnion('action', [
 /** @brief Register management UI and APIs behind DSH owner-peer authentication and Host/Origin policy. */
 export function registerManagement(ctx: Context, globalRegistry: SemanticRegistry, adapter: Pick<NamespaceComponent, 'refresh'> & Partial<Pick<NamespaceComponent, 'statistics'>> & { recover?: () => Promise<void> }): void {
     const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
-    let catalog: { generation: string; tools: PhysicalTool[]; provided: SerializedNode[] } | undefined;
+    let catalog: { generation: string; tools: PhysicalTool[]; physical: PhysicalTool[]; provided: Map<string, SerializedNode[]> } | undefined;
     ctx.connection.fetch.register({ path: '/api/ts-intellisense', methods: ['GET'], requestBody: 'buffered', fetch: async () => new Response(managementHtml, { headers: { ...headers, 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'" } }) });
     ctx.connection.fetch.register({ path: '/api/ts-intellisense-client', methods: ['GET'], requestBody: 'buffered', fetch: async () => new Response(await readFile(new URL('../standalone.js', import.meta.url), 'utf8'), { headers: { ...headers, 'Content-Type': 'text/javascript; charset=utf-8' } }) });
     ctx.connection.fetch.register({ path: '/api/ts-intellisense-docs-image', methods: ['GET'], requestBody: 'buffered', fetch: async request => {
@@ -53,10 +53,18 @@ export function registerManagement(ctx: Context, globalRegistry: SemanticRegistr
                     catalog = {
                         generation: registry.generation,
                         tools: tools.map(tool => ({ ...tool, outputDeclaration: returnTypeDeclaration(tool.output) })),
-                        provided: [...createNamespace({ tools, includeUnavailable: true }).children.values()].map(node => node.serialize()),
+                        physical: tools, provided: new Map(),
                     };
                 }
-                return Response.json({ defaultProfile: state.profile, profileBriefs: registry.profileBriefs(), state: { ...state, ...registry.configuration(profile), profile }, tools: catalog.tools, callsByTool: statistics?.callsByTool ?? {}, queriesByTool: statistics?.queriesByTool ?? {}, namespaceQueriesByPath: statistics?.namespaceQueriesByPath ?? {}, provided: catalog.provided, effective: registry.effective() }, { headers });
+                const selected = registry.configuration(profile);
+                let provided = catalog.provided.get(profile);
+                if (!provided) {
+                    provided = [...createNamespace({ tools: catalog.physical, includeUnavailable: true,
+                        definitions: selected.providedRoot ?? registry.definitions.tree(profile), addition: tool => registry.definitions.addition(tool), nodeSettings: selected.nodeSettings,
+                    }).children.values()].map(node => node.serialize());
+                    catalog.provided.set(profile, provided);
+                }
+                return Response.json({ defaultProfile: state.profile, profileBriefs: registry.profileBriefs(), state: { ...state, ...selected, profile }, tools: catalog.tools, callsByTool: statistics?.callsByTool ?? {}, queriesByTool: statistics?.queriesByTool ?? {}, namespaceQueriesByPath: statistics?.namespaceQueriesByPath ?? {}, provided, effective: registry.effective() }, { headers });
             }
             if (!request.headers.get('content-type')?.startsWith('application/json')) return Response.json({ error: 'expected_json' }, { status: 415, headers });
             const bodyText = await request.text();

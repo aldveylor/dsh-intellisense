@@ -1,4 +1,4 @@
-import { array, boolean, literal, record, strictObject, string, union } from 'zod';
+import { array, boolean, literal, record, strictObject, string, union, unknown } from 'zod';
 
 /** @brief Shared JSON Profile configuration validation for uploads and management writes. */
 const mapping = strictObject({ id: string().min(1), path: string().min(1), description: string().optional(), pinned: boolean(), disabled: boolean().optional(), alwaysVisible: union([literal(0), literal(1), literal(2)]).optional() });
@@ -13,5 +13,8 @@ export const profileConfiguration = {
 
 /** @brief Validate a complete uploaded configuration before replacing editor state. */
 export function parseProfileJson(text: string) {
-    return strictObject(profileConfiguration).parse(JSON.parse(text.replace(/^\uFEFF/, '')));
+    const { nodeSettings: _nodeSettings, providedRoot: _providedRoot, ...configuration } = strictObject({
+        ...profileConfiguration, nodeSettings: unknown().optional(), providedRoot: unknown().optional(),
+    }).parse(JSON.parse(text.replace(/^\uFEFF/, '')));
+    return configuration;
 }

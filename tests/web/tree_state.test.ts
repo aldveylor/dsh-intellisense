@@ -59,3 +59,17 @@ test('cached subtree counts update ancestors after membership edits and retain p
     assert.equal(files.remove('missing'), false);
     assert.throws(() => tree.root.remove('tools'), /cannot be removed/);
 });
+
+test('stored permissions retain existing children while limiting namespace and command edits', () => {
+    const tree = new NamespaceTree({
+        namespaces: [{ path: 'files', description: 'Files', alwaysVisible: false }],
+        mappings: [{ id: 'read', path: 'files.read', pinned: false }], order: [],
+        nodeSettings: { children: { files: { permissions: { acceptsChildren: false }, children: { read: { permissions: { removable: false, movable: false } } } } } },
+    }, [], []);
+    const files = tree.root.resolve(['files'])!;
+    const read = tree.root.resolve(['files', 'read'])!;
+    assert.equal(files.permissions.acceptsChildren, false);
+    assert.equal(read.permissions.removable, false);
+    assert.equal(read.permissions.movable, false);
+    assert.throws(() => (files as NamespaceTreeNode).remove('read'), /cannot be removed/);
+});

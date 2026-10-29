@@ -1,3 +1,4 @@
+import { permissionsAt } from '../../registry/profile/node_settings.js';
 import type { PhysicalTool } from '../../registry/registry.js';
 import type { ProvidedNamespace } from './tree_provider.js';
 import { namespacePaths, orderedPaths, type TreeDraft } from './namespace_tree.js';
@@ -27,8 +28,8 @@ export class NamespaceTree {
             const parent = ensureNamespace(parts.slice(0, -1).join('.'));
             const existing = parent.children.find(node => node.name === parts.at(-1));
             if (existing instanceof NamespaceTreeNode) return existing;
-            const node = new NamespaceTreeNode(parts.at(-1)!, parent, draft.namespaces.find(namespace => namespace.path === path));
-            if (parent.permissions.acceptsChildren) parent.add(node);
+            const node = new NamespaceTreeNode(parts.at(-1)!, parent, draft.namespaces.find(namespace => namespace.path === path), permissionsAt(draft.nodeSettings, parts));
+            parent.add(node);
             return node;
         };
         for (const path of namespacePaths(draft)) ensureNamespace(path);
@@ -38,7 +39,7 @@ export class NamespaceTree {
             const parts = path.split('.');
             const parent = ensureNamespace(parts.slice(0, -1).join('.'));
             const tool = toolsById.get(mapping.id);
-            if (parent.permissions.acceptsChildren) parent.add(new CommandTreeNode(parts.at(-1)!, parent, mapping, tool?.description, tool));
+            parent.add(new CommandTreeNode(parts.at(-1)!, parent, mapping, tool?.description, tool, permissionsAt(draft.nodeSettings, parts)));
         }
         /** @brief Apply Profile ordering recursively to editable branches. */
         const sort = (parent: NamespaceTreeNode): void => {

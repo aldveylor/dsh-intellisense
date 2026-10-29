@@ -12,13 +12,13 @@ export interface TreeRenderer<T> {
 export abstract class TreeNode implements Node {
     abstract readonly type: NodeType;
 
-    constructor(readonly name: string, readonly parent: NamespaceTreeNode | undefined = undefined) {}
+    constructor(readonly name: string, readonly parent: NamespaceTreeNode | undefined = undefined, private readonly permissionOverrides?: Partial<Permission>) {}
 
     /** @brief Derive boundary paths from parent references instead of storing a second identity. */
     get path(): string { return this.parent?.path ? `${this.parent.path}.${this.name}` : this.name; }
 
     /** @brief Share permission choices with the integration node model. */
-    get permissions(): Permission { return nodePermissions(this.type); }
+    get permissions(): Permission { return nodePermissions(this.type, this.permissionOverrides); }
 
     /** @brief Whether structural editing is prohibited for this node. */
     get fixed(): boolean { return !this.permissions.renamable && !this.permissions.movable && !this.permissions.removable; }

@@ -10,27 +10,27 @@ import { usePickerPreferences } from './session_preferences.js';
 import { ToolLayout } from './tool_layout/tool_layout.js';
 import { ToolDetails } from './tool_details.js';
 import type { Mapping, PhysicalTool } from '../../registry/registry.js';
-import { reservedToolIds } from '../../runtime/builtins.js';
 
 /** @brief One tool card with its binding path and shared pointer-following details. */
 function ToolCard({ tool, mappings, builtinPath, calls, queries, busy, select, detailed = false }: {
     detailed?: boolean; tool: PhysicalTool; mappings: Mapping[]; builtinPath?: string; calls: number; queries: number; busy: boolean; select: (tool: PhysicalTool) => void;
 }) {
     const t = useTranslation();
+    const fixed = tool.addition ? !!tool.addition.fixed : !!builtinPath;
     const tooltip = useTooltip();
     const pointerHandlers = {
-        onPointerEnter: (event: PointerEvent<HTMLElement>) => tooltip.show(<><ActionHint action={t('add_tools')} description={t(builtinPath ? 'builtin_tool_card_hint' : 'add_tool_card_hint')} /><ToolDetails tool={tool} calls={calls} queries={queries} /></>, event.clientX, event.clientY),
+        onPointerEnter: (event: PointerEvent<HTMLElement>) => tooltip.show(<><ActionHint action={t('add_tools')} description={t(fixed ? 'builtin_tool_card_hint' : 'add_tool_card_hint')} /><ToolDetails tool={tool} calls={calls} queries={queries} /></>, event.clientX, event.clientY),
         onPointerMove: (event: PointerEvent<HTMLElement>) => tooltip.move(event.clientX, event.clientY, event.ctrlKey),
         onPointerLeave: tooltip.leave,
     };
     return <button type="button" data-tool-id={tool.id} aria-describedby={detailed ? undefined : tooltip.id}
-        className={`ts-tool ${builtinPath ? 'ts-builtin-tool' : mappings.length ? '' : 'ts-unmounted'}`} disabled={busy || !!builtinPath}
+        className={`ts-tool ${fixed ? 'ts-builtin-tool' : mappings.length ? '' : 'ts-unmounted'}`} disabled={busy || fixed}
         {...(detailed ? {} : pointerHandlers)}
         onFocus={event => {
             if (detailed) return;
             const rect = event.currentTarget.getBoundingClientRect();
-            tooltip.show(<><ActionHint action={t('add_tools')} description={t(builtinPath ? 'builtin_tool_card_hint' : 'add_tool_card_hint')} /><ToolDetails tool={tool} calls={calls} queries={queries} /></>, rect.left, rect.bottom);
-        }} onBlur={tooltip.leave} onClick={() => { if (!builtinPath && !busy) { tooltip.hide(); select(tool); } }}>
+            tooltip.show(<><ActionHint action={t('add_tools')} description={t(fixed ? 'builtin_tool_card_hint' : 'add_tool_card_hint')} /><ToolDetails tool={tool} calls={calls} queries={queries} /></>, rect.left, rect.bottom);
+        }} onBlur={tooltip.leave} onClick={() => { if (!fixed && !busy) { tooltip.hide(); select(tool); } }}>
         {detailed ? <>
             <span className="ts-tool-list-main">
                 <span className="ts-tool-list-title"><strong aria-describedby={tooltip.id} {...pointerHandlers}>{tool.id}</strong><code className="ts-tool-footer">{builtinPath || mappings.map(mapping => mapping.path).join('; ') || t('unmounted')}</code></span>
@@ -66,14 +66,14 @@ export function ToolPicker({ parent, tools, mappings, unmountedOnly = false, pro
             else mappingsByTool.set(mapping.id, [mapping]);
         }
         const protectedPaths = new Map(protectedTools.map(entry => [entry.tool.id, entry.path]));
-        const cards = [...tools.filter(tool => !protectedPaths.has(tool.id) && !reservedToolIds.includes(tool.id)), ...protectedTools.map(entry => entry.tool)].map(tool => {
+        const cards = [...tools.filter(tool => !protectedPaths.has(tool.id) && !tool.addition?.hidden), ...protectedTools.map(entry => entry.tool)].filter(tool => !tool.addition?.hidden).map(tool => {
             const mounts = mappingsByTool.get(tool.id) ?? [];
             return { tool, search: `${tool.id} ${mounts.map(mapping => mapping.path).join(' ')} ${tool.description} ${mounts.map(mapping => mapping.description ?? '').join(' ')}`.toLowerCase() };
         });
         return { cards, mappingsByTool, protectedPaths };
     }, [tools, mappings, protectedTools]);
     const matches = cards.filter(card => {
-        const category = protectedPaths.has(card.tool.id) ? 'fixed' : mappingsByTool.has(card.tool.id) ? 'mounted' : 'unmounted';
+        const category = (card.tool.addition ? card.tool.addition.fixed : protectedPaths.has(card.tool.id)) ? 'fixed' : (mappingsByTool.has(card.tool.id) || protectedPaths.has(card.tool.id)) ? 'mounted' : 'unmounted';
         return categories.includes(category) && card.search.includes(filter);
     }).map(card => card.tool);
     if (sort !== 'default') matches.sort((a, b) => {
@@ -86,7 +86,7 @@ export function ToolPicker({ parent, tools, mappings, unmountedOnly = false, pro
 
     const groups = new Map<string, PhysicalTool[]>();
     for (const tool of matches) {
-        const key = grouping === 'type' ? (protectedPaths.has(tool.id) ? 'fixed' : mappingsByTool.has(tool.id) ? 'mounted' : 'unmounted')
+        const key = grouping === 'type' ? ((tool.addition ? tool.addition.fixed : protectedPaths.has(tool.id)) ? 'fixed' : (mappingsByTool.has(tool.id) || protectedPaths.has(tool.id)) ? 'mounted' : 'unmounted')
             : grouping === 'source' ? tool.source?.trim() || '' : '';
         const group = groups.get(key);
         if (group) group.push(tool);

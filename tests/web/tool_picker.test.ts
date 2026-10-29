@@ -242,3 +242,34 @@ test('tool category filter combines selections and keeps the picker open on Esca
         assert.equal(document.querySelectorAll('dialog [data-tool-id]').length, 0);
     } finally { dom.window.close(); }
 });
+
+test('tool additions hide private tools and disable fixed tools without a provided namespace', async () => {
+    const registry = new SemanticRegistry(new MemoryStore());
+    registry.refresh(['ordinary', 'fixed_custom', 'hidden_custom'].map(id => ({ id, description: id, parameters: {}, output: {} })));
+    registry.definitions.setToolAddition('fixed_custom', { fixed: true });
+    registry.definitions.setToolAddition('hidden_custom', { hidden: true });
+    const routes = new Map<string, (request: Request) => Promise<Response>>();
+    const ctx = { connection: { fetch: { register: (route: { path: string; fetch: (request: Request) => Promise<Response> }) => routes.set(route.path, route.fetch) } } } as unknown as Context;
+    registerManagement(ctx, registry, { refresh: async () => {} });
+    const dom = new JSDOM(managementHtml, { url: 'http://localhost/api/ts-intellisense', runScripts: 'outside-only', pretendToBeVisual: true });
+    try {
+        const { window } = dom;
+        const { document } = window;
+        window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
+        window.structuredClone = structuredClone;
+        window.fetch = async url => routes.get('/api/ts-intellisense-state')!(new Request(new URL(String(url), 'http://localhost')));
+        window.eval(await readFile(new URL('../../dist/web/standalone.js', import.meta.url), 'utf8'));
+        await until(() => !!document.querySelector('[data-unmounted-count]'));
+        assert.equal(document.querySelector<HTMLElement>('[data-unmounted-count]')!.dataset.unmountedCount, '1');
+        document.querySelector<HTMLButtonElement>('[data-unmounted-count]')!.click();
+        await until(() => !!document.querySelector('dialog[open]'));
+        document.querySelector<HTMLButtonElement>('.ts-tool-filter:not(.ts-tool-layout) > .ts-tool-filter-trigger')!.click();
+        await until(() => !!document.querySelector('[role="menuitemcheckbox"][value="fixed"]'));
+        const fixedCategory = document.querySelector<HTMLButtonElement>('[role="menuitemcheckbox"][value="fixed"]')!;
+        if (fixedCategory.getAttribute('aria-checked') !== 'true') fixedCategory.click();
+        await until(() => !!document.querySelector('[data-tool-id="fixed_custom"]'));
+        assert.equal(document.querySelector<HTMLButtonElement>('[data-tool-id="fixed_custom"]')!.disabled, true);
+        assert.equal(document.querySelector('[data-tool-id="hidden_custom"]'), null);
+        assert.equal(document.querySelector<HTMLButtonElement>('[data-tool-id="ordinary"]')!.disabled, false);
+    } finally { dom.window.close(); }
+});

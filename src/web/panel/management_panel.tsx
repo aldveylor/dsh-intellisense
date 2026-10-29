@@ -140,7 +140,7 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
     }
 
     const provided = useMemo(() => TreeProvider(view?.provided ?? [], builtinVisible), [view?.provided, builtinVisible]);
-    const namespaceTree = useMemo(() => new NamespaceTree({ mappings, namespaces, order }, provided, view?.tools ?? []), [mappings, namespaces, order, provided, view?.tools]);
+    const namespaceTree = useMemo(() => new NamespaceTree({ mappings, namespaces, order, nodeSettings: view?.state.nodeSettings }, provided, view?.tools ?? []), [mappings, namespaces, order, provided, view?.tools, view?.state.nodeSettings]);
     const unmounted = useMemo(() => unmountedTools(view?.tools ?? [], mappings, provided), [view?.tools, mappings, provided]);
     const toolsById = useMemo(() => new Map(view?.tools.map(tool => [tool.id, tool])), [view?.tools]);
     const paths = useMemo(() => [...new Set([...provided.map(node => node.path), ...namespacePaths({ mappings, namespaces })])], [provided, mappings, namespaces]);

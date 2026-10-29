@@ -77,3 +77,5 @@ Profile 草稿包含可选 brief；树上方以浅色显示配置描述，空白
 tree_state.ts 通过单次树遍历建立有效禁用状态及祖先禁用状态索引，仅配置或树变化时重建，渲染时按路径读取；权限仍由节点决定，子项自身禁用偏好不丢失。
 
 `native_panel.tsx` 将宿主语言订阅、Button、InlineEditor 和 CodeBlock 上下文桥接到管理面板。
+
+工具选择器读取 ToolAddition.fixed/hidden，不按物理工具名称推断：fixed 卡片禁用挂载，hidden 不显示；未挂载数量排除二者。提供节点路径只表示已有挂载位置，物理工具是否固定仍由服务端附加属性决定。

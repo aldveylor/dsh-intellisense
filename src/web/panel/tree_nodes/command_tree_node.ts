@@ -3,13 +3,13 @@ import { TreeNode } from './tree_node.js';
 import type { NamespaceTreeNode } from './namespace_tree_node.js';
 import type { Mapping, PhysicalTool } from '../../../registry/registry.js';
 import type { ProvidedCommand } from '../tree_provider.js';
-import { fixLevel, type NodeType, type SerializedNode } from '../../../namespace/node.js';
+import { fixLevel, type Permission, type NodeType, type SerializedNode } from '../../../namespace/node.js';
 
 /** @brief An independently editable mounting path for a physical command. */
 export class CommandTreeNode extends TreeNode {
     readonly type: NodeType = 'leaf';
 
-    constructor(name: string, parent: NamespaceTreeNode, readonly mapping?: Mapping, readonly description?: string, readonly physical?: PhysicalTool) { super(name, parent); }
+    constructor(name: string, parent: NamespaceTreeNode, readonly mapping?: Mapping, readonly description?: string, readonly physical?: PhysicalTool, permissions?: Partial<Permission>) { super(name, parent, permissions); }
 
     /** @brief Optional builtin contract used for command presentation and pinning. */
     get command(): ProvidedCommand | undefined { return undefined; }

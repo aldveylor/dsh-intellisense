@@ -9,3 +9,5 @@ provided_command_tree_node.ts 和 provided_namespace_tree_node.ts 代理服务�
 CommandTreeNode 对应单个挂载路径，其 Mapping 独立持有该路径的固定等级、禁用状态与简化描述。
 
 命名空间 children 为只读视图，构造及编辑通过 add/remove 修改成员并使祖先计数缓存失效；sort 仅调整顺序。普通节点首次读取 count 缓存递归结果，整树构造后预热；服务端子树继续显示直接成员数。
+
+普通命令和命名空间同样读取服务端 nodeSettings 中的递归权限。构造已有子节点时不使用 acceptsChildren 过滤成员，该权限仅限制新增编辑。

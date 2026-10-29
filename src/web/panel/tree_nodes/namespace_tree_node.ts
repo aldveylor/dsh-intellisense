@@ -1,7 +1,7 @@
 import type { TreeRenderer } from './tree_node.js';
 import { TreeNode } from './tree_node.js';
 import type { Namespace } from '../../../registry/registry.js';
-import type { NodeType, SerializedNode } from '../../../namespace/node.js';
+import type { Permission, NodeType, SerializedNode } from '../../../namespace/node.js';
 
 /** @brief An editable namespace owns ordered child references and counts descendant commands. */
 export class NamespaceTreeNode extends TreeNode {
@@ -12,7 +12,7 @@ export class NamespaceTreeNode extends TreeNode {
     /** @brief Expose children without allowing mutations to bypass count invalidation. */
     get children(): readonly TreeNode[] { return this.members; }
 
-    constructor(name: string, parent?: NamespaceTreeNode, readonly metadata?: Namespace) { super(name, parent); }
+    constructor(name: string, parent?: NamespaceTreeNode, readonly metadata?: Namespace, permissions?: Partial<Permission>) { super(name, parent, permissions); }
 
     /** @brief Append direct children and invalidate cached ancestor counts. */
     add(...nodes: TreeNode[]): void { this.members.push(...nodes); this.invalidateCount(); }

@@ -1,9 +1,10 @@
+import type { ProfileNodeSettings } from '../../registry/profile/node_settings.js';
 import { providedNamespace, type ProvidedNamespace } from './tree_provider.js';
 import { validateNodePath as validatePath } from '../../namespace/node.js';
 import type { Mapping, Namespace } from '../../registry/registry.js';
 
 /** @brief The editable tree configuration independent of physical tool identities. */
-export interface TreeDraft { mappings: Mapping[]; namespaces: Namespace[]; order: string[]; provided?: readonly ProvidedNamespace[] }
+export interface TreeDraft { nodeSettings?: ProfileNodeSettings; mappings: Mapping[]; namespaces: Namespace[]; order: string[]; provided?: readonly ProvidedNamespace[] }
 
 /** @brief Fixed namespaces are display-only and cannot receive configurable tree nodes. */
 export function isFixedNamespace(path: string, provided: readonly ProvidedNamespace[] = []): boolean {
