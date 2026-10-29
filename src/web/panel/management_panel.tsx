@@ -1,4 +1,4 @@
-import { treeDisabledState } from './tree_state.js';
+import { treeDisabledState, treeInspectWarning } from './tree_state.js';
 import { NamespaceSection } from './namespace_section/namespace_section.js';
 import type { TreeProps } from './tree_view/tree_props.js';
 import { UsageDialog } from '../documentation/usage_dialog.js';
@@ -8,7 +8,7 @@ import { useTranslation } from '../locale/locale.js';
 import styles from './management_panel.css';
 import { ErrorDialog } from './error_dialog.js';
 import { useLayoutMotion } from '../ui/animation/layout_motion.js';
-import { NamespaceTree, type TreeNode } from './tree_node.js';
+import { NamespaceTree } from './tree_node.js';
 import { useEffect, useMemo, useRef, useState, type ComponentType, type DragEvent } from 'react';
 import type { Namespace, Mapping, PhysicalTool, PlaneProfileStateData as PlaneProfileState, PinLevel, CommandVisibility, PlaneProfileData as PlaneProfile } from '../../profile/catalog/registry.js';
 import { nextFixLevel, type SerializedNode } from '../../profile/namespace/node.js';
@@ -369,22 +369,7 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
         toggle: path => setExpanded(current => ({ ...current, [path]: !(current[path] ?? false) })), dropNode: (event) => nativeDrop(event, treeDropTarget(event.currentTarget, event.clientY)),
     }), [disabledStates, namespaceTree, mappings, namespaces, order, paths, provided, expanded, namespaceVisible, builtinDisabled, toolComments, unmountedVisible, toolsById, view?.tools, view?.callsByTool, view?.queriesByTool, view?.queriesByPath, view?.effective]);
 
-    const inspectWarning = useMemo(() => {
-        let inspectAvailable = false;
-        let incompletePins = false;
-        const visit = (node: TreeNode): void => {
-            if (tree.disabled(node.path)) return;
-            node.render({
-                function: command => {
-                    if (command.path === 'tools.inspect') inspectAvailable = toolsById.has(command.function?.id ?? '');
-                    else if (command.level !== 2) incompletePins = true;
-                },
-                namespace: namespace => namespace.children.forEach(visit),
-            });
-        };
-        namespaceTree.roots.forEach(visit);
-        return !inspectAvailable && incompletePins;
-    }, [namespaceTree, tree, toolsById]);
+    const inspectWarning = useMemo(() => treeInspectWarning(namespaceTree.roots, tree.disabled, new Set(toolsById.keys())), [namespaceTree, tree, toolsById]);
 
     return <div className="ts-intellisense" ref={drag.container} onPointerDownCapture={drag.pointerDown} onDragStartCapture={drag.preventNativeDrag}>
         <style>{styles}</style><TooltipProvider>
