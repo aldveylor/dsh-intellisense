@@ -333,7 +333,7 @@ test('RootNamespace cannot alias its tools node or move its protected descendant
 });
 
 
-test('snapshot resolve returns only enabled physical names without service execution interfaces', async () => {
+test('snapshot resolve returns enabled nodes by identity without service execution interfaces', async () => {
     const { service, registry } = fixture();
     await service.create('Work');
     await service.edit('Work', snapshot => {
@@ -341,9 +341,12 @@ test('snapshot resolve returns only enabled physical names without service execu
         return snapshot;
     });
     const snapshot = (await service.get('Work'))!;
-    assert.equal(snapshot.resolve('files.read'), 'read');
-    assert.equal(snapshot.resolve('global.files.read'), 'read');
-    for (const path of ['files', '', 'files.', 'files.read.', 'files.missing', '__proto__.read']) assert.equal(snapshot.resolve(path), undefined);
+    assert.equal(snapshot.resolve('files.read'), namespaceNode(snapshot.get('files')).get('read'));
+    assert.equal(snapshot.resolve('global.files.read'), snapshot.resolve('files.read'));
+    assert.equal(snapshot.resolve('files'), snapshot.get('files'));
+    assert.equal(snapshot.resolve(''), snapshot);
+    assert.equal(snapshot.resolve('global.'), snapshot);
+    for (const path of ['files.', 'files.read.', 'files.missing', '__proto__.read']) assert.equal(snapshot.resolve(path), undefined);
     assert.equal(registry.profileSelection().selected, 'Default');
     assert.equal('dispatch' in service, false);
     assert.equal('dispatchTool' in service, false);
@@ -356,6 +359,9 @@ test('snapshot resolve returns only enabled physical names without service execu
     assert.equal(snapshot.resolve('files.read'), undefined);
     const editable = (await service.get('Work'))!;
     editable.create('unbound', () => new EditableCommand('unbound'));
-    assert.equal(editable.resolve('files.read'), 'read');
-    assert.equal(editable.resolve('unbound'), undefined);
+    assert.equal(commandNode(editable.resolve('files.read')).tool, 'read');
+    assert.equal(editable.resolve('unbound'), editable.get('unbound'));
+    editable.setDisabled(true);
+    assert.equal(editable.resolve(''), undefined);
+    assert.equal(editable.resolve('files.read'), undefined);
 });

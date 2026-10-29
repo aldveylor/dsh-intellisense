@@ -131,7 +131,8 @@ export function manifest(registry: SemanticRegistry, aliases: z.infer<typeof Ali
     for (const mapping of effective) {
         // Unmounted tools have no namespace mount until a plugin or Profile adds one.
         if (!state.mappings.some(saved => saved.path === mapping.path && saved.id === mapping.id)) continue;
-        const tool = profile.resolve(mapping.path);
+        const node = profile.resolve(mapping.path);
+        const tool = node?.type === 'command' ? (node as ProfileCommand).tool : undefined;
         if (tool) insert(mapping.path, tool);
     }
     const mounted = new Set(effective.map(mapping => mapping.id));

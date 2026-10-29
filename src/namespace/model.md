@@ -2,7 +2,7 @@
 
 `service.ts` 的 ToolsNamespace 仅继承 ProfileCollection，并提供保存事件 effect；`component.ts` 实现具名 Profile 创建、读取、编辑和删除。get/edit 只接受目录名称，返回独立匿名快照；edit 原子发布回调返回的树。createInitialProfile 为无参数工厂，默认创建 RootNamespace。该服务不提供命令查询、执行、搜索引擎、统计、工具属性或命名空间实现注册。
 
-命令名称解析属于 ProfileSnapshot.resolve(path)，只遍历快照内的节点，支持 global. 前缀并检查命令及祖先禁用状态。返回物理名称或 undefined，不查询工具目录、不调用工具、不统计 inspect 查询；无关的未绑定成员不影响目标解析。物理可用性和执行权限交给调用层及 DSH。
+节点路径解析属于 ProfileSnapshot.resolve(path)，只遍历快照内的节点，支持 global. 前缀并检查节点及祖先禁用状态。返回原始节点或 undefined，空路径返回快照自身，不查询工具目录、不调用工具、不统计 inspect 查询；无关的未绑定成员不影响目标解析。物理可用性和执行权限交给调用层及 DSH。
 
 `tool_addition.ts` 独立定义物理工具附加属性，`definitions.ts` 管理可撤销的工具属性、命名空间实现、Profile 工厂和保存事件。builtin_profile.ts 直接通过定义注册内置工具契约，与 ToolsNamespace 的 Profile 目录 API 分离。ProfileSaveEffect 只通知提交后的 name/time/type，返回值不参与工具反馈；校验和提示由 tools/profile_save.ts 处理。
 

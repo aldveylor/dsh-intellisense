@@ -107,6 +107,6 @@ ProfileRootWrite 的匿名根只允许 type/children，拒绝没有持久化表�
 
 Profile 操作模型详见 registry/profile/model.md 与 tools/profile_nodes/model.md。ProfileCollection.createInitialProfile 是无参数初始生成函数；节点 create/getOrCreate 使用 (name, factory: () => T)，T extends ProfileNode，返回 T；get/set 使用 ProfileNode，type 基础声明为 string。apply 为基础操作，save 比较完整目标再 apply 差异，普通省略节点删除。effect 仅通知保存事件，不处理返回值。
 
-ToolsNamespace 仅提供 ProfileCollection 和保存事件。ProfileSnapshot.resolve(path) 只返回启用命令的物理名称；AgentSessionAddition.statistics.increment([tool]) 统计调用，inspect 独立统计查询。搜索、工具属性和执行接口不属于 ToolsNamespace 或 AgentSessionAddition。
+ToolsNamespace 仅提供 ProfileCollection 和保存事件。ProfileSnapshot.resolve(path) 返回当前快照内启用的原始节点（命名空间或命令），空路径返回快照自身；AgentSessionAddition.statistics.increment([tool]) 统计调用，inspect 独立统计查询。搜索、工具属性和执行接口不属于 ToolsNamespace 或 AgentSessionAddition。
 
 全局 `ctx.intellisense` 提供 profiles（共享具名目录）、statistics.calls / statistics.queries（按工具名累计）以及 inspectStatistics（按 Profile 名称隔离的路径查询统计）、searchEngines。服务类型定义在 integration/intellisense.ts，根入口导出 Intellisense；统计实现位于 statistics/，namespace 仅负责在插件装配时挂载服务。

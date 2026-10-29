@@ -89,7 +89,7 @@ test('session hydration reads plain Profile data without registry version metada
     const catalog = new SemanticRegistry(new MemoryStore());
     const sessions = new ProfileSessions(catalog, store);
     const addition = await sessions.addition(sessionFor(sessions, 'existing'));
-    assert.equal(addition.profile.resolve('files.read'), 'read');
+    assert.equal(addition.profile.resolve('files.read')?.serialize().command?.tool, 'read');
     const registry = await sessions.forSession(sessionFor(sessions, 'existing'));
     assert.equal(registry.profileSelection().selected, 'Work');
     assert.deepEqual(registry.configuration().mappings, [mapping]);

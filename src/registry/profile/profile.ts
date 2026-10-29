@@ -1,11 +1,12 @@
 import type { ProfileData } from '../profile_tree.js';
 import type { ProfilePatch, ProfileWrite } from '../profile_write.js';
+import type { ProfileNode } from './node.js';
 import type { ProfileNamespace } from './namespace.js';
 
 /** @brief A portable anonymous Profile tree snapshot, independent of its catalog name. */
 export interface Profile extends ProfileNamespace {
-    /** @brief Resolve an enabled command path to its physical name without execution or catalog access. */
-    resolve(path: string): string | undefined;
+    /** @brief Resolve an enabled node path within this snapshot without execution or catalog access. */
+    resolve(path: string): ProfileNode | undefined;
     /** @brief Clone a Profile or hydrate stored data while retaining the concrete root and member implementations. */
     clone(value?: Pick<ProfileData, 'root' | 'brief'>): ProfileSnapshot;
     /** @brief Apply an explicit patch through this root and its child implementations. */
