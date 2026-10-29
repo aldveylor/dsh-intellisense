@@ -207,6 +207,11 @@ test('ordinary providers register callable projections and preloaded values at a
     assert.deepEqual(command.binding().parameters, { kind: 'overloads', layouts: [['value']] });
     assert.deepEqual(command.binding().result, { kind: 'discard' });
     assert.equal(command.result('discarded'), undefined);
+    const restoreDescription = service.setToolAddition('read', { ptcDescription: 'Layered PTC description' });
+    assert.equal(manifest(registry, [], 'ptc').commands()[0]!.doc, 'Layered PTC description');
+    assert.equal(manifest(registry, [], 'native').commands()[0]!.doc, 'Provider projection');
+    restoreDescription();
+    assert.equal(manifest(registry, [], 'ptc').commands()[0]!.doc, 'Provider projection');
     assert.deepEqual(await component.values(), { 'external.data': { source: 'provider' } });
     dispose();
     assert.deepEqual(await component.values(), {});

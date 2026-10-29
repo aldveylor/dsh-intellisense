@@ -62,8 +62,8 @@ export function createNamespace(context: NamespaceContext): NamespaceNode {
         const addition = additionFor(data.command.tool);
         const projected = addition.project?.(tool?.parameters ?? {}, context.mode ?? 'ptc', discoveryAvailable);
         const doc = context.mode !== 'native' ? addition.ptcDescription ?? projected?.description ?? tool?.description ?? data.command.doc ?? ''
-            : tool?.description ?? projected?.description ?? data.command.doc ?? '';
-        const entry = { tool: data.command.tool, schema: tool?.parameters ?? {}, output: tool?.output, doc: projected?.description ?? doc, presentation: projected };
+            : projected?.description ?? tool?.description ?? data.command.doc ?? '';
+        const entry = { tool: data.command.tool, schema: tool?.parameters ?? {}, output: tool?.output, doc, presentation: projected };
         return new CommandNode(name, parent, entry, permissions, data.fixedLevel, context.provided?.(path) ?? true);
     };
     for (const [name, data] of Object.entries(definitions.children ?? {})) {
