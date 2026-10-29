@@ -20,9 +20,9 @@
 
 插件自有 tools_run_code 通过 namespace/runtime.ts 使用本运行时。命名空间在初始化时解析一次；宿主收到 IPC 后通过 内部 NamespaceIntegration.dispatchTool 直接调用 DSH 原生 tools.execute，保留父子审计和上下文。插件不逐次解析 manifest 或自行判定权限，权限及底层参数校验交给 DSH，不依赖全局 ptcRuntime。worker 内的 ToolCallError 属于 guest realm，包含失败命名空间路径 toolName。
 
-init 消息携带 data-only values，VM realm 内解析并递归冻结，执行前预加载 tools.profile.annotation 与 tools.profile.commands；不传递宿主对象。每次运行刷新这些值，工具仍通过原生 PTC 闭包派发。
+init 消息携带 data-only values，VM realm 内解析并递归冻结，执行前预加载 tools.profile.annotation 与 tools.profile.tools；不传递宿主对象。每次运行刷新这些值，工具仍通过原生 PTC 闭包派发。
 
-tools.profile.commands 中各项 totalCalls 使用 VM 内只读 getter，从预加载的全局计数起算。NamespaceCommand 包装在参数转换和序列化成功、发出调用后，按物理 tool ID 同步递增闭包内的计数；同一执行中多次读取同一行即可看到更新，别名共享计数，失败派发也计数，未发出调用的参数错误不计数。数组、行对象及其它预加载数据仍冻结；计数增量不额外发送 IPC 或写回宿主，宿主继续由 dispatchTool 独立计数和持久化。下一次执行从宿主最新全局统计重新初始化，不重复叠加 VM 增量。
+tools.profile.tools 中各项 totalCalls 使用 VM 内只读 getter，从预加载的全局计数起算。NamespaceCommand 包装在参数转换和序列化成功、发出调用后，按物理 tool ID 同步递增闭包内的计数；同一执行中多次读取同一行即可看到更新，别名共享计数，失败派发也计数，未发出调用的参数错误不计数。数组、行对象及其它预加载数据仍冻结；计数增量不额外发送 IPC 或写回宿主，宿主继续由 dispatchTool 独立计数和持久化。下一次执行从宿主最新全局统计重新初始化，不重复叠加 VM 增量。
 
 `builtins.ts` 的 `PluginCommands` 持有插件命令契约表，通过共享实例 `pluginCommands` 提供物理命令查找、搜索签名、默认提示等级及运行时/UI 投影所需的命令分组。
 
@@ -37,6 +37,6 @@ PTC 初始化先建立运行时环境（包括 console 输出对象），再安�
 worker 在创建 VM Context 时编译一次固定命名空间安装函数，后续 init 复用已编译函数；每轮仍移除旧部署根、重新传入宿主回调、命令及预加载数据，并创建新的 guest 命令闭包和冻结树。缓存不跨 worker/VM Context 共享，也不缓存用户源码转译结果。
 
 
-Guest 位置参数个数错误使用 PositionalArgumentError（继承 ToolCallError），包含 toolName 与 invalid_argument_count 错误码；服务端已知错误通过 IPC errorCode 传递。src/error.ts 定义对应的宿主错误类型，VM 内使用同样的定义。会话配置 revision 变化后，成功调用的 IPC 回复刷新 commands 中原有条目的 paths getter，持有条目引用仍可读取 switch 后路径；save/apply 只写目录时不刷新路径。
+Guest 位置参数个数错误使用 PositionalArgumentError（继承 ToolCallError），包含 toolName 与 invalid_argument_count 错误码；服务端已知错误通过 IPC errorCode 传递。src/error.ts 定义对应的宿主错误类型，VM 内使用同样的定义。会话配置 revision 变化后，成功调用的 IPC 回复刷新 tools 中原有条目的 paths getter，持有条目引用仍可读取 switch 后路径；save/apply 只写目录时不刷新路径。
 
 protocol.ts 按需导入 Zod 校验 API 和 infer 类型，使 worker bundle 裁剪未使用的 schema 与语言导出；宿主和 worker 共用同一协议定义。worker 仍为自包含 bundle，不 external 文件依赖，也不开放文件读取权限。

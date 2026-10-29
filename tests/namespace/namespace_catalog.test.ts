@@ -81,13 +81,13 @@ test('preset catalog leases are released when reading a tool fails', async () =>
     } finally { await ctx.fiber.dispose(); }
 });
 
-test('command briefs expose current session mount paths including disabled paths while excluding plugin builtins', async () => {
+test('tool briefs expose current session mount paths including disabled paths while excluding plugin builtins', async () => {
     const ctx = new Context();
     try {
         ctx.provide('systemPrompt', { tools: () => () => {} });
         await ctx.plugin(ToolRuntime);
         ctx.provide('agents', { list: () => [] });
-        for (const name of ['read_file', 'write_file', 'unmounted', 'tools_inspect', 'tools_profile_commands', 'tools_run_code']) register(ctx, name);
+        for (const name of ['read_file', 'write_file', 'unmounted', 'tools_inspect', 'tools_profile_tools', 'tools_run_code']) register(ctx, name);
         const store = new MemoryStore(), registry = new SemanticRegistry(store);
         const component = new NamespaceIntegration(ctx, new NamespaceComponent(ctx, registry), registry, new ProfileSessions(new NamespaceComponent(new Context(), registry), store), [{ tool: 'read_file', path: 'text.read' }]);
         await component.refresh();
@@ -110,9 +110,9 @@ test('command briefs expose current session mount paths including disabled paths
             { name: 'write_file', brief: 'write_file', paths: ['files.write'], totalCalls: 0 },
             { name: 'unmounted', brief: 'unmounted', paths: [], totalCalls: 0 },
         ];
-        assert.deepEqual(await component.commandBriefs(agent), expected);
-        assert.deepEqual((await component.values(agent))['tools.profile.commands'], expected);
-        assert.deepEqual((await component.commandBriefs())[0]?.paths, ['hidden.read', 'files.read', 'files.cat', 'text.read']);
+        assert.deepEqual(await component.toolBriefs(agent), expected);
+        assert.deepEqual((await component.values(agent))['tools.profile.tools'], expected);
+        assert.deepEqual((await component.toolBriefs())[0]?.paths, ['hidden.read', 'files.read', 'files.cat', 'text.read']);
     } finally { await ctx.fiber.dispose(); }
 });
 

@@ -17,8 +17,8 @@ import type { ProfileTreeNode, NamespaceTreeNode } from './profile_node.js';
 /** @brief Physical command identity used by editable Profile trees. */
 export type CommandName = string;
 
-/** @brief Physical command summary, mount paths (including disabled paths) in the current Profile and global usage. */
-export interface CommandBrief { name: CommandName; brief: string; paths: string[]; totalCalls: number }
+/** @brief Physical tool summary, mount paths (including disabled paths) in the current Profile and global usage. */
+export interface ToolBrief { name: CommandName; brief: string; paths: string[]; totalCalls: number }
 
 /** @brief Available catalog Profile names and the current conversation selection. */
 export interface Profiles { profiles: string[]; selected: string }
@@ -97,7 +97,7 @@ const nodeSchema: z.ZodType<ProfileTreeNode> = z.lazy(() => z.union([
     namespaceSchema,
     z.strictObject({
         ...nodeProperties, type: z.literal('command'),
-        command: z.strictObject({ tool: z.string().describe('Exact physical name from tools.profile.commands, including unmounted commands; do not use a namespace path.'), doc: z.string().optional().describe('One-sentence summary of the command functionality; cannot modify the original command documentation or schema.') }),
+        command: z.strictObject({ tool: z.string().describe('Exact physical tool name from tools.profile.tools, including unmounted tools; do not use a namespace path.'), doc: z.string().optional().describe('One-sentence summary of the command functionality; cannot modify the original command documentation or schema.') }),
     }),
 ]));
 
@@ -148,7 +148,7 @@ export function profileTree(name: string, configuration: PlaneProfileData, defin
 }
 
 /** @brief Project an untrusted target by applying its difference through the actual root and child classes. */
-export function profileConfiguration(profile: ProfileData, current: PlaneProfileData, commands: readonly CommandBrief[], definitions: NamespaceDefinitions = defaultNamespaceDefinitions): PlaneProfile {
+export function profileConfiguration(profile: ProfileData, current: PlaneProfileData, commands: readonly ToolBrief[], definitions: NamespaceDefinitions = defaultNamespaceDefinitions): PlaneProfile {
     profile = ProfileSchema.parse(profile);
     const before = profileTree(profile.name, current, definitions).save();
     const snapshot = applyProfile(definitions.profile(before), compareProfile(profileWrite(before), profileWrite(profile)));
@@ -157,8 +157,8 @@ export function profileConfiguration(profile: ProfileData, current: PlaneProfile
 }
 
 /** @brief Shared Profile transport definition preloaded for PTC programs. */
-export const profileAnnotation = `/** @brief Physical command identity, summary, mount paths (including disabled paths) in the current conversation Profile (empty when unmounted), and total calls across all sessions. Plugin builtins are excluded. */
-interface CommandBrief { name: string; brief: string; paths: string[]; totalCalls: number; }
+export const profileAnnotation = `/** @brief Physical tool identity, summary, mount paths (including disabled paths) in the current conversation Profile (empty when unmounted), and total calls across all sessions. Plugin builtins are excluded. */
+interface ToolBrief { name: string; brief: string; paths: string[]; totalCalls: number; }
 /** @brief Available catalog Profile names and the current conversation selection. */
 interface Profiles { profiles: string[]; selected: string; }
 /** @brief Server-owned constraints on edits to the saved Profile tree. Read-only metadata returned by load; save/apply reject permissions at every depth. */
@@ -186,7 +186,7 @@ interface Permission {
     availableFixLevels?: (0 | 1 | 2)[];
 }
 /** @brief The live runtime namespace tree must not be mutated: do not assign, delete, rename, move or add runtime namespace members, regardless of Profile permissions. Profile permissions govern the saved configuration tree.
- * To mount a new command, assign children.cwd = { type: 'command', command: { tool: '<exact physical name>', doc: '<one sentence>' } } on an ordinary namespace. Use an exact physical name from tools.profile.commands, including unmounted commands. Member names are children record keys; rename or move members by changing their keys or parent records.
+ * To mount a new command, assign children.cwd = { type: 'command', command: { tool: '<exact physical name>', doc: '<one sentence>' } } on an ordinary namespace. Use an exact physical tool name from tools.profile.tools, including unmounted tools. Member names are children record keys; rename or move members by changing their keys or parent records.
  */
 /** @brief Shared editable type and visibility. Default values are omitted from serialization. disabled applies to the node and its subtree: they disappear from discovery, runtime bindings, native tools, preloaded values and pinned prompts, while their configuration is retained for re-enabling. Disabling tools also removes tools.inspect guidance. fixedLevel controls pinning (0: none, 1: brief, 2: detailed). */
 interface ProfileNode {

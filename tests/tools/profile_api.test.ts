@@ -47,8 +47,8 @@ async function fixture() {
     const serviceContext = new Context();
     const namespaces = new NamespaceIntegration(serviceContext, new NamespaceComponent(serviceContext, catalog), catalog, profiles);
     namespaces.physical = () => catalog.tools();
-    namespaces.commandBriefs = async () => [{ name: physical.id, brief: physical.description, paths: ['files.read', 'files.cat'], totalCalls: 2 }, { name: 'outside_scope', brief: 'Outside this session.', paths: [], totalCalls: 0 }];
-    registerToolCommands(ctx, namespaces.namespace, profiles, async agent => { changed.push(agent.id); }, agent => namespaces.commandBriefs(agent), namespaces);
+    namespaces.toolBriefs = async () => [{ name: physical.id, brief: physical.description, paths: ['files.read', 'files.cat'], totalCalls: 2 }, { name: 'outside_scope', brief: 'Outside this session.', paths: [], totalCalls: 0 }];
+    registerToolCommands(ctx, namespaces.namespace, profiles, async agent => { changed.push(agent.id); }, agent => namespaces.toolBriefs(agent), namespaces);
     const agentContext = new Context();
     agentContext.provide('namespaceIntegration', { isPtc: () => true } as unknown as Context['namespaceIntegration']);
     const execution = { agent: { id: 'session', inject: () => {}, ctx: agentContext, session: sessionFor(profiles, 'session') }, signal: new AbortController().signal } as unknown as ToolRunContext;
@@ -59,10 +59,10 @@ async function fixture() {
 
 test('native Profile data tools and optional-name save/load use session defaults', async () => {
     const { definitions, call, registry, catalog } = await fixture();
-    assert.deepEqual([...definitions.keys()].sort(), ['tools_profile_annotation', 'tools_profile_apply', 'tools_profile_commands', 'tools_profile_load', 'tools_profile_profiles', 'tools_profile_remove', 'tools_profile_save', 'tools_profile_setdefault', 'tools_profile_switch']);
+    assert.deepEqual([...definitions.keys()].sort(), ['tools_profile_annotation', 'tools_profile_apply', 'tools_profile_load', 'tools_profile_profiles', 'tools_profile_remove', 'tools_profile_save', 'tools_profile_setdefault', 'tools_profile_switch', 'tools_profile_tools']);
     assert.equal(await call('tools_profile_annotation'), profileAnnotation);
     assert.deepEqual(await call('tools_profile_profiles'), { profiles: ['Default'], selected: 'Default' });
-    assert.deepEqual(await call('tools_profile_commands'), [{ name: 'read_file', brief: 'Read a file.', paths: ['files.read', 'files.cat'], totalCalls: 2 }, { name: 'outside_scope', brief: 'Outside this session.', paths: [], totalCalls: 0 }]);
+    assert.deepEqual(await call('tools_profile_tools'), [{ name: 'read_file', brief: 'Read a file.', paths: ['files.read', 'files.cat'], totalCalls: 2 }, { name: 'outside_scope', brief: 'Outside this session.', paths: [], totalCalls: 0 }]);
     const profile = JSON.parse(JSON.stringify(profileTree('Ignored', { ...registry.configuration(), namespaces: [{ path: 'files', description: '', alwaysVisible: true }], mappings: [{ id: 'read_file', path: 'files.read', pinned: false, alwaysVisible: 2 }], toolComments: { read_file: 'Read text' } }))); 
     const before = registry.snapshot();
     await call('tools_profile_save', { profile: profileWrite(profile) });
@@ -87,7 +87,7 @@ test('manifest exposes only the new tools API and projects VM array arguments', 
         { id: 'tools_mount', description: 'Old command.', parameters: {}, output: {} },
     ]));
     const entries = manifest(registry, []);
-    assert.deepEqual(entries.commands().map(entry => entry.path).sort(), ['tools.inspect', 'tools.profile.annotation', 'tools.profile.apply', 'tools.profile.commands', 'tools.profile.load', 'tools.profile.profiles', 'tools.profile.remove', 'tools.profile.save', 'tools.profile.setdefault', 'tools.profile.switch']);
+    assert.deepEqual(entries.commands().map(entry => entry.path).sort(), ['tools.inspect', 'tools.profile.annotation', 'tools.profile.apply', 'tools.profile.load', 'tools.profile.profiles', 'tools.profile.remove', 'tools.profile.save', 'tools.profile.setdefault', 'tools.profile.switch', 'tools.profile.tools']);
     const discovery = entries.commands().find(entry => entry.path === 'tools.inspect')!;
     assert.deepEqual(await positionalArguments(discovery, [['files.']]), { queries: ['files.'] });
     await assert.rejects(positionalArguments(discovery, ['files.']));
@@ -115,9 +115,9 @@ test('guest constants preload as frozen data before execution', async () => {
     try {
         const calls: unknown[] = [];
         const result = await host.execute('profile', 'one', `
-            return [tools.profile.annotation,tools.profile.commands[0].name,
-                Object.isFrozen(tools.profile.commands[0]),Object.getPrototypeOf(files.read) === null];`, [namespace([{ path: 'files.read', tool: 'read_file', doc: '', schema: {}, output: {} }]).commands().find(node => node.path === 'files.read')!.binding()], async (path, args) => { calls.push([path, args]); return true; }, new AbortController().signal,
-        { 'tools.profile.annotation': 'declarations', 'tools.profile.commands': [{ name: 'read_file', brief: 'Read a file.' }] });
+            return [tools.profile.annotation,tools.profile.tools[0].name,
+                Object.isFrozen(tools.profile.tools[0]),Object.getPrototypeOf(files.read) === null];`, [namespace([{ path: 'files.read', tool: 'read_file', doc: '', schema: {}, output: {} }]).commands().find(node => node.path === 'files.read')!.binding()], async (path, args) => { calls.push([path, args]); return true; }, new AbortController().signal,
+        { 'tools.profile.annotation': 'declarations', 'tools.profile.tools': [{ name: 'read_file', brief: 'Read a file.' }] });
         assert.equal(result.error, undefined);
         assert.deepEqual(result.value, ['declarations', 'read_file', true, true]);
         assert.deepEqual(calls, []);

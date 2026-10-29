@@ -344,7 +344,7 @@ test('snapshot resolve returns enabled nodes by identity without service executi
     assert.equal('dispatch' in service, false);
     assert.equal('dispatchTool' in service, false);
     assert.equal('registryFor' in service, false);
-    for (const member of ['resolve', 'searchEngines', 'statistics', 'setToolAddition', 'setNamespaceImplementation', 'values', 'commandBriefs', 'profileNames']) assert.equal(member in service, false);
+    for (const member of ['resolve', 'searchEngines', 'statistics', 'setToolAddition', 'setNamespaceImplementation', 'values', 'toolBriefs', 'profileNames']) assert.equal(member in service, false);
     namespaceNode(snapshot.get('files')).setDisabled(true);
     assert.equal(snapshot.resolve('files.read'), undefined);
     namespaceNode(snapshot.get('files')).setDisabled(false);

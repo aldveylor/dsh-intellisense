@@ -17,7 +17,7 @@ import type { ProfileCommand } from '../profile/command.js';
 import { inspect } from '../tools/inspect.js';
 import { namespaceDirectory, nativeDirectory, type NamespaceHint } from '../profile/namespace/prompt.js';
 
-import { type CommandBrief, type Profiles } from '../profile/catalog/profile_tree.js';
+import { type ToolBrief, type Profiles } from '../profile/catalog/profile_tree.js';
 import type { z } from 'zod';
 import { registerSearch } from '../tools/tool_search.js';
 import { registerInspect } from '../tools/inspect.js';
@@ -67,8 +67,8 @@ export class NamespaceIntegration {
     /** @brief Read an editing value from the current immutable reference. */
     async get(agent: Agent): Promise<ProfileSnapshot> { return (await this.addition(agent)).profile.snapshot; }
 
-    /** @brief List physical commands and their paths from the original session nodes, including disabled mounts. */
-    async commandBriefs(agent?: Agent): Promise<CommandBrief[]> {
+    /** @brief List physical tools and their paths from the original session nodes, including disabled mounts. */
+    async toolBriefs(agent?: Agent): Promise<ToolBrief[]> {
         await this.refresh();
         const profile = agent ? await this.get(agent) : (await this.namespace.reference()).snapshot;
         const paths = new Map<string, string[]>();
@@ -98,7 +98,7 @@ export class NamespaceIntegration {
     async values(agent: Agent, entries?: CommandEntry[]): Promise<Record<string, z.infer<ReturnType<typeof z.json>>>> {
         const values: Record<string, z.infer<ReturnType<typeof z.json>>> = {};
         for (const entry of entries ?? await this.entries(agent)) {
-            if (entry.preload && entry.node.readValue) values[entry.path] = await entry.node.readValue({ commandBriefs: () => this.commandBriefs(agent), profileNames: () => this.profileNames(agent) }) as z.infer<ReturnType<typeof z.json>>;
+            if (entry.preload && entry.node.readValue) values[entry.path] = await entry.node.readValue({ toolBriefs: () => this.toolBriefs(agent), profileNames: () => this.profileNames(agent) }) as z.infer<ReturnType<typeof z.json>>;
         }
         return values;
     }
@@ -107,7 +107,7 @@ export class NamespaceIntegration {
     register(ctx: Context): void {
         registerInspect(ctx, this);
         registerSearch(ctx, this);
-        registerToolCommands(ctx, this.namespace, this.profiles, agent => this.configurationChanged(agent), agent => this.commandBriefs(agent), this);
+        registerToolCommands(ctx, this.namespace, this.profiles, agent => this.configurationChanged(agent), agent => this.toolBriefs(agent), this);
     }
 
     /** @brief Enable namespaces only for an explicitly configured Intellisense scope. */

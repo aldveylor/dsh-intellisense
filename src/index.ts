@@ -39,7 +39,7 @@ export { ToolAdditions } from './integration/tool_additions/tool_additions.js';
 export type { ToolAddition } from './integration/tool_additions/tool_additions.js';
 export { ProfileReference, SnapshotStore } from './profile/snapshot_store.js';
 export type { ToolsNamespace, ProfileSaveEvent, ProfileSaveEffect, ProfileEditOptions } from './profile/service.js';
-export type { ProfileData, Profiles, CommandBrief, CommandName } from './profile/catalog/profile_tree.js';
+export type { ProfileData, Profiles, ToolBrief, CommandName } from './profile/catalog/profile_tree.js';
 export type { CommandBinding, ExecutionResult } from './runtime/protocol.js';
 export type { Store } from './storage/store.js';
 export type { Saveable } from './storage/saveable.js';

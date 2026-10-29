@@ -1,13 +1,14 @@
 import type { CommandPresentation } from './namespace/node.js';
 import type { PresentationMode } from '../integration/presentation.js';
-import type { CommandBrief, Profiles } from './catalog/profile_tree.js';
+import type { ToolBrief, Profiles } from './catalog/profile_tree.js';
 import { EditableNode, type ProfileNode, type ProfileCheckContext } from './node.js';
 import { ProfilePermissionError, UnknownCommandError } from '../error.js';
 import type { CommandNode, ProfileTreeNode } from './catalog/profile_node.js';
 
 /** @brief Data sources available to concrete commands that expose preloaded values. */
 export interface CommandValues {
-    commandBriefs(): Promise<CommandBrief[]>;
+    /** @brief Read physical tool summaries, session mount paths and global usage. */
+    toolBriefs(): Promise<ToolBrief[]>;
     profileNames(): Promise<Profiles>;
 }
 

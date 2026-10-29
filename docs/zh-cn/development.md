@@ -107,7 +107,7 @@ Native 参数示例：`ns_tools__inspect` 接收 `{"queries":["tools.","tools.pr
 | `apply(value)` / `apply(name, value)` | `{name?, value}` | `Promise<string \| null>`；读取后递归合并 patch，再写目录；显式名称必须已存在 |
 | `switch(name)` | `{name}` | PTC `Promise<void>`，native `null`；从目录替换当前会话快照并刷新提示和工具；锁定 Profile 时拒绝 |
 | `setdefault(name)` | `{name}` | PTC `Promise<void>`，native `null`；将已有目录项设为全局默认，不修改已有会话 |
-| `delete(name)` | `{name}` | PTC `Promise<void>`，native `null`；删除具名目录项，禁止省略名称或删除当前会话所选 Profile；其它会话快照保留 |
+| `remove(name)` | `{name}` | PTC `Promise<void>`，native `null`；删除具名目录项，禁止省略名称或删除当前会话所选 Profile；其它会话快照保留 |
 
 表中函数都位于 `tools.profile`。PTC 的 `save` / `apply` 也支持双参数形式首参为 `undefined`。Native 代理如 `ns_tools__profile__apply` 使用表中的参数名；底层物理注册名为 `tools_profile_apply`，其它函数同理。
 
@@ -119,11 +119,11 @@ Native 参数示例：`ns_tools__inspect` 接收 `{"queries":["tools.","tools.pr
 | --- | --- | --- |
 | `tools.profile.profiles` | 只读对象 | `profiles({})` → `{ profiles: string[], selected: string }` |
 | `tools.profile.annotation` | 只读字符串，包含读写模型的 TypeScript 声明 | `annotation({})` → 写入模型 JSON Schema 字符串 |
-| `tools.profile.commands` | 只读数组 | `commands({})` → `CommandBrief[]` |
+| `tools.profile.tools` | 只读数组 | `tools({})` → `ToolBrief[]` |
 
-Native 表格使用命名空间简写，实际调用例如 `ns_tools__profile__profiles`，参数为 `{}`。PTC 这三个成员是预加载值，不能写成 `profiles()` / `annotation()` / `commands()`；每次执行前装载，`profiles` 在成功工具调用后还会刷新。
+Native 表格使用命名空间简写，实际调用例如 `ns_tools__profile__profiles`，参数为 `{}`。PTC 这三个成员是预加载值，不能写成 `profiles()` / `annotation()` / `tools()`；每次执行前装载，`profiles` 在成功工具调用后还会刷新。
 
-`CommandBrief` 为 `{ name: string, brief: string, paths: string[], totalCalls: number }`。`name` 是原始物理命令名，目录不包含插件内置命令；`paths` 来自当前会话 Profile，包含禁用及当前作用域不可用的挂载路径，未挂载时为空。`totalCalls` 是跨会话累计调用次数。保存目录后 `paths` 不代表新目录内容，应通过 `load(name)` 验证。
+`ToolBrief` 为 `{ name: string, brief: string, paths: string[], totalCalls: number }`。`name` 是原始物理工具名，目录不包含插件内置工具；`paths` 来自当前会话 Profile，包含禁用及当前作用域不可用的挂载路径，未挂载时为空。`totalCalls` 是跨会话累计调用次数。保存目录后 `paths` 不代表新目录内容，应通过 `load(name)` 验证。
 
 ### 写入模型与增量修改
 

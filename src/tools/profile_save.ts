@@ -37,7 +37,7 @@ export async function writeProfile(sessions: NamespaceIntegration, agent: Agent,
     const service = sessions.namespace;
     const session = await sessions.addition(agent);
     const target = name ?? session.name;
-    const commands = new Set((await sessions.commandBriefs(agent)).map(command => command.name));
+    const commands = new Set((await sessions.toolBriefs(agent)).map(command => command.name));
     const initial = name === undefined || operation === 'save' ? session.profile.snapshot : undefined;
     let information: string | null = null;
     await service.edit(target, baseline => {

@@ -34,7 +34,7 @@ load() 返回当前会话不可变快照的 JSON 副本，load(name) 读取全�
 
 写入树不允许 name、permissions 或未知字段；无名根仅支持 type/children。实际权限由 RootNamespace、ImplToolsNamespace、ImplToolsProfileNamespace、ImplToolsCommand 等具体节点执行。可读 permissions 仅用于说明，不决定服务端实现。普通节点可删除，受保护节点的名称、路径、绑定和文档不可篡改；不存在状态兼容要求。
 
-profile.profiles 返回全局名称与当前会话选择；profile.commands 返回非内置物理工具、当前会话挂载路径（包含禁用和不可用挂载）及全局调用次数。native 每次重新读取；PTC 由命令类生成只读预加载值，profiles 每次调用后刷新，commands 在切换指针后刷新，同次执行内由 VM 更新调用次数。
+profile.profiles 返回全局名称与当前会话选择；profile.tools 返回非内置物理工具、当前会话挂载路径（包含禁用和不可用挂载）及全局调用次数。native 每次重新读取；PTC 由命令类生成只读预加载值，profiles 每次调用后刷新，tools 在切换指针后刷新，同次执行内由 VM 更新调用次数。
 
 ## 存储、统计与界面
 

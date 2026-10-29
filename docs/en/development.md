@@ -107,7 +107,7 @@ The main component's `defaultSearchMethod` changes the default. With only one re
 | `apply(value)` / `apply(name, value)` | `{name?, value}` | `Promise<string \| null>`; reads, recursively patches and publishes; an explicit name must already exist |
 | `switch(name)` | `{name}` | PTC `Promise<void>`, native `null`; replaces the conversation snapshot from the catalog and refreshes tools and prompts; rejected with a fixed Profile |
 | `setdefault(name)` | `{name}` | PTC `Promise<void>`, native `null`; makes an existing entry the global default; preserves existing conversations |
-| `delete(name)` | `{name}` | PTC `Promise<void>`, native `null`; deletes a catalog entry; requires a name and rejects the current conversation's selected Profile; other snapshots survive |
+| `remove(name)` | `{name}` | PTC `Promise<void>`, native `null`; deletes a catalog entry; requires a name and rejects the current conversation's selected Profile; other snapshots survive |
 
 All functions belong to `tools.profile`. The two-argument PTC forms of `save` and `apply` also accept `undefined` as the first argument. Native proxies such as `ns_tools__profile__apply` use the argument names above. Its physical registration is `tools_profile_apply`; the other functions follow the same convention.
 
@@ -119,11 +119,11 @@ On success, `save` and `apply` return `null` without an advisory, or an advisory
 | --- | --- | --- |
 | `tools.profile.profiles` | Readonly object | `profiles({})` → `{ profiles: string[], selected: string }` |
 | `tools.profile.annotation` | Readonly string with TypeScript read/write model declarations | `annotation({})` → write-model JSON Schema string |
-| `tools.profile.commands` | Readonly array | `commands({})` → `CommandBrief[]` |
+| `tools.profile.tools` | Readonly array | `tools({})` → `ToolBrief[]` |
 
-The native column uses namespace shorthand: the actual call is, for example, `ns_tools__profile__profiles` with `{}`. In PTC these three members are preloaded values; do not call `profiles()`, `annotation()` or `commands()`. Values load before each execution; `profiles` also refreshes after successful tool calls.
+The native column uses namespace shorthand: the actual call is, for example, `ns_tools__profile__profiles` with `{}`. In PTC these three members are preloaded values; do not call `profiles()`, `annotation()` or `tools()`. Values load before each execution; `profiles` also refreshes after successful tool calls.
 
-`CommandBrief` is `{ name: string, brief: string, paths: string[], totalCalls: number }`. `name` is the physical command name. The catalog excludes plugin builtins. `paths` describes mounts in the current conversation Profile, including disabled and currently unavailable paths, and is empty for unmounted tools. `totalCalls` counts calls across conversations. After saving, these paths do not describe the new catalog tree; verify that with `load(name)`.
+`ToolBrief` is `{ name: string, brief: string, paths: string[], totalCalls: number }`. `name` is the physical tool name. The catalog excludes plugin builtins. `paths` describes mounts in the current conversation Profile, including disabled and currently unavailable paths, and is empty for unmounted tools. `totalCalls` counts calls across conversations. After saving, these paths do not describe the new catalog tree; verify that with `load(name)`.
 
 ### Write model and patches
 

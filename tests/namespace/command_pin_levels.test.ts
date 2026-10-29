@@ -87,10 +87,10 @@ test('disabled or absent discovery disappears from pinned prompts and builtin he
     for (const disabled of [[], ['tools.inspect'], ['tools']] as string[][]) {
         for (const available of [true, false]) {
             const registry = new SemanticRegistry(new MemoryStore());
-            registry.refresh([tool, ...['tools_search', 'tools_profile_commands', ...(available ? ['tools_inspect'] : [])].map(id => ({ id, description: '', parameters: {}, output: {} }))]);
+            registry.refresh([tool, ...['tools_search', 'tools_profile_tools', ...(available ? ['tools_inspect'] : [])].map(id => ({ id, description: '', parameters: {}, output: {} }))]);
             await registry.replaceConfiguration({ ...registry.configuration(),
                 mappings: [{ id: tool.id, path: 'files.read', pinned: false, alwaysVisible: 2 }],
-                builtinDisabled: disabled, builtinVisible: { 'tools.search': 2, 'tools.profile.commands': 2 },
+                builtinDisabled: disabled, builtinVisible: { 'tools.search': 2, 'tools.profile.tools': 2 },
             }, 'Default');
             const text = await prompt(registry);
             assert.equal(text.includes('tools.inspect'), available && !disabled.length);

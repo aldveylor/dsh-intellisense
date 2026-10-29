@@ -78,7 +78,7 @@ test('PTC worker dispatches and discovery persist session and global statistics 
                 { id: 'read_tool', path: 'std.read', pinned: false },
                 { id: 'fail_tool', path: 'std.fail', pinned: false },
             ]);
-            const result = await run('console.log("excluded"); const commands = tools.profile.commands; await tools.inspect(["global.std.", "std.read", "console.log"]); return await Promise.all([std.read(), std.read()]);');
+            const result = await run('console.log("excluded"); const commands = tools.profile.tools; await tools.inspect(["global.std.", "std.read", "console.log"]); return await Promise.all([std.read(), std.read()]);');
             assert.equal(result.isError, false, JSON.stringify(result));
             assert.deepEqual(result.value, { logs: ['excluded'], result: ['ok', 'ok'] });
             const failed = await run('return await std.fail();');
@@ -120,7 +120,7 @@ test('PTC command counts update within a program and refresh from host counts on
             { id: 'read_tool', path: 'std.again', pinned: false },
         ]);
         const result = await run(`
-            const row=tools.profile.commands.find(row=>row.name==='read_tool');
+            const row=tools.profile.tools.find(row=>row.name==='read_tool');
             const before=row.totalCalls;
             const first=std.read();
             const immediate=row.totalCalls;
@@ -132,7 +132,7 @@ test('PTC command counts update within a program and refresh from host counts on
         assert.deepEqual(result.value, { logs: [], result: [0, 1, 2] });
         assert.equal((await namespaces.statistics.calls.snapshot()).read_tool, 2);
         const next = await run(`
-            const row=tools.profile.commands.find(row=>row.name==='read_tool');
+            const row=tools.profile.tools.find(row=>row.name==='read_tool');
             const before=row.totalCalls;
             await std.read();
             return [before,row.totalCalls];
@@ -150,13 +150,13 @@ test('native commands rereads current global counts after each namespace dispatc
             output: { schema: { type: 'string' }, render: () => [] }, execute: async () => 'ok',
         }));
         await configureSession(namespaces, agent, [{ id: 'read_tool', path: 'std.read', pinned: false }]);
-        await namespaces.discover(agent, ['std.read', 'tools.profile.commands']);
+        await namespaces.discover(agent, ['std.read', 'tools.profile.tools']);
         let sequence = 0;
         const call = (name: string) => ctx.tools.execute({ agent, callId: ToolCallId(`native-statistics-${++sequence}`), name, arguments: {}, signal: new AbortController().signal });
-        const before = await call('ns_tools__profile__commands');
+        const before = await call('ns_tools__profile__tools');
         assert.equal(before.isError, false, JSON.stringify(before));
         assert.equal((await call('ns_std__read')).isError, false);
-        const after = await call('ns_tools__profile__commands');
+        const after = await call('ns_tools__profile__tools');
         assert.equal(after.isError, false, JSON.stringify(after));
         const count = (value: unknown): number | undefined => (value as { name: string; totalCalls: number }[]).find(row => row.name === 'read_tool')?.totalCalls;
         assert.equal(count(before.value), 0);
@@ -164,7 +164,7 @@ test('native commands rereads current global counts after each namespace dispatc
         const unguard = ctx.tools.guard(execution => execution.name === 'read_tool' ? 'Denied' : undefined);
         try { assert.equal((await call('ns_std__read')).isError, true); }
         finally { unguard(); }
-        const latest = await call('ns_tools__profile__commands');
+        const latest = await call('ns_tools__profile__tools');
         assert.equal(latest.isError, false, JSON.stringify(latest));
         assert.equal(count(latest.value), 2);
         assert.equal((await namespaces.statistics.calls.snapshot(agent.id)).read_tool, 2);
@@ -536,7 +536,7 @@ test('Profile organization mounts catalog commands and applies briefs without mu
             profile.root.children['tools'].disabled = false;
             const permissions = { renamable: true, movable: true, removable: true, disableable: true, acceptsChildren: true, availableFixLevels: [0, 1] };
             const names = ['read', 'write', 'edit', 'glob', 'grep', 'working_directory', 'tools_external'];
-            if (names.some(name => !tools.profile.commands.some(node => node.name === name))) throw new Error('Missing catalog command');
+            if (names.some(name => !tools.profile.tools.some(node => node.name === name))) throw new Error('Missing catalog command');
             profile.root.children['files'] = { type: 'namespace', description: 'File operations', permissions,
                 children: Object.fromEntries(names.map(name => [name, { type: 'command', permissions: { ...permissions, acceptsChildren: false, availableFixLevels: [0, 1, 2] },
                     command: { tool: name, doc: 'Brief ' + name } }])) };
@@ -638,7 +638,7 @@ test('Profile command paths preserve session mounts after apply and refresh held
         agent.ctx.tools.register(defineTool({ name: 'working_directory', description: 'Working directory', parameters: {},
             output: { schema: { type: 'string' }, render: () => [] }, execute: async () => '/workspace' }));
         const result = await run(`
-            const entry = tools.profile.commands.find(command => command.name === 'working_directory');
+            const entry = tools.profile.tools.find(command => command.name === 'working_directory');
             const before = entry.paths;
             await tools.profile.apply({root: {children: {cwd: {type: 'command', command: {tool: 'working_directory'}}}}});
             const afterApply = entry.paths;

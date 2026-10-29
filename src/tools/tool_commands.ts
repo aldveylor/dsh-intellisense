@@ -14,10 +14,10 @@ import type { ToolsNamespace } from '../profile/service.js';
 import { readProfile } from './profile_data.js';
 import type { NamespaceIntegration } from '../integration/namespace_integration.js';
 import type { ProfileSessionCollection } from '../profile/session.js';
-import { type CommandBrief, profileAnnotation } from '../profile/catalog/profile_tree.js';
+import { type ToolBrief, profileAnnotation } from '../profile/catalog/profile_tree.js';
 
 /** @brief Register Profile management commands and data access. */
-export function registerToolCommands(ctx: Context, catalog: ToolsNamespace, profiles: ProfileSessionCollection, changed: (agent: Agent) => Promise<void>, commands: (agent: Agent) => Promise<CommandBrief[]>, namespace?: NamespaceIntegration): void {
+export function registerToolCommands(ctx: Context, catalog: ToolsNamespace, profiles: ProfileSessionCollection, changed: (agent: Agent) => Promise<void>, tools: (agent: Agent) => Promise<ToolBrief[]>, namespace?: NamespaceIntegration): void {
     /** @brief Resolve mode-specific comments in the registration scope. */
     const contract = (tool: string) => projectBuiltin(pluginCommands.find(tool)!, 'native');
     const lock = new ProfileLock();
@@ -118,11 +118,11 @@ export function registerToolCommands(ctx: Context, catalog: ToolsNamespace, prof
             ? JSON.stringify(ProfileWriteSchema.toJSONSchema()) : profileAnnotation,
     })));
     ctx.effect(() => register(defineTool({
-        name: 'tools_profile_commands', description: contract('tools_profile_commands').description, parameters: {},
+        name: 'tools_profile_tools', description: contract('tools_profile_tools').description, parameters: {},
         output: { ...output, schema: { type: 'array', items: { type: 'object', additionalProperties: true } } },
         execute: async (_args, execution) => {
             if (!execution.agent) throw new ConversationRequiredError();
-            return (await commands(execution.agent)).map(({ name, brief, paths, totalCalls }) => ({ name, brief, paths, totalCalls }));
+            return (await tools(execution.agent)).map(({ name, brief, paths, totalCalls }) => ({ name, brief, paths, totalCalls }));
         },
     })));
 }

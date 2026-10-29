@@ -14,15 +14,15 @@ test('preloads skip disabled producers and honor subtree disables', async () => 
     const component = Object.assign(Object.create(NamespaceIntegration.prototype), {
         namespace: { registry },
         entries: async () => manifest(registry, []).entries,
-        commandBriefs: async () => { commands++; return []; },
+        toolBriefs: async () => { commands++; return []; },
         profileNames: async () => { profiles++; return { profiles: ['Default'], selected: 'Default' }; },
     }) as NamespaceIntegration;
-    await registry.configure([], registry.revision, [], [], {}, undefined, {}, {}, {}, undefined, false, ['tools.profile.commands']);
+    await registry.configure([], registry.revision, [], [], {}, undefined, {}, {}, {}, undefined, false, ['tools.profile.tools']);
     const values = await component.values({} as import('@deepseek-ai/dsh-agent').Agent);
     assert.equal(commands, 0);
     assert.equal(profiles, 1);
     assert.equal(Object.hasOwn(values, 'tools.profile.annotation'), true);
-    assert.equal(Object.hasOwn(values, 'tools.profile.commands'), false);
+    assert.equal(Object.hasOwn(values, 'tools.profile.tools'), false);
     await registry.configure([], registry.revision, [], [], {}, undefined, {}, {}, {}, undefined, false, []);
     await component.values({} as import('@deepseek-ai/dsh-agent').Agent);
     assert.equal(commands, 1);

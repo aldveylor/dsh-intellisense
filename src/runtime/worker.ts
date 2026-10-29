@@ -63,18 +63,18 @@ const installNamespaces = vm.runInContext(`(function(root, call, print, commands
                 selected:{get:()=>profiles.selected,enumerable:true}
             });
         }
-        const commandPaths=new Map();
-        const updateCommands=values=>{
-            for(const entry of values?.['tools.profile.commands']??[]) {
-                commandPaths.set(entry.name,Object.freeze(entry.paths??[]));
+        const toolPaths=new Map();
+        const updateTools=values=>{
+            for(const entry of values?.['tools.profile.tools']??[]) {
+                toolPaths.set(entry.name,Object.freeze(entry.paths??[]));
             }
         };
-        updateCommands(data);
+        updateTools(data);
         const counters=new Map();
-        for(const entry of Array.isArray(data['tools.profile.commands'])?data['tools.profile.commands']:[]) {
+        for(const entry of Array.isArray(data['tools.profile.tools'])?data['tools.profile.tools']:[]) {
             if(!entry||typeof entry.name!=='string'||typeof entry.totalCalls!=='number')continue;
             let totalCalls=entry.totalCalls;
-            Object.defineProperty(entry,'paths',{get:()=>commandPaths.get(entry.name),enumerable:true,configurable:false});
+            Object.defineProperty(entry,'paths',{get:()=>toolPaths.get(entry.name),enumerable:true,configurable:false});
             counters.set(entry.name,()=>{totalCalls++;});
             Object.defineProperty(entry,'totalCalls',{get:()=>totalCalls,enumerable:true,configurable:false});
         }
@@ -121,7 +121,7 @@ const installNamespaces = vm.runInContext(`(function(root, call, print, commands
                         const pending=call(this.tool,stringify(this.arguments(args)));
                         this.count();
                         pending.then(json=>{
-                            try {const [present,value,values]=parse(json);updateProfiles(values);updateCommands(values);resolve(this.result(present?value:undefined));}
+                            try {const [present,value,values]=parse(json);updateProfiles(values);updateTools(values);resolve(this.result(present?value:undefined));}
                             catch(error){reject(new Error(String(error)));}
                         },error=>reject(new ToolCallError(String(error.message??error),this.path,error.code)));
                     } catch(error){reject(error instanceof ToolCallError?error:new ToolCallError(String(error.message??error),this.path));}

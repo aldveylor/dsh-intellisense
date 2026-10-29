@@ -16,7 +16,7 @@ export class ImplToolsCommand extends EditableCommand {
     get discovery(): boolean { return this.physicalTool === pluginCommands.discoveryCommand.tool; }
 
     get refresh(): 'call' | 'revision' | undefined {
-        return this.physicalTool === 'tools_profile_profiles' ? 'call' : this.physicalTool === 'tools_profile_commands' ? 'revision' : undefined;
+        return this.physicalTool === 'tools_profile_profiles' ? 'call' : this.physicalTool === 'tools_profile_tools' ? 'revision' : undefined;
     }
 
     /** @brief Builtin classes own signatures, overloads and preload behavior. */
@@ -31,7 +31,7 @@ export class ImplToolsCommand extends EditableCommand {
     /** @brief Read builtin values without attaching producers to namespace metadata. */
     async readValue(source: CommandValues): Promise<unknown> {
         if (this.physicalTool === 'tools_profile_annotation') return profileAnnotation;
-        if (this.physicalTool === 'tools_profile_commands') return source.commandBriefs();
+        if (this.physicalTool === 'tools_profile_tools') return source.toolBriefs();
         if (this.physicalTool === 'tools_profile_profiles') return source.profileNames();
         return undefined;
     }

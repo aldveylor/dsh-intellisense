@@ -87,7 +87,7 @@ export class NamespaceRuntime extends Service {
                 for (const entry of resolved) {
                     const producer = entry.node;
                     if (Object.hasOwn(preloaded, entry.path) && producer.readValue && (producer.refresh === 'call' || (producer.refresh === 'revision' && currentRevision !== revision))) {
-                        values[entry.path] = await producer.readValue({ commandBriefs: () => namespaces.commandBriefs(agent), profileNames: () => namespaces.profileNames(agent) }) as z.infer<ReturnType<typeof z.json>>;
+                        values[entry.path] = await producer.readValue({ toolBriefs: () => namespaces.toolBriefs(agent), profileNames: () => namespaces.profileNames(agent) }) as z.infer<ReturnType<typeof z.json>>;
                     }
                 }
                 revision = currentRevision;
