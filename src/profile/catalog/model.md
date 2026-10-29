@@ -13,3 +13,5 @@ profiles.ts 的 ProfileSessions 只恢复或选择引用。会话存储仅包含
 全局当前表与旧快照可使用不同 Store。默认插件单独打开 intellisense_profile_snapshots 单元，计数器与匿名旧快照通过 JournalStore 恢复。旧模型不做隐式兼容迁移；当前格式严格校验，显式恢复仅保留有效当前条目，归档内容不随全局恢复或目录删除改写。
 
 ToolAdditions 是 ctx.intellisense 的独立工具元数据服务。全局目录消费同一对象以过滤 hidden、输出工具元数据；ToolsNamespace 接口不包含附加信息注册能力，固定工具身份来自默认 Profile 的实际保护节点。
+
+具名集合编辑和 Agent save/apply 共用目录的 profileTransaction 串行事务，事务状态不属于 NamespaceComponent；集成层显式注入目录，ToolsNamespace 无需暴露 registry 或事务方法。保存事件在事务完成后通知，观察者可再次发起集合编辑。

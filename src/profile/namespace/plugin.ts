@@ -53,7 +53,7 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
             await profiles.inspectStatistics.load(recover);
             if (namespaces) return;
             const namespace = new NamespaceComponent(ctx, registry);
-            const component = new NamespaceIntegration(ctx, namespace, profiles, aliases, createSearchEngines(config.defaultSearchMethod), statistics);
+            const component = new NamespaceIntegration(ctx, namespace, registry, profiles, aliases, createSearchEngines(config.defaultSearchMethod), statistics);
             namespaces = component;
             ctx.provide('intellisense', component.intellisense);
             ctx.provide('toolsNamespace', namespace);

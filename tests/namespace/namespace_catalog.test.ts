@@ -41,7 +41,7 @@ test('editor discovers standing preset tools without live agents and keeps execu
             },
         });
         const store = new MemoryStore(), registry = new SemanticRegistry(store);
-        const component = new NamespaceIntegration(ctx, new NamespaceComponent(ctx, registry), new ProfileSessions(registry, store));
+        const component = new NamespaceIntegration(ctx, new NamespaceComponent(ctx, registry), registry, new ProfileSessions(registry, store));
         await component.refresh();
         await registry.configure([
             { id: 'read_file', path: 'fs.read', pinned: false },
@@ -74,7 +74,7 @@ test('preset catalog leases are released when reading a tool fails', async () =>
             acquireScope: async () => ({ key: {}, [Symbol.asyncDispose]: async () => { released = true; } }),
         });
         const store = new MemoryStore(), registry = new SemanticRegistry(store);
-        const component = new NamespaceIntegration(ctx, new NamespaceComponent(ctx, registry), new ProfileSessions(registry, store));
+        const component = new NamespaceIntegration(ctx, new NamespaceComponent(ctx, registry), registry, new ProfileSessions(registry, store));
         component.physical = (_agent, scope) => { if (scope) throw new Error('Catalog read failed'); return []; };
         await assert.rejects(component.refresh(), /Catalog read failed/);
         assert(released);
@@ -89,7 +89,7 @@ test('command briefs expose current session mount paths including disabled paths
         ctx.provide('agents', { list: () => [] });
         for (const name of ['read_file', 'write_file', 'unmounted', 'tools_inspect', 'tools_profile_commands', 'tools_run_code']) register(ctx, name);
         const store = new MemoryStore(), registry = new SemanticRegistry(store);
-        const component = new NamespaceIntegration(ctx, new NamespaceComponent(ctx, registry), new ProfileSessions(registry, store), [{ tool: 'read_file', path: 'text.read' }]);
+        const component = new NamespaceIntegration(ctx, new NamespaceComponent(ctx, registry), registry, new ProfileSessions(registry, store), [{ tool: 'read_file', path: 'text.read' }]);
         await component.refresh();
         await registry.configure([
             { id: 'read_file', path: 'fs.read', pinned: false },
@@ -132,7 +132,7 @@ test('scope rebinding changes available contracts while retaining the same sessi
         const catalog = new SemanticRegistry(store);
         catalog.refresh(['first_only', 'second_only'].map(id => ({ id, description: '', parameters: {}, output: {} })));
         await catalog.configure([{ id: 'first_only', path: 'first.read', pinned: false }, { id: 'second_only', path: 'second.read', pinned: false }], catalog.revision);
-        const component = new NamespaceIntegration(ctx, new NamespaceComponent(ctx, catalog), new ProfileSessions(catalog, store));
+        const component = new NamespaceIntegration(ctx, new NamespaceComponent(ctx, catalog), catalog, new ProfileSessions(catalog, store));
         const agent = { id: 'cached', ctx, session: Session.create(SessionId('cached')) } as Agent;
         const binding = bindScopeParent(agent, firstKey);
         const addition = await component.addition(agent);

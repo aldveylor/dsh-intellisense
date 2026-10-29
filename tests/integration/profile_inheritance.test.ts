@@ -16,7 +16,7 @@ test('runtime child ownership inherits the nearest parent working profile withou
     const mounted = await ctx.plugin(AgentRegistry);
     const catalog = new SemanticRegistry(new MemoryStore());
     const profiles = new ProfileSessions(catalog, new MemoryStore());
-    const namespaces = new NamespaceIntegration(ctx, new NamespaceComponent(ctx, catalog), profiles);
+    const namespaces = new NamespaceIntegration(ctx, new NamespaceComponent(ctx, catalog), catalog, profiles);
     ctx.provide('tools', { schemas: () => [], presentAs: () => {} } as unknown as Context['tools']);
     ctx.provide('namespaceIntegration', { register: () => {} } as unknown as NamespaceIntegration);
     const scopes: ReturnType<typeof createScope>[] = [];

@@ -25,7 +25,7 @@ import { registerToolCommands } from '../tools/tool_commands.js';
 import { nativeBindings, nativeDiscovery } from '../profile/namespace/native_tools.js';
 
 import { createSearchEngines } from '../search/search.js';
-import { NamespaceComponent } from '../profile/component.js';
+import type { ToolsNamespace } from '../profile/service.js';
 
 /** @brief Own Agent session Profiles, discovery, presentation and native execution integration. */
 export class NamespaceIntegration {
@@ -41,7 +41,7 @@ export class NamespaceIntegration {
     private catalogRevision = 0;
     private get catalogVersion(): string { return `${this.catalogRevision}:${this.registry.definitions.revision}:${this.registry.toolAdditions.revision}`; }
 
-    constructor(private ctx: Context, readonly namespace: NamespaceComponent, readonly profiles: ProfileSessions, aliases: z.infer<typeof Aliases> = [], readonly searchEngines = createSearchEngines(), readonly statistics = profiles.statistics, readonly inspectStatistics = profiles.inspectStatistics) {
+    constructor(private ctx: Context, readonly namespace: ToolsNamespace, readonly registry: SemanticRegistry, readonly profiles: ProfileSessions, aliases: z.infer<typeof Aliases> = [], readonly searchEngines = createSearchEngines(), readonly statistics = profiles.statistics, readonly inspectStatistics = profiles.inspectStatistics) {
         this.registry.setAliases(aliases);
         this.intellisense = { profiles: namespace, toolAdditions: this.registry.toolAdditions, statistics, inspectStatistics, searchEngines };
         ctx.effect(() => async () => { await Promise.all([...new Set([...this.nativeTools.keys(), ...this.positions.keys(), ...this.discovered.keys()])].map(id => this.release(id))); await this.statistics.dispose(); await this.inspectStatistics.dispose(); });
@@ -51,8 +51,6 @@ export class NamespaceIntegration {
             return next();
         });
     }
-
-    private get registry(): SemanticRegistry { return this.namespace.registry; }
 
     /** @brief Initialize the session reference, inheriting the parent's exact immutable version. */
     async addition(agent: Agent): Promise<AgentSessionAddition> {

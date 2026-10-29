@@ -14,7 +14,7 @@ test('only an explicit Intellisense scope enables namespace configuration and de
     const ctx = new Context();
     const store = new MemoryStore();
     const registry = new SemanticRegistry(store);
-    const component = new NamespaceIntegration(ctx, new NamespaceComponent(ctx, registry), new ProfileSessions(registry, store));
+    const component = new NamespaceIntegration(ctx, new NamespaceComponent(ctx, registry), registry, new ProfileSessions(registry, store));
     const standard = createScope(ctx, {});
     const intellisenseKey = {};
     const intellisense = createScope(ctx, intellisenseKey);

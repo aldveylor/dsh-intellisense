@@ -39,7 +39,7 @@ function fixture() {
     registry.refresh([{ id: 'read', description: 'Native read documentation', parameters: { type: 'object', properties: {} }, output: {} }]);
     const component = new NamespaceComponent(ctx, registry);
     const service: ToolsNamespace = component;
-    const sessions = new NamespaceIntegration(ctx, component, new ProfileSessions(registry, store));
+    const sessions = new NamespaceIntegration(ctx, component, registry, new ProfileSessions(registry, store));
     return { store, registry, component, service, sessions };
 }
 
@@ -357,4 +357,28 @@ test('snapshot resolve returns enabled nodes by identity without service executi
     const disabled = new EditableSnapshot({ root: { type: 'namespace', disabled: true } });
     assert.equal(disabled.resolve(''), undefined);
     assert.equal(disabled.resolve('files.read'), undefined);
+});
+
+test('integration accepts a portable namespace service without exposing its registry implementation', async () => {
+    const { registry, component } = fixture();
+    const ctx = new Context();
+    const service: ToolsNamespace = {
+        get createInitialProfile() { return component.createInitialProfile; },
+        set createInitialProfile(factory) { component.createInitialProfile = factory; },
+        list: () => component.list(),
+        get: name => component.get(name),
+        create: name => component.create(name),
+        getOrCreate: name => component.getOrCreate(name),
+        remove: name => component.remove(name),
+        edit: (name, modifier) => component.edit(name, modifier),
+        effect: (event, handler) => component.effect(event, handler),
+    };
+    const integration = new NamespaceIntegration(ctx, service, registry, new ProfileSessions(registry, new MemoryStore()));
+    assert.equal('registry' in service, false);
+    assert.equal(integration.namespace, service);
+    assert.equal(integration.intellisense.profiles, service);
+    await integration.intellisense.profiles.create('Portable');
+    await integration.intellisense.profiles.edit('Portable', profile => profile.setBrief('Interface service'));
+    assert.equal((await service.get('Portable'))?.brief, 'Interface service');
+    assert.deepEqual((await integration.profileNames()).profiles, ['Default', 'Portable']);
 });

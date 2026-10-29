@@ -49,6 +49,7 @@ const configurationVersion = storageVersion;
 
 /** @brief Transactional semantic registry; unconfigured identities use encoded tools paths. */
 export class SemanticRegistry {
+    private profileWrites: Promise<unknown> = Promise.resolve();
     private physical = new Map<string, PhysicalTool>();
     private physicalFingerprint = '';
     private physicalRevision = 0;
@@ -67,6 +68,13 @@ export class SemanticRegistry {
     private references: Record<string, ProfileReference> = Object.create(null);
 
     constructor(private store: Store, _scope: 'global' | 'session' = 'global', readonly definitions = new NamespaceDefinitions(), snapshotStore: Store = store) { this.snapshots = new SnapshotStore(snapshotStore, definitions); }
+
+    /** @brief Serialize collection edits and tool read-modify-write operations against the shared Profile catalog. */
+    profileTransaction<T>(operation: () => Promise<T>): Promise<T> {
+        const result = this.profileWrites.then(operation);
+        this.profileWrites = result.catch(() => {});
+        return result;
+    }
 
     /** @brief Read the immutable version currently published under a catalog name. */
     /** @brief Import configured aliases into global Profiles before they become session snapshots. */

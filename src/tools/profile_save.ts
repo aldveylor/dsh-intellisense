@@ -34,11 +34,10 @@ export function profileSaveInformation(profile: ProfileData, tools: readonly str
 
 /** @brief Validate save/apply in the tool layer, persist atomically and return validation information. */
 export async function writeProfile(sessions: NamespaceIntegration, agent: Agent, name: string | undefined, input: ProfileWrite | ProfilePatch, operation: 'save' | 'apply'): Promise<string | null> {
-    const namespace = sessions.namespace;
-    const saved = await namespace.profileTransaction(async () => {
+    const catalog = sessions.registry;
+    const saved = await catalog.profileTransaction(async () => {
         const session = await sessions.addition(agent);
         const target = name ?? session.name;
-        const catalog = namespace.registry;
         const revision = catalog.revision;
         const exists = catalog.profileSelection().profiles.includes(target);
         if (operation === 'apply' && name !== undefined && !exists) throw new ProfileNotFoundError(target);
@@ -56,6 +55,6 @@ export async function writeProfile(sessions: NamespaceIntegration, agent: Agent,
         const event: ProfileSaveEvent = Object.freeze({ name: target, time: new Date().toISOString(), type: operation });
         return { event, information };
     });
-    await namespace.registry.definitions.processSave(saved.event);
+    await catalog.definitions.processSave(saved.event);
     return saved.information;
 }

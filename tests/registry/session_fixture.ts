@@ -35,7 +35,7 @@ export async function configureSession(namespaces: import('../../src/integration
 export async function publishSessionFixture(namespaces: import('../../src/integration/namespace_integration.js').NamespaceIntegration, agent: import('@deepseek-ai/dsh-agent').Agent, snapshot: import('../../src/profile/profile.js').ProfileSnapshot): Promise<void> {
     const { toPlaneProfile } = await import('../../src/profile/plane/to_plane_profile.js');
     const addition = await namespaces.addition(agent);
-    const catalog = namespaces.namespace.registry;
+    const catalog = namespaces.registry;
     await catalog.saveProfile(addition.name, toPlaneProfile({ name: addition.name, root: snapshot.serialize(), brief: snapshot.brief }, catalog.configuration(addition.name), catalog.definitions), { trusted: true });
     await namespaces.profiles.load(agent.session, addition.name);
     await namespaces.configurationChanged(agent);

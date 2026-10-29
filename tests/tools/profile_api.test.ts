@@ -45,7 +45,7 @@ async function fixture() {
     } as unknown as SemanticRegistry;
     const changed: string[] = [];
     const serviceContext = new Context();
-    const namespaces = new NamespaceIntegration(serviceContext, new NamespaceComponent(serviceContext, catalog), profiles);
+    const namespaces = new NamespaceIntegration(serviceContext, new NamespaceComponent(serviceContext, catalog), catalog, profiles);
     namespaces.physical = () => catalog.tools();
     namespaces.commandBriefs = async () => [{ name: physical.id, brief: physical.description, paths: ['files.read', 'files.cat'], totalCalls: 2 }, { name: 'outside_scope', brief: 'Outside this session.', paths: [], totalCalls: 0 }];
     registerToolCommands(ctx, catalog, profiles, async agent => { changed.push(agent.id); }, agent => namespaces.commandBriefs(agent), namespaces);
