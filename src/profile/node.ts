@@ -15,6 +15,10 @@ export interface ProfileNode {
     readonly type: string;
     readonly permissions: Permission;
     readonly disabled: boolean;
+    /** @brief Create an independent node from transport data, preserving provider-owned behavior and state. */
+    copyNode(value: ProfileTreeNode): this;
+    /** @brief Bind the installed path and enforce this node's rename and move policy. */
+    bindName(path: string): void;
     /** @brief Merge explicit permission overrides. */
     setPermissions(value: Partial<Permission>): this;
     /** @brief Set this node's explicit disabled state. */

@@ -38,7 +38,7 @@ export class EditableNamespace extends EditableNode implements ProfileNamespace 
             for (const [name, child] of Object.entries(data.children ?? {})) {
                 this.validateName(name);
                 const node = this.makeChild(name, child);
-                if (node instanceof EditableNode) node.bindName(this.memberName ? `${this.memberName}.${name}` : name);
+                node.bindName(this.memberName ? `${this.memberName}.${name}` : name);
                 this.members.set(name, node);
             }
         }
@@ -55,12 +55,12 @@ export class EditableNamespace extends EditableNode implements ProfileNamespace 
         for (const [name, data] of Object.entries(value.children ?? {})) {
             this.validateName(name);
             const original = this.members.get(name);
-            const child = original instanceof EditableNode && original.type === data.type ? original.copyNode(data) : this.makeChild(name, data);
-            if (child instanceof EditableNode) child.bindName(this.memberName ? `${this.memberName}.${name}` : name);
+            const child = original && original.type === data.type ? original.copyNode(data) : this.makeChild(name, data);
+            child.bindName(this.memberName ? `${this.memberName}.${name}` : name);
             node.members.set(name, child);
         }
         for (const [name, child] of this.members) {
-            if (!node.members.has(name) && !child.permissions.removable) node.members.set(name, child instanceof EditableNode ? child.copyNode(child.serialize()) : child);
+            if (!node.members.has(name) && !child.permissions.removable) node.members.set(name, child.copyNode(child.serialize()));
         }
         return node;
     }
@@ -68,7 +68,7 @@ export class EditableNamespace extends EditableNode implements ProfileNamespace 
     /** @brief Diagnostic paths follow a node when it is installed under a different parent key. */
     override bindName(path: string): void {
         super.bindName(path);
-        for (const [name, child] of this.members) if (child instanceof EditableNode) child.bindName(path ? `${path}.${name}` : name);
+        for (const [name, child] of this.members) child.bindName(path ? `${path}.${name}` : name);
     }
 
     /** @brief Hydration installs declared members without invoking external mutation methods. */
@@ -131,7 +131,7 @@ export class EditableNamespace extends EditableNode implements ProfileNamespace 
         if (!this.permissions.acceptsChildren) throw new ProfilePermissionError(`Namespace does not accept children: ${this.memberName}`);
         const previous = this.members.get(name);
         if (previous !== node) previous?.assertRemovable();
-        if (node instanceof EditableNode) node.bindName(this.memberName ? `${this.memberName}.${name}` : name);
+        node.bindName(this.memberName ? `${this.memberName}.${name}` : name);
         this.members.set(name, node);
         return this;
     }
