@@ -77,6 +77,6 @@ PTC 预加载通过 values 先按当前 Profile 的禁用规则过滤，再计�
 
 服务注册名为 toolsNamespace；工具调用路径仍为 tools.*。命令的结构锁定与提示固定独立：Mapping.pinned 阻止移除或改变原映射路径；普通命令的提示等级由 Mapping.alwaysVisible 保存，内置命令由 builtinVisible[path] 保存。InnerCommandNode 通过 permissions 禁止改名、编辑说明、移动和移除，普通固定等级仍可选 0/1/2；内置注册通过节点接口将 tools.inspect 的 availableFixLevels 限为 [2]，因此即使 Profile 请求 0 或 1 也投影为 2，禁用状态仍独立生效。
 
-service.ts 定义 ToolsNamespace interface，NamespaceComponent 实现该接口并继承 ProfileCollection 的 get/create/getOrCreate/edit 合约。Profile 是无名称的匿名树 snapshot，初始为空；edit(name, modifier) 原子发布回调返回值，普通 snapshot 编辑不落盘。Profile 节点接口与内部 class 实现在 registry/profile/。
+service.ts 定义 ToolsNamespace interface，NamespaceComponent 实现该接口并继承 ProfileCollection 的 list/get/create/getOrCreate/remove/edit 合约。Profile 是无名称的匿名树 snapshot，初始为空；edit(name, modifier) 原子发布回调返回值，普通 snapshot 编辑不落盘。Profile 节点接口与内部 class 实现在 registry/profile/。
 
 ToolAddition 定义 fixed、hidden、ptcDescription 可选属性。fixed 禁止人工及 agent 新增挂载，插件 edit 可显式挂载；hidden 从目录、选择器和发现中排除，PTC 仍独立暴露 tools_run_code。native 采用物理工具原始说明，PTC 优先使用 ptcDescription。definitions.ts 统一管理属性注册及注销，builtin_profile.ts 通过相同注册接口配置内置工具；加载尚未显式物化的内置树时通过 edit 安装，之后以实际提交树为准。

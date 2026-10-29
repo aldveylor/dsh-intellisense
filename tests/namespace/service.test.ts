@@ -38,6 +38,38 @@ test('Profiles start empty and get returns anonymous independent snapshots witho
     assert.throws(() => initial.create('files.read'), /Invalid Profile member/);
 });
 
+test('list returns independent name arrays and remove persists in collection submission order', async () => {
+    const { service, registry, store } = fixture();
+    assert.deepEqual(await service.list(), ['Default']);
+    await Promise.all([service.create('Work'), service.remove('Work'), service.getOrCreate('Other')]);
+    assert.deepEqual(await service.list(), ['Default', 'Other']);
+    assert.equal(await service.get('Work'), undefined);
+    const names = await service.list();
+    names.length = 0;
+    assert.deepEqual(await service.list(), ['Default', 'Other']);
+    await service.remove('Default');
+    assert.equal(registry.profileSelection().selected, 'Other');
+    const restored = new SemanticRegistry(store);
+    await restored.load();
+    assert.deepEqual(restored.profileSelection(), { profiles: ['Other'], selected: 'Other' });
+    await assert.rejects(service.remove('Other'), /profile_required/);
+    await assert.rejects(service.remove('Missing'), /does not exist/);
+    assert.deepEqual(await service.list(), ['Other']);
+});
+
+test('failed removal preserves the catalog and subsequent collection operations still succeed', async () => {
+    const { service, store } = fixture();
+    await service.create('Work');
+    const save = store.save.bind(store);
+    store.save = async () => { throw new Error('Disk failed'); };
+    await assert.rejects(service.remove('Work'), /Disk failed/);
+    assert.deepEqual(await service.list(), ['Default', 'Work']);
+    assert(await service.get('Work'));
+    store.save = save;
+    await service.remove('Work');
+    assert.deepEqual(await service.list(), ['Default']);
+});
+
 test('edit publishes a complete recursive snapshot and preserves explicit permissions across restart', async () => {
     const { service, registry, store } = fixture();
     await service.create('Development');

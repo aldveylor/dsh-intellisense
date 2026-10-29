@@ -57,6 +57,11 @@ export class NamespaceComponent implements ToolsNamespace {
         return () => { dispose(); this.catalogRevision++; this.ctx.emit('system-prompt/change'); };
     }
 
+    /** @brief List only catalog names without copying Profile trees. */
+    async list(): Promise<string[]> {
+        return this.registry.profileSelection().profiles;
+    }
+
     /** @brief Read an anonymous, independently editable snapshot without publishing changes. */
     get(name: string): Promise<ProfileSnapshot | undefined>;
     get(target: { agent: Agent }): Promise<ProfileSnapshot | undefined>;
@@ -75,6 +80,14 @@ export class NamespaceComponent implements ToolsNamespace {
     /** @brief Serialize concurrent get-or-create operations under the collection transaction. */
     getOrCreate(name: string): Promise<ProfileSnapshot> {
         return this.profileTransaction(async () => await this.get(name) ?? this.createProfile(name));
+    }
+
+    /** @brief Remove a catalog entry in submission order using the registry's deletion rules. */
+    remove(name: string): Promise<void> {
+        return this.profileTransaction(async () => {
+            await this.registry.manageProfile('delete', name, this.registry.revision);
+            this.ctx.emit('system-prompt/change');
+        });
     }
 
     /** @brief Publish only the callback result, preserving current data when the callback fails. */

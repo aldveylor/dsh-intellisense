@@ -72,7 +72,7 @@ Profile save/apply 对受保护节点的移除、改名、移动、替换、文�
 
 同一物理工具的每个挂载路径独立保存描述、固定等级及禁用状态；Mapping 不再区分 path 与 aliases，每条记录只代表一个挂载路径，不兼容旧存档。命令目录中的挂载路径包含禁用及当前作用域不可用的配置路径；执行、搜索与提示仍排除禁用路径。
 
-ToolsNamespace 与 Profile 为 interface；Profile 是无 name 的匿名树 snapshot，ProfileCollection 提供 get/create/getOrCreate/edit。create 初始为空，edit(name, modifier) 原子保存回调返回的递归树，无 root getter 或 commit。节点由继承的内部 class 实现，公开方法返回 interface。RegistryConfiguration 与 RegistryState 仍为实现 Saveable 的存储类；ProfileDocument 是命名 JSON 传输的内部投影。
+ToolsNamespace 与 Profile 为 interface；Profile 是无 name 的匿名树 snapshot，ProfileCollection 提供 list/get/create/getOrCreate/remove/edit。create 初始为空，edit(name, modifier) 原子保存回调返回的递归树，无 root getter 或 commit。节点由继承的内部 class 实现，公开方法返回 interface。RegistryConfiguration 与 RegistryState 仍为实现 Saveable 的存储类；ProfileDocument 是命名 JSON 传输的内部投影。
 
 根目录 README.md 为英文完整文档，README.zh-cn.md 为中文完整文档，互相提供语言切换链接；assets/ 仅保存图标、横幅和分语言截图。
 
