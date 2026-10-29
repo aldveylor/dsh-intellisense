@@ -106,6 +106,7 @@
     "@deepseek-ai/dsh-agent-loop": "^0.2.2-alpha.2",
     "@deepseek-ai/dsh-api-session-controller": "^0.2.2-alpha.2",
     "@deepseek-ai/dsh-app-boot": "^0.2.2-alpha.2",
+    "@deepseek-ai/dsh-official-bundles": "0.2.2-alpha.2",
     "@deepseek-ai/dsh-client-ui-plugin-manager": "^0.2.2-alpha.2",
     "@deepseek-ai/dsh-client-ui-primitives": "^0.2.2-alpha.2",
     "@deepseek-ai/dsh-client-ui-renderer": "^0.2.2-alpha.2",
