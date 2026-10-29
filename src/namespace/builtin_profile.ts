@@ -17,10 +17,10 @@ export function registerBuiltinDefinitions(service: Pick<ToolsNamespace, 'setToo
             return { ...projected, description: discoveryAvailable ? projected.description : projected.description.replace(projected.discoveryHint ?? '', '') };
         },
         ...(command.preload ? { value: {
-            read: async (namespace, agent, registry) => {
+            read: async (namespace, registry) => {
                 if (command.tool === 'tools_profile_annotation') return profileAnnotation;
-                if (command.tool === 'tools_profile_commands') return (await namespace.commandBriefs(agent, registry)).map(item => ({ ...item }));
-                return { ...await namespace.profileNames(agent) };
+                if (command.tool === 'tools_profile_commands') return (await namespace.commandBriefs(registry)).map(item => ({ ...item }));
+                return { ...await namespace.profileNames(registry) };
             },
             ...(command.tool === 'tools_profile_profiles' ? { refresh: 'call' as const } : command.tool === 'tools_profile_commands' ? { refresh: 'revision' as const } : {}),
         } } : {}),

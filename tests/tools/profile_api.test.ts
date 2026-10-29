@@ -1,3 +1,4 @@
+import { NamespaceComponent } from '../../src/namespace/component.js';
 import { EditableCommand } from '../../src/registry/profile/command.js';
 import { EditableNamespace } from '../../src/registry/profile/namespace.js';
 import { ValidationError, CurrentProfileDeletionError, UnknownCommandError, ProfileNotFoundError, ConversationRequiredError } from '../../src/error.js';
@@ -17,7 +18,7 @@ import { manifest } from '../../src/namespace/namespace.js';
 import { nodePermissions } from '../../src/namespace/node.js';
 import { inspect } from '../../src/tools/inspect.js';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
-import { NamespaceComponent } from '../../src/namespace/component.js';
+import { AgentSessionAddition } from '../../src/integration/agent_session_addition.js';
 import { RuntimeHost } from '../../src/runtime/host.js';
 
 /** @brief Exercise native command handlers using a real catalog and session references. */
@@ -33,12 +34,12 @@ async function fixture() {
     registry.refresh([physical]);
     const changed: string[] = [];
     const serviceContext = new Context();
-    const namespaces = new NamespaceComponent(serviceContext, catalog, profiles, []);
+    const namespaces = new AgentSessionAddition(serviceContext, new NamespaceComponent(serviceContext, catalog, []), profiles);
     namespaces.registryFor = async () => registry;
     namespaces.commandBriefs = async () => [{ name: physical.id, brief: physical.description, paths: ['files.read', 'files.cat'], totalCalls: 2 }, { name: 'outside_scope', brief: 'Outside this session.', paths: [], totalCalls: 0 }];
     registerToolCommands(ctx, catalog, profiles, async () => registry, async agent => { changed.push(agent.id); }, agent => namespaces.commandBriefs(agent), namespaces);
     const agentContext = new Context();
-    agentContext.provide('toolsNamespace', { isPtc: () => true } as unknown as Context['toolsNamespace']);
+    agentContext.provide('agentSessionAddition', { isPtc: () => true } as unknown as Context['agentSessionAddition']);
     const execution = { agent: { id: 'session', inject: () => {}, ctx: agentContext, session: Session.create(SessionId('session')) }, signal: new AbortController().signal } as unknown as ToolRunContext;
     const call = (name: string, args: unknown = {}) => definitions.get(name)!.execute(args, execution);
     const load = async (args: unknown = {}) => ProfileSchema.parse(await call('tools_profile_load', args));
@@ -735,17 +736,17 @@ test('save events expose only name, time and type after persistence and can retu
     const operations: string[] = [];
     const observed: string[] = [];
     const original = registry.snapshot();
-    const first = namespaces.effect('save', async event => {
+    const first = namespaces.namespace.effect('save', async event => {
         assert.deepEqual(Object.keys(event).sort(), ['name', 'time', 'type']);
         assert.equal(Object.isFrozen(event), true);
         assert.equal(new Date(event.time).toISOString(), event.time);
         operations.push(`${event.type}:${event.name}`);
-        const saved = await namespaces.get(event.name);
+        const saved = await namespaces.namespace.get(event.name);
         assert(saved);
         observed.push(saved.brief ?? '');
         return 'Saved by observer';
     });
-    const second = namespaces.effect('save', event => { operations.push(`observed:${event.type}`); });
+    const second = namespaces.namespace.effect('save', event => { operations.push(`observed:${event.type}`); });
     assert.equal(await call('tools_profile_save', { name: 'Effects', profile: profileWrite(await load()) }), 'Saved by observer');
     assert.equal((await load({ name: 'Effects' })).brief, undefined);
     assert.equal(await call('tools_profile_apply', { name: 'Effects', value: { brief: 'Agent patch' } }), 'Saved by observer');
@@ -761,12 +762,12 @@ test('save events expose only name, time and type after persistence and can retu
 
 test('node validation failures never publish changes and event failures occur after commit', async () => {
     const { namespaces, call, load, catalog, registry } = await fixture();
-    await namespaces.edit('Default', snapshot => {
+    await namespaces.namespace.edit('Default', snapshot => {
         snapshot.create('external', () => new EditableNamespace('external')).create('read', () => new EditableCommand('read')).setTool('read_file').setPermissions({ removable: false, commentable: false });
         return snapshot;
     });
     const draft = registry.snapshot();
-    const unregister = namespaces.effect('save', () => { throw new Error('Observer failed'); });
+    const unregister = namespaces.namespace.effect('save', () => { throw new Error('Observer failed'); });
     await assert.rejects(call('tools_profile_apply', { name: 'Default', value: { brief: 'Committed' } }), /Observer failed/);
     assert.equal((await load({ name: 'Default' })).brief, 'Committed');
     const committed = catalog.snapshot();
@@ -779,7 +780,7 @@ test('node validation failures never publish changes and event failures occur af
 test('save events are absent on validation or persistence failure and explicit feedback overrides advisories', async () => {
     const { namespaces, call, load, catalog, store } = await fixture();
     let events = 0;
-    const remove = namespaces.effect('save', () => { events++; return null; });
+    const remove = namespaces.namespace.effect('save', () => { events++; return null; });
     const before = catalog.snapshot();
     await assert.rejects(call('tools_profile_apply', { value: { root: { children: { tools: null } } } }), /cannot be removed/);
     assert.equal(events, 0);
@@ -821,8 +822,8 @@ test('builtin nodes normalize differential saves and reject explicit deletion du
 
 test('post-save observers can use collection writes without holding the completed save transaction', { timeout: 2000 }, async () => {
     const { namespaces, call, load } = await fixture();
-    const remove = namespaces.effect('save', async event => {
-        await namespaces.edit(event.name, value => value.setBrief('Observed after commit'));
+    const remove = namespaces.namespace.effect('save', async event => {
+        await namespaces.namespace.edit(event.name, value => value.setBrief('Observed after commit'));
     });
     await call('tools_profile_save', { name: 'Observed', profile: profileWrite(await load()) });
     assert.equal((await load({ name: 'Observed' })).brief, 'Observed after commit');

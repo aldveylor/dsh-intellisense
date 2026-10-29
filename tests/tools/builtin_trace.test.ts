@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { Context } from '@deepseek-ai/cordis';
 import { defineTool, type ToolDefinition, type ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
-import type { NamespaceComponent } from '../../src/namespace/component.js';
+import type { AgentSessionAddition } from '../../src/integration/agent_session_addition.js';
 import { registerToolCommands } from '../../src/tools/tool_commands.js';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { ProfileSessions } from '../../src/registry/profiles.js';
@@ -38,7 +38,7 @@ for (const ptc of [false, true]) test(`builtin discovery and Profile annotation 
     const session = Session.create(SessionId(`builtin-injection-${ptc}`));
     const catalog = new SemanticRegistry(new MemoryStore());
     const provider = await ctx.plugin({ apply: (scope: Context) => {
-        scope.provide('toolsNamespace', { isPtc: () => ptc } as unknown as NamespaceComponent);
+        scope.provide('agentSessionAddition', { isPtc: () => ptc } as unknown as AgentSessionAddition);
     } });
     ctx.provide('tools', { register: (definition: ToolDefinition) => {
         definitions.set(definition.name, definition);
@@ -58,7 +58,7 @@ for (const ptc of [false, true]) test(`builtin discovery and Profile annotation 
         },
     });
     try {
-        assert.throws(() => caller.toolsNamespace, /without inject/);
+        assert.throws(() => caller.agentSessionAddition, /without inject/);
         const execution = { callId: 'call-1', agent: { ctx: caller!, session }, signal: new AbortController().signal } as unknown as ToolRunContext;
         assert.equal(await definitions.get('tools_inspect')!.execute({}, execution), 'discovered commands');
         assert.equal(await definitions.get('tools_profile_annotation')!.execute({}, execution), ptc ? profileAnnotation : JSON.stringify(ProfileWriteSchema.toJSONSchema()));

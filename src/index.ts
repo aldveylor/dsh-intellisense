@@ -20,6 +20,7 @@ export async function apply(ctx: Context, options: Config = {}): Promise<void> {
 
 export { RuntimeHost } from './runtime/host.js';
 export { SemanticRegistry, RegistryConfiguration, RegistryState } from './registry/registry.js';
+export { AgentSessionAddition } from './integration/agent_session_addition.js';
 export { NamespaceComponent } from './namespace/component.js';
 export { NamespaceNode, CommandNode } from './namespace/namespace.js';
 export type { NamespaceInitialization, NamespaceImplementation } from './namespace/nodes/context.js';

@@ -1,10 +1,11 @@
+import { NamespaceComponent } from '../../src/namespace/component.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import ToolRuntime, { defineTool } from '@deepseek-ai/dsh-tools';
 import { createScope } from '@deepseek-ai/dsh-scope';
-import { NamespaceComponent } from '../../src/namespace/component.js';
+import { AgentSessionAddition } from '../../src/integration/agent_session_addition.js';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { ProfileSessions } from '../../src/registry/profiles.js';
 import { MemoryStore } from '../../src/storage/store.js';
@@ -39,7 +40,7 @@ test('editor discovers standing preset tools without live agents and keeps execu
             },
         });
         const store = new MemoryStore(), registry = new SemanticRegistry(store);
-        const component = new NamespaceComponent(ctx, registry, new ProfileSessions(registry, store), []);
+        const component = new AgentSessionAddition(ctx, new NamespaceComponent(ctx, registry, []), new ProfileSessions(registry, store));
         await component.refresh();
         await registry.configure([
             { id: 'read_file', path: 'fs.read', pinned: false },
@@ -72,7 +73,7 @@ test('preset catalog leases are released when reading a tool fails', async () =>
             acquireScope: async () => ({ key: {}, [Symbol.asyncDispose]: async () => { released = true; } }),
         });
         const store = new MemoryStore(), registry = new SemanticRegistry(store);
-        const component = new NamespaceComponent(ctx, registry, new ProfileSessions(registry, store), []);
+        const component = new AgentSessionAddition(ctx, new NamespaceComponent(ctx, registry, []), new ProfileSessions(registry, store));
         component.physical = (_agent, scope) => { if (scope) throw new Error('Catalog read failed'); return []; };
         await assert.rejects(component.refresh(), /Catalog read failed/);
         assert(released);
@@ -87,7 +88,7 @@ test('command briefs expose current session mount paths including disabled paths
         ctx.provide('agents', { list: () => [] });
         for (const name of ['read_file', 'write_file', 'unmounted', 'tools_inspect', 'tools_profile_commands', 'tools_run_code']) register(ctx, name);
         const store = new MemoryStore(), registry = new SemanticRegistry(store);
-        const component = new NamespaceComponent(ctx, registry, new ProfileSessions(registry, store), [{ tool: 'read_file', path: 'text.read' }]);
+        const component = new AgentSessionAddition(ctx, new NamespaceComponent(ctx, registry, [{ tool: 'read_file', path: 'text.read' }]), new ProfileSessions(registry, store));
         await component.refresh();
         await registry.configure([
             { id: 'read_file', path: 'fs.read', pinned: false },
@@ -129,7 +130,7 @@ test('session catalogs skip unchanged projection and invalidate tool changes, sc
         register(second.ctx, 'second_only');
         const store = new MemoryStore();
         const catalog = new SemanticRegistry(store);
-        const component = new NamespaceComponent(ctx, catalog, new ProfileSessions(catalog, store), []);
+        const component = new AgentSessionAddition(ctx, new NamespaceComponent(ctx, catalog, []), new ProfileSessions(catalog, store));
         const agent = { id: 'cached', ctx } as Agent;
         const binding = bindScopeParent(agent, firstKey);
         const physical = component.physical.bind(component);

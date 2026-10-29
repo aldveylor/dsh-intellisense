@@ -23,7 +23,7 @@ declare module '@deepseek-ai/cordis' { interface Context { namespaceRuntime: Nam
 
 /** @brief Execute namespace programs in isolated processes and dispatch children through native tool guards. */
 export class NamespaceRuntime extends Service {
-    static inject = ['codeRuntimeOptions', 'toolsNamespace', 'tools'];
+    static inject = ['codeRuntimeOptions', 'agentSessionAddition', 'tools'];
     private sequence = 0;
     private runtime: RuntimeHost;
 
@@ -56,7 +56,7 @@ export class NamespaceRuntime extends Service {
     /** @brief Run one program, propagate cancellation and await all native child executions before settling. */
     private async execute(code: string, parent: ToolRunContext, timeoutMs = this.runtime.config.timeoutMs): Promise<{ logs: string[]; result?: z.infer<ReturnType<typeof z.json>> }> {
         const agent = parent.agent;
-        const namespaces = this.ctx.toolsNamespace;
+        const namespaces = this.ctx.agentSessionAddition;
         if (!agent || !namespaces.isPtc(agent)) throw new Error('An Intellisense PTC conversation is required');
         if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new Error('Expected a positive finite timeoutMs');
         parent.signal.throwIfAborted();
@@ -86,7 +86,7 @@ export class NamespaceRuntime extends Service {
                 for (const entry of resolved) {
                     const producer = registry.definitions.addition(entry.tool).value;
                     if (Object.hasOwn(preloaded, entry.path) && producer && (producer.refresh === 'call' || (producer.refresh === 'revision' && currentRevision !== revision))) {
-                        values[entry.path] = await producer.read(namespaces, agent, registry);
+                        values[entry.path] = await producer.read(namespaces.namespace, registry);
                     }
                 }
                 revision = currentRevision;

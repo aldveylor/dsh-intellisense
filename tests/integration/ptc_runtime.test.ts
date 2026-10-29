@@ -1,3 +1,4 @@
+import { NamespaceComponent } from '../../src/namespace/component.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Context } from '@deepseek-ai/cordis';
@@ -7,7 +8,7 @@ import ToolRuntime, { defineTool } from '@deepseek-ai/dsh-tools';
 import { createScope } from '@deepseek-ai/dsh-scope';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
 import * as presentation from '../../src/integration/presentation.js';
-import { NamespaceComponent } from '../../src/namespace/component.js';
+import { AgentSessionAddition } from '../../src/integration/agent_session_addition.js';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { ProfileSessions } from '../../src/registry/profiles.js';
 import { MemoryStore } from '../../src/storage/store.js';
@@ -35,8 +36,8 @@ async function fixture(store: Store = new MemoryStore(), mode: 'ptc' | 'native' 
     const catalog = new SemanticRegistry(store);
     const statistics = new CommandStatistics(store);
     await statistics.load();
-    const namespaces = new NamespaceComponent(ctx, catalog, new ProfileSessions(catalog, store), [], createSearchEngines(), statistics);
-    ctx.provide('toolsNamespace', namespaces);
+    const namespaces = new AgentSessionAddition(ctx, new NamespaceComponent(ctx, catalog, [], createSearchEngines(), statistics), new ProfileSessions(catalog, store));
+    ctx.provide('agentSessionAddition', namespaces);
     let toolContext = ctx;
     await ctx.plugin({ inject: ['tools'], apply: (scope: Context) => { toolContext = scope; } });
     const key = {};

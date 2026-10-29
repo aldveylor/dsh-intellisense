@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Context } from '@deepseek-ai/cordis';
-import type { NamespaceComponent } from '../../src/namespace/component.js';
+import type { AgentSessionAddition } from '../../src/integration/agent_session_addition.js';
 import { registerSessionProfiles } from '../../src/web/session_profile/routes.js';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { ProfileSessions } from '../../src/registry/profiles.js';
@@ -21,7 +21,7 @@ async function fixture(locked = false) {
         fixedProfile: () => locked ? 'Files' : undefined, profiles, enabled: (agent: typeof agents[number]) => agent.enabled,
         registryFor: (agent: typeof agents[number]) => profiles.forSession(agent.id),
         configurationChanged: async (agent: typeof agents[number]) => { changed.push(agent.id); },
-    } as unknown as NamespaceComponent;
+    } as unknown as AgentSessionAddition;
     registerSessionProfiles(ctx, catalog, namespaces);
     return { catalog, profiles, changed, fetch, request: (session: string, body?: unknown, contentType = 'application/json') => fetch(new Request(`https://localhost/api/ts-intellisense-profile?session=${session}`, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': contentType }, body: JSON.stringify(body) })) };
 }

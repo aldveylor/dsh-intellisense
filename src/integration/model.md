@@ -7,3 +7,5 @@
 命名空间服务与节点实现在 `../namespace/`；内置工具注册与审计在 `../tools/`。
 
 `intellisense-presentation.config.profile` 可选指定已有具名 Profile。与 mode 一起按最近 presentation 作用域继承，显式子作用域未配置 profile 时不继承外层锁定。指定后会话以目录快照初始化，优先于父会话草稿和全局默认；已有会话选择不同名称时切换到指定配置，同名工作快照保留。缺失名称报错。
+
+`agent_session_addition.ts` 的 AgentSessionAddition 持有 Agent 会话 Profile、父子继承、作用域工具目录缓存、请求位置、原生发现集合与代理生命周期。插件以 agentSessionAddition 注册该服务；presentation、内置工具、Profile 下拉框和 PTC runtime 使用它，ToolsNamespace 只保留共享 Profile 编辑和名称解析。原生代理与 PTC 子调用经 DSH tools.execute 派发，保留 guard、统计、父子审计、附加上下文和结束回合语义。

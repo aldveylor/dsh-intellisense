@@ -6,7 +6,7 @@ import type {} from '../namespace/plugin.js';
 import { NamespaceRuntime } from '../namespace/runtime.js';
 
 export const name = 'intellisense-presentation';
-export const inject = ['tools', 'toolsNamespace'];
+export const inject = ['tools', 'agentSessionAddition'];
 /** @brief Select the execution form and optionally fix the conversation Profile. */
 export const Config = z.strictObject({ mode: z.enum(['native', 'ptc']).default('native'), profile: z.string().min(1).max(80).optional() });
 /** @brief The configured execution form shared by tool presentation and initial prompts. */
@@ -30,7 +30,7 @@ export async function apply(ctx: Context, options: z.input<typeof Config>): Prom
     const scope = scopeOf(ctx);
     if (!scope) throw new Error('Intellisense presentation requires an agent or preset scope');
     ctx.effect(() => { configurations.set(scope, config); return () => { configurations.delete(scope); }; });
-    ctx.toolsNamespace.register(ctx);
+    ctx.agentSessionAddition.register(ctx);
     if (config.mode === 'ptc') await ctx.isolate('namespaceRuntime').isolate('codeRuntime').plugin(NamespaceRuntime);
     ctx.tools.presentAs('native');
 }

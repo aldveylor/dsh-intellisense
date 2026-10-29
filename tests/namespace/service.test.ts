@@ -1,3 +1,4 @@
+import { AgentSessionAddition } from '../../src/integration/agent_session_addition.js';
 import { EditableCommand } from '../../src/registry/profile/command.js';
 import { EditableNamespace } from '../../src/registry/profile/namespace.js';
 import type { ProfileNamespace } from '../../src/registry/profile/namespace.js';
@@ -37,9 +38,10 @@ function fixture() {
     const store = new MemoryStore();
     const registry = new SemanticRegistry(store);
     registry.refresh([{ id: 'read', description: 'Native read documentation', parameters: { type: 'object', properties: {} }, output: {} }]);
-    const component = new NamespaceComponent(ctx, registry, new ProfileSessions(registry, store), []);
+    const component = new NamespaceComponent(ctx, registry, []);
     const service: ToolsNamespace = component;
-    return { store, registry, component, service };
+    const sessions = new AgentSessionAddition(ctx, component, new ProfileSessions(registry, store));
+    return { store, registry, component, service, sessions };
 }
 
 test('default Profiles contain concrete builtin implementations and independent anonymous snapshots', async () => {
@@ -145,13 +147,13 @@ test('failed modifiers, validation and persistence leave the entire Profile unch
 });
 
 test('conversation snapshot modification stays independent from its named catalog Profile', async () => {
-    const { service, registry, component } = fixture();
+    const { service, registry, sessions } = fixture();
     await service.create('Work');
     const session = new SemanticRegistry(new MemoryStore(), 'session', registry.definitions);
     await session.replaceConfiguration(registry.configuration('Work'), 'Work');
-    component.registryFor = async () => session;
-    component.configurationChanged = async () => {};
-    await service.edit({ agent: {} as Agent }, snapshot => { snapshot.create('read', () => new EditableCommand('read')).setTool('read'); return snapshot; });
+    sessions.registryFor = async () => session;
+    sessions.configurationChanged = async () => {};
+    await sessions.edit({} as Agent, snapshot => { snapshot.create('read', () => new EditableCommand('read')).setTool('read'); return snapshot; });
     assert.equal(session.configuration().mappings.length, 1);
     assert.equal(registry.configuration('Work').mappings.length, 0);
 });

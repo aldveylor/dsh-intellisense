@@ -1,3 +1,4 @@
+import { NamespaceComponent } from '../../src/namespace/component.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Context } from '@deepseek-ai/cordis';
@@ -5,7 +6,7 @@ import { AgentRegistry, type Agent } from '@deepseek-ai/dsh-agent';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
 import { createScope } from '@deepseek-ai/dsh-scope';
 import * as presentation from '../../src/integration/presentation.js';
-import { NamespaceComponent } from '../../src/namespace/component.js';
+import { AgentSessionAddition } from '../../src/integration/agent_session_addition.js';
 import { ProfileSessions } from '../../src/registry/profiles.js';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
@@ -15,9 +16,9 @@ test('runtime child ownership inherits the nearest parent working profile withou
     const mounted = await ctx.plugin(AgentRegistry);
     const catalog = new SemanticRegistry(new MemoryStore());
     const profiles = new ProfileSessions(catalog, new MemoryStore());
-    const namespaces = new NamespaceComponent(ctx, catalog, profiles, []);
+    const namespaces = new AgentSessionAddition(ctx, new NamespaceComponent(ctx, catalog, []), profiles);
     ctx.provide('tools', { schemas: () => [], presentAs: () => {} } as unknown as Context['tools']);
-    ctx.provide('toolsNamespace', { register: () => {} } as unknown as NamespaceComponent);
+    ctx.provide('agentSessionAddition', { register: () => {} } as unknown as AgentSessionAddition);
     const scopes: ReturnType<typeof createScope>[] = [];
     const detach: (() => void)[] = [];
 

@@ -8,6 +8,7 @@ import { DshStore } from '../storage/store.js';
 import { SemanticRegistry } from '../registry/registry.js';
 import { ProfileSessions } from '../registry/profiles.js';
 import { createSearchEngines } from '../search/search.js';
+import { AgentSessionAddition } from '../integration/agent_session_addition.js';
 import { NamespaceComponent } from './component.js';
 import type { ToolsNamespace } from './service.js';
 import { Aliases } from './namespace.js';
@@ -23,7 +24,7 @@ export const inject = ['tools', 'agents', 'systemPrompt', 'storage', storageBack
 export const Config = z.object({ aliasesFile: z.string().optional(), defaultSearchMethod: z.string().regex(/^[a-z][a-z0-9_]*$/).optional() }).prefault({});
 
 /** @brief Independent namespace service shared by native tools, the UI, and optional PTC execution. */
-declare module '@deepseek-ai/cordis' { interface Context { toolsNamespace: ToolsNamespace } }
+declare module '@deepseek-ai/cordis' { interface Context { toolsNamespace: ToolsNamespace; agentSessionAddition: AgentSessionAddition } }
 
 /** @brief Mount namespace configuration, initial system hints and native discovery controls. */
 export async function apply(ctx: Context, options: z.input<typeof Config> = {}): Promise<void> {
@@ -37,7 +38,7 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
     const profiles = new ProfileSessions(registry, store);
     const statistics = new CommandStatistics(store, { onError: error => ctx.logger.warn('Statistics persistence failed; dirty data will be retried.', error) });
     ctx.effect(() => async () => { try { await statistics.dispose(); } finally { await unit.close(); } });
-    let namespaces: NamespaceComponent | undefined;
+    let namespaces: AgentSessionAddition | undefined;
     let initialization: Promise<void> | undefined;
 
     /** @brief Keep management recovery available when a persisted domain fails initialization. */
@@ -49,9 +50,11 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
             await registry.load(recover);
             await statistics.load(recover);
             if (namespaces) return;
-            const component = new NamespaceComponent(ctx, registry, profiles, aliases, createSearchEngines(config.defaultSearchMethod), statistics);
+            const namespace = new NamespaceComponent(ctx, registry, aliases, createSearchEngines(config.defaultSearchMethod), statistics);
+            const component = new AgentSessionAddition(ctx, namespace, profiles);
             namespaces = component;
-            ctx.provide('toolsNamespace', component);
+            ctx.provide('toolsNamespace', namespace);
+            ctx.provide('agentSessionAddition', component);
             registerSessionProfiles(ctx, registry, component);
             ctx.on('agent/created', async ({ agent }) => { await component.configure(agent); });
             ctx.on('agent/disposed', async ({ agent }) => { await component.release(agent.id); });

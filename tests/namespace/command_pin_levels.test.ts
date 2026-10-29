@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import { SemanticRegistry, type Mapping, type PinLevel } from '../../src/registry/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
-import { NamespaceComponent } from '../../src/namespace/component.js';
+import { AgentSessionAddition } from '../../src/integration/agent_session_addition.js';
 import { TreeProvider } from '../../src/web/panel/tree_provider.js';
 
 const tool = {
@@ -15,8 +15,8 @@ const tool = {
 
 /** @brief Render the real prompt assembly with an isolated Profile registry. */
 function prompt(registry: SemanticRegistry): Promise<string> {
-    const component = { registryFor: async () => registry, aliases: [], isPtc: () => true } as unknown as NamespaceComponent;
-    return NamespaceComponent.prototype.prompt.call(component, {} as Agent);
+    const component = { registryFor: async () => registry, aliases: [], isPtc: () => true } as unknown as AgentSessionAddition;
+    return AgentSessionAddition.prototype.prompt.call(component, {} as Agent);
 }
 
 test('three command levels hide, summarize, or publish complete documented signatures', async () => {
@@ -98,8 +98,8 @@ test('disabled or absent discovery disappears from pinned prompts and builtin he
             const text = await prompt(registry);
             assert.equal(text.includes('tools.inspect'), available && !disabled.length);
             assert(text.includes('function read('));
-            const component = { registryFor: async () => registry, isPtc: () => true, aliases: [], tree: NamespaceComponent.prototype.tree } as unknown as NamespaceComponent;
-            const entries = await NamespaceComponent.prototype.entries.call(component, {} as Agent);
+            const component = { registryFor: async () => registry, isPtc: () => true, aliases: [], tree: AgentSessionAddition.prototype.tree } as unknown as AgentSessionAddition;
+            const entries = await AgentSessionAddition.prototype.entries.call(component, {} as Agent);
             assert.equal(entries.some(entry => entry.path === 'tools.inspect'), available && !disabled.length);
             assert.equal(entries.some(entry => entry.path === 'tools.search'), !disabled.includes('tools'));
         }

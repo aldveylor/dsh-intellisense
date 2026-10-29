@@ -1,10 +1,11 @@
+import { NamespaceComponent } from '../../src/namespace/component.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import { createScope } from '@deepseek-ai/dsh-scope';
 import * as presentation from '../../src/integration/presentation.js';
-import { NamespaceComponent } from '../../src/namespace/component.js';
+import { AgentSessionAddition } from '../../src/integration/agent_session_addition.js';
 import { SemanticRegistry } from '../../src/registry/registry.js';
 import { ProfileSessions } from '../../src/registry/profiles.js';
 import { MemoryStore } from '../../src/storage/store.js';
@@ -13,7 +14,7 @@ test('only an explicit Intellisense scope enables namespace configuration and de
     const ctx = new Context();
     const store = new MemoryStore();
     const registry = new SemanticRegistry(store);
-    const component = new NamespaceComponent(ctx, registry, new ProfileSessions(registry, store), []);
+    const component = new AgentSessionAddition(ctx, new NamespaceComponent(ctx, registry, []), new ProfileSessions(registry, store));
     const standard = createScope(ctx, {});
     const intellisenseKey = {};
     const intellisense = createScope(ctx, intellisenseKey);
@@ -24,7 +25,7 @@ test('only an explicit Intellisense scope enables namespace configuration and de
     await component.configure(standardAgent);
     const registrations: Context[] = [];
     const presentations: string[] = [];
-    ctx.provide('toolsNamespace', { register: (scope: Context) => registrations.push(scope) } as unknown as NamespaceComponent);
+    ctx.provide('agentSessionAddition', { register: (scope: Context) => registrations.push(scope) } as unknown as AgentSessionAddition);
     ctx.provide('tools', { presentAs: (mode: string) => presentations.push(mode) } as unknown as Context['tools']);
     const mounted = await intellisense.ctx.plugin(presentation, { mode: 'native', profile: 'Work' });
     assert.equal(registrations.length, 1);

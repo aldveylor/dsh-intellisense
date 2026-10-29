@@ -6,7 +6,7 @@ import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools';
 import { codeBlock } from '../protocol/code_block.js';
 import { appendPluginRecord } from '@deepseek-ai/dsh-session';
 import { declaration, normalizeInspectQueries, queryNodes, NamespaceNode } from '../namespace/namespace.js';
-import type { NamespaceComponent } from '../namespace/component.js';
+import type { AgentSessionAddition } from '../integration/agent_session_addition.js';
 import type { QueryTarget } from '../namespace/statistics.js';
 
 /** @brief Resolve each query target, excluding disabled and missing members. */
@@ -53,7 +53,7 @@ export function inspect(queries: readonly string[], root: NamespaceNode, runtime
 }
 
 /** @brief Register batched signature discovery as an ordinary guarded native tool. */
-export function registerInspect(ctx: Context, namespaces: NamespaceComponent): void {
+export function registerInspect(ctx: Context, namespaces: AgentSessionAddition): void {
     const contract = projectBuiltin(pluginCommands.discoveryCommand, 'native');
     const definition: ToolDefinition = defineTool({
         name: 'tools_inspect',

@@ -8,7 +8,7 @@ import { callableDeclaration, executionInstructions } from '../../src/namespace/
 import { pluginCommands, projectBuiltin } from '../../src/runtime/builtins.js';
 import { NamespaceNode, declaration } from '../../src/namespace/namespace.js';
 import { inspect, registerInspect } from '../../src/tools/inspect.js';
-import type { NamespaceComponent } from '../../src/namespace/component.js';
+import type { AgentSessionAddition } from '../../src/integration/agent_session_addition.js';
 import { nativeDiscovery, nativeQueryEntries } from '../../src/namespace/native_tools.js';
 
 const entries: ManifestEntry[] = [
@@ -21,7 +21,7 @@ test('registered physical discovery tool exposes and validates the queries objec
     const ctx = { effect: (callback: () => unknown) => callback(), tools: {
         register: (tool: ToolDefinition) => { definition = tool; return () => {}; },
     } } as unknown as Context;
-    registerInspect(ctx, {} as NamespaceComponent);
+    registerInspect(ctx, {} as AgentSessionAddition);
     assert.equal(definition.parameters.type, 'object');
     assert.deepEqual(definition.parameters.required, ['queries']);
     assert(definition.description.includes('{"queries":[""]}'));
