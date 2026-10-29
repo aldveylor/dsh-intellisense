@@ -262,6 +262,8 @@ test('loading error overlay places Reset after Refresh and recovers failed data 
     try {
         const buttons = [...document.querySelectorAll<HTMLButtonElement>('.ts-load-overlay button')];
         assert.deepEqual(buttons.map(button => button.textContent), ['Refresh', 'Reset']);
+        assert.equal(document.querySelector('.ts-error-toast'), null);
+        assert.equal(document.querySelector('dialog'), null);
         const before = registry.snapshot();
         buttons[1]!.click();
         await until(() => !document.querySelector('.ts-load-overlay'));
@@ -269,5 +271,34 @@ test('loading error overlay places Reset after Refresh and recovers failed data 
         assert.equal(requests[2]!.method, 'GET');
         assert.deepEqual(registry.snapshot(), before);
         assert.deepEqual(registry.configuration('Other').mappings, []);
+    } finally { dom.window.close(); }
+});
+
+test('failed editor requests show a floating toast, preserve the loaded tree and allow retry', async () => {
+    const { dom, document, button } = await fixture();
+    const fetch = dom.window.fetch;
+    try {
+        dom.window.fetch = async () => Response.json({ error: 'Unable to refresh settings' }, { status: 400 });
+        button('.ts-namespace-profile button[aria-label="Refresh"]').click();
+        await until(() => !!document.querySelector('.ts-error-toast'));
+        const toast = document.querySelector('.ts-error-toast')!;
+        assert.equal(toast.textContent, 'Operation failed: Unable to refresh settings');
+        assert.equal(toast.getAttribute('role'), 'alert');
+        assert.equal(toast.parentElement, document.body);
+        assert.equal(document.querySelector('dialog'), null);
+        assert.equal(document.querySelector('.ts-load-overlay'), null);
+        assert(document.querySelector('[data-namespace-path="file"]'));
+        const animation = document.querySelector('[data-action="refresh"]')!;
+        animation.dispatchEvent(new dom.window.Event('animationiteration', { bubbles: true }));
+        await until(() => animation.getAttribute('data-running') === 'false');
+        button('.ts-namespace-profile button[aria-label="Refresh"]').click();
+        await until(() => document.querySelector('.ts-error-toast') !== toast);
+        assert.equal(document.querySelector('.ts-error-toast')?.textContent, toast.textContent);
+        animation.dispatchEvent(new dom.window.Event('animationiteration', { bubbles: true }));
+        await until(() => animation.getAttribute('data-running') === 'false');
+        dom.window.fetch = fetch;
+        button('.ts-namespace-profile button[aria-label="Refresh"]').click();
+        await until(() => !document.querySelector('.ts-error-toast'));
+        assert(document.querySelector('[data-namespace-path="file"]'));
     } finally { dom.window.close(); }
 });
