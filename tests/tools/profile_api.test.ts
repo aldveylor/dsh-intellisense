@@ -747,7 +747,7 @@ test('save events expose only name, time and type after persistence and ignore o
     const operations: string[] = [];
     const observed: string[] = [];
     const original = registry.snapshot();
-    const first = namespaces.namespace.effect('save', async event => {
+    const first = namespaces.namespace.on('save', async event => {
         assert.deepEqual(Object.keys(event).sort(), ['name', 'time', 'type']);
         assert.equal(Object.isFrozen(event), true);
         assert.equal(new Date(event.time).toISOString(), event.time);
@@ -757,7 +757,7 @@ test('save events expose only name, time and type after persistence and ignore o
         observed.push(saved.brief ?? '');
         return 'Ignored observer feedback' as never;
     });
-    const second = namespaces.namespace.effect('save', event => { operations.push(`observed:${event.type}`); });
+    const second = namespaces.namespace.on('save', event => { operations.push(`observed:${event.type}`); });
     assert.equal(await call('tools_profile_save', { name: 'Effects', profile: profileWrite(await load()) }), null);
     assert.equal((await load({ name: 'Effects' })).brief, undefined);
     assert.equal(await call('tools_profile_apply', { name: 'Effects', value: { brief: 'Agent patch' } }), null);
@@ -778,7 +778,7 @@ test('node validation failures never publish changes and event failures occur af
         return snapshot;
     });
     const draft = registry.snapshot();
-    const unregister = namespaces.namespace.effect('save', () => { throw new Error('Observer failed'); });
+    const unregister = namespaces.namespace.on('save', () => { throw new Error('Observer failed'); });
     await assert.rejects(call('tools_profile_apply', { name: 'Default', value: { brief: 'Committed' } }), /Observer failed/);
     assert.equal((await load({ name: 'Default' })).brief, 'Committed');
     const committed = catalog.snapshot();
@@ -791,7 +791,7 @@ test('node validation failures never publish changes and event failures occur af
 test('save events are absent on failures and observer results preserve validation advisories', async () => {
     const { namespaces, call, load, catalog, store } = await fixture();
     let events = 0;
-    const remove = namespaces.namespace.effect('save', () => { events++; return null as never; });
+    const remove = namespaces.namespace.on('save', () => { events++; return null as never; });
     const before = catalog.snapshot();
     await assert.rejects(call('tools_profile_apply', { value: { root: { children: { tools: null } } } }), /cannot be removed/);
     assert.equal(events, 0);
@@ -833,7 +833,7 @@ test('builtin nodes normalize differential saves and reject explicit deletion du
 
 test('post-save observers can use collection writes without holding the completed save transaction', { timeout: 2000 }, async () => {
     const { namespaces, call, load } = await fixture();
-    const remove = namespaces.namespace.effect('save', async event => {
+    const remove = namespaces.namespace.on('save', async event => {
         await namespaces.namespace.edit(event.name, value => value.setBrief('Observed after commit'));
     });
     await call('tools_profile_save', { name: 'Observed', profile: profileWrite(await load()) });

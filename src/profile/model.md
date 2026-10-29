@@ -1,6 +1,6 @@
 # Profile 节点与版本引用
 
-`service.ts` 定义 ToolsNamespace、ProfileSaveEvent 与 ProfileSaveEffect，`component.ts` 实现具名 Profile 服务；`ctx.toolsNamespace` 与 `ctx.intellisense.profiles` 使用此处的同一接口。`namespace/` 管理命名空间消费投影、声明、提示和运行时装配；`catalog/` 管理全局目录与会话引用；`plane/` 保存扁平编辑状态 PlaneProfile/PlaneProfileState 及 toPlaneProfile 转换接口。原 src/registry 与 src/namespace 已迁入本模块。
+`service.ts` 定义 ToolsNamespace、ProfileSaveEvent 与 ProfileSaveEffect，`component.ts` 实现具名 Profile 服务；`ctx.toolsNamespace` 与 `ctx.intellisense.profiles` 使用此处的同一接口，通过 `on('save', handler)` 注册保存事件监听并返回取消监听函数。`namespace/` 管理命名空间消费投影、声明、提示和运行时装配；`catalog/` 管理全局目录与会话引用；`plane/` 保存扁平编辑状态 PlaneProfile/PlaneProfileState 及 toPlaneProfile 转换接口。原 src/registry 与 src/namespace 已迁入本模块。
 
 Profile 与 ProfileSnapshot 是同义匿名节点树接口。EditableNode、EditableNamespace、EditableCommand、EditableSnapshot 提供普通实现；默认 RootNamespace 与内置子节点位于 tools/profile_nodes/。create/getOrCreate 接受无参数工厂并返回实际对象，get/set 使用 ProfileNode，按 type 区分 namespace/command。ProfileNode 通过 copyNode(value) 与 bindName(path) 接口负责独立复制、恢复数据及路径绑定。命名空间不检查 EditableNode 基类，纯接口节点也参与克隆、恢复和重命名/移动策略；受保护的省略节点同样独立复制。默认类的 copyNode 按自身原型复制，含私有字段或其它特殊状态的提供方应自行实现复制。
 

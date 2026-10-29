@@ -1,10 +1,9 @@
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { NamespaceIntegration } from '../integration/namespace_integration.js';
-import type { ProfileSaveEvent } from '../profile/service.js';
 import type { ProfilePatch, ProfileWrite } from '../profile/catalog/profile_write.js';
-import { PlaneProfile } from '../profile/plane/profile.js';
-import { toPlaneProfile } from '../profile/plane/to_plane_profile.js';
-import { ProfileNotFoundError } from '../error.js';
+import { ProfileWriteSchema, profileWrite } from '../profile/catalog/profile_write.js';
+import { compareProfile } from '../profile/compare.js';
+import { readProfile } from './profile_data.js';
 
 import type { ProfileData } from '../profile/catalog/profile_tree.js';
 import type { ProfileTreeNode } from '../profile/catalog/profile_node.js';
@@ -34,27 +33,22 @@ export function profileSaveInformation(profile: ProfileData, tools: readonly str
 
 /** @brief Validate save/apply in the tool layer, persist atomically and return validation information. */
 export async function writeProfile(sessions: NamespaceIntegration, agent: Agent, name: string | undefined, input: ProfileWrite | ProfilePatch, operation: 'save' | 'apply'): Promise<string | null> {
-    const catalog = sessions.registry;
-    const saved = await catalog.profileTransaction(async () => {
-        const session = await sessions.addition(agent);
-        const target = name ?? session.name;
-        const revision = catalog.revision;
-        const exists = catalog.profileSelection().profiles.includes(target);
-        if (operation === 'apply' && name !== undefined && !exists) throw new ProfileNotFoundError(target);
-        const baseline = exists ? (await catalog.reference(target)).snapshot : session.profile.snapshot;
-        const snapshot = baseline.clone();
-        if (operation === 'save') snapshot.save(input as ProfileWrite);
-        else snapshot.apply(input as ProfilePatch);
-        snapshot.check({ commands: new Set((await sessions.commandBriefs(agent)).map(command => command.name)),
-            addition: tool => sessions.intellisense.toolAdditions.get(tool), owns: tool => catalog.owns(tool), original: baseline.serialize() });
-        const value = { name: target, brief: snapshot.brief, root: snapshot.serialize() };
-        const information = profileSaveInformation(value, sessions.physical(agent).map(tool => tool.id));
-        const configuration = toPlaneProfile(value, exists ? catalog.configuration(target) : new PlaneProfile(), catalog.definitions);
-        await catalog.saveProfile(target, configuration, { trusted: true, revision });
-        agent.ctx.emit('system-prompt/change');
-        const event: ProfileSaveEvent = Object.freeze({ name: target, time: new Date().toISOString(), type: operation });
-        return { event, information };
-    });
-    await catalog.definitions.processSave(saved.event);
-    return saved.information;
+    const service = sessions.namespace;
+    const session = await sessions.addition(agent);
+    const target = name ?? session.name;
+    const commands = new Set((await sessions.commandBriefs(agent)).map(command => command.name));
+    const initial = name === undefined || operation === 'save' ? session.profile.snapshot : undefined;
+    let information: string | null = null;
+    await service.edit(target, snapshot => {
+        const original = snapshot.serialize();
+        if (operation === 'save') {
+            const value = ProfileWriteSchema.parse(input);
+            const normalized = profileWrite({ name: target, brief: value.brief, root: snapshot.normalize(value.root) as ProfileData['root'] });
+            snapshot.apply(compareProfile(profileWrite(readProfile(target, snapshot)), normalized) as ProfilePatch);
+        } else snapshot.apply(input as ProfilePatch);
+        snapshot.check({ commands, addition: tool => sessions.intellisense.toolAdditions.get(tool), owns: tool => sessions.owns(tool), original });
+        information = profileSaveInformation(readProfile(target, snapshot), sessions.physical(agent).map(tool => tool.id));
+        return snapshot;
+    }, { initial, event: operation });
+    return information;
 }

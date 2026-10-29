@@ -1,7 +1,7 @@
-import type { ProfileFactory, ProfileSnapshot } from './profile.js';
+import type { ProfileFactory, ProfileSnapshot, ProfileVersion } from './profile.js';
 import { PlaneProfile } from './plane/profile.js';
 import { toPlaneProfile } from './plane/to_plane_profile.js';
-import type { ProfileSaveEffect, ToolsNamespace } from './service.js';
+import type { ProfileEditOptions, ProfileSaveEffect, ToolsNamespace } from './service.js';
 import type { Context } from '@deepseek-ai/cordis';
 import type { SemanticRegistry } from './catalog/registry.js';
 
@@ -9,13 +9,35 @@ import type { SemanticRegistry } from './catalog/registry.js';
 export class NamespaceComponent implements ToolsNamespace {
     constructor(private ctx: Context, readonly registry: SemanticRegistry) {}
 
+    get revision(): string { return `${this.registry.revision}:${this.registry.definitions.revision}`; }
+
+    /** @brief Read the shared default and catalog names. */
+    async selection() { return this.registry.profileSelection(); }
+
+    /** @brief Change the default in the shared edit transaction. */
+    async setDefault(name: string): Promise<void> {
+        await this.registry.profileTransaction(() => this.registry.manageProfile('select', name, this.registry.revision));
+    }
+
+    /** @brief Materialize configured aliases through the Profile backend. */
+    setAliases(aliases: readonly { path: string; tool: string }[]): void { this.registry.setAliases(aliases); }
+
+    /** @brief Read a current immutable version. */
+    reference(name?: string): Promise<ProfileVersion> { return this.registry.reference(name); }
+
+    /** @brief Restore an archived version without consulting the current catalog. */
+    restore(pointer: number): Promise<ProfileVersion> { return this.registry.snapshots.get(pointer); }
+
+    /** @brief Archive and publish a holder atomically through the Profile backend. */
+    retain<T>(reference: ProfileVersion, publish: (reference: ProfileVersion) => Promise<T>): Promise<T> { return this.registry.snapshots.use(reference, publish); }
+
     /** @brief The collection's constructor creates the default typed tree and rehydrates stored Profiles. */
     get createInitialProfile(): ProfileFactory { return this.registry.definitions.createInitialProfile; }
 
     set createInitialProfile(factory: ProfileFactory) { this.registry.definitions.createInitialProfile = factory; }
 
     /** @brief Register disposable provider processing for agent save and apply. */
-    effect(event: 'save', handler: ProfileSaveEffect): () => void { return this.registry.definitions.effect(event, handler); }
+    on(event: 'save', handler: ProfileSaveEffect): () => void { return this.registry.definitions.on(event, handler); }
 
     /** @brief List only catalog names without copying Profile trees. */
     async list(): Promise<string[]> {
@@ -48,12 +70,13 @@ export class NamespaceComponent implements ToolsNamespace {
     }
 
     /** @brief Publish only the callback result, preserving current data when the callback fails. */
-    edit(name: string, modifier: (snapshot: ProfileSnapshot) => ProfileSnapshot): Promise<ProfileSnapshot> {
-        return this.registry.profileTransaction(async () => {
+    async edit(name: string, modifier: (snapshot: ProfileSnapshot) => ProfileSnapshot, options: ProfileEditOptions = {}): Promise<ProfileSnapshot> {
+        const saved = await this.registry.profileTransaction(async () => {
             const registry = this.registry;
-            const current = registry.configuration(name);
+            const exists = registry.profileSelection().profiles.includes(name);
+            const current = exists ? registry.configuration(name) : new PlaneProfile();
             const revision = registry.revision;
-            const input = (await registry.reference(name)).snapshot;
+            const input = exists ? (await this.reference(name)).snapshot : options.initial?.clone() ?? (await this.reference(name)).snapshot;
             const output = modifier(input);
             if (!output || typeof output.serialize !== 'function') throw new Error('Profile modifier must return a snapshot');
             const published = registry.definitions.profile({ brief: output.brief, root: output.serialize() });
@@ -61,8 +84,10 @@ export class NamespaceComponent implements ToolsNamespace {
             const configuration = toPlaneProfile(value, current, registry.definitions);
             await registry.saveProfile(name, configuration, { trusted: true, revision });
             this.ctx.emit('system-prompt/change');
-            return this.registry.definitions.profile(value);
+            return { snapshot: registry.definitions.profile(value), time: new Date().toISOString() };
         });
+        if (options.event !== undefined) await this.registry.definitions.processSave(Object.freeze({ name, time: saved.time, type: options.event }));
+        return saved.snapshot;
     }
 
     /** @brief Create one initialized catalog entry in the registry's atomic name transaction. */

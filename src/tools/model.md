@@ -71,7 +71,7 @@ ProfileRootWrite 的匿名根只允许 type/children，拒绝没有持久化表�
 
 工具直接读取当前会话引用的原始 Profile 节点，输出契约为携带原节点引用的扁平数据。permissions 保留为只读说明，检查与修正在 RootNamespace 和各子节点中执行。
 
-Profile 操作模型详见 profile/model.md 与 tools/profile_nodes/model.md。ProfileCollection.createInitialProfile 是无参数初始生成函数；节点 create/getOrCreate 使用 (name, factory: () => T)，T extends ProfileNode，返回 T；get/set 使用 ProfileNode，type 基础声明为 string。apply 为基础操作，save 比较完整目标再 apply 差异，普通省略节点删除。effect 仅通知保存事件，不处理返回值。
+Profile 操作模型详见 profile/model.md 与 tools/profile_nodes/model.md。ProfileCollection.createInitialProfile 是无参数初始生成函数；节点 create/getOrCreate 使用 (name, factory: () => T)，T extends ProfileNode，返回 T；get/set 使用 ProfileNode，type 基础声明为 string。apply 为基础操作，save 比较完整目标再 apply 差异，普通省略节点删除。`on` 仅通知保存事件，不处理返回值。
 
 `profile_save.ts` 为 tools_profile_save/tools_profile_apply 统一执行节点校验、原子持久化及校验提示计算。ProfileSaveEffect 只在提交后观察 name/time/type，不处理返回值，不覆盖工具反馈；处理器可在保存事务结束后继续编辑目录。
 

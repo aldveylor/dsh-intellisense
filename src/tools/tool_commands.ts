@@ -10,13 +10,14 @@ import type { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
-import type { SemanticRegistry } from '../profile/catalog/registry.js';
+import type { ToolsNamespace } from '../profile/service.js';
+import { readProfile } from './profile_data.js';
 import type { NamespaceIntegration } from '../integration/namespace_integration.js';
 import type { ProfileSessions } from '../profile/catalog/profiles.js';
-import { type CommandBrief, ProfileDocument, profileAnnotation } from '../profile/catalog/profile_tree.js';
+import { type CommandBrief, profileAnnotation } from '../profile/catalog/profile_tree.js';
 
 /** @brief Register Profile management commands and data access. */
-export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, profiles: ProfileSessions, changed: (agent: Agent) => Promise<void>, commands: (agent: Agent) => Promise<CommandBrief[]>, namespace?: NamespaceIntegration): void {
+export function registerToolCommands(ctx: Context, catalog: ToolsNamespace, profiles: ProfileSessions, changed: (agent: Agent) => Promise<void>, commands: (agent: Agent) => Promise<CommandBrief[]>, namespace?: NamespaceIntegration): void {
     /** @brief Resolve mode-specific comments in the registration scope. */
     const contract = (tool: string) => projectBuiltin(pluginCommands.find(tool)!, 'native');
     const lock = new ProfileLock();
@@ -37,7 +38,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
             const { name } = z.strictObject({ name: z.string().optional() }).parse(args);
             const addition = await profiles.addition(execution.agent.session);
             const snapshot = name === undefined ? addition.profile.snapshot : (await catalog.reference(name)).snapshot;
-            return JSON.parse(JSON.stringify(new ProfileDocument({ name: name ?? addition.name, root: snapshot.serialize(), brief: snapshot.brief }).save())) as Record<string, z.infer<ReturnType<typeof z.json>>>;
+            return JSON.parse(JSON.stringify(readProfile(name ?? addition.name, snapshot))) as Record<string, z.infer<ReturnType<typeof z.json>>>;
         },
     })));
     ctx.effect(() => register(defineTool({
@@ -62,7 +63,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         execute: async (args, execution) => {
             if (!execution.agent) throw new ConversationRequiredError();
             const { name } = z.strictObject({ name: z.string().min(1) }).parse(args);
-            await catalog.manageProfile('select', name, catalog.revision);
+            await catalog.setDefault(name);
             return null;
         },
     })));
@@ -97,7 +98,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
             const selected = (await profiles.addition(execution.agent.session)).name;
             const target = name;
             if (target === selected) throw new CurrentProfileDeletionError(target);
-            await catalog.manageProfile('delete', target, catalog.revision);
+            await catalog.remove(target);
             return null;
         },
     })));
@@ -107,7 +108,7 @@ export function registerToolCommands(ctx: Context, catalog: SemanticRegistry, pr
         execute: async (_args, execution) => {
             if (!execution.agent) throw new ConversationRequiredError();
             const addition = await profiles.addition(execution.agent.session);
-            return { profiles: catalog.profileSelection().profiles, selected: addition.name };
+            return { profiles: (await catalog.list()), selected: addition.name };
         },
     })));
     ctx.effect(() => register(defineTool({

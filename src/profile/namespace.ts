@@ -6,6 +6,7 @@ import type { NamespaceTreeNode, ProfileTreeNode } from './catalog/profile_node.
 /** @brief Portable namespace contract containing directly nested node interfaces. */
 export interface ProfileNamespace extends ProfileNode {
     readonly type: 'namespace';
+    readonly description: string | undefined;
     readonly children: ReadonlyMap<string, ProfileNode>;
     /** @brief Read one direct member; inspect type before casting to a specialized interface. */
     get(name: string): ProfileNode | undefined;
@@ -28,13 +29,13 @@ export interface ProfileNamespace extends ProfileNode {
 export class EditableNamespace extends EditableNode implements ProfileNamespace {
     readonly type = 'namespace';
     protected members = new Map<string, ProfileNode>();
-    protected description?: string;
+    protected namespaceDescription?: string;
 
     constructor(name = '', data?: NamespaceTreeNode) {
         super(name);
         if (data) {
             this.restore(data);
-            this.description = data.description;
+            this.namespaceDescription = data.description;
             for (const [name, child] of Object.entries(data.children ?? {})) {
                 this.validateName(name);
                 const node = this.makeChild(name, child);
@@ -44,6 +45,8 @@ export class EditableNamespace extends EditableNode implements ProfileNamespace 
         }
     }
 
+    get description(): string | undefined { return this.namespaceDescription; }
+
     get children(): ReadonlyMap<string, ProfileNode> { return new Map(this.members); }
 
     /** @brief Restore data recursively using the actual node prototypes declared by the initial factory. */
@@ -51,7 +54,7 @@ export class EditableNamespace extends EditableNode implements ProfileNamespace 
         if (value.type !== 'namespace') throw new ProfilePermissionError(`Protected node cannot be replaced: ${this.memberName}`);
         const node = super.copyNode(value);
         node.members = new Map();
-        node.description = value.description;
+        node.namespaceDescription = value.description;
         for (const [name, data] of Object.entries(value.children ?? {})) {
             this.validateName(name);
             const original = this.members.get(name);
@@ -155,14 +158,14 @@ export class EditableNamespace extends EditableNode implements ProfileNamespace 
     remove(name: string): boolean { this.validateName(name); this.members.get(name)?.assertRemovable(); return this.members.delete(name); }
 
     /** @brief Set the namespace description. */
-    setDescription(value: string | undefined): this { if (!this.permissions.commentable && value !== this.description) throw new ProfilePermissionError(`Node documentation cannot be changed: ${this.memberName}`); this.description = value; return this; }
+    setDescription(value: string | undefined): this { if (!this.permissions.commentable && value !== this.namespaceDescription) throw new ProfilePermissionError(`Node documentation cannot be changed: ${this.memberName}`); this.namespaceDescription = value; return this; }
 
     /** @brief Set whether this namespace is included in the prompt directory. */
     setFixedLevel(value: 0 | 1): this { if (this.permissions.availableFixLevels.length ? !this.permissions.availableFixLevels.includes(value) : value !== (this.settings.fixedLevel ?? 0)) throw new ProfilePermissionError(`Node fixed level cannot be changed: ${this.memberName}`); this.settings.fixedLevel = value; return this; }
 
     serialize(): NamespaceTreeNode {
         return structuredClone({ ...this.settings, type: this.type, fixedLevel: this.settings.fixedLevel as 0 | 1 | undefined,
-            ...(this.description === undefined ? {} : { description: this.description }),
+            ...(this.namespaceDescription === undefined ? {} : { description: this.namespaceDescription }),
             children: Object.fromEntries([...this.members].map(([name, child]) => [name, child.serialize()])) });
     }
 

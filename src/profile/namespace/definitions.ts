@@ -6,7 +6,7 @@ import type { ProfileSaveEffect, ProfileSaveEvent, ToolsNamespace } from '../ser
 import { registerBuiltinDefinitions } from './builtin_profile.js';
 
 /** @brief Own the initial Profile factory and completed-save observers. */
-export class NamespaceDefinitions implements Pick<ToolsNamespace, 'createInitialProfile' | 'effect'> {
+export class NamespaceDefinitions implements Pick<ToolsNamespace, 'createInitialProfile' | 'on'> {
     private saveEffects = new Set<ProfileSaveEffect>();
     private profileFactory: ProfileFactory = () => new EditableSnapshot();
     private cachedTree?: NamespaceTreeNode;
@@ -15,7 +15,7 @@ export class NamespaceDefinitions implements Pick<ToolsNamespace, 'createInitial
     constructor(private readonly changed: () => void = () => {}) { registerBuiltinDefinitions(this); }
 
     /** @brief Register an ordered save processor with reversible lifetime. */
-    effect(_event: 'save', handler: ProfileSaveEffect): () => void {
+    on(_event: 'save', handler: ProfileSaveEffect): () => void {
         this.saveEffects.add(handler);
         return () => { this.saveEffects.delete(handler); };
     }

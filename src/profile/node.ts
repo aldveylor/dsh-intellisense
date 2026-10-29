@@ -15,6 +15,7 @@ export interface ProfileNode {
     readonly type: string;
     readonly permissions: Permission;
     readonly disabled: boolean;
+    readonly fixedLevel: number | undefined;
     /** @brief Create an independent node from transport data, preserving provider-owned behavior and state. */
     copyNode(value: ProfileTreeNode): this;
     /** @brief Bind the installed path and enforce this node's rename and move policy. */
@@ -64,6 +65,8 @@ export abstract class EditableNode implements ProfileNode {
     abstract readonly type: string;
 
     get permissions(): Permission { return nodePermissions(this.type === 'command' ? 'leaf' : 'tree', structuredClone(this.settings.permissions)); }
+
+    get fixedLevel(): number | undefined { return this.settings.fixedLevel; }
 
     get disabled(): boolean { return !!this.settings.disabled; }
 

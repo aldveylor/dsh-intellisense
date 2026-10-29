@@ -2,14 +2,14 @@ import { EditableNamespace, type ProfileNamespace } from '../namespace.js';
 import { EditableCommand, type ProfileCommand } from '../command.js';
 import { profileMembers } from '../namespace/namespace.js';
 import { toPlaneProfile } from '../plane/to_plane_profile.js';
-import { SnapshotStore, type ProfileReference } from '../snapshot_store.js';
+import { SnapshotStore } from '../snapshot_store.js';
 import { profileTree, ProfileSchema } from './profile_tree.js';
 import { validateProfileEdit } from '../validate_edit.js';
 import { NamespaceDefinitions } from '../namespace/definitions.js';
 import { ToolAdditions, type ToolAddition } from '../../integration/tool_additions/tool_additions.js';
 import { settingsAt, ProfileNodeSettingsSchema } from '../node_settings.js';
 import { ProfileNotFoundError } from '../../error.js';
-import type { ProfileSnapshot } from '../profile.js';
+import type { ProfileSnapshot, ProfileVersion } from '../profile.js';
 import { toolName, validatePath } from './path.js';
 export { validatePath } from './path.js';
 import { storageVersion } from '../../storage/version.js';
@@ -62,10 +62,10 @@ export class SemanticRegistry {
     private writeChain: Promise<unknown> = Promise.resolve();
 
     private aliases: readonly { path: string; tool: string }[] = [];
-    private aliasChecks = new WeakSet<ProfileReference>();
+    private aliasChecks = new WeakSet<ProfileVersion>();
     readonly snapshots: SnapshotStore;
     readonly toolAdditions = new ToolAdditions();
-    private references: Record<string, ProfileReference> = Object.create(null);
+    private references: Record<string, ProfileVersion> = Object.create(null);
 
     constructor(private store: Store, _scope: 'global' | 'session' = 'global', readonly definitions = new NamespaceDefinitions(), snapshotStore: Store = store) { this.snapshots = new SnapshotStore(snapshotStore, definitions); }
 
@@ -100,7 +100,7 @@ export class SemanticRegistry {
         return snapshot;
     }
 
-    async reference(name = this.state.profile): Promise<ProfileReference> {
+    async reference(name = this.state.profile): Promise<ProfileVersion> {
         if (!this.references[name]) {
             this.configuration(name);
             await this.transaction(async () => { if (!this.references[name]) await this.persist(this.state, [name]); });
@@ -119,7 +119,7 @@ export class SemanticRegistry {
     /** @brief Store current global Profiles and pointers; archive data is written only when a session enters. */
     private async persist(state: PlaneProfileState, updated: readonly string[] = []): Promise<void> {
         const configurations = { ...state.inactiveProfiles, [state.profile]: state };
-        const references: Record<string, ProfileReference> = Object.create(null);
+        const references: Record<string, ProfileVersion> = Object.create(null);
         for (const [name, configuration] of Object.entries(configurations)) {
             if (this.references[name] && !updated.includes(name)) references[name] = this.references[name]!;
             else {
@@ -154,7 +154,7 @@ export class SemanticRegistry {
         const saved = await this.store.load<ProfileCatalogData>('registry');
         if (saved === undefined) return;
         const configurations: Record<string, PlaneProfile> = Object.create(null);
-        const references: Record<string, ProfileReference> = Object.create(null);
+        const references: Record<string, ProfileVersion> = Object.create(null);
         const valid = saved && saved.version === configurationVersion && Number.isSafeInteger(saved.revision)
             && saved.revision >= 0 && saved.profiles && typeof saved.profiles === 'object' && !Array.isArray(saved.profiles);
         if (!valid && !recover) throw new Error('Invalid Profile reference catalog');

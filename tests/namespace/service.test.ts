@@ -371,7 +371,7 @@ test('integration accepts a portable namespace service without exposing its regi
         getOrCreate: name => component.getOrCreate(name),
         remove: name => component.remove(name),
         edit: (name, modifier) => component.edit(name, modifier),
-        effect: (event, handler) => component.effect(event, handler),
+        on: (event, handler) => component.on(event, handler),
     };
     const integration = new NamespaceIntegration(ctx, service, registry, new ProfileSessions(registry, new MemoryStore()));
     assert.equal('registry' in service, false);

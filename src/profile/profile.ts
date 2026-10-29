@@ -41,3 +41,11 @@ export interface ProfileCollection {
     /** @brief Publish only the snapshot returned by the modifier after complete validation. */
     edit(name: string, modifier: (snapshot: ProfileSnapshot) => ProfileSnapshot): Promise<ProfileSnapshot>;
 }
+
+/** @brief Immutable version identity; every snapshot read returns an independent editable tree. */
+export interface ProfileVersion {
+    readonly pointer: number;
+    readonly snapshot: ProfileSnapshot;
+    /** @brief Export detached anonymous transport data for archival. */
+    serialize(): Pick<ProfileData, 'root' | 'brief'>;
+}
