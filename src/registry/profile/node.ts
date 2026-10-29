@@ -5,7 +5,8 @@ import type { ProfileTreeNode } from '../profile_node.js';
 /** @brief Per-tree physical catalog information consumed by node implementations. */
 export interface ProfileCheckContext {
     commands: ReadonlySet<string>;
-    addition: (tool: string) => { fixed?: boolean; hidden?: boolean };
+    addition: (tool: string) => { hidden?: boolean };
+    owns?: (tool: string) => boolean;
     original?: ProfileTreeNode;
 }
 

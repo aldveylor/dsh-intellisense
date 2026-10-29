@@ -75,7 +75,7 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
                         assembled.sections = assembled.sections.filter(section => !section.name.startsWith('tool:') && !section.name.startsWith('tools:'));
                         assembled.tools = agent.ctx.tools.schemas(agent).filter(tool => tool.name === ptcToolName);
                     }
-                    const instructions = executionInstructions(component.isPtc(agent) ? 'ptc' : 'native', (await component.entries(agent)).some(entry => registry.definitions.addition(entry.tool).discovery));
+                    const instructions = executionInstructions(component.isPtc(agent) ? 'ptc' : 'native', (await component.entries(agent)).some(entry => registry.toolAdditions.get(entry.tool).discovery));
                     if (instructions) assembled.sections.push({ name: 'namespaces:execution', text: instructions, interpolate: false });
                 }
                 return assembled;

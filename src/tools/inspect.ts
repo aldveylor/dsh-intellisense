@@ -16,7 +16,7 @@ export function inspectionTree(profile: ProfileSnapshot, registry: SemanticRegis
     return createNamespace({
         definitions: profile.disabled ? { type: 'namespace' } : profile.serialize(),
         tools: registry.tools(), mode: runtime ? 'ptc' : 'native',
-        addition: tool => registry.definitions.addition(tool),
+        addition: tool => registry.toolAdditions.get(tool),
         implementation: () => undefined,
     });
 }

@@ -84,7 +84,7 @@ export class NamespaceRuntime extends Service {
                 const currentRevision = registry.revision;
                 const values: Record<string, z.infer<ReturnType<typeof z.json>>> = {};
                 for (const entry of resolved) {
-                    const producer = registry.definitions.addition(entry.tool).value;
+                    const producer = registry.toolAdditions.get(entry.tool).value;
                     if (Object.hasOwn(preloaded, entry.path) && producer && (producer.refresh === 'call' || (producer.refresh === 'revision' && currentRevision !== revision))) {
                         values[entry.path] = await producer.read({ commandBriefs: current => namespaces.commandBriefs(agent, current), profileNames: current => namespaces.profileNames(agent, current) }, registry);
                     }

@@ -1,11 +1,27 @@
+import type { CommandPresentation } from '../../namespace/node.js';
+import type { PresentationMode } from '../../integration/presentation.js';
+import type { CommandBrief, Profiles } from '../profile_tree.js';
 import { EditableNode, type ProfileNode, type ProfileCheckContext } from './node.js';
 import { ProfilePermissionError, UnknownCommandError } from '../../error.js';
 import type { CommandNode, ProfileTreeNode } from '../profile_node.js';
+
+/** @brief Data sources available to concrete commands that expose preloaded values. */
+export interface CommandValues {
+    commandBriefs(): Promise<CommandBrief[]>;
+    profileNames(): Promise<Profiles>;
+}
 
 /** @brief Portable command editing contract. */
 export interface ProfileCommand extends ProfileNode {
     readonly type: 'command';
     readonly tool: string | undefined;
+    /** @brief Identify a discovery command through its concrete implementation. */
+    readonly discovery?: boolean;
+    readonly refresh?: 'call' | 'revision';
+    /** @brief Optionally supply the concrete command's language contract. */
+    presentation?(schema: Record<string, unknown>, mode: PresentationMode, discoveryAvailable: boolean): CommandPresentation | undefined;
+    /** @brief Optionally supply a value preloaded into the PTC VM. */
+    readValue?(source: CommandValues): Promise<unknown>;
     /** @brief Bind an exact physical tool identity. */
     setTool(tool: string): this;
     /** @brief Set the Profile-specific summary. */
@@ -41,7 +57,7 @@ export class EditableCommand extends EditableNode implements ProfileCommand {
     check(context: ProfileCheckContext, _path = '', original?: ProfileTreeNode): void {
         const existing = original?.type === 'command' && original.command.tool === this.tool;
         const addition = context.addition(this.tool!);
-        if (!existing && (!context.commands.has(this.tool!) || addition.fixed || addition.hidden)) throw new UnknownCommandError(this.tool!);
+        if (!existing && (!context.commands.has(this.tool!) || context.owns?.(this.tool!) || addition.hidden)) throw new UnknownCommandError(this.tool!);
     }
 
     /** @brief Apply command changes through virtual setters so subclasses own enforcement. */

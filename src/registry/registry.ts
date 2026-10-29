@@ -3,7 +3,7 @@ import { SnapshotStore, type ProfileReference } from './profile/snapshot_store.j
 import { profileTree, ProfileSchema } from './profile_tree.js';
 import { validateProfileEdit } from './profile/validate_edit.js';
 import { NamespaceDefinitions } from '../namespace/definitions.js';
-import type { ToolAddition } from '../namespace/tool_addition.js';
+import { ToolAdditions, type ToolAddition } from '../integration/tool_additions/tool_additions.js';
 import { settingsAt, ProfileNodeSettingsSchema } from './profile/node_settings.js';
 import { ProfileNotFoundError } from '../error.js';
 import { CommandNode, NamespaceNode, createNamespace } from '../namespace/namespace.js';
@@ -16,7 +16,7 @@ import { RegistryConfiguration, RegistryState, type RegistryConfigurationData, t
 /** @brief Stable physical identity and the enforced native JSON contracts. */
 export interface PhysicalTool {
     id: string;
-    addition?: Pick<ToolAddition, 'fixed' | 'hidden' | 'ptcDescription'>;
+    addition?: Pick<ToolAddition, 'hidden' | 'ptcDescription'>;
     source?: string;
     description: string;
     parameters: Record<string, unknown>;
@@ -64,6 +64,7 @@ export class SemanticRegistry {
     private writeChain: Promise<unknown> = Promise.resolve();
 
     readonly snapshots: SnapshotStore;
+    readonly toolAdditions = new ToolAdditions();
     private pointers: Record<string, number> = {};
 
     constructor(private store: Store, _scope: 'global' | 'session' = 'global', readonly definitions = new NamespaceDefinitions(), snapshotStore: Store = store) { this.snapshots = new SnapshotStore(snapshotStore, definitions); }
@@ -396,7 +397,7 @@ export class SemanticRegistry {
         }))) throw new Error('Invalid disabled protected-node paths');
     }
 
-    tools(): PhysicalTool[] { return structuredClone([...this.physical.values()].filter(tool => !this.definitions.addition(tool.id).hidden).map(tool => ({ ...tool, addition: (({ fixed, hidden, ptcDescription }) => ({ ...(fixed === undefined ? {} : { fixed }), ...(hidden === undefined ? {} : { hidden }), ...(ptcDescription === undefined ? {} : { ptcDescription }) }))(this.definitions.addition(tool.id)) }))); }
+    tools(): PhysicalTool[] { return structuredClone([...this.physical.values()].filter(tool => !this.toolAdditions.get(tool.id).hidden).map(tool => ({ ...tool, addition: (({ hidden, ptcDescription }) => ({ ...(hidden === undefined ? {} : { hidden }), ...(ptcDescription === undefined ? {} : { ptcDescription }) }))(this.toolAdditions.get(tool.id)) }))); }
 
     /** @brief Resolve a mount's description before the shared physical-tool preference. */
     description(path: string, tool: string): string | undefined {
@@ -430,9 +431,17 @@ export class SemanticRegistry {
         }
     }
 
+    /** @brief Fixed identities are derived from the initial Profile's concrete protected nodes. */
+    owns(tool: string): boolean {
+        const visit = (node: import('./profile/node.js').ProfileNode): boolean => node.type === 'command'
+            ? (node as import('./profile/command.js').ProfileCommand).tool === tool && !node.permissions.removable
+            : node.type === 'namespace' && [...(node as import('./profile/namespace.js').ProfileNamespace).children.values()].some(visit);
+        return visit(this.definitions.createInitialProfile());
+    }
+
     /** @brief Reject new user mounts of fixed tools, retaining existing plugin-owned mounts. */
     private validateFixedMappings(mappings: Mapping[], original: Mapping[]): void {
-        for (const mapping of mappings) if ((this.definitions.addition(mapping.id).fixed || this.definitions.addition(mapping.id).hidden)
+        for (const mapping of mappings) if ((this.owns(mapping.id) || this.toolAdditions.get(mapping.id).hidden)
             && !original.some(previous => previous.id === mapping.id && previous.path === mapping.path)) throw new Error(`Fixed tool cannot be mounted: ${mapping.id}`);
     }
 

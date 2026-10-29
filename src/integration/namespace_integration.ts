@@ -41,7 +41,7 @@ export class NamespaceIntegration {
     private get catalogVersion(): string { return `${this.catalogRevision}:${this.registry.definitions.revision}`; }
 
     constructor(private ctx: Context, readonly namespace: NamespaceComponent, readonly profiles: ProfileSessions, private aliases: z.infer<typeof Aliases> = [], readonly searchEngines = createSearchEngines(), readonly statistics = profiles.statistics, readonly inspectStatistics = profiles.inspectStatistics) {
-        this.intellisense = { profiles: namespace, statistics, inspectStatistics, searchEngines };
+        this.intellisense = { profiles: namespace, toolAdditions: this.registry.toolAdditions, statistics, inspectStatistics, searchEngines };
         ctx.effect(() => async () => { await Promise.all([...new Set([...this.nativeTools.keys(), ...this.positions.keys(), ...this.discovered.keys()])].map(id => this.release(id))); await this.statistics.dispose(); await this.inspectStatistics.dispose(); });
         ctx.on('tools/change', () => { this.catalogRevision++; });
         ctx.on('agent/request', async (payload, next) => {
@@ -89,7 +89,7 @@ export class NamespaceIntegration {
             if (!paths.get(tool)!.includes(path)) paths.get(tool)!.push(path);
         }
         const callsByTool = await this.statistics.calls.snapshot();
-        return this.registry.tools().filter(tool => !this.registry.definitions.addition(tool.id).hidden && !this.registry.definitions.addition(tool.id).fixed).map(tool => ({
+        return this.registry.tools().filter(tool => !this.registry.toolAdditions.get(tool.id).hidden && !this.registry.toolAdditions.get(tool.id).fixed).map(tool => ({
             name: tool.id, brief: tool.description, paths: paths.get(tool.id) ?? [], totalCalls: Object.hasOwn(callsByTool, tool.id) ? callsByTool[tool.id]! : 0,
         }));
     }
@@ -108,7 +108,7 @@ export class NamespaceIntegration {
         const root = manifest(registry, this.aliases ?? [], mode);
         for (const entry of root.commands()) {
             if (entry.disabled) continue;
-            const producer = registry.definitions.addition(entry.tool).value;
+            const producer = registry.toolAdditions.get(entry.tool).value;
             if (producer) values[entry.path] = await producer.read({ commandBriefs: current => this.commandBriefs(agent, current), profileNames: current => this.profileNames(agent, current) }, registry);
         }
         return values;
@@ -147,7 +147,7 @@ export class NamespaceIntegration {
     physical(agent?: Agent, scope: ScopeKey | undefined = agent): PhysicalTool[] {
         const tools = agent?.ctx.tools ?? this.ctx.tools;
         return tools.schemas(scope).flatMap(tool => {
-            if (this.registry.definitions.addition(tool.name).hidden) return [];
+            if (this.registry.toolAdditions.get(tool.name).hidden) return [];
             const definition = tools.get(tool.name, scope);
             if (!definition) {
                 this.ctx.logger.warn(`Tool schema has no definition: ${tool.name}`);
@@ -260,7 +260,7 @@ export class NamespaceIntegration {
                 parent = parent.parent;
             }
         }
-        const discoveryAvailable = root.commands().some(entry => !entry.disabled && registry.definitions.addition(entry.tool).discovery);
+        const discoveryAvailable = root.commands().some(entry => !entry.disabled && registry.toolAdditions.get(entry.tool).discovery);
         return ptc ? namespaceDirectory(hints, discoveryAvailable) : nativeDirectory(hints, discoveryAvailable);
     }
 

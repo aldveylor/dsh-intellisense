@@ -32,7 +32,9 @@ export type { Profile, ProfileSnapshot, ProfileCollection, ProfileFactory } from
 export type { ProfileNode } from './registry/profile/node.js';
 export type { ProfileNamespace } from './registry/profile/namespace.js';
 export type { ProfileCommand } from './registry/profile/command.js';
-export type { ToolAddition } from './namespace/tool_addition.js';
+export { ToolAdditions } from './integration/tool_additions/tool_additions.js';
+export type { ToolAddition } from './integration/tool_additions/tool_additions.js';
+export { ProfileReference, SnapshotStore } from './registry/profile/snapshot_store.js';
 export type { ToolsNamespace, ProfileSaveEvent, ProfileSaveEffect } from './namespace/service.js';
 export type { ProfileData, Profiles, CommandBrief, CommandName } from './registry/profile_tree.js';
 export type { CommandBinding, ExecutionResult } from './runtime/protocol.js';

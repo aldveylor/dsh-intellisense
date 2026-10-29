@@ -48,7 +48,7 @@ export async function writeProfile(sessions: NamespaceIntegration, agent: Agent,
         if (operation === 'save') snapshot.save(input as ProfileWrite);
         else snapshot.apply(input as ProfilePatch);
         snapshot.check({ commands: new Set((await sessions.commandBriefs(agent)).map(command => command.name)),
-            addition: tool => catalog.definitions.addition(tool), original: baseline.serialize() });
+            addition: tool => catalog.toolAdditions.get(tool), original: baseline.serialize() });
         const value = { name: target, brief: snapshot.brief, root: snapshot.serialize() };
         const information = profileSaveInformation(value, session.tools().map(tool => tool.id));
         const configuration = editedConfiguration(value, original, catalog.definitions);
