@@ -40,7 +40,7 @@ export class EditableFunction extends EditableNode implements ProfileFunction {
 
     constructor(name = '', data?: FunctionNode) {
         super(name);
-        if (data) { this.restore(data); this.binding = data.function.tool; this.description = data.function.doc; }
+        if (data) { this.restore(data); this.binding = data.function.tool; this.description = data.function.doc?.trim() ? data.function.doc : undefined; }
     }
 
     get tool(): string | undefined { return this.binding; }
@@ -50,7 +50,7 @@ export class EditableFunction extends EditableNode implements ProfileFunction {
         if (value.type !== 'function') throw new ProfilePermissionError(`Protected function cannot be replaced: ${this.memberName}`);
         const node = super.copyNode(value);
         node.binding = value.function.tool;
-        node.description = value.function.doc;
+        node.description = value.function.doc?.trim() ? value.function.doc : undefined;
         return node;
     }
 
@@ -69,7 +69,7 @@ export class EditableFunction extends EditableNode implements ProfileFunction {
     }
 
     /** @brief Set the Profile-specific function summary. */
-    setDescription(value: string | undefined): this { if (!this.permissions.commentable && value !== this.description) throw new ProfilePermissionError(`Node documentation cannot be changed: ${this.memberName}`); this.description = value; return this; }
+    setDescription(value: string | undefined): this { value = value?.trim() ? value : undefined; if (!this.permissions.commentable && value !== this.description) throw new ProfilePermissionError(`Node documentation cannot be changed: ${this.memberName}`); this.description = value; return this; }
 
     /** @brief Set the function's requested prompt visibility. */
     setFixedLevel(value: 0 | 1 | 2): this { if (!this.permissions.availableFixLevels.includes(value)) throw new ProfilePermissionError(`Node fixed level cannot be changed: ${this.memberName}`); this.settings.fixedLevel = value; return this; }

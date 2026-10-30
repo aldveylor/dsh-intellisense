@@ -37,7 +37,7 @@ export function inspect(queries: readonly string[], profile: ProfileSnapshot, en
         }
         const entry = byPath.get(path);
         if (!entry) continue;
-        selected.set(path, { path, description: entry.provided ? entry.doc : data.function?.doc ?? entry.doc.trim().split(/\r?\n/, 1)[0],
+        selected.set(path, { path, description: data.function?.doc || entry.doc,
             ...(runtime && entry.preload ? { valueType: entry.signature } : exact.has(path) ? { declaration: declaration(entry, false) } : {}) });
     }
     for (const query of exact) {

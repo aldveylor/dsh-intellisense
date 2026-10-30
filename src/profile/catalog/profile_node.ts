@@ -17,7 +17,7 @@ export interface FunctionNode extends ProfileNode {
     fixedLevel?: 0 | 1 | 2;
     function: {
         tool: string;
-        /** @brief One-sentence summary of the function functionality; cannot modify the original tool documentation or schema. */
+        /** @brief Optional one-sentence summary, absent by default; empty or whitespace-only text means absent; cannot modify the original tool documentation or schema. */
         doc?: string;
     };
     children?: never;

@@ -14,19 +14,20 @@ export function FunctionNode({ node, tree }: { node: FunctionTreeNode; tree: Tre
     const id = mapping?.id ?? command?.id;
     const contract = node.serialize().function;
     const tool = (id ? tree.toolsById.get(id) : undefined) ?? {
-        id: id ?? contract?.tool ?? path, description: description ?? '', parameters: contract?.schema ?? {}, output: contract?.output,
+        id: id ?? contract?.tool ?? path, description: contract?.doc ?? description ?? '', parameters: contract?.schema ?? {}, output: contract?.output,
     };
-    const summary = mapping?.description ?? (id && Object.hasOwn(tree.toolComments, id) ? tree.toolComments[id] : undefined) ?? '';
+    const summary = (mapping?.description ?? (id && Object.hasOwn(tree.toolComments, id) ? tree.toolComments[id] : undefined) ?? (command ? description : undefined))?.trim() || '';
     const tooltip = useTreeTooltip(<CommandDetails path={path} tool={tool} summary={summary} calls={tree.callsByTool[tool.id] ?? 0} queries={tree.queriesByTool[tool.id] ?? 0} />);
     const readOnly = !node.permissions.renamable;
-    const invalid = !!mapping && !(id && tree.toolsById.has(id));
+    const invalid = tree.invalid(path);
+    const disabled = tree.disabled(path);
     const draggable = !tree.busy && node.draggable;
     const disableButton = node.permissions.disableable ? <DisableButton disabled={tree.disabled(path)} busy={tree.busy || tree.disabledByAncestor(path)} toggle={() => tree.toggleDisabled(path)} /> : null;
     const pinButton = <PinButton label={t('pin_command', { path })} active={!!node.level} level={node.level} busy={tree.busy || !!command?.disabled}
         locked={node.permissions.availableFixLevels.length <= 1}
         toggle={() => { if (command) tree.pinBuiltin(path); else if (mapping) tree.pinTool(mapping); else if (id) tree.pinUnmounted(id); }} />;
-    return <li className={`ts-tree-tool${fixed ? ' ts-fixed-node' : ''}${invalid ? ' ts-tool-invalid' : ''}`}
-        aria-disabled={tree.disabled(path) || undefined} data-tool-status={tree.disabled(path) ? 'disabled' : invalid ? 'invalid' : 'available'} data-tree-path={path} data-tool-id={id} data-drop-disabled={readOnly || undefined}
+    return <li className={`ts-tree-tool${fixed ? ' ts-fixed-node' : ''}${invalid && !disabled ? ' ts-tool-invalid' : ''}`}
+        aria-disabled={disabled || undefined} data-tool-status={disabled ? 'disabled' : invalid ? 'invalid' : 'available'} data-tree-path={path} data-tool-id={id} data-drop-disabled={readOnly || undefined}
         {...tooltip} draggable={draggable}
         onDragStart={event => {
             if (!draggable || (event.target as HTMLElement).tagName === 'INPUT') { event.preventDefault(); return; }
@@ -42,7 +43,7 @@ export function FunctionNode({ node, tree }: { node: FunctionTreeNode; tree: Tre
         <span className="ts-tool-preview" role={fixed ? undefined : 'button'} tabIndex={fixed ? undefined : tree.busy ? -1 : 0}
             onDoubleClick={() => { if (!fixed && id) tree.editDescription(path); }} onKeyDown={event => {
                 if (!fixed && id && event.key === 'Enter') { event.preventDefault(); tree.editDescription(path); }
-            }}>{mapping?.description ?? (id && Object.hasOwn(tree.toolComments, id) ? tree.toolComments[id] : undefined) ?? description ?? t('edit_comment')}</span>
+            }}>{summary || tool.description || t('tool_no_description')}</span>
         <span className="ts-node-actions">
             {command && disableButton}
             {pinButton}

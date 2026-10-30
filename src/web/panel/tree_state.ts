@@ -1,4 +1,4 @@
-import type { Mapping, Namespace } from '../../profile/catalog/registry.js';
+import type { Mapping, Namespace, PhysicalTool } from '../../profile/catalog/registry.js';
 import type { TreeNode } from './tree_nodes/tree_node.js';
 
 /** @brief Check draft discovery settings independently of live presentation scopes. */
@@ -32,4 +32,22 @@ export function treeDisabledState(roots: readonly TreeNode[], builtinDisabled: r
     };
     roots.forEach(node => visit(node, false));
     return states;
+}
+
+/** @brief Index unavailable mappings and nonempty namespaces whose direct members are all unavailable. */
+export function treeInvalidState(roots: readonly TreeNode[], toolsById: ReadonlyMap<string, PhysicalTool>): ReadonlySet<string> {
+    const invalidPaths = new Set<string>();
+    const visit = (node: TreeNode): boolean => {
+        const invalid = node.render({
+            function: command => !!command.mapping && !toolsById.has(command.mapping.id),
+            namespace: namespace => {
+                const members = namespace.children.map(visit);
+                return members.length > 0 && members.every(Boolean);
+            },
+        });
+        if (invalid) invalidPaths.add(node.path);
+        return invalid;
+    };
+    roots.forEach(visit);
+    return invalidPaths;
 }

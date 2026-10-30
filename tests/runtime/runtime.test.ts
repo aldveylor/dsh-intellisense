@@ -233,3 +233,34 @@ test('program return values use JSON serialization for nested void values and sp
         }
     } finally { await host.dispose(); }
 });
+
+test('saved helpers retain lexical captures while live global lookups and destructuring remain standard', async () => {
+    const host = new RuntimeHost({ timeoutMs: 3000 });
+    try {
+        const setup = await host.execute('helpers', 'setup', `
+            const data = { old: 1 };
+            globalThis.data = data;
+            globalThis.captured = () => Object.entries(data);
+            globalThis.live = () => {
+                const result = {};
+                for (const [key, value] of Object.entries(globalThis.data)) result[key] = value;
+                return result;
+            };
+            globalThis.makeNodes = def => Object.fromEntries(Object.entries(def).map(([ns, items]) =>
+                [ns, { type: 'namespace', children: Object.fromEntries(items.map(([name, tool]) =>
+                    [name, { type: 'function', function: { tool } }])) }]));
+            throw new Error('After global mutations');
+        `, [], unused, signal());
+        assert.match(setup.error!, /After global mutations/);
+        const next = await host.execute('helpers', 'next', `
+            globalThis.data = { current: 2 };
+            const tree = makeNodes({ files: [['read', 'read_file']] });
+            return { captured: captured(), live: live(), tree,
+                local: typeof data, missing: undefined };
+        `, [], unused, signal());
+        assert.equal(next.error, undefined);
+        assert.deepEqual(next.value, { captured: [['old', 1]], live: { current: 2 },
+            tree: { files: { type: 'namespace', children: { read: { type: 'function', function: { tool: 'read_file' } } } } },
+            local: 'object' });
+    } finally { await host.dispose(); }
+});

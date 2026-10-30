@@ -25,3 +25,4 @@ presentation 挂载完成（包括 PTC runtime 注册）后，通过 configureSc
 session_initialization.ts 为 DSH 0.2.2-alpha.2 缺少可等待的预设重绑/工具解析前事件提供生命周期适配：在 tools.resolve 捕获本轮工具集合前等待 configure，在不携带 toolSet 的 systemPrompt.assemble 预览前执行相同初始化。适配保留调用方服务上下文，继续委托原方法，卸载时恢复原方法描述符，不更换执行器或修改工具声明结果。真实轮次在捕获 toolSet 后不再从 assemble waterfall 注册代理，保证首次模型请求与执行准入集合一致。已有 preset 晚于会话创建绑定时，native/PTC 均无需用户点击 Profile 或由界面先请求配置。
 
 命名空间子调用使用 dsh-tools/pipeline 的 prepare/dispatch/complete，传播父调用 token、rootCallId、toolSet 和 signal；保留配对子调用事件、结构化错误和包括 false 在内的 meta。PTC 审计事件类型由 dsh-tool-executor-ptc 扩展，返回上下文和结束回合标志继续传递到父调用。
+固定等级 1 的命令提示优先使用节点 function.doc 可选简化注释，包括受保护的 tools.profile 成员；未提供或为空时使用完整接口说明。内置命令固定等级 2 继续使用模式对应的完整接口说明。

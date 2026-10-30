@@ -3,6 +3,7 @@ import type { Namespace, Mapping, PhysicalTool, CommandVisibility } from '../../
 
 /** @brief Shared namespace tree data and actions for recursively rendered mixed node types. */
 export interface TreeProps {
+    invalid: (path: string) => boolean;
     disabledByAncestor: (path: string) => boolean; disabled: (path: string) => boolean; toggleDisabled: (path: string) => void;
     toolsById: ReadonlyMap<string, PhysicalTool>; callsByTool: Record<string, number>; queriesByTool: Record<string, number>; queriesByPath: Record<string, number>; busy: boolean;
     expanded: Record<string, boolean>;
