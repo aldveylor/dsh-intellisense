@@ -3,6 +3,9 @@ import type { PresentationMode } from '../integration/presentation.js';
 /** @brief Plugin-owned execution entry, separate from the globally reserved run_code transport. */
 export const ptcToolName = 'tools_run_code';
 
+/** @brief Execution boundaries shared by the physical tool and PTC system instructions. */
+export const ptcExecutionGuidance = 'Use await for asynchronous calls and return to provide a result. Each call runs a fresh strict async function: local const/let/var and function declarations do not persist. You may attach variables to globalThis to share data and helpers between executions within this conversation. The VM may restart and lose them; continuity is not guaranteed. Saved functions retain their original lexical captures: reassigning globalThis.data does not update a captured local data alias. Read globalThis.data inside the helper when it must use the latest value. Errors do not roll back global mutations or completed tool calls. Only standard ECMAScript globals and console are provided; process, require, module imports and fetch are unavailable, and eval/Function string compilation is disabled. Use discovered namespace commands for files, shell and network access. Return values use JSON serialization: undefined object fields are omitted, including default fields such as disabled. Tool-call rejections are ToolCallError instances with a toolName property.';
+
 /** @brief Fixed command metadata shared by runtime declarations, completion and the read-only UI. */
 export interface BuiltinCommand {
     path: string;

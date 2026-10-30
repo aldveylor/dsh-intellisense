@@ -3,7 +3,7 @@ import { Service, type Context } from '@deepseek-ai/cordis';
 import { CodeRunFailedError, defineTool, type ToolRunContext } from '@deepseek-ai/dsh-tools';
 import type {} from '../../integration/plugin.js';
 import { RuntimeHost, type RuntimeConfig } from '../../runtime/host.js';
-import { ptcToolName } from '../../runtime/builtins.js';
+import { ptcToolName, ptcExecutionGuidance } from '../../runtime/builtins.js';
 import { codeBlock } from '../../protocol/code_block.js';
 import type { z } from 'zod';
 
@@ -36,7 +36,7 @@ export class NamespaceRuntime extends Service {
         ctx.on('agent/disposed', async ({ agent }) => { await this.runtime.release(agent.id); });
         ctx.tools.register(defineTool({
             name: ptcToolName,
-            description: 'Execute an async TypeScript/JavaScript function body with namespace commands such as std.cwd(). Use await and explicit return. You may attach variables to globalThis to share state between executions within this conversation. The VM may restart and lose all attached state; continuity is not guaranteed. Function-local declarations do not persist between executions.',
+            description: `Execute an async TypeScript/JavaScript function body with discovered namespace commands. ${ptcExecutionGuidance}`,
             parameters: {
                 code: { type: 'string', required: true, description: 'The async function body to execute.' },
                 description: { type: 'string', required: true, description: 'A concise description of the program.' },

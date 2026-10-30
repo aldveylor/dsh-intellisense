@@ -1,4 +1,4 @@
-import { ptcToolName } from '../../runtime/builtins.js';
+import { ptcToolName, ptcExecutionGuidance } from '../../runtime/builtins.js';
 import { namespaceDeclaration, type NamespaceDeclaration } from './declaration.js';
 export { callableDeclaration } from './declaration.js';
 
@@ -8,7 +8,7 @@ export function executionInstructions(mode: 'native' | 'ptc', discoveryAvailable
     const shared = discoveryAvailable ? `Use tools.inspect to discover namespace commands.\n` : '';
     if (mode === 'native') return `${shared}Call native DSML tools with named arguments. Mounted command names start with ns_ and use __ for namespace dots, such as ns_tools__inspect for tools.inspect. Query an exact command path to add that command to the available tools; exact command queries return success without details or throw if unavailable; namespace member queries only list members and their briefs. Use the callable names and argument schemas provided by the tool schemas.`;
     return `${shared}Call ${ptcToolName} with code (an async TypeScript/JavaScript function body) and description (a concise description of the program).
-Use await for asynchronous calls and return to provide a result. You may attach variables to globalThis to share state between executions within this conversation. The VM may restart and lose all attached state; continuity is not guaranteed. Function-local declarations do not persist between executions. Runtime globals, including console, are available independently of the namespace tree. Tool-call rejections are ToolCallError instances with a toolName property.`;
+${ptcExecutionGuidance}`;
 }
 
 /** @brief One prompt-visible namespace or command with a Profile-owned brief. */
