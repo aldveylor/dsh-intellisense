@@ -450,11 +450,11 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
             <form onSubmit={event => {
                 event.preventDefault();
                 setMappings(current => current.map(mapping => mapping.path === descriptionEditor.path
-                    ? { ...mapping, description: descriptionEditor.text } : mapping));
+                    ? { ...mapping, description: descriptionEditor.text?.trim() ? descriptionEditor.text : '' } : mapping));
                 setDescriptionEditor(undefined); setStatus('');
             }}>
                 <h2 id="ts-description-title">{t('prompt_comment')} · {descriptionEditor.path}</h2>
-                <textarea aria-label={t('prompt_comment')} autoFocus rows={8} value={descriptionEditor.text ?? view?.tools.find(t => t.id === descriptionEditor.id)?.description ?? ''}
+                <textarea aria-label={t('prompt_comment')} autoFocus rows={8} value={descriptionEditor.text ?? ''} placeholder={view?.tools.find(tool => tool.id === descriptionEditor.id)?.description}
                     onChange={event => setDescriptionEditor({ ...descriptionEditor, text: event.target.value })} />
                 <div className="ts-dialog-actions"><ActionButton variant="primary" type="submit" title={t('apply_draft_hint')}>{t('apply')}</ActionButton>
                     <ActionButton type="button" title={t('reset_comment_hint')} onClick={() => setDescriptionEditor({ id: descriptionEditor.id, path: descriptionEditor.path })}>{t('reset')}</ActionButton>

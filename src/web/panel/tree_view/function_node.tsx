@@ -16,7 +16,7 @@ export function FunctionNode({ node, tree }: { node: FunctionTreeNode; tree: Tre
     const tool = (id ? tree.toolsById.get(id) : undefined) ?? {
         id: id ?? contract?.tool ?? path, description: contract?.doc ?? description ?? '', parameters: contract?.schema ?? {}, output: contract?.output,
     };
-    const summary = mapping?.description ?? (id && Object.hasOwn(tree.toolComments, id) ? tree.toolComments[id] : undefined) ?? description ?? '';
+    const summary = (mapping?.description ?? (id && Object.hasOwn(tree.toolComments, id) ? tree.toolComments[id] : undefined) ?? (command ? description : undefined))?.trim() || '';
     const tooltip = useTreeTooltip(<CommandDetails path={path} tool={tool} summary={summary} calls={tree.callsByTool[tool.id] ?? 0} queries={tree.queriesByTool[tool.id] ?? 0} />);
     const readOnly = !node.permissions.renamable;
     const invalid = tree.invalid(path);
@@ -43,7 +43,7 @@ export function FunctionNode({ node, tree }: { node: FunctionTreeNode; tree: Tre
         <span className="ts-tool-preview" role={fixed ? undefined : 'button'} tabIndex={fixed ? undefined : tree.busy ? -1 : 0}
             onDoubleClick={() => { if (!fixed && id) tree.editDescription(path); }} onKeyDown={event => {
                 if (!fixed && id && event.key === 'Enter') { event.preventDefault(); tree.editDescription(path); }
-            }}>{mapping?.description ?? (id && Object.hasOwn(tree.toolComments, id) ? tree.toolComments[id] : undefined) ?? description ?? t('edit_comment')}</span>
+            }}>{summary || tool.description || t('tool_no_description')}</span>
         <span className="ts-node-actions">
             {command && disableButton}
             {pinButton}
