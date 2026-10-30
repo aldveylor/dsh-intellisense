@@ -324,7 +324,7 @@ export class NamespaceIntegration {
                 execute: async (args, parent) => {
                     const caller = parent.agent;
                     if (!caller) throw new Error('A live conversation is required');
-                    return await this.dispatch(caller, entry, nativeArgumentsFor(entry, args), parent, 1) ?? null;
+                    return this.dispatchTool(caller, entry.tool, nativeArgumentsFor(entry, args), parent, 1);
                 },
             };
             const physical = agent.ctx.tools.get?.(entry.tool, agent);

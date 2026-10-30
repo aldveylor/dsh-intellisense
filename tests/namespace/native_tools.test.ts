@@ -64,7 +64,7 @@ test('native aliases publish callable names, preserve native arguments and revok
     const open = definitions.get('ns_fs__open')!;
     assert.equal(open.description, 'fs.open: Read file');
     assert.deepEqual(open.parameters, { type: 'object', properties: { file: { type: 'string' } }, required: ['file'] });
-    component.dispatch = async (_agent, entry, args) => ({ tool: entry.tool, args });
+    component.dispatchTool = async (_agent, tool, args) => ({ tool, args });
     const parent = { agent } as ToolRunContext;
     assert.deepEqual(await open.execute({ file: '/tmp/file' }, parent), { tool: 'read_file', args: { file: '/tmp/file' } });
     await assert.rejects(open.execute({ path: '/tmp/file' }, parent), /Invalid arguments/);
