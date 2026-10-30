@@ -12,7 +12,7 @@ test('namespace serialization keeps nested settings and output independent', () 
     group.create('read', () => new EditableFunction()).setTool('read');
     group.setPermissions({ availableFixLevels: [0, 1] });
     const first = profile.serialize();
-    first.children!.files!.permissions!.availableFixLevels!.push(2);
+    (first.children!.files!.permissions!.availableFixLevels as Array<0 | 1 | 2>).push(2);
     first.children!.files!.children!.read!.function!.tool = 'changed';
     const second = profile.serialize();
     assert.deepEqual(second.children!.files!.permissions!.availableFixLevels, [0, 1]);
@@ -29,7 +29,7 @@ test('browser projection reads containers without recursively serializing their 
         parent.serialize = () => { throw new Error('Container serialization must not run during DTO projection'); };
     }
     parent.create('read', () => new EditableFunction()).setTool('read');
-    let node = serializeProfile(profile, [{ id: 'read', description: 'Read', parameters: {} }], 'native', new ToolAdditions());
+    let node = serializeProfile(profile, [{ id: 'read', description: 'Read', parameters: {}, output: {} }], 'native', new ToolAdditions());
     for (let i = 0; i < 30; i++) {
         node = node.children![0]!;
         assert.equal(node.name, `level${i}`);

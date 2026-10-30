@@ -7,7 +7,7 @@ import * as presentation from './presentation.js';
 import type { Position } from '../protocol/events.js';
 import { type Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
-import { type ScopeKey } from '@deepseek-ai/dsh-scope';
+import { scopeChainOf, type ScopeKey } from '@deepseek-ai/dsh-scope';
 import '@deepseek-ai/dsh-agent-preset-registry';
 import type { PhysicalTool } from '../profile/catalog/registry.js';
 import type { ProfileSessionCollection } from '../profile/session.js';
@@ -178,7 +178,7 @@ export class NamespaceIntegration {
     }
 
     /** @brief Invalidate scoped search projections after tool, Profile definition or presentation changes. */
-    searchGeneration(agent: Agent): string { return `${this.catalogVersion}:${this.isPtc(agent)}`; }
+    searchGeneration(agent: Agent): readonly unknown[] { return [this.catalogVersion, this.isPtc(agent), agent.ctx.tools, ...scopeChainOf(agent)]; }
 
     /** @brief Derive flat physical contracts while retaining references to the original Profile commands. */
     async entries(agent: Agent, profile?: ProfileSnapshot): Promise<FunctionEntry[]> {

@@ -3,6 +3,11 @@ import { EditableFunction } from './function.js';
 import { ProfilePermissionError } from '../error.js';
 import type { NamespaceTreeNode, ProfileTreeNode } from './catalog/profile_node.js';
 
+/** @brief Accept member identifiers shared by insertion and nonthrowing path lookup. */
+export function isProfileMemberName(name: string): boolean {
+    return /^[A-Za-z_][\w$]*$/.test(name) && !name.startsWith('__') && !Object.hasOwn(Object.prototype, name) && !['prototype', 'then'].includes(name);
+}
+
 /** @brief Portable namespace contract containing directly nested node interfaces. */
 export interface ProfileNamespace extends ProfileNode {
     readonly type: 'namespace';
@@ -147,6 +152,6 @@ export class EditableNamespace extends EditableNode implements ProfileNamespace 
 
     /** @brief Accept direct member names only, excluding prototype and reserved object keys. */
     private validateName(name: string): void {
-        if (!/^[A-Za-z_][\w$]*$/.test(name) || name.startsWith('__') || Object.hasOwn(Object.prototype, name) || ['prototype', 'then'].includes(name)) throw new Error(`Invalid Profile member name: ${name}`);
+        if (!isProfileMemberName(name)) throw new Error(`Invalid Profile member name: ${name}`);
     }
 }
