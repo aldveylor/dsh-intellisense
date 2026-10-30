@@ -19,14 +19,19 @@ export class JournalStore {
     }
 
     /** @brief Recover an interrupted transaction before returning detached records in this scope. */
-    loadEntries<T>(): Promise<[string, T][]> {
+    loadEntries<T>(recover = false): Promise<[string, T][]> {
         return this.serialize(async () => {
             if (this.unfinished) await this.persist(this.unfinished);
             const entries = await this.store.loadEntries!<unknown>(this.prefix);
             const raw = entries.find(([key]) => key === this.journalKey)?.[1];
             if (raw !== undefined) {
-                const journal = journalSchema.parse(raw);
-                this.validate(journal.writes);
+                let journal;
+                try { journal = journalSchema.parse(raw); this.validate(journal.writes); }
+                catch (error) {
+                    if (!recover) throw error;
+                    await this.store.remove(this.journalKey);
+                    return entries.filter(([key]) => this.owns(key)) as [string, T][];
+                }
                 this.unfinished = journal.writes;
                 await this.persist(journal.writes);
                 return (await this.store.loadEntries!<T>(this.prefix)).filter(([key]) => this.owns(key));
@@ -34,6 +39,9 @@ export class JournalStore {
             return entries.filter(([key]) => this.owns(key)) as [string, T][];
         });
     }
+
+    /** @brief Forget failed in-memory writes after an explicit full reset. */
+    discard(): Promise<void> { return this.serialize(async () => { this.unfinished = undefined; }); }
 
     /** @brief Commit after-images for changed records; exact replay never increments a counter twice. */
     commit(writes: JournalWrites): Promise<void> {

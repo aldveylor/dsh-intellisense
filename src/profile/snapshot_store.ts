@@ -2,6 +2,7 @@ import { clearStore, type Store } from '../storage/store.js';
 import { JournalStore } from '../storage/journal_store.js';
 import type { ProfileSnapshot, ProfileVersion } from './profile.js';
 import { ProfileSchema, type ProfileData } from './catalog/profile_tree.js';
+import { recoverProfile } from './catalog/recover_profile.js';
 import { upgradeProfileNodes } from '../storage/compatibility/profile_compatibility.js';
 import type { NamespaceDefinitions } from './namespace/definitions.js';
 
@@ -44,19 +45,20 @@ export class SnapshotStore {
             let sequence = 0;
             for (const [key, value] of records) {
                 try {
-                if (key === 'profile_snapshot_sequence') {
-                    if (!Number.isSafeInteger(value) || (value as number) < 0) throw new Error('Invalid Profile snapshot sequence');
-                    sequence = Math.max(sequence, value as number);
-                    continue;
-                }
-                const pointer = Number(key.slice('profile_snapshot_'.length));
-                if (!Number.isSafeInteger(pointer) || pointer <= 0) throw new Error('Invalid Profile snapshot identity');
-                const data = value as Pick<ProfileData, 'root' | 'brief'>;
-                const upgraded = { ...data, root: upgradeProfileNodes(data?.root) as ProfileData['root'] };
-                ProfileSchema.parse({ ...upgraded, name: 'Archived' });
-                references.set(pointer, new ProfileReference(pointer, upgraded, this.definitions));
-                if (JSON.stringify(data) !== JSON.stringify(upgraded)) upgrades.push([key, upgraded]);
-                sequence = Math.max(sequence, pointer);
+                    if (key === 'profile_snapshot_sequence') {
+                        if (!Number.isSafeInteger(value) || (value as number) < 0) throw new Error('Invalid Profile snapshot sequence');
+                        sequence = Math.max(sequence, value as number);
+                        continue;
+                    }
+                    const pointer = Number(key.slice('profile_snapshot_'.length));
+                    if (!Number.isSafeInteger(pointer) || pointer <= 0) throw new Error('Invalid Profile snapshot identity');
+                    sequence = Math.max(sequence, pointer);
+                    const data = value as Pick<ProfileData, 'root' | 'brief'>;
+                    let upgraded = { ...data, root: upgradeProfileNodes(data?.root) as ProfileData['root'] };
+                    if (recover) upgraded = recoverProfile(upgraded, this.definitions.createInitialProfile());
+                    ProfileSchema.parse({ ...upgraded, name: 'Archived' });
+                    references.set(pointer, new ProfileReference(pointer, upgraded, this.definitions));
+                    if (JSON.stringify(data) !== JSON.stringify(upgraded)) upgrades.push([key, upgraded]);
                 } catch (error) {
                     if (!recover) throw error;
                     await this.store.remove(key);

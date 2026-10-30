@@ -221,13 +221,13 @@ export class SemanticRegistry {
                     const editor = saved.editor?.[name];
                     if (editor) {
                         try {
-                        this.validateVisibility(editor.unmountedVisible);
-                        this.validateComments(editor.toolComments);
-                        if (!Array.isArray(editor.order) || editor.order.some(path => typeof path !== 'string') || !Array.isArray(editor.pinned)) throw new Error('Invalid Profile editor settings');
-                        configuration.unmountedVisible = structuredClone(editor.unmountedVisible);
-                        configuration.toolComments = structuredClone(editor.toolComments);
-                        configuration.order = [...editor.order];
-                        for (const mapping of configuration.mappings) mapping.pinned = editor.pinned.includes(mapping.path);
+                            this.validateVisibility(editor.unmountedVisible);
+                            this.validateComments(editor.toolComments);
+                            if (!Array.isArray(editor.order) || editor.order.some(path => typeof path !== 'string') || !Array.isArray(editor.pinned)) throw new Error('Invalid Profile editor settings');
+                            configuration.unmountedVisible = structuredClone(editor.unmountedVisible);
+                            configuration.toolComments = structuredClone(editor.toolComments);
+                            configuration.order = [...editor.order];
+                            for (const mapping of configuration.mappings) mapping.pinned = editor.pinned.includes(mapping.path);
                         } catch (error) { if (!recover) throw error; }
                     }
                     references[name] = reference;

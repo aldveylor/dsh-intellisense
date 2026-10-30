@@ -19,3 +19,5 @@ ToolAdditions 是 ctx.intellisense 的独立工具元数据服务。全局目录
 管理路由仅消费 toolsNamespace.editor，RegistryPlaneEditor 在此实现后端适配，保持修订检查和共享写事务。SemanticRegistry 不再由工具执行或管理路由直接消费；真实物理目录归独立 PhysicalToolCatalog，平面校验只消费传入的物理元数据。
 
 node_settings_schema.ts 定义目录写入时的递归权限配置校验；../node_settings.ts 仅提供共享数据类型及查询函数，不初始化 Zod schema，避免浏览器权限查询连带加载服务端校验。
+
+显式修复通过 `recover_profile.ts` 按当前具体节点权限递归恢复，丢弃未知内置成员与非法键，保留可加载的同级节点。损坏的编辑偏好不阻塞有效 Profile；修复后与原值不同的当前 Profile 分配新指针，避免覆盖既有版本身份。完全重置清空主单元及快照单元的全部记录后创建默认目录。

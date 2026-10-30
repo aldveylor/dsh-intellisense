@@ -21,7 +21,7 @@ const configuration = {
     revision: z.number().int().nonnegative(),
 };
 const managementRequest = z.discriminatedUnion('action', [
-    z.strictObject({ action: z.literal('recover') }),
+    z.strictObject({ action: z.literal('recover'), full: z.boolean().optional() }),
     z.strictObject({ action: z.literal('configure'), ...configuration }),
     z.strictObject({ action: z.literal('save_as'), profile: z.string().trim().min(1).max(80), ...configuration }),
     z.strictObject({ action: z.literal('profile'), revision: z.number().int().nonnegative(), operation: z.enum(['create', 'select', 'rename', 'delete']), name: z.string().min(1), newName: z.string().min(1).optional(), activate: z.boolean().optional() })
@@ -29,7 +29,7 @@ const managementRequest = z.discriminatedUnion('action', [
 ]);
 
 /** @brief Register management UI and APIs behind DSH owner-peer authentication and Host/Origin policy. */
-export function registerManagement(ctx: Context, profiles: ToolsNamespace, adapter: { catalog: ToolCatalog; refresh: () => Promise<void>; statistics?: CommandStatistics; inspectStatistics?: Statistics; recover?: () => Promise<void> }): void {
+export function registerManagement(ctx: Context, profiles: ToolsNamespace, adapter: { catalog: ToolCatalog; refresh: () => Promise<void>; statistics?: CommandStatistics; inspectStatistics?: Statistics; recover?: (mode: true | 'reset') => Promise<void> }): void {
     const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
     let catalog: { generation: string; tools: PhysicalTool[]; physical: PhysicalTool[]; provided: Map<string, SerializedNode[]> } | undefined;
     ctx.connection.fetch.register({ path: '/api/ts-intellisense', methods: ['GET'], requestBody: 'buffered', fetch: async () => new Response(managementHtml, { headers: { ...headers, 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'" } }) });
@@ -82,11 +82,13 @@ export function registerManagement(ctx: Context, profiles: ToolsNamespace, adapt
             const body = parsed.data;
             const editor = profiles.editor;
             if (body.action === 'recover') {
-                if (adapter.recover) await adapter.recover();
+                catalog = undefined;
+                const mode = body.full ? 'reset' : true;
+                if (adapter.recover) await adapter.recover(mode);
                 else {
-                    await profiles.initialize(true);
-                    await adapter.statistics?.load(true);
-                    await adapter.inspectStatistics?.load(true);
+                    await profiles.initialize(mode);
+                    await adapter.statistics?.load(mode);
+                    await adapter.inspectStatistics?.load(mode);
                 }
             }
             else if (body.action === 'profile') await editor.manageProfile(body.operation, body.name, body.revision, body.newName, body.activate);

@@ -20,7 +20,7 @@ export async function apply(ctx: Context): Promise<void> {
     const snapshotUnit = await backend.kv.open({ name: 'intellisense_profile_snapshots', version: snapshotVersion, compatibleVersions: [1], tables: ['state'], hasGlobal: false, layout: 'per-record' });
     const catalog = new SemanticRegistry(store, 'global', undefined, new DshStore(snapshotUnit));
     let loading: Promise<void> | undefined;
-    const initialize = (recover = false): Promise<void> => {
+    const initialize = (recover: boolean | 'reset' = false): Promise<void> => {
         if (!recover && loading) return loading;
         const previous = loading;
         loading = (async () => { if (recover) await previous?.catch(() => {}); await catalog.load(recover); })();

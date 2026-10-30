@@ -13,6 +13,12 @@ export interface Store {
     remove(key: string): Promise<void>;
 }
 
+/** @brief Discard every record in a dedicated unit, including unrecognized keys. */
+export async function clearStore(store: Store): Promise<void> {
+    if (!store.loadEntries) throw new Error('Storage reset requires loadEntries');
+    for (const [key] of await store.loadEntries('')) await store.remove(key);
+}
+
 /** @brief Uses a DSH-owned KV unit and its native durability contract. */
 export class DshStore implements Store {
     constructor(private unit: KvUnit) {}

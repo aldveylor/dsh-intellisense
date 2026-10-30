@@ -46,6 +46,9 @@ export class Statistics {
             if (recover === 'reset') {
                 this.dirty.clear();
                 await this.storage.discard();
+                for (const [key] of await this.store.loadEntries!<unknown>(this.key)) {
+                    if (key === this.key || key.startsWith(`${this.key}_`)) await this.store.remove(key);
+                }
             } else await this.saveDirty();
             await this.loadSnapshot(!!recover);
         });
