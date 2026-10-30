@@ -177,6 +177,9 @@ export class NamespaceIntegration {
         this.catalog.refresh([...tools.values()]);
     }
 
+    /** @brief Invalidate scoped search projections after tool, Profile definition or presentation changes. */
+    searchGeneration(agent: Agent): string { return `${this.catalogVersion}:${this.isPtc(agent)}`; }
+
     /** @brief Derive flat physical contracts while retaining references to the original Profile commands. */
     async entries(agent: Agent, profile?: ProfileSnapshot): Promise<FunctionEntry[]> {
         return functionEntries(profile ?? await this.get(agent), this.physical(agent), this.isPtc(agent) ? 'ptc' : 'native', this.intellisense.toolAdditions);
