@@ -299,7 +299,7 @@ test('native aliases preserve physical results through output validation and pre
         }
         await configureSession(namespaces, agent, cases.map(({ name }) => ({ id: `physical_${name}`, path: name, pinned: false, alwaysVisible: 2 })));
         for (const { name, value } of cases) {
-            const result = await ctx.tools.execute({ agent, callId: ToolCallId(`native-result-${name}`), name: `ns_${name}`, arguments: {}, signal: new AbortController().signal });
+            const result = await executeTool(ctx.tools, { agent, callId: ToolCallId(`native-result-${name}`), name: `ns_${name}`, arguments: {}, signal: new AbortController().signal });
             assert.equal(result.isError, false, JSON.stringify(result));
             assert.deepEqual(result.value, value);
             agent.ctx.tools.get(`ns_${name}`, agent)!.presentResult!({}, value);
