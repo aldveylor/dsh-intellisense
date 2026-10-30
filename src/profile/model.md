@@ -19,3 +19,5 @@ ToolsNamespace 统一提供 editor 平面管理接口、initialize/revision、se
 plugin.ts 仅装配 Profile 存储与 toolsNamespace，服务首次读取时独立加载数据，不依赖工具、Agent、统计或 UI 初始化。integration/plugin.ts 负责后续执行和界面集成，卸载它不销毁独立挂载的 Profile 服务。原 namespace 目录不再保留装配入口。session.ts 的 ProfileSessionCollection 为会话引用管理的消费接口。
 
 管理 UI 经 toolsNamespace.editor 的 PlaneProfileEditor 读取平面状态、提供方节点和目录说明，并执行配置/目录操作；不直接依赖 SemanticRegistry 或 NamespaceDefinitions。底层存储通过内部 intellisenseStorage 基础设施共享，不暴露 Profile 业务方法。ctx.intellisense 继续独立提供工具属性、搜索和统计，toolsNamespace 不吸收这些能力。
+
+函数 function.doc 为可选简化注释，默认无，空字符串或纯空白等同于无。无时 agent 使用完整注释，UI 方法块显示默认完整注释，Tooltip 简化注释栏显示“无”。tools.inspect 与 tools.search 不提供简化注释；tools.profile 内部成员保留服务端指定且不可修改的简化注释。

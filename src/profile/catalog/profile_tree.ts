@@ -52,6 +52,7 @@ function compactProfileNode(node: ProfileTreeNode): ProfileTreeNode {
     else delete result.permissions;
     if (!result.fixedLevel) delete result.fixedLevel;
     if (!result.disabled) delete result.disabled;
+    if (result.type === 'function' && !result.function.doc?.trim()) delete result.function.doc;
     if (children && result.type === 'namespace') result.children = Object.fromEntries(Object.entries(children).map(([name, child]) => [name, compactProfileNode(child)]));
     return result;
 }
@@ -97,7 +98,7 @@ const nodeSchema: z.ZodType<ProfileTreeNode> = z.lazy(() => z.union([
     namespaceSchema,
     z.strictObject({
         ...nodeProperties, type: z.literal('function'),
-        function: z.strictObject({ tool: z.string().describe('Exact physical tool name from tools.profile.tools, including unmounted tools; do not use a namespace path.'), doc: z.string().optional().describe('Profile-specific summary for ordinary mounts; cannot modify the original physical tool documentation or schema. Builtin tools members have server-owned documentation.') }),
+        function: z.strictObject({ tool: z.string().describe('Exact physical tool name from tools.profile.tools, including unmounted tools; do not use a namespace path.'), doc: z.string().optional().describe('Optional summary, absent by default; empty or whitespace-only text means absent and agents use the complete original documentation. Profile-specific summary for ordinary mounts; cannot modify the original physical tool documentation or schema. Builtin tools members have server-owned documentation.') }),
     }),
 ]));
 
@@ -207,7 +208,7 @@ interface FunctionNode extends ProfileNode {
     function: {
         /** @brief Exact physical name from ToolBrief.name, not a mount path or member alias (working_directory, not cwd). Builtin tools members retain server-owned identities. */
         tool: string;
-        /** @brief Profile-specific summary for ordinary mounts; cannot modify the original physical tool documentation or schema. Builtin tools members have server-owned documentation. */
+        /** @brief Optional summary, absent by default; empty or whitespace-only text means absent and agents use full documentation; cannot modify the original physical tool documentation or schema. Builtin tools members have server-owned documentation. */
         /** @default Original tool brief */
         doc?: string;
     };

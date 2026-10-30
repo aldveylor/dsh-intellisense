@@ -23,7 +23,7 @@ export type ProfilePatch<T = ProfileWrite> = { [K in keyof T]?: T[K] extends obj
 const common = { fixedLevel: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(), disabled: z.boolean().optional() };
 /** @brief Strict writable node schema selected by its type discriminator. */
 const nodeSchema: z.ZodType<FunctionWrite | NamespaceWrite> = z.lazy(() => z.discriminatedUnion('type', [
-    z.strictObject({ ...common, type: z.literal('function'), function: z.strictObject({ tool: z.string().describe('Exact physical tool name from tools.profile.tools, not a mount path or alias.'), doc: z.string().optional().describe('Summary for an ordinary mount. Builtin tools members retain server-owned documentation.') }) }).describe('Function leaf: requires type and function.tool; children is forbidden.'),
+    z.strictObject({ ...common, type: z.literal('function'), function: z.strictObject({ tool: z.string().describe('Exact physical tool name from tools.profile.tools, not a mount path or alias.'), doc: z.string().optional().describe('Optional summary, absent by default; empty or whitespace-only text means absent and agents use the complete original documentation. Summary for an ordinary mount. Builtin tools members retain server-owned documentation.') }) }).describe('Function leaf: requires type and function.tool; children is forbidden.'),
     z.strictObject({ ...common, fixedLevel: z.union([z.literal(0), z.literal(1)]).optional(), type: z.literal('namespace'), description: z.string().optional(), children: z.record(z.string(), nodeSchema).optional().describe('Member record keyed by name, not another namespace node. Only namespaces accept children; an empty namespace may omit it.') }),
 ]));
 

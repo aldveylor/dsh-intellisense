@@ -18,4 +18,4 @@ plugin.ts 是命名空间执行集成装配入口，依赖已挂载的 toolsName
 
 tool_catalog.ts 的 PhysicalToolCatalog 单独拥有物理工具契约与 ToolAdditions，不持有 Profile 存储或目录。plugin.ts 只消费 toolsNamespace 接口以及内部 intellisenseStorage；不存在额外的 profileBackend 业务入口。ctx.intellisense 保持独立，profiles 仅保留对 toolsNamespace 的同一对象引用。
 
-固定等级 1 的命令提示优先使用节点 function.doc 简化注释，包括受保护的 tools.profile 成员；内置命令固定等级 2 继续使用模式对应的完整接口说明。
+固定等级 1 的命令提示优先使用节点 function.doc 可选简化注释，包括受保护的 tools.profile 成员；未提供或为空时使用完整接口说明。内置命令固定等级 2 继续使用模式对应的完整接口说明。

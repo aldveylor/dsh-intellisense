@@ -45,7 +45,7 @@ export function nativeDiscovery(queries: readonly string[], profile: ProfileSnap
         if (node.type === 'namespace') return [{ path, namespace: true, ...(data.description?.trim() ? { brief: data.description } : {}) }];
         const entry = byPath.get(path);
         if (!entry) return [];
-        const brief = entry.provided ? entry.doc : data.function?.doc ?? entry.doc.trim().split(/\r?\n/, 1)[0];
+        const brief = data.function?.doc || entry.doc;
         return [{ path, ...(brief?.trim() ? { brief } : {}) }];
     });
     return JSON.stringify({ members }, null, 2);

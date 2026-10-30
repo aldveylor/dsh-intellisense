@@ -13,3 +13,5 @@ RootNamespace 默认构造始终包含 tools，读取已存数据通过 clone �
 ImplToolsFunction 同时提供 discovery/presentation/readValue/refresh，分别处理发现标记、模式契约、预加载与刷新策略；这些行为不再通过 ToolAddition 注册。会话引用不可修改，apply/save 操作发生在全局编辑副本上，成功后只推进目标全局名称的版本号。
 
 生成 tools.profile 时，内部成员的 function.doc 使用 runtime/builtins.ts 契约表中的一句话 brief，完整调用说明仍由 presentation 提供。简略注释继续由具体内置节点保护，禁止调用方修改，构造、克隆和 save 修正均保持该限制。
+
+tools.inspect 与 tools.search 的节点 function.doc 缺省，不将完整契约文档写成简化注释；完整说明仍通过 presentation 提供。

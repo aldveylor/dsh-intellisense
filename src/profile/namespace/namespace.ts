@@ -129,7 +129,7 @@ export function serializeProfile(profile: ProfileSnapshot, tools: readonly Physi
         const data = node.serialize();
         const entry = entries.get(path);
         return { type: 'leaf', name, permissions: node.permissions, disabled: node.disabled, fixedLevel: data.fixedLevel as 0 | 1 | 2,
-            description: data.function?.doc ?? entry?.doc.trim().split(/\r?\n/, 1)[0], preload: entry?.preload,
+            description: data.function?.doc?.trim() ? data.function.doc : undefined, preload: entry?.preload,
             function: entry ? { tool: entry.tool, schema: entry.schema, output: entry.output, doc: entry.doc, presentation: entry.presentation } : { tool: (node as ProfileFunction).tool!, schema: {}, doc: data.function?.doc ?? '' } };
     };
     return visit(profile, '', '');
