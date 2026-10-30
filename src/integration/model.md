@@ -18,4 +18,6 @@ tool_catalog.ts 的 PhysicalToolCatalog 单独拥有物理工具契约与 ToolAd
 
 DSH 0.2.2-alpha.2 将批次执行交给 ToolExecutor。configure 为每个启用会话安装独立 NativeToolExecutor 代理：native 模式只声明当前 syncNative 导出的名称，PTC 模式只声明 tools_run_code。工具声明由执行器 describe 生成；system-prompt/assemble 仅修改文本，不修改工具声明。会话 release 同时撤销执行器。
 
+presentation 挂载完成（包括 PTC runtime 注册）后，通过 configureScope 为该作用域及子作用域的已有会话补装执行器；尚未发布的会话仍由 agent/created 配置。两种加载顺序均不需要外部手动 configure，不影响其他作用域的会话。
+
 命名空间子调用使用 dsh-tools/pipeline 的 prepare/dispatch/complete，传播父调用 token、rootCallId、toolSet 和 signal；保留配对子调用事件、结构化错误和包括 false 在内的 meta。PTC 审计事件类型由 dsh-tool-executor-ptc 扩展，返回上下文和结束回合标志继续传递到父调用。

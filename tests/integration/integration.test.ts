@@ -41,8 +41,8 @@ function systemOf(request: GenerateOptions): string {
     return request.messages.filter(message => message.role === 'system').map(message => message.content.map(block => block.type === 'text' ? block.text : '').join('\n')).join('\n');
 }
 
-for (const mode of ['standard', 'native', 'ptc'] as const) {
-    test(`full plugin assembly preserves persona and exposes the ${mode} tool set`, { timeout: 10_000 }, async () => {
+for (const [mode, timing] of [['standard', 'after'], ['native', 'before'], ['native', 'after'], ['ptc', 'before'], ['ptc', 'after']] as const) {
+    test(`full plugin assembly exposes ${mode} tools with presentation mounted ${timing} agent creation`, { timeout: 10_000 }, async () => {
         const directory = await mkdtemp(join(tmpdir(), 'namespace-integration-'));
         const ctx = new Context();
         try {
@@ -65,13 +65,20 @@ for (const mode of ['standard', 'native', 'ptc'] as const) {
             const mounted = mode === 'native' ? await ctx.plugin(namespacePlugin) : await ctx.plugin(plugin, { timeoutMs: 3000 });
             assert.equal(presets.size, 0, 'The main component does not register agent presets');
             assert.deepEqual([...routes.keys()].sort(), ['/api/ts-intellisense', '/api/ts-intellisense-client', '/api/ts-intellisense-docs-image', '/api/ts-intellisense-profile', '/api/ts-intellisense-state']);
-            const agent = await ctx.agentLoop.create(SessionId(`integration-${mode}`), { provider: 'fake', model: 'scripted' });
+            const unrelated = await ctx.agentLoop.create(SessionId(`unrelated-${mode}`), { provider: 'fake', model: 'scripted' });
+            const defaultExecutor = ctx.tools.selectExecutor(unrelated);
+            const { agent } = await ctx.agents.create({
+                sessionId: SessionId(`integration-${mode}`), agentOptions: { provider: 'fake', model: 'scripted' },
+                ...(mode !== 'standard' && timing === 'before' ? { setup: async (scope: Context) => { await scope.plugin(presentation, { mode }); } } : {}),
+            });
             const namespaces = ctx.namespaceIntegration;
-            assert.equal(namespaces.enabled(agent), false);
+            assert.equal(namespaces.enabled(agent), mode !== 'standard' && timing === 'before');
             if (mode !== 'standard') {
-                await agent.ctx.plugin(presentation, { mode });
+                if (timing === 'after') await agent.ctx.plugin(presentation, { mode });
+                const initial = await ctx.systemPrompt.assemble({ agent, scope: agent });
+                assert.deepEqual(initial.tools.map(tool => tool.name), mode === 'ptc' ? ['tools_run_code'] : ['ns_tools__inspect']);
+                assert.equal(ctx.tools.selectExecutor(unrelated), defaultExecutor, 'Other conversations keep their executor');
                 await configureSession(namespaces, agent, [{ id: 'read_file', path: 'std.fs.read', description: 'Read file contents', pinned: false }]);
-                await namespaces.configure(agent);
             }
             const errors: unknown[] = [];
             ctx.on('agent/error', ({ error }) => { errors.push(error); });

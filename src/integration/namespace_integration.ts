@@ -130,6 +130,13 @@ export class NamespaceIntegration {
         return presentation.presentationFor(agent.ctx) === 'ptc';
     }
 
+    /** @brief Configure live conversations when their presentation is mounted after agent creation. */
+    async configureScope(scope: ScopeKey): Promise<void> {
+        for (const agent of this.ctx.agents.list()) {
+            if (scopeChainOf(agent).includes(scope)) await this.configure(agent);
+        }
+    }
+
     /** @brief Initialize only sessions belonging to an Intellisense presentation scope. */
     async configure(agent: Agent): Promise<void> {
         if (!this.enabled(agent)) return;

@@ -24,7 +24,7 @@ test('only an explicit Intellisense scope enables namespace configuration and de
     component.addition = async () => { throw new Error('Standard mode must not initialize namespaces'); };
     await component.configure(standardAgent);
     const registrations: Context[] = [];
-    ctx.provide('namespaceIntegration', { register: (scope: Context) => registrations.push(scope) } as unknown as NamespaceIntegration);
+    ctx.provide('namespaceIntegration', { register: (scope: Context) => registrations.push(scope), configureScope: async () => {} } as unknown as NamespaceIntegration);
     ctx.provide('tools', {} as Context['tools']);
     const mounted = await intellisense.ctx.plugin(presentation, { mode: 'native', profile: 'Work' });
     assert.equal(registrations.length, 1);

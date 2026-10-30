@@ -32,4 +32,5 @@ export async function apply(ctx: Context, options: z.input<typeof Config>): Prom
     ctx.effect(() => { configurations.set(scope, config); return () => { configurations.delete(scope); }; });
     ctx.namespaceIntegration.register(ctx);
     if (config.mode === 'ptc') await ctx.isolate('namespaceRuntime').isolate('codeRuntime').plugin(NamespaceRuntime);
+    await ctx.namespaceIntegration.configureScope(scope);
 }
