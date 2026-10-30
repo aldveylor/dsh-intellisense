@@ -97,7 +97,7 @@ const nodeSchema: z.ZodType<ProfileTreeNode> = z.lazy(() => z.union([
     namespaceSchema,
     z.strictObject({
         ...nodeProperties, type: z.literal('function'),
-        function: z.strictObject({ tool: z.string().describe('Exact physical tool name from tools.profile.tools, including unmounted tools; do not use a namespace path.'), doc: z.string().optional().describe('One-sentence summary of the function functionality; cannot modify the original tool documentation or schema.') }),
+        function: z.strictObject({ tool: z.string().describe('Exact physical tool name from tools.profile.tools, including unmounted tools; do not use a namespace path.'), doc: z.string().optional().describe('Profile-specific summary for ordinary mounts; cannot modify the original physical tool documentation or schema. Builtin tools members have server-owned documentation.') }),
     }),
 ]));
 
@@ -199,19 +199,20 @@ interface ProfileNode {
     /** @default false */
     disabled?: boolean;
 }
-/** @brief Physical tool mounted as a function at a named Profile member. */
+/** @brief Physical tool mounted as a function at a named Profile member. Functions never accept children; only namespace nodes contain members. */
 interface FunctionNode extends ProfileNode {
     type: 'function';
     /** @default 0 */
     fixedLevel?: 0 | 1 | 2;
     function: {
+        /** @brief Exact physical name from ToolBrief.name, not a mount path or member alias (working_directory, not cwd). Builtin tools members retain server-owned identities. */
         tool: string;
-        /** @brief One-sentence summary of the function functionality; cannot modify the original tool's documentation or schema. */
+        /** @brief Profile-specific summary for ordinary mounts; cannot modify the original physical tool documentation or schema. Builtin tools members have server-owned documentation. */
         /** @default Original tool brief */
         doc?: string;
     };
 }
-/** @brief Namespace containing directly nested Profile members keyed by name. */
+/** @brief Namespace containing directly nested Profile members keyed by name. children is a member record, not a namespace node: { files: { type: 'namespace', children: { read: { type: 'function', function: { tool: 'read' } } } } }. Empty namespaces may omit children. */
 interface NamespaceTreeNode extends ProfileNode {
     type: 'namespace';
     /** @default 0 */
