@@ -20,7 +20,7 @@ test('runtime child ownership inherits the nearest parent working profile withou
     const profiles = new ProfileSessions(new NamespaceComponent(new Context(), catalog), new MemoryStore());
     const namespaces = new NamespaceIntegration(ctx, new NamespaceComponent(ctx, catalog), catalog, profiles);
     ctx.provide('tools', { schemas: () => [], setExecutor: () => {}, presentAs: () => () => {} } as unknown as Context['tools']);
-    ctx.provide('namespaceIntegration', { register: () => {} } as unknown as NamespaceIntegration);
+    ctx.provide('namespaceIntegration', { register: () => {}, configureScope: async () => {} } as unknown as NamespaceIntegration);
     const scopes: ReturnType<typeof createScope>[] = [];
     const detach: (() => void)[] = [];
 
@@ -54,6 +54,7 @@ test('runtime child ownership inherits the nearest parent working profile withou
         await assert.rejects(namespaces.addition(missing), /Profile does not exist/);
         const child = await agent('child', parent);
         const childRegistry = await namespaces.addition(child);
+        await namespaces.configure(child);
         assert.equal(childRegistry.name, 'Work');
         assert.equal(childRegistry.profile.pointer, parentPointer);
         assert.deepEqual((await profiles.addition(child.session)).profile.serialize(), (await profiles.addition(parent.session)).profile.serialize());

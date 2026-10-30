@@ -9,14 +9,16 @@ import { NamespaceIntegration } from './namespace_integration.js';
 import { Aliases } from '../profile/namespace/namespace.js';
 import { registerSessionProfiles } from '../web/session_profile/routes.js';
 import { registerManagement } from '../web/server/routes.js';
+import { version } from '../compatibility/version.js';
 import { dshCompatibility } from '../compatibility/compatibility.js';
 import { ptcToolName } from '../runtime/builtins.js';
 import { executionInstructions } from '../profile/namespace/prompt.js';
 import { PhysicalToolCatalog } from './tool_catalog.js';
 import { CommandStatistics } from '../statistics/command_statistics.js';
+import { registerSessionInitialization } from './session_initialization.js';
 
 export const name = 'command-namespaces';
-export const inject = ['toolsNamespace', 'intellisenseStorage', 'tools', 'agents', 'systemPrompt', 'connection'];
+export const inject = ['toolsNamespace', 'intellisenseStorage', 'tools', 'agents', 'systemPrompt', 'sessionProjections', 'connection'];
 /** @brief Configure the shared namespace alias catalog. */
 export const Config = z.object({ aliasesFile: z.string().optional(), defaultSearchMethod: z.string().regex(/^[a-z][a-z0-9_]*$/).optional() }).prefault({});
 
@@ -50,6 +52,7 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
             namespaces = component;
             ctx.provide('intellisense', component.intellisense);
             ctx.provide('namespaceIntegration', component);
+            registerSessionInitialization(ctx, component);
             registerSessionProfiles(ctx, namespace, component);
             ctx.on('agent/created', async ({ agent }) => { await component.configure(agent); });
             ctx.on('agent/disposed', async ({ agent }) => { await component.release(agent.id); });
@@ -59,8 +62,10 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
                 if (agent && component.enabled(agent)) {
                     const directory = await component.prompt(agent);
                     if (directory) assembled.sections.push({ name: 'namespaces:directory', text: directory, interpolate: false });
-                    const names = component.isPtc(agent) ? [ptcToolName] : await component.syncNative(agent);
-                    dshCompatibility.presentTools(assembled, agent, names);
+                    await version.lt('0.2.2-alpha.2', async () => {
+                        const names = component.isPtc(agent) ? [ptcToolName] : await component.syncNative(agent);
+                        dshCompatibility.presentTools(assembled, agent, names);
+                    });
                     assembled.sections = assembled.sections.filter(section => !section.name.startsWith('tool:') && !section.name.startsWith('tools:'));
                     const instructions = executionInstructions(component.isPtc(agent) ? 'ptc' : 'native', (await component.entries(agent)).some(entry => entry.node.discovery));
                     if (instructions) assembled.sections.push({ name: 'namespaces:execution', text: instructions, interpolate: false });

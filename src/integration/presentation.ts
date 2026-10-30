@@ -25,7 +25,7 @@ export function presentationConfigFor(ctx: Context): z.infer<typeof Config> | un
 /** @brief Resolve the execution mode from the nearest presentation configuration. */
 export function presentationFor(ctx: Context): PresentationMode | undefined { return presentationConfigFor(ctx)?.mode; }
 
-/** @brief Declare one scoped tool presentation, inherited by each configured agent executor. */
+/** @brief Install the scoped tool presentation and executor inherited by its conversations. */
 export async function apply(ctx: Context, options: z.input<typeof Config>): Promise<void> {
     const config = Config.parse(options);
     const scope = scopeOf(ctx);
@@ -34,4 +34,5 @@ export async function apply(ctx: Context, options: z.input<typeof Config>): Prom
     ctx.namespaceIntegration.register(ctx);
     if (config.mode === 'ptc') await ctx.isolate('namespaceRuntime').isolate('codeRuntime').plugin(NamespaceRuntime);
     dshCompatibility.presentNative(ctx);
+    await ctx.namespaceIntegration.configureScope(scope);
 }

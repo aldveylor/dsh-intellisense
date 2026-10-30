@@ -6,9 +6,11 @@ compatibility.ts 提供统一的 DshCompatibility 接口。version.ts 读取本�
 
 legacy.ts 从 dsh-tools 获取 jsonSchemaToTs 和 CodeRunFailedError，在 presentation 作用域调用 presentAs('native')，通过提示词 assembly.tools 选择工具，单次调用交给旧版 tools.execute。configureTools 返回空撤销函数，不安装新版执行器。
 
-executor.ts 从 dsh-tool-executor-ptc 获取声明生成及程序错误类型，在会话作用域安装 NativeToolExecutor，通过 describe 选择工具；单次子调用经 ToolExecutionPipeline 的 prepare/dispatch/complete，模型调用则适配 tools.execute 的批次输入与结果。新版提示词 waterfall 不修改工具声明。
+executor.ts 从 dsh-tool-executor-ptc 获取声明生成及程序错误类型，在 presentation 的 Agent 或 preset 作用域安装 NativeToolExecutor，通过 describe 按工具定义筛选声明；单次子调用经 ToolExecutionPipeline 的 prepare/dispatch/complete，模型调用则适配 tools.execute 的批次输入与结果。新版提示词 waterfall 不修改工具声明。
 
-兼容层只转换宿主 API。命名空间业务继续负责名称选择、子调用身份、审计事件、统计、附加上下文和结束回合标志，执行器撤销由会话 release 持有。
+isBlank 在新版读取 agents.turnBoundaryOf，在旧版读取 sessionProjections 的 turnBoundary 状态；旧版尚未安装轮次投影时按未开始处理。
+
+兼容层只转换宿主 API。命名空间业务继续负责名称选择、子调用身份、审计事件、统计、附加上下文和结束回合标志，执行器与 presentation 作用域同生命周期，会话 release 只释放代理及缓存。
 
 peerDependencies 使用单个 >= 最低版本声明：共享 DSH 包最低为 0.2.1-rc.2，两个执行器包最低为 0.2.2-alpha.2 且为可选 peer；开发依赖使用 >=0.2.2-alpha.2，显式提供相同版本的核心包，避免 pnpm 自动安装 peer 时混合两代接口。npm 对不同版本元组的预发布版本有独立的范围匹配规则，运行时版本比较直接使用 SemVer gte。
 

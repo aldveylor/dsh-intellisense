@@ -1,4 +1,5 @@
 import * as tools from '@deepseek-ai/dsh-tools';
+import type { Session } from '@deepseek-ai/dsh-session';
 import type { ToolExecutionInput, ToolExecutionResult } from '@deepseek-ai/dsh-tools';
 import type { DshCompatibility } from './contracts.js';
 
@@ -14,6 +15,11 @@ const exports = tools as unknown as Pick<DshCompatibility, 'jsonSchemaToTs' | 'C
 export const compatibility: DshCompatibility = {
     jsonSchemaToTs: exports.jsonSchemaToTs,
     CodeRunFailedError: exports.CodeRunFailedError,
+    isBlank: (ctx, agent) => {
+        const projections = ctx.sessionProjections as unknown as { stateOf(session: Session, key: 'turnBoundary'): { lastTurn: number; openTurnStartSeq: number | null } | undefined };
+        const boundary = projections.stateOf(agent.session, 'turnBoundary');
+        return !boundary || boundary.lastTurn === 0 && boundary.openTurnStartSeq === null;
+    },
     presentNative: ctx => { (ctx.tools as unknown as LegacyTools).presentAs('native'); },
     configureTools: () => () => {},
     presentTools: (assembly, agent, names) => {

@@ -7,15 +7,15 @@ import type { DshCompatibility } from './contracts.js';
 export const compatibility: DshCompatibility = {
     jsonSchemaToTs,
     CodeRunFailedError,
+    isBlank: (ctx, agent) => {
+        const boundary = ctx.agents.turnBoundaryOf(agent.session);
+        return boundary.lastTurn === 0 && boundary.openTurnStartSeq === null;
+    },
     presentNative: () => {},
-    configureTools: (ctx, names) => {
+    configureTools: (ctx, select) => {
         const executor = new NativeToolExecutor(ctx);
         return ctx.tools.setExecutor({
-            describe: tools => {
-                if (!names) return executor.describe(tools);
-                const selected = new Set(names());
-                return executor.describe(tools.filter(tool => selected.has(tool.name)));
-            },
+            describe: tools => executor.describe(select ? tools.filter(select) : tools),
             execute: input => executor.execute(input),
         });
     },

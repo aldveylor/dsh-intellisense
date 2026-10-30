@@ -1,5 +1,5 @@
 import type { ProfileSnapshot } from '../profile.js';
-import { outputSchema } from '../../output_schema.js';
+import { UnknownCommandError } from '../../error.js';
 import { createHash } from 'node:crypto';
 import { normalizeInspectQueries, queryNodes, type FunctionEntry } from './namespace.js';
 
@@ -32,15 +32,21 @@ export function nativeQueryEntries(queries: readonly string[], profile: ProfileS
 
 /** @brief Render shallow discovery directly from Profile nodes and flat physical metadata. */
 export function nativeDiscovery(queries: readonly string[], profile: ProfileSnapshot, entries: readonly FunctionEntry[]): string {
-    const exact = new Set(normalizeInspectQueries(queries));
+    const normalized = normalizeInspectQueries(queries);
     const byPath = new Map(entries.map(entry => [entry.path, entry]));
-    const members = queryNodes(profile, queries).sort((a, b) => a.path.localeCompare(b.path)).flatMap<Record<string, unknown>>(({ path, node }) => {
+    const namespaces = normalized.filter(query => {
+        if (profile.resolve(query.replace(/\.$/, ''))?.type === 'namespace' || query.endsWith('.')) return true;
+        if (!byPath.has(query)) throw new UnknownCommandError(query);
+        return false;
+    });
+    if (normalized.length && !namespaces.length) return 'success';
+    const members = queryNodes(profile, namespaces).sort((a, b) => a.path.localeCompare(b.path)).flatMap<Record<string, unknown>>(({ path, node }) => {
         const data = node.serialize();
         if (node.type === 'namespace') return [{ path, namespace: true, ...(data.description?.trim() ? { brief: data.description } : {}) }];
         const entry = byPath.get(path);
         if (!entry) return [];
         const brief = entry.provided ? entry.doc : data.function?.doc ?? entry.doc.trim().split(/\r?\n/, 1)[0];
-        return [{ path, ...(brief?.trim() ? { brief } : {}), ...(exact.has(path) ? { description: entry.doc, parameters: entry.schema, output: outputSchema(entry.output) } : {}) }];
+        return [{ path, ...(brief?.trim() ? { brief } : {}) }];
     });
     return JSON.stringify({ members }, null, 2);
 }

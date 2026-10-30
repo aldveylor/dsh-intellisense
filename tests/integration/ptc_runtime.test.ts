@@ -33,7 +33,8 @@ async function fixture(store: Store = new MemoryStore(), mode: 'ptc' | 'native' 
     const defaultRuntime = { language: 'typescript', run: () => { throw new Error('Default runtime selected'); } };
     ctx.provide('ptcRuntime', defaultRuntime as unknown as Context['ptcRuntime']);
     const agents: Agent[] = [];
-    ctx.provide('agents', { list: () => agents } as unknown as Context['agents']);
+    ctx.provide('sessionProjections', { stateOf: () => ({ lastTurn: 0, openTurnStartSeq: null }) } as unknown as Context['sessionProjections']);
+    ctx.provide('agents', { list: () => agents, turnBoundaryOf: () => ({ lastTurn: 0, openTurnStartSeq: null }) } as unknown as Context['agents']);
     ctx.provide('codeRuntimeOptions', RuntimeConfig.parse({ timeoutMs: 3000 }));
     const catalog = new SemanticRegistry(store);
     const statistics = new CommandStatistics(store);

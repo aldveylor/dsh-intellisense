@@ -36,7 +36,7 @@ manifest.devDependencies = { ...manifest.devDependencies, ...manifest.peerDepend
 delete manifest.peerDependencies;
 delete manifest.peerDependenciesMeta;
 for (const name of Object.keys(manifest.devDependencies)) {
-    if (name.startsWith('@deepseek-ai/dsh-tool-executor-')) delete manifest.devDependencies[name];
+    if (name.startsWith('@deepseek-ai/dsh-tool-executor-') || name === '@deepseek-ai/dsh-official-bundles') delete manifest.devDependencies[name];
     else if (name === '@deepseek-ai/dsh' || name.startsWith('@deepseek-ai/dsh-')) manifest.devDependencies[name] = '0.2.1-rc.2';
 }
 manifest.devDependencies['@deepseek-ai/cordis'] = '4.0.5';

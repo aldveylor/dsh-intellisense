@@ -50,7 +50,7 @@ test('native and PTC discovery preserve a single query array', async () => {
     }
     assert.match(executionInstructions('ptc'), /tools_run_code/);
     assert.match(executionInstructions('ptc'), /globalThis/);
-    assert.deepEqual(JSON.parse(nativeDiscovery(['tools.inspect'], namespace([entry]))).members[0].parameters, entry.schema);
+    assert.equal(nativeDiscovery(['tools.inspect'], namespace([entry])), 'success');
     assert.deepEqual(nativeArgumentsFor(entry, { queries }), { queries });
     assert.deepEqual(await positionalArguments(entry, [queries]), { queries });
     assert.deepEqual(await positionalArguments(entry, [[]]), { queries: [] });
@@ -62,14 +62,13 @@ test('native and PTC discovery preserve a single query array', async () => {
     await assert.rejects(positionalArguments(entry, [3]), /invalid arguments/i);
 });
 
-test('global prefix preserves native selection, namespace listings and exact contracts', async () => {
+test('global prefix preserves native selection, namespace listings and exact discovery', async () => {
     const root = namespace(entries);
     for (const query of ['', 'std.', 'std.cwd', 'std.fs.', 'std.fs.read']) {
         assert.deepEqual(nativeQueryEntries(['global.' + query], root), nativeQueryEntries([query], root));
         assert.equal(nativeDiscovery(['global.' + query], root), nativeDiscovery([query], root));
     }
-    const exact = JSON.parse(nativeDiscovery(['global.std.fs.read'], root));
-    assert.deepEqual(exact.members[0].parameters, entries[1]!.schema);
+    assert.equal(nativeDiscovery(['global.std.fs.read'], root), 'success');
     assert.throws(() => nativeDiscovery(['global.std..'], root), /Invalid Inspect query/);
 });
 
@@ -108,12 +107,24 @@ test('inspection reads session nodes and summaries without registry mounts or al
     assert.match(listing, /Session summary/);
     assert.doesNotMatch(listing, /disabled/);
     assert.match(inspect(['session_files.read'], root, true), /Physical documentation/);
-    const native = JSON.parse(nativeDiscovery(['session_files.read'], root));
+    assert.equal(nativeDiscovery(['session_files.read'], root), 'success');
+    const native = JSON.parse(nativeDiscovery(['session_files.'], root));
     assert.equal(native.members[0].brief, 'Session summary');
-    assert.equal(native.members[0].description, 'Physical documentation');
-    assert.equal(native.members[0].parameters.path.type, 'string');
-    assert.deepEqual(JSON.parse(nativeDiscovery(['read'], root)).members, []);
+    assert.deepEqual(native.members[0], { path: 'session_files.read', brief: 'Session summary' });
+    assert.throws(() => nativeDiscovery(['read'], root), /Unknown command: read/);
     files.setDisabled(true);
     const disabled = profileFixture(profile, registry.tools(), 'native', registry.toolAdditions);
-    assert.deepEqual(JSON.parse(nativeDiscovery(['session_files.read'], disabled)).members, []);
+    assert.throws(() => nativeDiscovery(['session_files.read'], disabled), /Unknown command: session_files.read/);
+});
+
+
+test('native exact queries return success while mixed queries retain only namespace briefs', () => {
+    const root = namespace(entries);
+    assert.equal(nativeDiscovery(['std.cwd', 'global.std.fs.read', 'std.cwd'], root), 'success');
+    assert.deepEqual(JSON.parse(nativeDiscovery(['std.fs.', 'std.fs.read'], root)), {
+        members: [{ path: 'std.fs.read', brief: 'Read file' }],
+    });
+    assert.throws(() => nativeDiscovery(['std.cwd', 'std.missing'], root), /Unknown command: std.missing/);
+    const unavailable = profileFixture(root.profile, []);
+    assert.throws(() => nativeDiscovery(['std.cwd'], unavailable), /Unknown command: std.cwd/);
 });
