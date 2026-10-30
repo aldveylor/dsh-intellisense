@@ -199,7 +199,7 @@ export class NamespaceIntegration {
         const hints = new Map<string, NamespaceHint>();
         for (const entry of entries) {
             const level = entry.fixedLevel;
-            const description = entry.provided ? entry.doc : entry.node.serialize().function.doc ?? entry.doc.trim().split(/\r?\n/, 1)[0]!;
+            const description = entry.provided && level === 2 ? entry.doc : entry.node.serialize().function.doc ?? entry.doc.trim().split(/\r?\n/, 1)[0]!;
             if (level && (ptc || level === 1)) hints.set(entry.path, { path: entry.path, description,
                 ...(level === 2 ? { declaration: entry.preload ? `/** @brief ${description} */\nconst ${entry.name}: ${entry.signature};` : declaration({ ...entry, doc: description }, false) } : {}) });
         }

@@ -17,3 +17,5 @@ discover 在当前会话快照上解析精确路径，只将显式查询的可�
 plugin.ts 是命名空间执行集成装配入口，依赖已挂载的 toolsNamespace 和 共享存储基础设施，不创建或发布 Profile 服务。默认根入口先挂载 profile/plugin.ts，再挂载 integration/plugin.ts。ProfileSessionCollection 隔离会话实现；Profile 服务存储的关闭晚于集成层统计刷新。
 
 tool_catalog.ts 的 PhysicalToolCatalog 单独拥有物理工具契约与 ToolAdditions，不持有 Profile 存储或目录。plugin.ts 只消费 toolsNamespace 接口以及内部 intellisenseStorage；不存在额外的 profileBackend 业务入口。ctx.intellisense 保持独立，profiles 仅保留对 toolsNamespace 的同一对象引用。
+
+固定等级 1 的命令提示优先使用节点 function.doc 简化注释，包括受保护的 tools.profile 成员；内置命令固定等级 2 继续使用模式对应的完整接口说明。

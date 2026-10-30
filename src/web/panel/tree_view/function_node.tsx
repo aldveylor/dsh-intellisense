@@ -14,9 +14,9 @@ export function FunctionNode({ node, tree }: { node: FunctionTreeNode; tree: Tre
     const id = mapping?.id ?? command?.id;
     const contract = node.serialize().function;
     const tool = (id ? tree.toolsById.get(id) : undefined) ?? {
-        id: id ?? contract?.tool ?? path, description: description ?? '', parameters: contract?.schema ?? {}, output: contract?.output,
+        id: id ?? contract?.tool ?? path, description: contract?.doc ?? description ?? '', parameters: contract?.schema ?? {}, output: contract?.output,
     };
-    const summary = mapping?.description ?? (id && Object.hasOwn(tree.toolComments, id) ? tree.toolComments[id] : undefined) ?? '';
+    const summary = mapping?.description ?? (id && Object.hasOwn(tree.toolComments, id) ? tree.toolComments[id] : undefined) ?? description ?? '';
     const tooltip = useTreeTooltip(<CommandDetails path={path} tool={tool} summary={summary} calls={tree.callsByTool[tool.id] ?? 0} queries={tree.queriesByTool[tool.id] ?? 0} />);
     const readOnly = !node.permissions.renamable;
     const invalid = tree.invalid(path);

@@ -15,3 +15,5 @@ serializeProfile 通过命名空间直接属性生成 DTO，不调用容器的�
 protectedToolNames 从初始节点权限收集受保护物理工具身份。目录复用 definitions.revision 对应的初始树与身份集合；集成层复用 ToolsNamespace.revision 对应的集合，工厂变化后失效，批量工具列表不逐项重建初始 Profile。
 
 nativeDiscovery 对纯精确方法查询仅返回 success；不存在、禁用或物理不可用的方法抛出 UnknownCommandError。命名空间查询保留 JSON 直接成员及 brief，混合查询仅输出命名空间成员，不输出方法契约。集成层在更新发现集合及同步工具前完成该批查询的校验。
+
+浏览器序列化的函数 description 优先使用节点 function.doc 简化注释，未提供时取完整文档首行；function.doc 契约字段继续保留完整说明。
