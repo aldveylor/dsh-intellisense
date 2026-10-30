@@ -42,7 +42,7 @@ function systemOf(request: GenerateOptions): string {
     return request.messages.filter(message => message.role === 'system').map(message => message.content.map(block => block.type === 'text' ? block.text : '').join('\n')).join('\n');
 }
 
-for (const [mode, timing] of [['standard', 'after'], ['native', 'before'], ['native', 'after'], ['native', 'inherited'], ['ptc', 'before'], ['ptc', 'after'], ['ptc', 'inherited'], ['ptc', 'bound_after']] as const) {
+for (const [mode, timing] of [['standard', 'after'], ['native', 'before'], ['native', 'after'], ['native', 'inherited'], ['native', 'bound_after'], ['ptc', 'before'], ['ptc', 'after'], ['ptc', 'inherited'], ['ptc', 'bound_after']] as const) {
     test(`full plugin assembly exposes ${mode} tools with ${timing} presentation binding`, { timeout: 10_000 }, async () => {
         const directory = await mkdtemp(join(tmpdir(), 'namespace-integration-'));
         const ctx = new Context();
