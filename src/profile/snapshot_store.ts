@@ -1,7 +1,8 @@
 import type { Store } from '../storage/store.js';
 import { JournalStore } from '../storage/journal_store.js';
 import type { ProfileSnapshot, ProfileVersion } from './profile.js';
-import type { ProfileData } from './catalog/profile_tree.js';
+import { ProfileSchema, type ProfileData } from './catalog/profile_tree.js';
+import { upgradeProfileNodes } from './catalog/profile_compatibility.js';
 import type { NamespaceDefinitions } from './namespace/definitions.js';
 
 /** @brief A numeric identity and immutable anonymous Profile; editing values are always detached. */
@@ -37,17 +38,27 @@ export class SnapshotStore {
     load(): Promise<void> {
         return this.loaded ??= (async () => {
             const records = await this.journal.loadEntries<unknown>();
+            const upgrades: [string, unknown][] = [];
+            const references = new Map<number, ProfileVersion>();
+            let sequence = 0;
             for (const [key, value] of records) {
                 if (key === 'profile_snapshot_sequence') {
                     if (!Number.isSafeInteger(value) || (value as number) < 0) throw new Error('Invalid Profile snapshot sequence');
-                    this.sequence = Math.max(this.sequence, value as number);
+                    sequence = Math.max(sequence, value as number);
                     continue;
                 }
                 const pointer = Number(key.slice('profile_snapshot_'.length));
                 if (!Number.isSafeInteger(pointer) || pointer <= 0) throw new Error('Invalid Profile snapshot identity');
-                this.references.set(pointer, new ProfileReference(pointer, value as Pick<ProfileData, 'root' | 'brief'>, this.definitions));
-                this.sequence = Math.max(this.sequence, pointer);
+                const data = value as Pick<ProfileData, 'root' | 'brief'>;
+                const upgraded = { ...data, root: upgradeProfileNodes(data?.root) as ProfileData['root'] };
+                ProfileSchema.parse({ ...upgraded, name: 'Archived' });
+                references.set(pointer, new ProfileReference(pointer, upgraded, this.definitions));
+                if (JSON.stringify(data) !== JSON.stringify(upgraded)) upgrades.push([key, upgraded]);
+                sequence = Math.max(sequence, pointer);
             }
+            await this.journal.commit(upgrades);
+            this.references = references;
+            this.sequence = sequence;
         })();
     }
 

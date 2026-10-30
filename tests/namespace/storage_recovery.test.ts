@@ -31,7 +31,7 @@ test('startup loading failures keep management available and reset replaces obso
     await applyProfiles(ctx);
     await apply(ctx);
     assert.equal(warnings.length, 1);
-    assert.deepEqual(descriptors, [{ name: 'ts_intellisense', version: storageVersion, compatibleVersions: [1, 2], tables: ['state'], hasGlobal: false, layout: 'per-record' }, { name: 'intellisense_profile_snapshots', version: snapshotVersion, tables: ['state'], hasGlobal: false, layout: 'per-record' }]);
+    assert.deepEqual(descriptors, [{ name: 'ts_intellisense', version: storageVersion, compatibleVersions: [1, 2, 3], tables: ['state'], hasGlobal: false, layout: 'per-record' }, { name: 'intellisense_profile_snapshots', version: snapshotVersion, compatibleVersions: [1], tables: ['state'], hasGlobal: false, layout: 'per-record' }]);
     const route = routes.get('/api/ts-intellisense-state')!;
     assert.equal((await route(new Request('https://localhost/api/ts-intellisense-state'))).status, 400);
     const response = await route(new Request('https://localhost/api/ts-intellisense-state', {
@@ -73,7 +73,7 @@ test('KV version upgrade retains compatible records for domain-level partial rec
     } finally { await backend.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
-test('archived command-node Profiles are discarded when the snapshot schema changes', async () => {
+test('version 3 catalogs and command-node archives survive a real KV upgrade', async () => {
     const { JsonStorageBackend } = await import('@deepseek-ai/dsh-storage-json');
     const { mkdtemp, rm } = await import('node:fs/promises');
     const { tmpdir } = await import('node:os');
@@ -83,18 +83,31 @@ test('archived command-node Profiles are discarded when the snapshot schema chan
     const directory = await mkdtemp(join(tmpdir(), 'intellisense-snapshot-'));
     const backend = new JsonStorageBackend(directory);
     try {
+        const global = await backend.kv.open({ name: 'ts_intellisense', version: 3, tables: ['state'], hasGlobal: false, layout: 'per-record' });
+        const root = { type: 'namespace', children: { read: { type: 'command', command: { tool: 'read_file', doc: 'Read a file' } } } };
+        await global.putRecord('state', 'registry', { version: 3, revision: 7, profile: 'Work', profiles: { Work: { pointer: 1, root } } });
+        await global.putRecord('state', 'profile_session_existing', { name: 'Work', pointer: 1 });
+        await global.close();
         const obsolete = await backend.kv.open({ name: 'intellisense_profile_snapshots', version: 1, tables: ['state'], hasGlobal: false, layout: 'per-record' });
-        await obsolete.putRecord('state', 'profile_snapshot_1', { root: { type: 'namespace', children: {
-            tools: { type: 'namespace', children: { inspect: { type: 'command', command: { tool: 'tools_inspect' } } } },
-        } } });
+        await obsolete.putRecord('state', 'profile_snapshot_1', { root });
+        await obsolete.putRecord('state', 'profile_snapshot_sequence', 1);
         await obsolete.close();
-        const unit = await backend.kv.open({ name: 'ts_intellisense', version: storageVersion, compatibleVersions: [1, 2], tables: ['state'], hasGlobal: false, layout: 'per-record' });
-        const snapshots = await backend.kv.open({ name: 'intellisense_profile_snapshots', version: snapshotVersion, tables: ['state'], hasGlobal: false, layout: 'per-record' });
+        const unit = await backend.kv.open({ name: 'ts_intellisense', version: storageVersion, compatibleVersions: [1, 2, 3], tables: ['state'], hasGlobal: false, layout: 'per-record' });
+        const snapshots = await backend.kv.open({ name: 'intellisense_profile_snapshots', version: snapshotVersion, compatibleVersions: [1], tables: ['state'], hasGlobal: false, layout: 'per-record' });
         const store = new DshStore(snapshots);
-        assert.deepEqual(await store.loadEntries('profile_snapshot_'), []);
+        assert.equal((await store.loadEntries('profile_snapshot_')).length, 2);
         const registry = new SemanticRegistry(new DshStore(unit), 'global', undefined, store);
         await registry.load();
-        assert.deepEqual(registry.profileSelection().profiles, ['Default']);
+        assert.deepEqual(registry.profileSelection(), { profiles: ['Work'], selected: 'Work' });
+        const reference = await registry.reference('Work');
+        assert.equal(reference.pointer, 1);
+        assert.equal(reference.snapshot.resolve('read')?.type, 'function');
+        assert.deepEqual((await registry.snapshots.get(1)).serialize(), reference.serialize());
+        assert.deepEqual(await new DshStore(unit).load('profile_session_existing'), { name: 'Work', pointer: 1 });
+        assert.equal((await new DshStore(unit).load<{ version: number }>('registry'))!.version, storageVersion);
+        const restarted = new SemanticRegistry(new DshStore(unit), 'global', undefined, store);
+        await restarted.load();
+        assert.equal((await restarted.reference('Work')).pointer, 1);
     } finally { await backend.close(); await rm(directory, { recursive: true, force: true }); }
 });
 

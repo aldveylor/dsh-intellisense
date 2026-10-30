@@ -14,6 +14,7 @@ import type { ProfileSnapshot, ProfileVersion } from '../profile.js';
 import { toolName, validatePath } from './path.js';
 export { validatePath } from './path.js';
 import { storageVersion } from '../../storage/version.js';
+import { upgradeProfileCatalog } from './configuration_upgrade.js';
 import type { Store } from '../../storage/store.js';
 import { PlaneProfile, PlaneProfileState, type PlaneProfileData, type PlaneProfileStateData } from '../plane/profile.js';
 
@@ -39,7 +40,7 @@ export interface PhysicalTool {
     outputDeclaration?: string;
 }
 
-import type { PinLevel, CommandVisibility, Mapping, Namespace } from '../plane/profile.js';
+import type { CommandVisibility, Mapping, Namespace } from '../plane/profile.js';
 export type { PinLevel, CommandVisibility, Mapping, Namespace } from '../plane/profile.js';
 
 export { PlaneProfile, PlaneProfileState } from '../plane/profile.js';
@@ -152,8 +153,33 @@ export class SemanticRegistry {
     /** @brief Restore current referenced Profiles; explicit recovery discards invalid entries without rewriting archives. */
     private async loadSnapshot(recover: boolean): Promise<void> {
         await this.snapshots.load();
-        const saved = await this.store.load<ProfileCatalogData>('registry');
+        let saved = await this.store.load<ProfileCatalogData>('registry');
         if (saved === undefined) return;
+        const upgrading = saved?.version !== configurationVersion;
+        if (upgrading) try {
+            saved = await upgradeProfileCatalog(saved, async (name, data) => {
+                this.validateProfileName(name);
+                const configuration = new PlaneProfile(data);
+                ProfileNodeSettingsSchema.parse(configuration.nodeSettings);
+                if (configuration.providedRoot) ProfileSchema.parse({ name, root: configuration.providedRoot });
+                this.validateMappings(configuration.mappings);
+                this.validateNamespaces(configuration.namespaces, configuration.mappings);
+                this.validateVisibility(configuration.unmountedVisible);
+                this.validateVisibility(configuration.builtinVisible);
+                this.validateDisabled(configuration.builtinDisabled, configuration.providedRoot);
+                this.validateNamespaceVisible(configuration.namespaceVisible);
+                this.validateComments(configuration.toolComments);
+                if (configuration.order.some(path => typeof path !== 'string')) throw new Error('Invalid Profile editor settings');
+                const snapshot = this.definitions.profile(profileTree(name, configuration, this.definitions).save());
+                const reference = await this.snapshots.create(snapshot);
+                return { profile: { pointer: reference.pointer, ...reference.serialize() }, editor: {
+                    order: configuration.order, unmountedVisible: configuration.unmountedVisible, toolComments: configuration.toolComments,
+                    pinned: configuration.mappings.filter(mapping => mapping.pinned).map(mapping => mapping.path),
+                } };
+            });
+        } catch (error) {
+            if (!recover) throw new Error('Invalid Profile reference catalog', { cause: error });
+        }
         const configurations: Record<string, PlaneProfile> = Object.create(null);
         const references: Record<string, ProfileVersion> = Object.create(null);
         const valid = saved && saved.version === configurationVersion && Number.isSafeInteger(saved.revision)
@@ -189,7 +215,10 @@ export class SemanticRegistry {
             inactiveProfiles: Object.fromEntries(Object.entries(configurations).filter(([key]) => key !== name)) });
         const previous = this.references;
         this.references = references;
-        try { if (recover) await this.persist(state); }
+        try {
+            if (recover) await this.persist(state);
+            else if (upgrading) await this.store.save('registry', saved);
+        }
         catch (error) { this.references = previous; throw error; }
         this.state = state;
     }
