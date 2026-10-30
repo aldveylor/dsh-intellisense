@@ -149,7 +149,7 @@ test('built-in namespace and command descriptions stay English in a Chinese inte
             await until(() => !!document.querySelector(`[data-tree-path="${namespace.commands[0]!.path}"]`));
             for (const command of namespace.commands) {
                 const row = document.querySelector(`[data-tree-path="${command.path}"]`)!;
-                assert.equal(row.querySelector('.ts-tool-preview')!.textContent, command.description);
+                assert.equal(row.querySelector('.ts-tool-preview')!.textContent, command.description || command.node.function!.doc);
                 assert.equal(row.getAttribute('title'), null);
                 assert(row.hasAttribute('aria-describedby'));
                 assert.equal((row as HTMLElement).draggable, false);
