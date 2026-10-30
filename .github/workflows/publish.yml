@@ -115,9 +115,15 @@ jobs:
           console.log(archiveName);
           NODE
               )
-              npm publish --access public "build/release/$ARCHIVE_NAME"
+              NPM_TAG=latest
+              RELEASE_OPTIONS=()
+              if [[ "${VERSION%%+*}" == *-* ]]; then
+                NPM_TAG=next
+                RELEASE_OPTIONS+=(--prerelease)
+              fi
+              npm publish --access public --tag "$NPM_TAG" "build/release/$ARCHIVE_NAME"
               gh release create "v$VERSION" "build/release/$ARCHIVE_NAME" \
-                --target "$COMMIT" --title "$PROJECT_NAME v$VERSION" --notes-file "$RUNNER_TEMP/release_notes.md"
+                --target "$COMMIT" --title "$PROJECT_NAME v$VERSION" --notes-file "$RUNNER_TEMP/release_notes.md" "${RELEASE_OPTIONS[@]}"
             )
             rm -rf "$SOURCE_DIRECTORY"
           done < "$RUNNER_TEMP/release_versions.tsv"
