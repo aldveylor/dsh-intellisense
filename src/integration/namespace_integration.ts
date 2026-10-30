@@ -11,7 +11,7 @@ import { type ScopeKey } from '@deepseek-ai/dsh-scope';
 import '@deepseek-ai/dsh-agent-preset-registry';
 import type { PhysicalTool } from '../profile/catalog/registry.js';
 import type { ProfileSessionCollection } from '../profile/session.js';
-import { declaration, functionEntries, profileMembers, queryNodes, normalizeInspectQueries, nativeArgumentsFor, resultFor, type Aliases, type FunctionEntry } from '../profile/namespace/namespace.js';
+import { declaration, functionEntries, profileMembers, protectedToolNames, queryNodes, normalizeInspectQueries, nativeArgumentsFor, resultFor, type Aliases, type FunctionEntry } from '../profile/namespace/namespace.js';
 import type { AgentSessionAddition } from './agent_session_addition.js';
 import type { ProfileFunction } from '../profile/function.js';
 import { inspect } from '../tools/inspect.js';
@@ -38,6 +38,8 @@ export class NamespaceIntegration {
     private positions = new Map<string, Position>();
     private discovered = new Map<string, Set<string>>();
     private nativeTools = new Map<string, { source: string; names: string[]; fingerprint: string; disposers: (() => void)[] }>();
+
+    private protectedTools?: { revision: string; tools: ReadonlySet<string> };
 
     private catalogRevision = 0;
     private get catalogVersion(): string { return `${this.catalogRevision}:${this.namespace.revision}:${this.catalog.toolAdditions.revision}`; }
@@ -86,7 +88,9 @@ export class NamespaceIntegration {
 
     /** @brief Derive protected physical identities from the service's initial node interfaces. */
     owns(tool: string): boolean {
-        return [...profileMembers(this.namespace.createInitialProfile(), false)].some(({ node }) => node.type === 'function' && !node.permissions.removable && (node as ProfileFunction).tool === tool);
+        const revision = this.namespace.revision;
+        if (this.protectedTools?.revision !== revision) this.protectedTools = { revision, tools: protectedToolNames(this.namespace.createInitialProfile()) };
+        return this.protectedTools.tools.has(tool);
     }
 
     /** @brief Read catalog names independently from a session's selected name and old version. */

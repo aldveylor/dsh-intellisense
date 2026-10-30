@@ -1,6 +1,6 @@
 import { EditableNamespace, type ProfileNamespace } from '../namespace.js';
 import { EditableFunction, type ProfileFunction } from '../function.js';
-import { profileMembers } from '../namespace/namespace.js';
+import { profileMembers, protectedToolNames } from '../namespace/namespace.js';
 import { toPlaneProfile } from '../plane/to_plane_profile.js';
 import { SnapshotStore } from '../snapshot_store.js';
 import { profileTree, ProfileSchema } from './profile_tree.js';
@@ -55,11 +55,15 @@ export class SemanticRegistry {
     private physical = new Map<string, PhysicalTool>();
     private physicalFingerprint = '';
     private physicalRevision = 0;
-    private protectedCache?: { revision: number; root: ProfileSnapshot };
-    private get protectedNodes(): ProfileSnapshot {
-        if (this.protectedCache?.revision !== this.definitions.revision) this.protectedCache = { revision: this.definitions.revision, root: this.definitions.createInitialProfile() };
-        return this.protectedCache.root;
+    private protectedCache?: { revision: number; root: ProfileSnapshot; tools: ReadonlySet<string> };
+    private get protectedDefinition(): NonNullable<SemanticRegistry['protectedCache']> {
+        if (this.protectedCache?.revision !== this.definitions.revision) {
+            const root = this.definitions.createInitialProfile();
+            this.protectedCache = { revision: this.definitions.revision, root, tools: protectedToolNames(root) };
+        }
+        return this.protectedCache;
     }
+    private get protectedNodes(): ProfileSnapshot { return this.protectedDefinition.root; }
     private state = new PlaneProfileState({ inactiveProfiles: {} });
     private writeChain: Promise<unknown> = Promise.resolve();
 
@@ -432,10 +436,7 @@ export class SemanticRegistry {
 
     /** @brief Fixed identities are derived from the initial Profile's concrete protected nodes. */
     owns(tool: string): boolean {
-        const visit = (node: import('../node.js').ProfileNode): boolean => node.type === 'function'
-            ? (node as import('../function.js').ProfileFunction).tool === tool && !node.permissions.removable
-            : node.type === 'namespace' && [...(node as import('../namespace.js').ProfileNamespace).children.values()].some(visit);
-        return visit(this.definitions.createInitialProfile());
+        return this.protectedDefinition.tools.has(tool);
     }
 
     /** @brief Reject new user mounts of fixed tools, retaining existing plugin-owned mounts. */

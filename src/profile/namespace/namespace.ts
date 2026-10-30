@@ -51,6 +51,15 @@ export function* profileMembers(root: ProfileNamespace, enabled = true, parent =
     }
 }
 
+/** @brief Collect protected physical identities once for a complete initial Profile definition. */
+export function protectedToolNames(profile: ProfileSnapshot): ReadonlySet<string> {
+    const tools = new Set<string>();
+    for (const { node } of profileMembers(profile, false)) {
+        if (node.type === 'function' && !node.permissions.removable) tools.add((node as ProfileFunction).tool!);
+    }
+    return tools;
+}
+
 /** @brief Supplement original functions with scoped physical contracts only at a consumer boundary. */
 export function functionEntries(profile: ProfileSnapshot, tools: readonly PhysicalTool[], mode: PresentationMode, additions: ToolAdditions): FunctionEntry[] {
     const byTool = new Map(tools.map(tool => [tool.id, tool]));
