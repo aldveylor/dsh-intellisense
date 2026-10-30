@@ -3,7 +3,7 @@
 .ts-chevron-icon[data-open=true][data-direction=right]{transform:rotate(90deg)}
 .ts-pin-icon{fill:transparent;transition:fill .24s ease,color .24s ease}
 .ts-pin-icon[data-active=true]{fill:currentColor;color:var(--dsw-alias-label-primary,light-dark(#202124,#dce3ed))}
-.ts-close-icon[data-valid=true]:hover,.ts-pin-icon[data-valid=true]:hover,.ts-disable-icon[data-valid=true]:hover{color:var(--dsw-alias-label-primary,light-dark(#202124,#dce3ed))}
+.ts-close-icon[data-valid=true]:hover,.ts-pin-icon[data-valid=true]:not([data-level="2"]):hover,.ts-disable-icon[data-valid=true]:hover{color:var(--dsw-alias-label-primary,light-dark(#202124,#dce3ed))}
 .ts-pin-icon[data-level="2"]{color:var(--dsw-alias-state-warn-primary,light-dark(#9b6500,#eab308))}
 .ts-disable-icon[data-disabled=true]{color:var(--dsw-alias-label-tertiary,#888)}
 .ts-disable-mark{transform-origin:12px 12px;transition:transform .24s ease}
