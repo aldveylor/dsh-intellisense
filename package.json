@@ -1,6 +1,6 @@
 {
   "name": "@aldveylor/dsh-intellisense",
-  "version": "0.3.1",
+  "version": "0.3.2-0",
   "description": "Namespace-based DSML and isolated JavaScript/TypeScript execution with on-demand IntelliSense for DeepSeek Harness",
   "author": "aldveylor",
   "keywords": [
