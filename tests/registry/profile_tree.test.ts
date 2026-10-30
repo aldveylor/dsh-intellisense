@@ -96,7 +96,7 @@ test('save rejects missing protected descendants and forbidden documentation or 
         (value: typeof profile) => { delete value.root.children!['tools']!.children!['profile']!.children!['save']; },
         (value: typeof profile) => { value.root.children!['tools']!.description = 'Forged'; },
         (value: typeof profile) => { value.root.children!['tools']!.children!['inspect']!.function!.doc = 'Forged'; },
-        (value: typeof profile) => { delete value.root.children!['tools']!.children!['inspect']!.function!.doc; },
+        (value: typeof profile) => { delete value.root.children!['tools']!.children!['profile']!.children!['save']!.function!.doc; },
         (value: typeof profile) => { value.root.children!['tools']!.children!['inspect']!.fixedLevel = 0; },
     ]) {
         const input = new ProfileDocument(profile.save());

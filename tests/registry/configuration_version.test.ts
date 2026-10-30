@@ -29,28 +29,43 @@ test('unsupported configuration versions are rejected', async () => {
     await assert.rejects(new SemanticRegistry(store).load(), /Invalid Profile reference catalog/);
 });
 
-test('invalid current pointers are rejected and explicit recovery retains valid Profiles', async () => {
+test('invalid current pointers are rejected and explicit recovery reassigns pointers while retaining Profiles', async () => {
     const { store, saved } = await fixture();
+    const before = structuredClone(saved.profiles.Work!);
     saved.profiles.Work!.pointer = Number.MAX_SAFE_INTEGER;
     await store.save('registry', saved);
     const restored = new SemanticRegistry(store);
     await assert.rejects(restored.load(), /Invalid Profile reference/);
     await restored.load(true);
-    assert.deepEqual(restored.profileSelection().profiles, ['Default']);
+    assert.deepEqual(restored.profileSelection().profiles, ['Default', 'Work']);
+    const recovered = await restored.reference('Work');
+    assert(recovered.pointer > before.pointer);
+    assert(recovered.pointer < Number.MAX_SAFE_INTEGER);
+    assert.deepEqual(recovered.serialize(), { root: before.root, brief: before.brief });
+    const restarted = new SemanticRegistry(store);
+    await restarted.load();
+    assert.equal((await restarted.reference('Work')).pointer, recovered.pointer);
+    assert.deepEqual((await restarted.reference('Work')).serialize(), recovered.serialize());
 });
 
 test('failed recovery persistence preserves the previously published state', async () => {
     const { store, registry, saved } = await fixture();
     const before = registry.snapshot();
+    const reference = await registry.reference('Work');
     saved.profiles.Work!.pointer = -1;
     await store.save('registry', saved);
     const save = store.save.bind(store);
     store.save = async () => { throw new Error('Disk failed'); };
     await assert.rejects(registry.load(true), /Disk failed/);
     assert.deepEqual(registry.snapshot(), before);
+    assert.equal((await registry.reference('Work')).pointer, reference.pointer);
+    assert.deepEqual(await store.load('registry'), saved);
     store.save = save;
     await registry.load(true);
-    assert.deepEqual(registry.profileSelection().profiles, ['Default']);
+    assert.deepEqual(registry.profileSelection().profiles, ['Default', 'Work']);
+    const recovered = await registry.reference('Work');
+    assert(recovered.pointer > reference.pointer);
+    assert.deepEqual(recovered.serialize(), reference.serialize());
 });
 
 /** @brief Recreate command nodes from the schema 3 tree format, retaining all other fields. */

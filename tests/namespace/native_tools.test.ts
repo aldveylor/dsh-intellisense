@@ -45,7 +45,7 @@ test('native aliases publish callable names, preserve native arguments and revok
     assert.deepEqual(await component.syncNative(agent), []);
     const discovery = JSON.parse(await component.discover(agent, ['fs.']));
     assert.deepEqual(discovery.members.map((item: { path: string }) => item.path).sort(), ['fs.open', 'fs.read']);
-    assert(discovery.members.every((item: { brief: string }) => item.brief === 'Read file'));
+    assert(discovery.members.every((item: { brief: string }) => item.brief === physical[0]!.description));
     assert.deepEqual(await component.syncNative(agent), []);
     assert.equal(definitions.size, 0);
     await component.discover(agent, ['fs', '', 'global.fs.', 'fs.read.']);
@@ -62,7 +62,7 @@ test('native aliases publish callable names, preserve native arguments and revok
     const prompt = await component.prompt(agent);
     assert.equal(prompt, '');
     const open = definitions.get('ns_fs__open')!;
-    assert.equal(open.description, 'fs.open: Read file');
+    assert.equal(open.description, `fs.open: ${physical[0]!.description}`);
     assert.deepEqual(open.parameters, { type: 'object', properties: { file: { type: 'string' } }, required: ['file'] });
     component.dispatchTool = async (_agent, tool, args) => ({ tool, args });
     const parent = { agent } as ToolRunContext;
@@ -84,7 +84,7 @@ test('native discovery returns briefs for namespaces and success for exact funct
     assert.equal(nativeDiscovery(['fs.read'], root), 'success');
 });
 
-test('native discovery omits empty namespace, command and Profile briefs', () => {
+test('native discovery omits empty documentation and falls back to full documentation for blank Profile briefs', () => {
     const root = namespace([{ path: 'fs.read', tool: 'read_file', doc: '', schema: {}, output: {} }]);
     const roots = JSON.parse(nativeDiscovery([''], root));
     assert(!Object.hasOwn(roots.members.find((member: { path: string }) => member.path === 'fs'), 'brief'));
@@ -96,7 +96,7 @@ test('native discovery omits empty namespace, command and Profile briefs', () =>
     for (const brief of ['', '  \n ']) {
         (documented.profile.resolve('fs.read') as import('../../src/profile/function.js').ProfileFunction).setDescription(brief);
         const discovery = JSON.parse(nativeDiscovery(['fs.'], documented));
-        assert(!Object.hasOwn(discovery.members[0], 'brief'));
+        assert.equal(discovery.members[0].brief, 'Full documentation');
     }
 });
 
