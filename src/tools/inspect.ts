@@ -68,7 +68,7 @@ export function registerInspect(ctx: Context, namespaces: NamespaceIntegration):
         presentResult: (_args, result) => {
             const schema = JSON.stringify({ name: definition.name, description: definition.description, parameters: definition.parameters, output: definition.output.schema }, null, 2);
             const content = result.content.map(block => block.type === 'text'
-                ? { type: 'text' as const, text: codeBlock(block.text, result.isError ? 'text' : block.text.trimStart().startsWith('{') ? 'json' : 'typescript') }
+                ? { type: 'text' as const, text: codeBlock(block.text, result.isError || block.text === 'success' ? 'text' : block.text.trimStart().startsWith('{') ? 'json' : 'typescript') }
                 : block);
             return { card: 'generic', content: [{ type: 'text', text: `Schema\n\n${codeBlock(schema, 'json')}\n\nResult` }, ...content] };
         },
