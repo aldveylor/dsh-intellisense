@@ -28,11 +28,11 @@ export function NamespaceNode({ node, tree, children }: { node: NamespaceTreeNod
     const open = tree.expanded[path] ?? false;
     const tooltip = useTreeTooltip(<NamespaceDetails path={path} description={node.description} queries={tree.queriesByPath[path] ?? 0} />);
     return <li data-tree-path={path} data-disabled={disabled || undefined}>
-        <div {...tooltip} className={`ts-node-block${fixed ? ' ts-fixed-node' : ''}${invalid && !disabled ? ' ts-tool-invalid' : ''}`} data-tool-status={disabled ? 'disabled' : invalid ? 'invalid' : 'available'} data-namespace-path={path} data-drop-disabled={!node.permissions.acceptsChildren || undefined} draggable={!tree.busy && node.permissions.movable} onDragStart={event => {
-            if (!node.permissions.movable) { event.preventDefault(); return; }
+        <div {...tooltip} className={`ts-node-block${fixed ? ' ts-fixed-node' : ''}${invalid && !disabled ? ' ts-tool-invalid' : ''}`} data-tool-status={disabled ? 'disabled' : invalid ? 'invalid' : 'available'} data-namespace-path={path} data-drop-disabled={tree.busy || undefined} data-accepts-children={node.permissions.acceptsChildren} draggable={!tree.busy} onDragStart={event => {
+            if (tree.busy) { event.preventDefault(); return; }
             if ((event.target as HTMLElement).tagName === 'INPUT') { event.preventDefault(); return; }
             event.stopPropagation(); event.dataTransfer.setData('application/x-ts-namespace', path); event.dataTransfer.effectAllowed = 'move';
-        }} onDragOver={event => acceptTreeDrag(event, tree.busy || !node.permissions.acceptsChildren)} onDragLeave={leaveTreeDrag} onDrop={event => tree.dropNode(event, path, true)}>
+        }} onDragOver={event => acceptTreeDrag(event, tree.busy)} onDragLeave={leaveTreeDrag} onDrop={event => tree.dropNode(event, path, true)}>
             <HintButton className="ts-disclosure" type="button" aria-label={t('toggle_namespace', { path })} aria-expanded={open} title={t('toggle_namespace', { path })} disabled={tree.busy}
                 onClick={() => tree.toggle(path)}>
                 <ChevronIcon valid={!tree.busy} open={open} direction="right" size={18} />

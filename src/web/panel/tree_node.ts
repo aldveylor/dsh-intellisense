@@ -41,12 +41,12 @@ export class NamespaceTree {
             const tool = toolsById.get(mapping.id);
             parent.add(new FunctionTreeNode(parts.at(-1)!, parent, mapping, tool?.description, tool, permissionsAt(draft.nodeSettings, parts)));
         }
-        /** @brief Apply Profile ordering recursively to editable branches. */
+        /** @brief Apply Profile ordering recursively to all branches. */
         const sort = (parent: NamespaceTreeNode): void => {
             const nodes = parent.children;
             const rank = new Map(orderedPaths(nodes.map(node => node.path), draft.order).map((path, index) => [path, index]));
             parent.sort((a, b) => rank.get(a.path)! - rank.get(b.path)!);
-            for (const node of nodes) if (node instanceof NamespaceTreeNode && !node.fixed) sort(node);
+            for (const node of nodes) if (node instanceof NamespaceTreeNode) sort(node);
         };
         sort(this.root);
         // Warm derived counts once so row rendering only reads cached values.

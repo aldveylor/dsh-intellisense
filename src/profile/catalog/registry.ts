@@ -536,7 +536,17 @@ export class SemanticRegistry {
             if (!Array.isArray(requestedOrder) || requestedOrder.some(path => typeof path !== 'string')) throw new Error('Invalid tree order');
             const known = new Set([...metadata.map(n => n.path), ...detached.map(m => m.path)]
                 .flatMap(path => path.split('.').map((_, i, parts) => parts.slice(0, i + 1).join('.'))));
-            const treeOrder = [...new Set([...requestedOrder, ...known])].filter(path => known.has(path));
+            const allowedOrder = new Set(known);
+            /** @brief Retain sibling order for server-owned nodes without changing their membership. */
+            const includeProvided = (node: import('./profile_node.js').NamespaceTreeNode, parent = ''): void => {
+                for (const [name, child] of Object.entries(node.children ?? {})) {
+                    const path = parent ? `${parent}.${name}` : name;
+                    allowedOrder.add(path);
+                    if (child.type === 'namespace') includeProvided(child, path);
+                }
+            };
+            includeProvided(base.providedRoot ?? this.definitions.tree(editingProfile ?? this.state.profile ?? 'Default'));
+            const treeOrder = [...new Set([...requestedOrder, ...known])].filter(path => allowedOrder.has(path));
             const configuration = { brief, providedRoot: base.providedRoot, nodeSettings: base.nodeSettings, builtinDisabled: builtinDisabled ?? base.builtinDisabled ?? [], mappings: detached, namespaces: metadata, order: treeOrder, toolComments: comments, builtinVisible: builtins, namespaceVisible: namespaceVisible ?? base.namespaceVisible ?? {},
                 unmountedVisible: Object.fromEntries(Object.entries(selected).filter(([id]) => !detached.some(mapping => mapping.id === id))),
             };

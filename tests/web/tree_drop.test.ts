@@ -1,5 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createNamespace } from '../namespace/fixtures.js';
+import { TreeProvider } from '../../src/web/panel/tree_provider.js';
+import { NamespaceTree, NamespaceTreeNode } from '../../src/web/panel/tree_node.js';
 import { dropTree, namespacePaths, orderedPaths, type TreeDraft } from '../../src/web/panel/namespace_tree.js';
 
 /** @brief A cross-namespace drag fixture with both existing commands and a nested namespace. */
@@ -41,4 +44,31 @@ test('namespace moves migrate entire subtrees and reject cycles and collisions',
     assert.throws(() => dropTree(start, { namespace: true, path: 'left' }, { path: 'left.child', position: 'inside' }), /namespace_cycle/);
     const conflict = { ...start, namespaces: [...start.namespaces, { path: 'right.child', alwaysVisible: false, description: '' }] };
     assert.throws(() => dropTree(conflict, { namespace: true, path: 'left.child' }, { path: 'right', position: 'inside' }), /namespace_name_conflict/);
+});
+
+
+test('protected namespaces and commands reorder among siblings without changing contracts', () => {
+    const provided = TreeProvider([...createNamespace({ tools: [], includeUnavailable: true }).children.values()].map(node => node.serialize()));
+    const start: TreeDraft = { ...draft(), provided };
+    const moved = dropTree(start, { namespace: true, path: 'tools' }, { path: 'left', position: 'before' });
+    assert(moved.order.indexOf('tools') < moved.order.indexOf('left'));
+    assert.strictEqual(moved.mappings, start.mappings);
+    assert.strictEqual(moved.namespaces, start.namespaces);
+    const commands = provided.find(node => node.path === 'tools')!.commands;
+    assert(commands.length >= 2);
+    const source = commands[0]!; const target = commands[1]!;
+    const next = dropTree(moved, { namespace: false, path: source.path, id: source.id }, { path: target.path, position: 'after' });
+    const tree = new NamespaceTree(next, provided, []);
+    const tools = tree.roots.find(node => node.path === 'tools') as NamespaceTreeNode;
+    const paths = tools.children.map(node => node.path);
+    assert(paths.indexOf(source.path) > paths.indexOf(target.path));
+    assert.throws(() => dropTree(start, { namespace: true, path: 'tools' }, { path: 'left', position: 'inside' }), /fixed_move_source/);
+    assert.throws(() => dropTree(start, { namespace: false, path: source.path, id: source.id }, { path: 'left', position: 'inside' }), /fixed_move_source/);
+});
+
+test('restricted mapped commands allow sibling sorting but retain structural movement restrictions', () => {
+    const start: TreeDraft = { ...draft(), nodeSettings: { children: { right: { children: { write: { permissions: { movable: false } } } } } } };
+    const next = dropTree(start, { namespace: false, path: 'right.write', id: 'write' }, { path: 'right', position: 'inside' });
+    assert.strictEqual(next.mappings, start.mappings);
+    assert.throws(() => dropTree(start, { namespace: false, path: 'right.write', id: 'write' }, { path: 'left', position: 'inside' }), /fixed_move_source/);
 });
