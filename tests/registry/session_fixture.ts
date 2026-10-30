@@ -1,7 +1,7 @@
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
 import type { ProfileSessionCollection } from '../../src/profile/session.js';
 
-const sessions = new WeakMap<ProfileSessions, Map<string, Session>>();
+const sessions = new WeakMap<ProfileSessionCollection, Map<string, Session>>();
 
 /** @brief Keep stable live sessions per test owner while allowing independent restored instances. */
 export function sessionFor(owner: ProfileSessionCollection, id: string): Session {

@@ -4,7 +4,7 @@
 
 Profile 与 ProfileSnapshot 是同义匿名节点树接口。EditableNode、EditableNamespace、EditableFunction、EditableSnapshot 提供普通实现；默认 RootNamespace 与内置子节点位于 tools/profile_nodes/。create/getOrCreate 接受无参数工厂并返回实际对象，get/set 使用 ProfileNode，按 type 区分 namespace/function，函数节点的绑定数据位于 function: {tool, doc?}。ProfileNode 通过 copyNode(value) 与 bindName(path) 接口负责独立复制、恢复数据及路径绑定。命名空间不检查 EditableNode 基类，纯接口节点也参与克隆、恢复和重命名/移动策略；受保护的省略节点同样独立复制。默认类的 copyNode 按自身原型复制，含私有字段或其它特殊状态的提供方应自行实现复制。
 
-resolve(path) 返回快照内原始启用节点，支持 global. 前缀；空路径返回根，禁用节点或祖先使路径无效。查询不访问物理目录、执行工具或统计调用，未绑定的无关成员不影响解析。
+resolve(path) 返回快照内原始启用节点，支持 global. 前缀；空路径返回根，禁用节点或祖先使路径无效；非法成员标识符或尾点路径返回 undefined，不通过 get 抛出名称校验错误。查询通过每层命名空间的 get(name) 直接查找，不为单个成员查询复制 children Map。查询不访问物理目录、执行工具或统计调用，未绑定的无关成员不影响解析。
 
 节点与 Profile 快照不提供 apply/save 方法。Agent 读取在 tools/profile_data.ts 遍历 snapshot，通过节点接口生成 JSON；写入由 tools/profile_save.ts 读取服务最新快照，save 先 normalize 完整目标并计算差异，apply 保留增量字段，再由 edit.ts 的 applyProfile 遍历独立克隆，调用 get/create/remove 和 setTool/setDescription/setFixedLevel/setDisabled/setBrief。全部校验通过后通过 ToolsNamespace.edit 原子发布，失败不改变原版本。删除与替换由节点自身检查，permissions 只描述规则。
 

@@ -16,7 +16,7 @@ Mapping 请求按单个挂载路径保存，移除 aliases 字段；同一物理
 
 状态接口分别读取命令调用与工具查询的全局集合，返回 callsByTool、queriesByTool；queriesByPath 只读取请求中指定（或默认）的 Profile 的 inspect 路径统计。Profile 统计互不混合。
 
-POST action=recover 在既有认证入口执行显式局部恢复，不受目录刷新失败阻塞；保留有效 Profile 和统计，丢弃无法加载的部分，完成后由客户端重新 GET 状态。插件即使数据初始化失败也保留这些管理路由，成功恢复后继续初始化命名空间。
+POST action=recover 在既有认证入口执行显式局部修复，不受目录刷新失败阻塞；保留有效 Profile 成员和统计，丢弃无法加载的部分；full=true 时清空两个专属存储单元的所有键并恢复默认配置和空统计。两种操作均清除管理投影缓存，完成后由客户端重新 GET 状态。插件即使数据初始化失败也保留这些管理路由，成功恢复后继续初始化命名空间。
 
 管理 GET 在 registry.generation 不变时复用工具列表与 outputDeclaration，provided 树按所选 Profile 分别缓存；重建只读取一次 registry.tools() 供两种投影共用。配置、物理契约或工具附加属性变化时失效，统计和选中 Profile 状态仍按请求读取，不缓存整个响应。provided 使用实际提交的 providedRoot 及递归 nodeSettings，支持不同 Profile 的内置树和权限差异。
 

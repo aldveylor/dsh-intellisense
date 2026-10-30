@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { storageVersion } from '../storage/version.js';
 import type { Store } from '../storage/store.js';
 import { JournalStore, type JournalWrites } from '../storage/journal_store.js';
+import { upgradeStatisticsCheckpoint } from '../storage/compatibility/statistics.js';
 
 /** @brief Detached counters indexed by names chosen by their owner. */
 export type Counts = Record<string, number>;
@@ -20,16 +21,6 @@ const counters = z.custom<Counts>(value => !!value && typeof value === 'object' 
     && Object.values(value).every(count => counter.safeParse(count).success)).transform(value => structuredClone(value));
 const checkpointSchema = z.object({ version: z.literal(storageVersion), counts: counters });
 const scopeSchema = checkpointSchema.extend({ scope: z.string() });
-
-/** @brief Read only record-shaped persisted data. */
-function record(value: unknown): Record<string, unknown> {
-    return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
-}
-
-/** @brief Retain independently valid counters during recovery. */
-function recoverCounters(value: unknown): Record<string, number> {
-    return Object.fromEntries(Object.entries(record(value)).filter(([, value]) => counter.safeParse(value).success)) as Record<string, number>;
-}
 
 /** @brief Increment only touched counters and schedule dirty records for journal-backed storage. */
 export class Statistics {
@@ -49,9 +40,18 @@ export class Statistics {
     }
 
     /** @brief Serialize reloads with writes, retaining accepted dirty updates before replacing live state. */
-    load(recover = false): Promise<void> {
+    load(recover: boolean | 'reset' = false): Promise<void> {
         this.cancelTimer();
-        const work = this.pending.then(async () => { await this.saveDirty(); await this.loadSnapshot(recover); });
+        const work = this.pending.then(async () => {
+            if (recover === 'reset') {
+                this.dirty.clear();
+                await this.storage.discard();
+                for (const [key] of await this.store.loadEntries!<unknown>(this.key)) {
+                    if (key === this.key || key.startsWith(`${this.key}_`)) await this.store.remove(key);
+                }
+            } else await this.saveDirty();
+            await this.loadSnapshot(!!recover);
+        });
         this.pending = work.catch(() => {});
         this.loading = this.pending;
         void work.finally(() => this.schedule()).catch(() => {});
@@ -60,17 +60,15 @@ export class Statistics {
 
     /** @brief Load independent scope checkpoints and their global aggregate. */
     private async loadSnapshot(recover: boolean): Promise<void> {
-        const entries = new Map(await this.storage.loadEntries<unknown>());
+        const entries = new Map(await this.storage.loadEntries<unknown>(recover));
         const scopes = new Map<string, Counts>();
         const rewrites: Array<[string, unknown]> = [];
         let global: Counts = {};
         for (const [name, value] of entries) {
-            const saved = record(value);
-            const migrate = recover || saved.version !== storageVersion;
-            const data = migrate ? { ...saved, version: storageVersion, counts: recoverCounters(saved.counts) } : value;
+            const { data, migrating: migrate } = upgradeStatisticsCheckpoint(value, recover);
             if (name === this.key) global = checkpointSchema.parse(data).counts;
             else {
-                if (migrate && typeof saved.scope !== 'string') { await this.store.remove(name); continue; }
+                if (migrate && typeof data.scope !== 'string') { await this.store.remove(name); continue; }
                 const checkpoint = scopeSchema.parse(data);
                 if (this.scopeKey(checkpoint.scope) !== name) {
                     if (!migrate) throw new Error('Invalid statistics scope key');

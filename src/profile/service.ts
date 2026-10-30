@@ -25,7 +25,7 @@ export interface ProfileEditOptions {
 export interface ToolsNamespace extends ProfileCollection {
     readonly editor: PlaneProfileEditor;
     /** @brief Load or explicitly recover Profile storage without initializing IntelliSense services. */
-    initialize(recover?: boolean): Promise<void>;
+    initialize(recover?: boolean | 'reset'): Promise<void>;
     readonly revision: string;
     /** @brief Read catalog names and the default selection through the same service. */
     selection(): Promise<Profiles>;

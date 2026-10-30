@@ -1,5 +1,5 @@
 import type { ProfileData } from './catalog/profile_tree.js';
-import { EditableNamespace } from './namespace.js';
+import { EditableNamespace, isProfileMemberName } from './namespace.js';
 import type { ProfileNamespace } from './namespace.js';
 import type { ProfileNode } from './node.js';
 import type { ProfileSnapshot } from './profile.js';
@@ -15,11 +15,13 @@ export class EditableSnapshot extends EditableNamespace implements ProfileSnapsh
         if (this.disabled) return undefined;
         path = path.replace(/^global\./, '');
         if (!path) return this;
-        const [first, ...parts] = path.split('.');
-        let node: ProfileNode | undefined = this.children.get(first!);
+        const names = path.split('.');
+        if (!names.every(isProfileMemberName)) return undefined;
+        const [first, ...parts] = names;
+        let node: ProfileNode | undefined = this.get(first!);
         for (const name of parts) {
             if (!node || node.disabled || node.type !== 'namespace') return undefined;
-            node = (node as ProfileNamespace).children.get(name);
+            node = (node as ProfileNamespace).get(name);
         }
         return node && !node.disabled ? node : undefined;
     }

@@ -10,11 +10,11 @@ import type { SemanticRegistry } from './catalog/registry.js';
 export class NamespaceComponent implements ToolsNamespace {
     readonly editor: PlaneProfileEditor;
 
-    constructor(private ctx: Context, private readonly registry: SemanticRegistry, private readonly load: (recover?: boolean) => Promise<void> = () => Promise.resolve()) {
+    constructor(private ctx: Context, private readonly registry: SemanticRegistry, private readonly load: (recover?: boolean | 'reset') => Promise<void> = () => Promise.resolve()) {
         this.editor = new RegistryPlaneEditor(registry, () => this.initialize());
     }
 
-    initialize(recover = false): Promise<void> { return this.load(recover); }
+    initialize(recover: boolean | 'reset' = false): Promise<void> { return this.load(recover); }
 
     get revision(): string { return `${this.registry.revision}:${this.registry.definitions.revision}`; }
 
