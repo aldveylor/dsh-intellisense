@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { NamespaceTree, NamespaceTreeNode } from '../../src/web/panel/tree_node.js';
-import { treeDisabledState, treeInspectWarning } from '../../src/web/panel/tree_state.js';
+import { treeDisabledState, treeInspectWarning, treeInvalidState } from '../../src/web/panel/tree_state.js';
 import { inNamespace } from '../../src/web/panel/namespace_tree.js';
 import { TreeProvider } from '../../src/web/panel/tree_provider.js';
 import { createNamespace } from '../namespace/fixtures.js';
@@ -96,4 +96,26 @@ test('stored permissions retain existing children while limiting namespace and c
     assert.equal(read.permissions.removable, false);
     assert.equal(read.permissions.movable, false);
     assert.throws(() => (files as NamespaceTreeNode).remove('read'), /cannot be removed/);
+});
+
+test('unavailable state propagates through nonempty namespaces independently of disable flags', () => {
+    const mappings = [
+        { id: 'missing', path: 'lost.nested.read', pinned: false, disabled: true },
+        { id: 'missing', path: 'mixed.lost.read', pinned: false },
+        { id: 'read', path: 'mixed.read', pinned: false, disabled: true },
+        { id: 'missing', path: 'with_empty.read', pinned: false },
+    ];
+    const namespaces = [
+        { path: 'lost', disabled: true, description: '', alwaysVisible: false },
+        { path: 'empty', description: '', alwaysVisible: false },
+        { path: 'with_empty.empty', description: '', alwaysVisible: false },
+    ];
+    const provided = TreeProvider([...createNamespace({ tools: [], includeUnavailable: true }).children.values()].map(node => node.serialize()));
+    const tree = new NamespaceTree({ namespaces, mappings, order: [] }, provided, []);
+    const tools = new Map([['read', { id: 'read', description: '', parameters: {} }]]);
+    assert.deepEqual([...treeInvalidState(tree.roots, tools)].sort(), [
+        'lost', 'lost.nested', 'lost.nested.read', 'mixed.lost', 'mixed.lost.read', 'with_empty.read',
+    ]);
+    tools.set('missing', { id: 'missing', description: '', parameters: {} });
+    assert.deepEqual([...treeInvalidState(tree.roots, tools)], []);
 });

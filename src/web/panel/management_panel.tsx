@@ -1,4 +1,4 @@
-import { treeDisabledState, treeInspectWarning } from './tree_state.js';
+import { treeDisabledState, treeInspectWarning, treeInvalidState } from './tree_state.js';
 import { NamespaceSection } from './namespace_section/namespace_section.js';
 import type { TreeProps } from './tree_view/tree_props.js';
 import { UsageDialog } from '../documentation/usage_dialog.js';
@@ -340,11 +340,14 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
     const disabledStates = useMemo(() => treeDisabledState(namespaceTree.roots, builtinDisabled, namespaces, mappings),
         [namespaceTree, builtinDisabled, namespaces, mappings]);
 
+    const invalidPaths = useMemo(() => treeInvalidState(namespaceTree.roots, toolsById), [namespaceTree, toolsById]);
+
     /** @brief Lock descendant disable controls while preserving their own configured state. */
     function disabledByAncestor(path: string): boolean { return disabledStates.get(path)?.disabledByAncestor ?? false; }
 
     const tree = useMemo<TreeProps>(() => ({
         disabledByAncestor,
+        invalid: path => invalidPaths.has(path),
         disabled: path => disabledStates.get(path)?.disabled ?? false,
         toggleDisabled: path => {
             const node = namespaceTree.root.resolve(path.split('.'));
@@ -373,7 +376,7 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
         pinTool: mapping => setMappings(current => current.map(m => m.path === mapping.path ? { ...m, alwaysVisible: nextPinLevel(m.alwaysVisible ?? 0) } : m)),
         renameNamespace: (path, name) => editNamespace(path, name), deleteNamespace: path => { editNamespace(path); },
         toggle: path => setExpanded(current => ({ ...current, [path]: !(current[path] ?? false) })), dropNode: (event) => nativeDrop(event, treeDropTarget(event.currentTarget, event.clientY)),
-    }), [disabledStates, namespaceTree, mappings, namespaces, order, paths, provided, expanded, namespaceVisible, builtinDisabled, toolComments, unmountedVisible, toolsById, view?.tools, view?.callsByTool, view?.queriesByTool, view?.queriesByPath, view?.effective]);
+    }), [invalidPaths, disabledStates, namespaceTree, mappings, namespaces, order, paths, provided, expanded, namespaceVisible, builtinDisabled, toolComments, unmountedVisible, toolsById, view?.tools, view?.callsByTool, view?.queriesByTool, view?.queriesByPath, view?.effective]);
 
     const inspectWarning = useMemo(() => treeInspectWarning(namespaceTree.roots, tree.disabled), [namespaceTree, tree]);
 

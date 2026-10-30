@@ -17,11 +17,13 @@ async function until(predicate: () => boolean): Promise<void> {
 
 test('draft inspect state controls warnings without requiring a live presentation tool catalog', async () => {
     const registry = new SemanticRegistry(new MemoryStore());
-    registry.refresh([{ id: 'read', description: 'Read document', parameters: { type: 'object' }, output: { type: 'string' } }]);
+    registry.refresh([{ id: 'missing', description: '', parameters: {} }, { id: 'read', description: 'Read document', parameters: { type: 'object' }, output: { type: 'string' } }]);
     await registry.configure([
+        { id: 'missing', path: 'lost.nested.read', pinned: false },
         { id: 'read', path: 'files.read', pinned: false },
         { id: 'read', path: 'files.nested.read', pinned: false },
     ], 0, [{ path: 'files', description: 'Files', alwaysVisible: false }, { path: 'files.nested', description: '', alwaysVisible: false }]);
+    registry.refresh([{ id: 'read', description: 'Read document', parameters: { type: 'object' }, output: { type: 'string' } }]);
     const routes = new Map<string, (request: Request) => Promise<Response>>();
     const ctx = { connection: { fetch: { register: (route: { path: string; fetch: (request: Request) => Promise<Response> }) => routes.set(route.path, route.fetch) } }, emit: () => {} } as unknown as Context;
     registerManagement(ctx, new NamespaceComponent(ctx, registry, recover => registry.load(recover)), { catalog: registry, refresh: async () => {} });
@@ -41,6 +43,28 @@ test('draft inspect state controls warnings without requiring a live presentatio
         Object.defineProperty(dom.window, 'AnimationEvent', { value: dom.window.Event });
         dom.window.eval(result.outputFiles[0]!.text);
         await until(() => !!document.querySelector('[data-namespace-path="files"] .ts-disclosure'));
+        const lost = (): Element => document.querySelector('[data-namespace-path="lost"]')!;
+        assert(lost().classList.contains('ts-tool-invalid'));
+        assert(lost().querySelector('[role="status"]')!.textContent!.includes('Unavailable'));
+        click('[data-namespace-path="lost"] .ts-disclosure');
+        await until(() => !!document.querySelector('[data-namespace-path="lost.nested"]'));
+        assert(document.querySelector('[data-namespace-path="lost.nested"]')!.classList.contains('ts-tool-invalid'));
+        click('[data-namespace-path="lost.nested"] .ts-disclosure');
+        await until(() => !!document.querySelector('[data-tree-path="lost.nested.read"]'));
+        const missing = (): Element => document.querySelector('[data-tree-path="lost.nested.read"]')!;
+        assert(missing().classList.contains('ts-tool-invalid'));
+        click('[data-namespace-path="lost"] .ts-disable');
+        await until(() => lost().getAttribute('data-tool-status') === 'disabled');
+        for (const row of [lost(), document.querySelector('[data-namespace-path="lost.nested"]')!, missing()]) {
+            assert.equal(row.classList.contains('ts-tool-invalid'), false);
+            assert.equal(row.getAttribute('data-tool-status'), 'disabled');
+            assert(row.querySelector('[role="status"]')!.textContent!.includes('Unavailable'));
+        }
+        click('[data-namespace-path="lost"] .ts-disable');
+        await until(() => lost().classList.contains('ts-tool-invalid'));
+        assert(missing().classList.contains('ts-tool-invalid'));
+        click('[data-namespace-path="lost"] .ts-disable');
+        await until(() => lost().getAttribute('data-tool-status') === 'disabled');
         const warning = (): Element | null => document.querySelector('.ts-inspect-warning');
         assert(warning() === null, 'Enabled draft inspect must not depend on a live presentation scope');
         click('[data-namespace-path="tools"] .ts-disclosure');
