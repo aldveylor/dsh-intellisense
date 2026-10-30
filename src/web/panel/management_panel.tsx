@@ -1,4 +1,4 @@
-import { treeDisabledState, treeInspectWarning } from './tree_state.js';
+import { treeDisabledState, treeInspectWarning, treeInvalidState } from './tree_state.js';
 import { NamespaceSection } from './namespace_section/namespace_section.js';
 import type { TreeProps } from './tree_view/tree_props.js';
 import { UsageDialog } from '../documentation/usage_dialog.js';
@@ -340,11 +340,14 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
     const disabledStates = useMemo(() => treeDisabledState(namespaceTree.roots, builtinDisabled, namespaces, mappings),
         [namespaceTree, builtinDisabled, namespaces, mappings]);
 
+    const invalidPaths = useMemo(() => treeInvalidState(namespaceTree.roots, toolsById), [namespaceTree, toolsById]);
+
     /** @brief Lock descendant disable controls while preserving their own configured state. */
     function disabledByAncestor(path: string): boolean { return disabledStates.get(path)?.disabledByAncestor ?? false; }
 
     const tree = useMemo<TreeProps>(() => ({
         disabledByAncestor,
+        invalid: path => invalidPaths.has(path),
         disabled: path => disabledStates.get(path)?.disabled ?? false,
         toggleDisabled: path => {
             const node = namespaceTree.root.resolve(path.split('.'));
@@ -373,7 +376,7 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
         pinTool: mapping => setMappings(current => current.map(m => m.path === mapping.path ? { ...m, alwaysVisible: nextPinLevel(m.alwaysVisible ?? 0) } : m)),
         renameNamespace: (path, name) => editNamespace(path, name), deleteNamespace: path => { editNamespace(path); },
         toggle: path => setExpanded(current => ({ ...current, [path]: !(current[path] ?? false) })), dropNode: (event) => nativeDrop(event, treeDropTarget(event.currentTarget, event.clientY)),
-    }), [disabledStates, namespaceTree, mappings, namespaces, order, paths, provided, expanded, namespaceVisible, builtinDisabled, toolComments, unmountedVisible, toolsById, view?.tools, view?.callsByTool, view?.queriesByTool, view?.queriesByPath, view?.effective]);
+    }), [invalidPaths, disabledStates, namespaceTree, mappings, namespaces, order, paths, provided, expanded, namespaceVisible, builtinDisabled, toolComments, unmountedVisible, toolsById, view?.tools, view?.callsByTool, view?.queriesByTool, view?.queriesByPath, view?.effective]);
 
     const inspectWarning = useMemo(() => treeInspectWarning(namespaceTree.roots, tree.disabled), [namespaceTree, tree]);
 
@@ -447,11 +450,11 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
             <form onSubmit={event => {
                 event.preventDefault();
                 setMappings(current => current.map(mapping => mapping.path === descriptionEditor.path
-                    ? { ...mapping, description: descriptionEditor.text } : mapping));
+                    ? { ...mapping, description: descriptionEditor.text?.trim() ? descriptionEditor.text : '' } : mapping));
                 setDescriptionEditor(undefined); setStatus('');
             }}>
                 <h2 id="ts-description-title">{t('prompt_comment')} · {descriptionEditor.path}</h2>
-                <textarea aria-label={t('prompt_comment')} autoFocus rows={8} value={descriptionEditor.text ?? view?.tools.find(t => t.id === descriptionEditor.id)?.description ?? ''}
+                <textarea aria-label={t('prompt_comment')} autoFocus rows={8} value={descriptionEditor.text ?? ''} placeholder={view?.tools.find(tool => tool.id === descriptionEditor.id)?.description}
                     onChange={event => setDescriptionEditor({ ...descriptionEditor, text: event.target.value })} />
                 <div className="ts-dialog-actions"><ActionButton variant="primary" type="submit" title={t('apply_draft_hint')}>{t('apply')}</ActionButton>
                     <ActionButton type="button" title={t('reset_comment_hint')} onClick={() => setDescriptionEditor({ id: descriptionEditor.id, path: descriptionEditor.path })}>{t('reset')}</ActionButton>

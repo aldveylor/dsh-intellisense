@@ -336,6 +336,58 @@ test('Profile save defaults protected tools to disabled and honors explicit enab
     assert(profileAnnotation.includes('preloaded values and pinned prompts'));
 });
 
+test('function mounts omit children through save and apply in native and PTC calls', async () => {
+    const { call, load, registry, definitions } = await fixture();
+    const leaf = { type: 'function', function: { tool: 'read_file', doc: 'Read text.' } };
+    await call('tools_profile_save', { name: 'Leaves', profile: { root: { type: 'namespace', children: {
+        read: leaf, files: { type: 'namespace', children: { read: leaf } },
+    } } } });
+    await call('tools_profile_apply', { name: 'Leaves', value: { root: { children: { other: leaf } } } });
+    const saved = await load({ name: 'Leaves' });
+    assert.equal(saved.root.children!.read!.function!.tool, 'read_file');
+    assert.equal(saved.root.children!.files!.children!.read!.function!.tool, 'read_file');
+    assert.equal(Object.hasOwn(saved.root.children!.other!, 'children'), false);
+    for (const operation of ['save', 'apply']) {
+        await assert.rejects(call(`tools_profile_${operation}`, { name: 'Leaves', [operation === 'save' ? 'profile' : 'value']: {
+            root: { type: 'namespace', children: { read: { ...leaf, children: {} } } },
+        } }), /children/);
+        assert.deepEqual(await load({ name: 'Leaves' }), saved);
+    }
+    registry.refresh([...definitions.values()].map(tool => ({ id: tool.name, description: tool.description, parameters: tool.parameters, output: tool.output.schema })));
+    const host = new RuntimeHost({ timeoutMs: 3000 });
+    try {
+        const commands = manifest(registry, []).commands().filter(node => !node.preload).map(node => node.binding());
+        const result = await host.execute('leaf_shapes', 'save_apply', `
+            const leaf = { type: 'function', function: { tool: 'read_file' } };
+            await tools.profile.save('GuestLeaves', { root: { type: 'namespace', children: {
+                tools: { type: 'namespace', disabled: false },
+                files: { type: 'namespace', children: { read: leaf } }
+            } } });
+            await tools.profile.apply('GuestLeaves', { root: { children: { read: leaf } } });
+            const saved = await tools.profile.load('GuestLeaves');
+            return [saved.root.children.files.children.read.function.tool,
+                saved.root.children.read.function.tool, Object.hasOwn(saved.root.children.read, 'children'),
+                saved.root.children.tools.disabled ?? false];
+        `, commands, async (tool, args) => call(tool, args), new AbortController().signal);
+        assert.equal(result.error, undefined);
+        assert.deepEqual(result.value, ['read_file', 'read_file', false, false]);
+    } finally { await host.dispose(); }
+});
+
+test('omitting tools in a replacement save disables previously explicitly enabled tools', async () => {
+    const { call, load } = await fixture();
+    for (const name of ['Default', 'Copy']) {
+        await call('tools_profile_save', { name, profile: { root: { type: 'namespace', children: {
+            tools: { type: 'namespace', disabled: false },
+        } } } });
+        assert.equal((await load({ name })).root.children!.tools!.disabled ?? false, false);
+        await call('tools_profile_save', { name, profile: { root: { type: 'namespace' } } });
+        const saved = await load({ name });
+        assert.equal(saved.root.children!.tools!.disabled, true);
+        assert.equal(saved.root.children!.tools!.children!.inspect!.function!.tool, 'tools_inspect');
+    }
+});
+
 test('Profile annotation keeps field semantics without repeating Profile command guidance', () => {
     const schema = JSON.stringify(ProfileSchema.toJSONSchema());
     for (const text of [profileAnnotation, schema]) {

@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { SemanticRegistry, type Mapping, type PinLevel } from '../../src/profile/catalog/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
+import { pluginCommands, projectBuiltin } from '../../src/runtime/builtins.js';
 import { TreeProvider } from '../../src/web/panel/tree_provider.js';
 
 const tool = {
@@ -98,6 +99,35 @@ test('disabled or absent discovery disappears from pinned prompts and builtin he
             const entries = manifest(registry, []).entries;
             assert.equal(entries.some(entry => entry.path === 'tools.inspect'), available && !disabled.length);
             assert.equal(entries.some(entry => entry.path === 'tools.search'), !disabled.includes('tools'));
+        }
+    }
+});
+
+test('Profile level-one pins use immutable summaries in both presentation modes', async () => {
+    const registry = new SemanticRegistry(new MemoryStore());
+    const commands = [...pluginCommands.managementCommands, ...pluginCommands.profileValues];
+    registry.refresh([...commands, pluginCommands.discoveryCommand].map(command => ({ id: command.tool, description: '', parameters: {}, output: {} })));
+    for (const mode of ['native', 'ptc'] as const) {
+        for (const level of [1, 2] as const) {
+            await registry.configure([], registry.snapshot().revision, undefined, undefined, undefined, undefined, undefined,
+                Object.fromEntries(commands.map(command => [command.path, level])));
+            const text = await prompt(registry, mode);
+            for (const command of commands) {
+                const fixture = manifest(registry, [], mode);
+                const node = fixture.entries.find(entry => entry.path === command.path)!.node;
+                const ui = TreeProvider(fixture.serialize().children!).find(namespace => namespace.path === 'tools')!
+                    .children!.find(namespace => namespace.path === 'tools.profile')!.commands.find(member => member.path === command.path)!;
+                assert.equal(ui.description, command.brief);
+                assert.equal(ui.node.function!.doc, projectBuiltin(command, mode).description);
+                assert.equal(node.permissions.commentable, false);
+                assert.throws(() => node.setDescription('Changed summary'), /documentation cannot be changed/);
+                if (level === 1) {
+                    assert(text.includes(command.brief!));
+                    assert(!text.includes(projectBuiltin(command, mode).description));
+                } else if (mode === 'ptc') {
+                    assert(text.includes(projectBuiltin(command, mode).description.replaceAll('`', ' ')), command.path);
+                }
+            }
         }
     }
 });

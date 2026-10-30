@@ -23,10 +23,12 @@ function namespaceCommentWidth({ element, textLeft }: EditableTextWidthContext):
 export function NamespaceNode({ node, tree, children }: { node: NamespaceTreeNode; tree: TreeProps; children: ReactNode }) {
     const t = useTranslation();
     const { path, fixed, metadata: config, count } = node;
+    const invalid = tree.invalid(path);
+    const disabled = tree.disabled(path);
     const open = tree.expanded[path] ?? false;
     const tooltip = useTreeTooltip(<NamespaceDetails path={path} description={node.description} queries={tree.queriesByPath[path] ?? 0} />);
-    return <li data-tree-path={path} data-disabled={tree.disabled(path) || undefined}>
-        <div {...tooltip} className={`ts-node-block${fixed ? ' ts-fixed-node' : ''}`} data-namespace-path={path} data-drop-disabled={!node.permissions.acceptsChildren || undefined} draggable={!tree.busy && node.permissions.movable} onDragStart={event => {
+    return <li data-tree-path={path} data-disabled={disabled || undefined}>
+        <div {...tooltip} className={`ts-node-block${fixed ? ' ts-fixed-node' : ''}${invalid && !disabled ? ' ts-tool-invalid' : ''}`} data-tool-status={disabled ? 'disabled' : invalid ? 'invalid' : 'available'} data-namespace-path={path} data-drop-disabled={!node.permissions.acceptsChildren || undefined} draggable={!tree.busy && node.permissions.movable} onDragStart={event => {
             if (!node.permissions.movable) { event.preventDefault(); return; }
             if ((event.target as HTMLElement).tagName === 'INPUT') { event.preventDefault(); return; }
             event.stopPropagation(); event.dataTransfer.setData('application/x-ts-namespace', path); event.dataTransfer.effectAllowed = 'move';
@@ -38,6 +40,7 @@ export function NamespaceNode({ node, tree, children }: { node: NamespaceTreeNod
             {!node.permissions.renamable ? <span className="ts-node-name">{path.split('.').at(-1)}</span> : <EditableText className="ts-node-name" value={path.split('.').at(-1)!} label={t('namespace_path_name', { path })} busy={tree.busy}
                 calculateWidth={nameWidth} commit={name => tree.renameNamespace(path, name)} />}
             <small className="ts-node-count" aria-label={t('command_count', { path })}>{count}</small>
+            {invalid && <span className="ts-mapping-source" role="status">{t('unavailable')}</span>}
             {fixed ? <span className="ts-node-preview">{node.description}</span> : <><EditableText className="ts-node-preview" value={config?.description ?? ''} label={t('namespace_comment', { path })} busy={tree.busy} placeholder={t('add_comment')} empty multiline calculateWidth={namespaceCommentWidth}
                 commit={description => { tree.configure(path, { description }); return true; }} />
             <span className="ts-node-actions">
