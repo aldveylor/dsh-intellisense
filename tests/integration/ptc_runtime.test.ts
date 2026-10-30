@@ -281,6 +281,33 @@ test('PTC cancellation drains native children and timeout permits the next execu
     } finally { await dispose(); }
 });
 
+test('native aliases preserve physical results through output validation and presentation', async () => {
+    const { ctx, agent, namespaces, dispose } = await fixture(new MemoryStore(), 'native');
+    try {
+        const cases = [
+            { name: 'cwd', schema: { type: 'object', properties: { cwd: { type: 'string', required: true } }, additionalProperties: false }, value: { cwd: '/work' } },
+            { name: 'nested', schema: { type: 'object', properties: { value: { type: 'object', properties: { value: { type: 'string', required: true } }, additionalProperties: false, required: true } }, additionalProperties: false }, value: { value: { value: 'nested' } } },
+            { name: 'optional', schema: { type: 'object', properties: { value: { type: 'string' } }, additionalProperties: false }, value: {} },
+            { name: 'scalar', schema: { type: 'string' }, value: 'scalar' },
+            { name: 'empty', schema: { type: 'null' }, value: null },
+        ];
+        for (const { name, schema, value } of cases) {
+            agent.ctx.tools.register(defineTool({ name: `physical_${name}`, description: name, parameters: {},
+                output: { schema, render: () => [] },
+                execute: async () => value,
+                presentResult: (_args, result) => { assert.deepEqual(result, value); return { card: 'generic', title: name }; },
+            }));
+        }
+        await configureSession(namespaces, agent, cases.map(({ name }) => ({ id: `physical_${name}`, path: name, pinned: false, alwaysVisible: 2 })));
+        for (const { name, value } of cases) {
+            const result = await executeTool(ctx.tools, { agent, callId: ToolCallId(`native-result-${name}`), name: `ns_${name}`, arguments: {}, signal: new AbortController().signal });
+            assert.equal(result.isError, false, JSON.stringify(result));
+            assert.deepEqual(result.value, value);
+            agent.ctx.tools.get(`ns_${name}`, agent)!.presentResult!({}, value);
+        }
+    } finally { await dispose(); }
+});
+
 test('PTC projects results once, preserves void results and supports parallel native children', async () => {
     const { agent, namespaces, run, dispose } = await fixture();
     try {
