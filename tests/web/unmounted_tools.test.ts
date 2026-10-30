@@ -152,7 +152,7 @@ test('built-in namespace and command descriptions stay English in a Chinese inte
                 assert.equal(row.querySelector('.ts-tool-preview')!.textContent, command.description || command.node.function!.doc);
                 assert.equal(row.getAttribute('title'), null);
                 assert(row.hasAttribute('aria-describedby'));
-                assert.equal((row as HTMLElement).draggable, false);
+                assert.equal((row as HTMLElement).draggable, true, 'Built-in commands support sibling sorting');
             }
         }
         assert.equal(document.querySelector('[data-tree-path="vm.print"]'), null);
