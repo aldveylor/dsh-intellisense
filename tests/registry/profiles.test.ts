@@ -71,3 +71,19 @@ test('saving a new local draft does not inherit or change the default profile', 
     assert.equal(registry.configuration().mappings[0]?.pinned, true);
     assert.deepEqual(registry.configuration('Draft').mappings, []);
 });
+
+
+test('protected sibling ordering survives configuration saves and reloads', async () => {
+    const store = new MemoryStore();
+    const registry = new SemanticRegistry(store);
+    await registry.load();
+    const initial = registry.definitions.tree('Default');
+    const commands = Object.keys(initial.children!.tools!.children!);
+    assert(commands.length >= 2);
+    const order = ['tools', ...commands.reverse().map(name => `tools.${name}`)];
+    await registry.configure([], registry.revision, [], [...order, 'tools.unknown']);
+    assert.deepEqual(registry.snapshot().order, order);
+    const restored = new SemanticRegistry(store);
+    await restored.load();
+    assert.deepEqual(restored.snapshot().order, order);
+});
