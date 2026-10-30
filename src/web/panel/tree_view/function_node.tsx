@@ -27,15 +27,15 @@ export function FunctionNode({ node, tree }: { node: FunctionTreeNode; tree: Tre
         locked={node.permissions.availableFixLevels.length <= 1}
         toggle={() => { if (command) tree.pinBuiltin(path); else if (mapping) tree.pinTool(mapping); else if (id) tree.pinUnmounted(id); }} />;
     return <li className={`ts-tree-tool${fixed ? ' ts-fixed-node' : ''}${invalid && !disabled ? ' ts-tool-invalid' : ''}`}
-        aria-disabled={disabled || undefined} data-tool-status={disabled ? 'disabled' : invalid ? 'invalid' : 'available'} data-tree-path={path} data-tool-id={id} data-drop-disabled={readOnly || undefined}
+        aria-disabled={disabled || undefined} data-tool-status={disabled ? 'disabled' : invalid ? 'invalid' : 'available'} data-tree-path={path} data-tool-id={id} data-drop-disabled={tree.busy || undefined}
         {...tooltip} draggable={draggable}
         onDragStart={event => {
             if (!draggable || (event.target as HTMLElement).tagName === 'INPUT') { event.preventDefault(); return; }
             event.stopPropagation(); event.dataTransfer.setData('application/x-ts-tool', id!);
             event.dataTransfer.setData('application/x-ts-mapping', path); event.dataTransfer.effectAllowed = 'move';
-        }} onDragOver={event => acceptTreeDrag(event, tree.busy || readOnly)}
+        }} onDragOver={event => acceptTreeDrag(event, tree.busy)}
         onDragLeave={leaveTreeDrag}
-        onDrop={event => { if (readOnly) { event.preventDefault(); event.stopPropagation(); } else tree.dropNode(event, path, false); }}>
+        onDrop={event => tree.dropNode(event, path, false)}>
         {readOnly ? <code>{path.split('.').at(-1)}</code> :
             <EditableText className="ts-node-name" value={path.split('.').at(-1)!} label={t('mapping_name', { path })} busy={tree.busy || !!mapping?.pinned}
                 calculateWidth={nameWidth} commit={name => tree.rename(path, name)} />}

@@ -305,9 +305,9 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
     function applyDrop(source: TreeDragSource, target: TreeDropTarget): void {
         if (busyRef.current || !view) return;
         try {
-            if (!source.namespace && !view.tools.some(tool => tool.id === source.id)) return;
+            if (!source.namespace && !view.tools.some(tool => tool.id === source.id) && !providedNamespace(source.path ?? '', provided)?.commands.some(command => command.path === source.path)) return;
             const name = view.effective.find(m => m.id === source.id)?.path.split('.').at(-1) || source.id?.replace(/[^a-zA-Z0-9_$]/g, '_').replace(/^(?=\d)/, '_');
-            const next = dropTree({ mappings, namespaces, order, provided }, source, target, name);
+            const next = dropTree({ nodeSettings: view.state.nodeSettings, mappings, namespaces, order, provided }, source, target, name);
             for (const mapping of next.mappings) if (!mappings.some(current => current.id === mapping.id) && unmountedVisible[mapping.id]) mapping.alwaysVisible = unmountedVisible[mapping.id];
             setUnmountedVisible(current => Object.fromEntries(Object.entries(current).filter(([id]) => !next.mappings.some(mapping => mapping.id === id))));
             if (source.namespace && source.path) {

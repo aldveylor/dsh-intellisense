@@ -11,3 +11,5 @@ FunctionTreeNode 对应单个挂载路径，其 Mapping 独立持有该路径的
 命名空间 children 为只读视图，构造及编辑通过 add/remove 修改成员并使祖先计数缓存失效；sort 仅调整顺序。普通节点首次读取 count 缓存递归结果，整树构造后预热；服务端子树继续显示直接成员数。
 
 普通命令和命名空间同样读取服务端 nodeSettings 中的递归权限。构造已有子节点时不使用 acceptsChildren 过滤成员，该权限仅限制新增编辑。
+
+同级拖动仅修改 Profile order，不受 movable/acceptsChildren 的结构编辑权限限制；固定命名空间及其后代同样递归应用 order。跨层级移动仍受服务端权限限制，固定挂载映射保持不可拖动。
