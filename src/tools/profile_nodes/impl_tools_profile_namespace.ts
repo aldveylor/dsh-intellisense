@@ -4,13 +4,6 @@ import type { ProfileNode } from '../../profile/node.js';
 import type { NamespaceTreeNode, ProfileTreeNode } from '../../profile/catalog/profile_node.js';
 import { pluginCommands, projectBuiltin } from '../../runtime/builtins.js';
 
-/** @brief Restore the renamed removal member without retaining its obsolete physical binding. */
-function restoreProfileMembers(data: NamespaceTreeNode): NamespaceTreeNode {
-    if (!Object.hasOwn(data.children ?? {}, 'delete')) return data;
-    const { delete: removed, ...children } = data.children!;
-    return { ...data, children: { ...children, remove: children.remove ?? removed! } };
-}
-
 /** @brief Profile management owns a closed set of functions sharing one permission implementation. */
 export class ImplToolsProfileNamespace extends ImplBuiltinNamespace {
     constructor(data?: NamespaceTreeNode) {
@@ -18,12 +11,7 @@ export class ImplToolsProfileNamespace extends ImplBuiltinNamespace {
             const name = command.path.split('.').at(-1)!;
             return [name, { type: 'function' as const, function: { tool: command.tool, doc: projectBuiltin(command, 'ptc').description } }];
         }));
-        super('tools.profile', { ...data, type: 'namespace', description: 'Profile data and configuration', children: { ...children, ...restoreProfileMembers(data ?? { type: 'namespace' }).children } });
-    }
-
-    /** @brief Cloned catalog and archived data use the current removal member name. */
-    override copyNode(value: ProfileTreeNode): this {
-        return super.copyNode(value.type === 'namespace' ? restoreProfileMembers(value) : value);
+        super('tools.profile', { ...data, type: 'namespace', description: 'Profile data and configuration', children: { ...children, ...data?.children } });
     }
 
     /** @brief Hydration selects the shared builtin function implementation, never caller-supplied permissions. */

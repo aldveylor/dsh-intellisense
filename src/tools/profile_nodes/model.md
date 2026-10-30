@@ -6,7 +6,7 @@ RootNamespace 继承 EditableSnapshot，是默认 Profile 工厂直接生成的�
 
 RootNamespace 默认构造始终包含 tools，读取已存数据通过 clone 保持实际类型。tools.save 的缺省禁用规则在 ImplToolsNamespace.normalize 中实现；apply 不使用 save 的缺省规则。保存 `on` 仅通知保存事件，不处理返回值，不承担构造、修复或权限检查。
 
-ImplToolsProfileNamespace 在构造及 copyNode 恢复时将旧 delete 成员映射为 remove，保留禁用和固定等级设置，物理绑定由当前内置实现提供；两者同时存在时使用 remove 的设置，未知成员仍拒绝恢复。
+节点构造与 copyNode 仅接受当前成员定义，不承担存档兼容。旧格式和旧内置成员名称由 storage/compatibility 在存档读取时转换、校验并重新保存。
 
 保存校验与建议由 tools/profile_save.ts 处理，不属于 Profile 节点或保存事件的返回协议。保存事件在成功持久化后发出，仅有 name/time/type；`on` 返回值被忽略，校验消息由 tools_profile_save/tools_profile_apply 处理，事件本身不含可编辑快照、基线、agent 或 result。
 

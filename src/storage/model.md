@@ -8,4 +8,8 @@ Store 定义 load/save/remove，可选 loadMany/loadEntries。MemoryStore、File
 
 JournalStore 在受管前缀内保存 after-image 日志，串行执行、重试和恢复，幂等重放不会重复增加计数。SnapshotStore 用它持久化编号和首次归档；关闭单独快照单元前 flush。统计依旧独立延迟合并，并在普通单元关闭前刷新。
 
-全局 Profile 按 configuration_upgrade.ts 的相邻版本升级表读取：1→2 将 boolean 可见性、列表固定偏好及 enabled 转为当前字段；2→3 将当前及非当前平铺 Profile 转为带数值指针的匿名目录并分离 editor；3→4 递归转换旧 command 节点。仅在完整转换和校验成功后保存最终 schema 4，保留 revision、默认名称、所有 Profile 及编辑偏好；转换或写入失败不发布新目录状态。未知或未来版本拒绝自动升级。当前格式严格校验，显式恢复可以丢弃无效的当前目录项，不改写既有匿名历史版本。Saveable<T> 只定义模型的独立数据导出，不保存运行时对象、工具函数或实例原型。
+存档兼容逻辑统一位于 compatibility/，仅由存档读取入口调用；转换结果通过当前 schema 校验后重新保存，再发布内存状态。节点构造、克隆及运行时调用不执行兼容转换。
+
+全局 Profile 按 compatibility/configuration_upgrade.ts 的相邻版本升级表读取：1→2 将 boolean 可见性、列表固定偏好及 enabled 转为当前字段；2→3 将当前及非当前平铺 Profile 转为带数值指针的匿名目录并分离 editor；3→4 递归转换旧 command 节点。仅在完整转换和校验成功后保存最终 schema 4，保留 revision、默认名称、所有 Profile 及编辑偏好；转换或写入失败不发布新目录状态。未知或未来版本拒绝自动升级。当前格式严格校验，显式恢复可以丢弃无效的当前目录项，不改写既有匿名历史版本。Saveable<T> 只定义模型的独立数据导出，不保存运行时对象、工具函数或实例原型。
+
+compatibility/profile_compatibility.ts 同时识别各版本存档中的 tools.profile.delete，将成员和物理工具 tools_profile_delete 转为 remove/tools_profile_remove，保留禁用和固定等级等字段；同时存在新旧成员时优先使用 remove。普通命名空间中的同名成员保持原样。全局当前表与历史快照均在读取时转换并写回，数值指针不变；已转换记录再次读取不会重复保存。compatibility/statistics.ts 负责统计检查点旧版本字段转换与有效计数恢复，Statistics 读取后通过 JournalStore 保存结果。

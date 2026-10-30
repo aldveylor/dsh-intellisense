@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { storageVersion } from '../../storage/version.js';
+import { storageVersion } from '../version.js';
 import { upgradeProfileNodes } from './profile_compatibility.js';
-import type { ProfileCatalogData } from './registry.js';
-import type { PlaneProfileData } from '../plane/profile.js';
+import type { ProfileCatalogData } from '../../profile/catalog/registry.js';
+import type { PlaneProfileData } from '../../profile/plane/profile.js';
 
 /** @brief Persisted configuration undergoing one adjacent schema upgrade at a time. */
 type UpgradeData = Record<string, unknown> & { version: number; revision: number };
@@ -68,5 +68,10 @@ export async function upgradeProfileCatalog(value: unknown, createProfile: Upgra
         if (!upgrade) throw new Error('Invalid Profile reference catalog');
         data = await upgrade(data, createProfile);
     }
-    return data as unknown as ProfileCatalogData;
+    const profiles = Object.fromEntries(Object.entries(recordSchema.parse(data.profiles)).map(([name, value]) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return [name, value];
+        const profile = value as Record<string, unknown>;
+        return [name, { ...profile, root: upgradeProfileNodes(profile.root) }];
+    }));
+    return { ...data, profiles } as unknown as ProfileCatalogData;
 }

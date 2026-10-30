@@ -10,7 +10,7 @@ SemanticRegistry 管理全局当前目录、默认名称、编辑事务和物理
 
 profiles.ts 的 ProfileSessions 仅依赖 ToolsNamespace 的 selection/reference/restore/retain 恢复或选择引用，不读取具体目录实现。会话存储仅包含 name/pointer；初始化或 load/switch 从全局当前指针选择版本，存在即复用、不存在才归档，最后发布该会话的只读引用。save() 不发布版本、不编辑内容。父子会话可共享同一个 ProfileReference，后续切换互不影响。
 
-全局当前表与旧快照可使用不同 Store。默认插件单独打开 intellisense_profile_snapshots 单元，计数器与匿名旧快照通过 JournalStore 恢复。profile_compatibility.ts 仅将旧 command/command 节点转换为 function/function，保留其他字段供当前 schema 严格校验。configuration_upgrade.ts 定义 1→2→3→4 相邻版本升级表：先规范化旧平铺字段，再通过目录的验证和版本分配回调生成匿名目录，最后转换节点格式；完整升级成功后才持久化最终版本。历史快照兼容转换但不改变版本指针。未知及未来版本拒绝升级；当前格式严格校验，显式恢复仅保留有效当前条目，归档内容不随全局恢复或目录删除改写。
+全局当前表与旧快照可使用不同 Store。默认插件单独打开 intellisense_profile_snapshots 单元，计数器与匿名旧快照通过 JournalStore 恢复。storage/compatibility/profile_compatibility.ts 转换旧 command/command 节点及 tools.profile.delete 成员名称与物理绑定，保留其他字段供当前 schema 严格校验。storage/compatibility/configuration_upgrade.ts 定义 1→2→3→4 相邻版本升级表：先规范化旧平铺字段，再通过目录的验证和版本分配回调生成匿名目录，最后转换节点格式；完整升级成功后才持久化最终版本；当前 schema 也在读取时识别旧成员并写回。历史快照在读取时经 JournalStore 保存转换结果，不改变版本指针。节点构造、克隆及 ProfileReference 不处理旧格式。未知及未来版本拒绝升级；当前格式严格校验，显式恢复仅保留有效当前条目，归档内容不随全局恢复或目录删除改写。
 
 ToolAdditions 是 ctx.intellisense 的独立工具元数据服务。全局目录消费同一对象以过滤 hidden、输出工具元数据；ToolsNamespace 接口不包含附加信息注册能力，固定工具身份来自默认 Profile 的实际保护节点。
 

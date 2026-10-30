@@ -14,8 +14,9 @@ import type { ProfileSnapshot, ProfileVersion } from '../profile.js';
 import { toolName, validatePath } from './path.js';
 export { validatePath } from './path.js';
 import { storageVersion } from '../../storage/version.js';
-import { upgradeProfileCatalog } from './configuration_upgrade.js';
-import type { Store } from '../../storage/store.js';
+import { upgradeProfileCatalog } from '../../storage/compatibility/configuration_upgrade.js';
+import { clearStore, type Store } from '../../storage/store.js';
+import { recoverProfile } from './recover_profile.js';
 import { PlaneProfile, PlaneProfileState, type PlaneProfileData, type PlaneProfileStateData } from '../plane/profile.js';
 
 /** @brief Current named Profiles plus numeric versions; session archives are stored independently. */
@@ -152,15 +153,27 @@ export class SemanticRegistry {
     }
 
     /** @brief Serialize loading and recovery with ordinary configuration writes. */
-    load(recover = false): Promise<void> { return this.transaction(() => this.loadSnapshot(recover)); }
+    load(recover: boolean | 'reset' = false): Promise<void> {
+        return this.transaction(async () => {
+            if (recover === 'reset') {
+                await clearStore(this.store);
+                await this.snapshots.reset();
+                this.references = Object.create(null);
+                const state = new PlaneProfileState({ inactiveProfiles: {} });
+                await this.persist(state);
+                this.state = state;
+            } else await this.loadSnapshot(recover);
+        });
+    }
 
     /** @brief Restore current referenced Profiles; explicit recovery discards invalid entries without rewriting archives. */
     private async loadSnapshot(recover: boolean): Promise<void> {
-        await this.snapshots.load();
+        await this.snapshots.load(recover);
         let saved = await this.store.load<ProfileCatalogData>('registry');
         if (saved === undefined) return;
-        const upgrading = saved?.version !== configurationVersion;
-        if (upgrading) try {
+        const original = saved;
+        let upgrading = false;
+        try {
             saved = await upgradeProfileCatalog(saved, async (name, data) => {
                 this.validateProfileName(name);
                 const configuration = new PlaneProfile(data);
@@ -181,6 +194,7 @@ export class SemanticRegistry {
                     pinned: configuration.mappings.filter(mapping => mapping.pinned).map(mapping => mapping.path),
                 } };
             });
+            upgrading = JSON.stringify(saved) !== JSON.stringify(original);
         } catch (error) {
             if (!recover) throw new Error('Invalid Profile reference catalog', { cause: error });
         }
@@ -193,12 +207,20 @@ export class SemanticRegistry {
             for (const [name, value] of Object.entries(saved.profiles)) {
                 try {
                     this.validateProfileName(name);
-                    ProfileSchema.parse({ name, root: value.root, brief: value.brief });
-                    const reference = await this.snapshots.restore(value.pointer, { root: value.root, brief: value.brief });
+                    const data = recover ? recoverProfile(value, this.definitions.createInitialProfile()) : { root: value.root, brief: value.brief };
+                    ProfileSchema.parse({ name, ...data });
+                    const changed = JSON.stringify(data) !== JSON.stringify({ root: value.root, brief: value.brief });
+                    let reference: ProfileVersion;
+                    try { reference = changed ? await this.snapshots.create(this.definitions.profile(data)) : await this.snapshots.restore(value.pointer, data); }
+                    catch (error) {
+                        if (!recover) throw error;
+                        reference = await this.snapshots.create(this.definitions.profile(data));
+                    }
                     const snapshot = reference.snapshot;
                     const configuration = toPlaneProfile({ name, root: snapshot.serialize(), brief: snapshot.brief }, new PlaneProfile(), this.definitions);
                     const editor = saved.editor?.[name];
                     if (editor) {
+                        try {
                         this.validateVisibility(editor.unmountedVisible);
                         this.validateComments(editor.toolComments);
                         if (!Array.isArray(editor.order) || editor.order.some(path => typeof path !== 'string') || !Array.isArray(editor.pinned)) throw new Error('Invalid Profile editor settings');
@@ -206,6 +228,7 @@ export class SemanticRegistry {
                         configuration.toolComments = structuredClone(editor.toolComments);
                         configuration.order = [...editor.order];
                         for (const mapping of configuration.mappings) mapping.pinned = editor.pinned.includes(mapping.path);
+                        } catch (error) { if (!recover) throw error; }
                     }
                     references[name] = reference;
                     configurations[name] = configuration;
