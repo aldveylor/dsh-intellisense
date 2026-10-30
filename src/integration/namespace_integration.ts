@@ -39,11 +39,11 @@ export class NamespaceIntegration {
     private refreshedRevision = '';
     private refreshing?: Promise<void>;
     private generatedTools = new WeakSet<ToolDefinition>();
+    private nativeDefinitions = new WeakSet<ToolDefinition>();
     private positions = new Map<string, Position>();
     private discovered = new Map<string, Set<string>>();
     private nativeTools = new Map<string, { source: string; names: string[]; fingerprint: string; disposers: (() => void)[] }>();
 
-    private executors = new Map<string, () => void>();
     private protectedTools?: { revision: string; tools: ReadonlySet<string> };
 
     private catalogRevision = 0;
@@ -52,7 +52,7 @@ export class NamespaceIntegration {
     constructor(private ctx: Context, readonly namespace: ToolsNamespace, readonly catalog: ToolCatalog, readonly profiles: ProfileSessionCollection, aliases: z.infer<typeof Aliases> = [], readonly searchEngines = createSearchEngines(), readonly statistics = profiles.statistics, readonly inspectStatistics = profiles.inspectStatistics) {
         this.namespace.setAliases(aliases);
         this.intellisense = { profiles: namespace, toolAdditions: this.catalog.toolAdditions, statistics, inspectStatistics, searchEngines };
-        ctx.effect(() => async () => { await Promise.all([...new Set([...this.nativeTools.keys(), ...this.positions.keys(), ...this.discovered.keys(), ...this.executors.keys()])].map(id => this.release(id))); await this.statistics.dispose(); await this.inspectStatistics.dispose(); });
+        ctx.effect(() => async () => { await Promise.all([...new Set([...this.nativeTools.keys(), ...this.positions.keys(), ...this.discovered.keys()])].map(id => this.release(id))); await this.statistics.dispose(); await this.inspectStatistics.dispose(); });
         ctx.on('tools/change', () => { this.catalogRevision++; });
         ctx.on('agent/request', async (payload, next) => {
             if (this.enabled(payload.agent)) this.positions.set(payload.agent.id, { turn: payload.turn, step: payload.step });
@@ -112,11 +112,17 @@ export class NamespaceIntegration {
         return values;
     }
 
-    /** @brief Register builtin tools in the owning presentation scope. */
+    /** @brief Register builtin tools and their exclusive model-facing executor in the presentation scope. */
     register(ctx: Context): void {
         registerInspect(ctx, this);
         registerSearch(ctx, this);
         registerToolCommands(ctx, this.namespace, this.profiles, agent => this.configurationChanged(agent), agent => this.toolBriefs(agent), this);
+        const executor = new NativeToolExecutor(ctx);
+        const mode = presentation.presentationFor(ctx);
+        ctx.tools.setExecutor({
+            describe: tools => executor.describe(tools.filter(tool => mode === 'ptc' ? tool.name === ptcToolName : this.nativeDefinitions.has(tool))),
+            execute: input => executor.execute(input),
+        });
     }
 
     /** @brief Enable namespaces only for an explicitly configured Intellisense scope. */
@@ -141,17 +147,6 @@ export class NamespaceIntegration {
     async configure(agent: Agent): Promise<void> {
         if (!this.enabled(agent)) return;
         this.catalogRevision++;
-        if (!this.executors.has(agent.id)) {
-            const executor = new NativeToolExecutor(agent.ctx);
-            const dispose = agent.ctx.tools.setExecutor({
-                describe: tools => {
-                    const names = new Set(this.isPtc(agent) ? [ptcToolName] : this.nativeTools.get(agent.id)?.names ?? []);
-                    return executor.describe(tools.filter(tool => names.has(tool.name)));
-                },
-                execute: input => executor.execute(input),
-            });
-            this.executors.set(agent.id, dispose);
-        }
         if (!this.isPtc(agent)) await this.syncNative(agent);
         else await this.addition(agent);
     }
@@ -278,7 +273,11 @@ export class NamespaceIntegration {
         const state = { source: '', names, fingerprint, disposers: [] as (() => void)[] };
         this.nativeTools.set(agent.id, state);
         for (const { entry, name } of bindings) {
-            if (name === entry.tool) continue;
+            if (name === entry.tool) {
+                const definition = agent.ctx.tools.get(name, agent);
+                if (definition) this.nativeDefinitions.add(definition);
+                continue;
+            }
             const definition: ToolDefinition = {
                 name, description: `${entry.path}: ${descriptionFor(entry)}`, parameters: entry.schema,
                 output: { schema: entry.output ?? {}, render: (_args, value) => [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value) }] },
@@ -292,6 +291,7 @@ export class NamespaceIntegration {
             if (physical?.presentCall) definition.presentCall = args => physical.presentCall!(nativeArgumentsFor(entry, args));
             if (physical?.presentResult) definition.presentResult = (args, result) => physical.presentResult!(nativeArgumentsFor(entry, args), result);
             this.generatedTools.add(definition);
+            this.nativeDefinitions.add(definition);
             state.disposers.push(agent.ctx.tools.register(definition));
         }
         return [...names];
@@ -325,8 +325,6 @@ export class NamespaceIntegration {
         this.catalogRevision++;
         for (const dispose of this.nativeTools.get(owner)?.disposers ?? []) dispose();
         this.nativeTools.delete(owner);
-        this.executors.get(owner)?.();
-        this.executors.delete(owner);
         this.positions.delete(owner);
         this.discovered.delete(owner);
     }

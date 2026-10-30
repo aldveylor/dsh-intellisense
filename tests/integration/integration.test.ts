@@ -21,6 +21,7 @@ import * as plugin from '../../src/index.js';
 import * as profilesPlugin from '../../src/profile/plugin.js';
 import * as namespacePlugin from '../../src/integration/plugin.js';
 import * as presentation from '../../src/integration/presentation.js';
+import { bindScopeParent, createScope, scopeOf } from '@deepseek-ai/dsh-scope';
 
 /** @brief Capture assembled requests and reply without external model access. */
 class ScriptedModel extends LlmAdapter {
@@ -41,8 +42,8 @@ function systemOf(request: GenerateOptions): string {
     return request.messages.filter(message => message.role === 'system').map(message => message.content.map(block => block.type === 'text' ? block.text : '').join('\n')).join('\n');
 }
 
-for (const [mode, timing] of [['standard', 'after'], ['native', 'before'], ['native', 'after'], ['ptc', 'before'], ['ptc', 'after']] as const) {
-    test(`full plugin assembly exposes ${mode} tools with presentation mounted ${timing} agent creation`, { timeout: 10_000 }, async () => {
+for (const [mode, timing] of [['standard', 'after'], ['native', 'before'], ['native', 'after'], ['native', 'inherited'], ['ptc', 'before'], ['ptc', 'after'], ['ptc', 'inherited'], ['ptc', 'bound_after']] as const) {
+    test(`full plugin assembly exposes ${mode} tools with ${timing} presentation binding`, { timeout: 10_000 }, async () => {
         const directory = await mkdtemp(join(tmpdir(), 'namespace-integration-'));
         const ctx = new Context();
         try {
@@ -67,12 +68,16 @@ for (const [mode, timing] of [['standard', 'after'], ['native', 'before'], ['nat
             assert.deepEqual([...routes.keys()].sort(), ['/api/ts-intellisense', '/api/ts-intellisense-client', '/api/ts-intellisense-docs-image', '/api/ts-intellisense-profile', '/api/ts-intellisense-state']);
             const unrelated = await ctx.agentLoop.create(SessionId(`unrelated-${mode}`), { provider: 'fake', model: 'scripted' });
             const defaultExecutor = ctx.tools.selectExecutor(unrelated);
+            const standing = timing === 'inherited' || timing === 'bound_after' ? createScope(ctx, {}) : undefined;
+            if (standing && mode !== 'standard') await standing.ctx.plugin(presentation, { mode });
             const { agent } = await ctx.agents.create({
                 sessionId: SessionId(`integration-${mode}`), agentOptions: { provider: 'fake', model: 'scripted' },
                 ...(mode !== 'standard' && timing === 'before' ? { setup: async (scope: Context) => { await scope.plugin(presentation, { mode }); } } : {}),
+                ...(standing && timing === 'inherited' ? { setup: (_scope: Context, child: import('@deepseek-ai/dsh-agent').Agent) => { bindScopeParent(child, scopeOf(standing.ctx)!); } } : {}),
             });
             const namespaces = ctx.namespaceIntegration;
-            assert.equal(namespaces.enabled(agent), mode !== 'standard' && timing === 'before');
+            assert.equal(namespaces.enabled(agent), mode !== 'standard' && (timing === 'before' || timing === 'inherited'));
+            if (standing && timing === 'bound_after') bindScopeParent(agent, scopeOf(standing.ctx)!);
             if (mode !== 'standard') {
                 if (timing === 'after') await agent.ctx.plugin(presentation, { mode });
                 const initial = await ctx.systemPrompt.assemble({ agent, scope: agent });
@@ -104,6 +109,15 @@ for (const [mode, timing] of [['standard', 'after'], ['native', 'before'], ['nat
                 const execution = await executeTool(agent.ctx.tools, { agent, callId: ToolCallId('integration-code'), name: 'tools_run_code', arguments: { code: 'return 42;', description: 'Check scoped runtime' }, signal: new AbortController().signal });
                 assert.equal(execution.isError, false, JSON.stringify(execution));
                 assert.deepEqual(execution.value, { logs: [], result: 42 });
+                const toolSet = await ctx.tools.resolve({ agent, modelSelection: { provider: 'fake', model: 'scripted' }, signal: new AbortController().signal });
+                try {
+                    const call = await executeTool(agent.ctx.tools, { agent, toolSet, callId: ToolCallId('integration-namespace-code'), name: 'tools_run_code',
+                        arguments: { code: 'await tools.inspect(["std.fs.read"]); return await std.fs.read();', description: 'Discover and execute a hidden physical tool' }, signal: new AbortController().signal });
+                    assert.equal(call.isError, false, JSON.stringify(call));
+                    assert.deepEqual(call.value, { logs: [], result: 'contents' });
+                } finally { toolSet.dispose(); }
+                await send();
+                assert.deepEqual(model.requests.at(-1)!.tools?.map(tool => tool.name), ['tools_run_code']);
             } else {
                 assert.deepEqual(names, ['ns_tools__inspect']);
                 assert.equal(agent.ctx.get('codeRuntime'), undefined);
