@@ -140,9 +140,9 @@ export class EditableNamespace extends EditableNode implements ProfileNamespace 
     setFixedLevel(value: 0 | 1): this { if (this.permissions.availableFixLevels.length ? !this.permissions.availableFixLevels.includes(value) : value !== (this.settings.fixedLevel ?? 0)) throw new ProfilePermissionError(`Node fixed level cannot be changed: ${this.memberName}`); this.settings.fixedLevel = value; return this; }
 
     serialize(): NamespaceTreeNode {
-        return structuredClone({ ...this.settings, type: this.type, fixedLevel: this.settings.fixedLevel as 0 | 1 | undefined,
+        return { ...structuredClone(this.settings), type: this.type, fixedLevel: this.settings.fixedLevel as 0 | 1 | undefined,
             ...(this.namespaceDescription === undefined ? {} : { description: this.namespaceDescription }),
-            children: Object.fromEntries([...this.members].map(([name, child]) => [name, child.serialize()])) });
+            children: Object.fromEntries([...this.members].map(([name, child]) => [name, child.serialize()])) };
     }
 
     /** @brief Accept direct member names only, excluding prototype and reserved object keys. */
