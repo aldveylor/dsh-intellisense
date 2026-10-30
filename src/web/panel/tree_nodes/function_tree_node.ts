@@ -15,7 +15,7 @@ export class FunctionTreeNode extends TreeNode {
     get function(): ProvidedFunction | undefined { return undefined; }
 
     /** @brief Whether the function may be moved by the tree editor. */
-    get draggable(): boolean { return this.permissions.movable && !this.mapping?.pinned; }
+    get draggable(): boolean { return !this.mapping?.pinned; }
 
     /** @brief Resolve a saved pin using this node's available fix levels. */
     get level(): 0 | 1 | 2 { return fixLevel(this.permissions, this.function?.alwaysVisible ?? this.mapping?.alwaysVisible); }

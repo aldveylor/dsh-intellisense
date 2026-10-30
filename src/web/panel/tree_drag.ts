@@ -8,7 +8,7 @@ export function treeDropTarget(element: HTMLElement, clientY: number): TreeDropT
     if (element.classList.contains('ts-namespace-placeholder')) return { path: namespace ?? '', position: 'inside' };
     const rect = element.getBoundingClientRect();
     const ratio = rect.height ? (clientY - rect.top) / rect.height : 0;
-    return { path: namespace ?? element.dataset.treePath ?? '', position: namespace !== undefined && ratio >= .25 && ratio <= .75 ? 'inside' : ratio > .5 ? 'after' : 'before' };
+    return { path: namespace ?? element.dataset.treePath ?? '', position: namespace !== undefined && element.dataset.acceptsChildren !== 'false' && ratio >= .25 && ratio <= .75 ? 'inside' : ratio > .5 ? 'after' : 'before' };
 }
 
 const feedbackAnimations = new WeakMap<HTMLElement, Animation>();
