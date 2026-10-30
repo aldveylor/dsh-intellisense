@@ -16,10 +16,10 @@ export class EditableSnapshot extends EditableNamespace implements ProfileSnapsh
         path = path.replace(/^global\./, '');
         if (!path) return this;
         const [first, ...parts] = path.split('.');
-        let node: ProfileNode | undefined = this.children.get(first!);
+        let node: ProfileNode | undefined = this.get(first!);
         for (const name of parts) {
             if (!node || node.disabled || node.type !== 'namespace') return undefined;
-            node = (node as ProfileNamespace).children.get(name);
+            node = (node as ProfileNamespace).get(name);
         }
         return node && !node.disabled ? node : undefined;
     }
