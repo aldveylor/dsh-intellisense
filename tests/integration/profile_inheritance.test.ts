@@ -54,6 +54,7 @@ test('runtime child ownership inherits the nearest parent working profile withou
         await assert.rejects(namespaces.addition(missing), /Profile does not exist/);
         const child = await agent('child', parent);
         const childRegistry = await namespaces.addition(child);
+        await namespaces.configure(child);
         assert.equal(childRegistry.name, 'Work');
         assert.equal(childRegistry.profile.pointer, parentPointer);
         assert.deepEqual((await profiles.addition(child.session)).profile.serialize(), (await profiles.addition(parent.session)).profile.serialize());

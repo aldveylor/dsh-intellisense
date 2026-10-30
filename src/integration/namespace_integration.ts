@@ -43,6 +43,9 @@ export class NamespaceIntegration {
     private positions = new Map<string, Position>();
     private discovered = new Map<string, Set<string>>();
     private nativeTools = new Map<string, { source: string; names: string[]; fingerprint: string; disposers: (() => void)[] }>();
+    private configuring = new WeakMap<Agent, Promise<void>>();
+    private configured = new WeakMap<Agent, { presentation: ReturnType<typeof presentation.presentationConfigFor>; selection: { blank: boolean } | undefined }>();
+    private selections = new WeakMap<Agent, { blank: boolean }>();
 
     private protectedTools?: { revision: string; tools: ReadonlySet<string> };
 
@@ -54,6 +57,14 @@ export class NamespaceIntegration {
         this.intellisense = { profiles: namespace, toolAdditions: this.catalog.toolAdditions, statistics, inspectStatistics, searchEngines };
         ctx.effect(() => async () => { await Promise.all([...new Set([...this.nativeTools.keys(), ...this.positions.keys(), ...this.discovered.keys()])].map(id => this.release(id))); await this.statistics.dispose(); await this.inspectStatistics.dispose(); });
         ctx.on('tools/change', () => { this.catalogRevision++; });
+        ctx.on('agent-preset/selected', async id => {
+            const agent = this.ctx.agents.list().find(agent => agent.id === id);
+            if (agent) {
+                const boundary = this.ctx.agents.turnBoundaryOf(agent.session);
+                this.selections.set(agent, { blank: boundary.lastTurn === 0 && boundary.openTurnStartSeq === null });
+                await this.configure(agent);
+            }
+        });
         ctx.on('agent/request', async (payload, next) => {
             if (this.enabled(payload.agent)) this.positions.set(payload.agent.id, { turn: payload.turn, step: payload.step });
             return next();
@@ -143,12 +154,40 @@ export class NamespaceIntegration {
         }
     }
 
-    /** @brief Initialize only sessions belonging to an Intellisense presentation scope. */
-    async configure(agent: Agent): Promise<void> {
-        if (!this.enabled(agent)) return;
-        this.catalogRevision++;
-        if (!this.isPtc(agent)) await this.syncNative(agent);
-        else await this.addition(agent);
+    /** @brief Serialize initialization across preset mounts, tool admission and declaration previews. */
+    configure(agent: Agent): Promise<void> {
+        const work = (this.configuring.get(agent) ?? Promise.resolve()).catch(() => {}).then(() => this.configureSession(agent));
+        this.configuring.set(agent, work);
+        void work.finally(() => { if (this.configuring.get(agent) === work) this.configuring.delete(agent); }).catch(() => {});
+        return work;
+    }
+
+    /** @brief Refresh reused blank sessions once per preset binding before registering their tools. */
+    private async configureSession(agent: Agent): Promise<void> {
+        const config = presentation.presentationConfigFor(agent.ctx);
+        const selection = this.selections.get(agent);
+        const previous = this.configured.get(agent);
+        if (!config) {
+            if (this.nativeTools.has(agent.id)) await this.release(agent.id);
+            this.configured.set(agent, { presentation: config, selection });
+            return;
+        }
+        if (!previous || previous.presentation !== config || previous.selection !== selection) {
+            const boundary = this.ctx.agents.turnBoundaryOf(agent.session);
+            const parent = !previous && this.ctx.agents.list().find(candidate => candidate !== agent && this.ctx.agents.isOwnedBy(agent.id, candidate));
+            const addition = await this.addition(agent);
+            const blank = selection && previous?.selection !== selection ? selection.blank : boundary.lastTurn === 0 && boundary.openTurnStartSeq === null;
+            if (blank && !(parent && this.enabled(parent))) {
+                const names = await this.namespace.list();
+                const name = names.includes(addition.name) ? addition.name : (await this.namespace.selection()).selected;
+                if ((await this.namespace.reference(name)).pointer !== addition.profile.pointer || name !== addition.name) await this.profiles.load(agent.session, name);
+            }
+            this.discovered.delete(agent.id);
+            this.catalogRevision++;
+        }
+        if (config.mode === 'native') await this.syncNative(agent);
+        else if (this.nativeTools.has(agent.id)) await this.release(agent.id);
+        this.configured.set(agent, { presentation: config, selection });
     }
 
     /** @brief Read the native loop position for ordinary tool query audit events. */

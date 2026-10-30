@@ -12,6 +12,7 @@ import { registerManagement } from '../web/server/routes.js';
 import { executionInstructions } from '../profile/namespace/prompt.js';
 import { PhysicalToolCatalog } from './tool_catalog.js';
 import { CommandStatistics } from '../statistics/command_statistics.js';
+import { registerSessionInitialization } from './session_initialization.js';
 
 export const name = 'command-namespaces';
 export const inject = ['toolsNamespace', 'intellisenseStorage', 'tools', 'agents', 'systemPrompt', 'connection'];
@@ -48,6 +49,7 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
             namespaces = component;
             ctx.provide('intellisense', component.intellisense);
             ctx.provide('namespaceIntegration', component);
+            registerSessionInitialization(ctx, component);
             registerSessionProfiles(ctx, namespace, component);
             ctx.on('agent/created', async ({ agent }) => { await component.configure(agent); });
             ctx.on('agent/disposed', async ({ agent }) => { await component.release(agent.id); });
@@ -57,7 +59,6 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
                 if (agent && component.enabled(agent)) {
                     const directory = await component.prompt(agent);
                     if (directory) assembled.sections.push({ name: 'namespaces:directory', text: directory, interpolate: false });
-                    if (!component.isPtc(agent)) await component.syncNative(agent);
                     assembled.sections = assembled.sections.filter(section => !section.name.startsWith('tool:') && !section.name.startsWith('tools:'));
                     const instructions = executionInstructions(component.isPtc(agent) ? 'ptc' : 'native', (await component.entries(agent)).some(entry => entry.node.discovery));
                     if (instructions) assembled.sections.push({ name: 'namespaces:execution', text: instructions, interpolate: false });

@@ -22,6 +22,8 @@ import * as profilesPlugin from '../../src/profile/plugin.js';
 import * as namespacePlugin from '../../src/integration/plugin.js';
 import * as presentation from '../../src/integration/presentation.js';
 import { bindScopeParent, createScope, scopeOf } from '@deepseek-ai/dsh-scope';
+import { EditableNamespace } from '../../src/profile/namespace.js';
+import { EditableFunction } from '../../src/profile/function.js';
 
 /** @brief Capture assembled requests and reply without external model access. */
 class ScriptedModel extends LlmAdapter {
@@ -34,6 +36,90 @@ class ScriptedModel extends LlmAdapter {
         yield { type: 'text-delta', index: 0, text };
         yield { type: 'block-end', index: 0, block: { type: 'text', text } };
         yield { type: 'finish', reason: { kind: 'stop' } };
+    }
+}
+
+for (const mode of ['native', 'ptc'] as const) {
+    for (const preview of [false, true]) {
+        test(`reused blank ${mode} sessions refresh old Profiles before ${preview ? 'preview' : 'first tool admission'}`, { timeout: 10_000 }, async () => {
+            const directory = await mkdtemp(join(tmpdir(), 'namespace-preset-reuse-'));
+            const ctx = new Context();
+            try {
+                await ctx.plugin(LlmRuntime); await ctx.plugin(SessionStore); await ctx.plugin(SessionProjectionRegistry);
+                await ctx.plugin(SystemPrompt); await ctx.plugin(ToolRuntime); await ctx.plugin(nativeExecutor);
+                await ctx.plugin(AgentRegistry); await ctx.plugin(AgentLoop, { agents: [] });
+                await ctx.plugin(Storage); await ctx.plugin(JsonStorage, { root: directory });
+                ctx.provide('connection', { fetch: { register: () => () => {} } });
+                const resolveDescriptor = Object.getOwnPropertyDescriptor(ctx.tools, 'resolve');
+                const assembleDescriptor = Object.getOwnPropertyDescriptor(ctx.systemPrompt, 'assemble');
+                const mounted = await ctx.plugin(plugin, { timeoutMs: 3000 });
+                ctx.tools.register(defineTool({ name: 'read_file', description: 'Read a file', parameters: {},
+                    output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] }, execute: async () => 'contents' }));
+                const model = new ScriptedModel();
+                ctx.llm.registerAdapter(['fake'], model);
+                const agent = await ctx.agentLoop.create(SessionId(`reused-${mode}-${preview}`), { provider: 'fake', model: 'scripted' });
+                const namespaces = ctx.namespaceIntegration;
+                const name = preview ? 'Retired' : 'Default';
+                if (preview) await ctx.toolsNamespace.create(name);
+                await ctx.toolsNamespace.edit(name, snapshot => {
+                    snapshot.create('fs', () => new EditableNamespace()).create('read', () => new EditableFunction()).setTool('read_file').setFixedLevel(2);
+                    return snapshot;
+                });
+                const old = (await namespaces.profiles.load(agent.session, name)).profile;
+                if (preview) await ctx.toolsNamespace.remove(name);
+                else await ctx.toolsNamespace.edit('Default', snapshot => { snapshot.remove('fs'); return snapshot; });
+                const latest = await ctx.toolsNamespace.reference('Default');
+                const standing = createScope(ctx, {});
+                await standing.ctx.plugin(presentation, { mode });
+                const binding = bindScopeParent(agent, scopeOf(standing.ctx)!);
+                // The preset registry commits this event after rebinding a reused blank Agent.
+                ctx.emit('agent-preset/selected', agent.id, `intellisense${mode === 'ptc' ? '-ptc' : ''}`);
+                const expected = mode === 'ptc' ? ['tools_run_code'] : ['ns_tools__inspect'];
+                if (preview) {
+                    assert.deepEqual((await ctx.systemPrompt.assemble({ agent, scope: agent })).tools.map(tool => tool.name), expected);
+                    // A second selection of the same retained preset must also refresh a blank session.
+                    await ctx.toolsNamespace.edit('Default', snapshot => snapshot.setBrief('Latest blank revision'));
+                    ctx.emit('agent-preset/selected', agent.id, `intellisense${mode === 'ptc' ? '-ptc' : ''}`);
+                }
+                const errors: unknown[] = [];
+                ctx.on('agent/error', ({ error }) => { errors.push(error); });
+                agent.followup(createUserMessage({ content: [{ type: 'text', text: 'List the available tools.' }], source: { kind: 'user' } }));
+                await agent.whenIdle();
+                assert.deepEqual(errors, []);
+                assert.deepEqual(model.requests[0]!.tools?.map(tool => tool.name), expected);
+                const current = (await namespaces.addition(agent)).profile;
+                assert.equal((await namespaces.addition(agent)).name, 'Default');
+                assert(current.pointer > old.pointer);
+                assert.equal(current.pointer, (await ctx.toolsNamespace.reference('Default')).pointer);
+                if (!preview) assert.equal(current.pointer, latest.pointer);
+                assert.equal(current.snapshot.resolve('fs'), undefined);
+                assert.equal(ctx.tools.get('ns_fs__read', agent), undefined);
+                if (mode === 'ptc') {
+                    const result = await executeTool(agent.ctx.tools, { agent, callId: ToolCallId('check-removed-fs'), name: 'tools_run_code',
+                        arguments: { code: 'return typeof fs;', description: 'Verify removed namespace' }, signal: new AbortController().signal });
+                    assert.equal(result.isError, false, JSON.stringify(result));
+                    assert.deepEqual(result.value, { logs: [], result: 'undefined' });
+                }
+                await ctx.toolsNamespace.edit('Default', snapshot => snapshot.setBrief('Changed after first turn'));
+                const replacement = createScope(ctx, {});
+                await replacement.ctx.plugin(presentation, { mode });
+                binding.rebind(scopeOf(replacement.ctx)!);
+                await namespaces.configure(agent);
+                assert.equal((await namespaces.addition(agent)).profile.pointer, current.pointer, 'Started sessions keep their archived version');
+                // Leaving the preset must remove session-owned native proxies from the standard catalog.
+                const standard = createScope(ctx, {});
+                binding.rebind(scopeOf(standard.ctx)!);
+                const normal = await ctx.systemPrompt.assemble({ agent, scope: agent });
+                assert(normal.tools.some(tool => tool.name === 'read_file'));
+                assert(!normal.tools.some(tool => tool.name.startsWith('ns_')));
+                await mounted.dispose();
+                assert.deepEqual(Object.getOwnPropertyDescriptor(ctx.tools, 'resolve'), resolveDescriptor);
+                assert.deepEqual(Object.getOwnPropertyDescriptor(ctx.systemPrompt, 'assemble'), assembleDescriptor);
+            } finally {
+                await ctx.fiber.dispose();
+                await rm(directory, { recursive: true, force: true });
+            }
+        });
     }
 }
 
