@@ -280,6 +280,7 @@ export class NamespaceIntegration {
         const profile = await this.get(agent);
         const entries = await this.entries(agent, profile);
         if (this.isPtc(agent)) return inspect(queries, profile, entries, true);
+        const info = nativeDiscovery(queries, profile, entries);
         const exact = new Set(normalizeInspectQueries(queries));
         const available = new Set(entries.map(entry => entry.path));
         let discovered = this.discovered.get(agent.id);
@@ -292,7 +293,7 @@ export class NamespaceIntegration {
         while (discovered.size > 256) discovered.delete(discovered.values().next().value!);
         await this.syncNative(agent, entries);
         this.ctx.emit('system-prompt/change');
-        return nativeDiscovery(queries, profile, entries);
+        return info;
     }
 
     /** @brief Register native tools from flat contracts without constructing another node hierarchy. */

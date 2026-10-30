@@ -73,11 +73,11 @@ export class PluginCommands {
     readonly discoveryCommand: BuiltinTool = {
         tool: 'tools_inspect', path: 'tools.inspect', signature: '(queries: string[]) => Promise<string>',
         description: {
-            native: 'Query namespace members with a trailing dot, or complete command contracts by exact path. Returns JSON. An empty string ("") in queries lists root namespace members, e.g. {"queries":[""]}. Discovers commands progressively. Call through tools.inspect.',
+            native: 'Query namespace members with a trailing dot to return a JSON member list, or discover commands by exact path to make them callable. Exact command queries return success without details, or throw if a command is unavailable. Mixed queries return only namespace member lists. An empty string ("") in queries lists root namespace members, e.g. {"queries":[""]}. Discovers commands progressively. Call through tools.inspect.',
             ptc: 'Query namespace members with a trailing dot, or complete command contracts by exact path. Returns TypeScript declarations. An empty string ("") in queries lists root namespace members: tools.inspect([""]). Discovers commands progressively. Call through tools.inspect.',
         },
         parameterDocs: { queries: {
-            native: 'Array of namespace member paths or exact command paths. A trailing dot lists immediate members; an exact path returns the complete command contract. An optional global. prefix is ignored. Include an empty string to query root namespace members: {"queries":[""]}.',
+            native: 'Array of namespace member paths or exact command paths. A trailing dot lists immediate members; an exact command path makes the command callable and returns success without details, or throws if unavailable. An optional global. prefix is ignored. Include an empty string to query root namespace members: {"queries":[""]}.',
             ptc: 'Array of namespace member paths or exact command paths. A trailing dot lists immediate members; an exact path returns the complete command contract. An optional global. prefix is ignored. Include an empty string to query root namespace members: tools.inspect([""]).',
         } },
     };
