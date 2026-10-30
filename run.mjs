@@ -40,7 +40,12 @@ if (!existsSync('node_modules/@deepseek-ai/dsh/lib/profile-boot.js') || !existsS
 let runtime = { require: createRequire(import.meta.url), plugins: [...plugins] };
 if (dshVersion) {
     const { prepareVersionRuntime } = await import('./scripts/version_runtime.mjs');
-    runtime = prepareVersionRuntime(projectDir, dshVersion, [...plugins].map(directory => realpathSync(directory)));
+    try {
+        runtime = prepareVersionRuntime(projectDir, dshVersion, [...plugins].map(directory => realpathSync(directory)));
+    } catch (error) {
+        console.error(error.message);
+        process.exit(1);
+    }
     console.log(`DSH version: ${dshVersion}`);
 }
 

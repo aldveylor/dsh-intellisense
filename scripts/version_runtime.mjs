@@ -6,6 +6,20 @@ import { join } from 'node:path';
 import { satisfies, valid } from 'semver';
 import { copyPackage } from './local_plugin.mjs';
 
+/** @brief Read published host dependencies and explain registry lookup failures. */
+function readHostDependencies(version) {
+    try {
+        return JSON.parse(execFileSync('pnpm', ['view', `@deepseek-ai/dsh@${version}`, 'dependencies', '--json'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }));
+    } catch (error) {
+        let registryError;
+        try { registryError = JSON.parse(error.stdout).error; } catch {}
+        if (['ERR_PNPM_PACKAGE_NOT_FOUND', 'ERR_PNPM_NO_MATCHING_VERSION', 'E404', 'ETARGET'].includes(registryError?.code)) {
+            throw new Error(`DSH version ${version} is not published in the configured registry. Check --dsh-version; list published versions with: pnpm view @deepseek-ai/dsh versions --json`);
+        }
+        throw new Error(`Unable to query DSH version ${version}: ${registryError?.message || error.stderr?.trim() || error.message}`);
+    }
+}
+
 /** @brief Install an isolated DSH host and refresh plugin copies without checkout development dependencies. */
 export function prepareVersionRuntime(projectDir, version, plugins) {
     if (!valid(version)) throw new Error('--dsh-version requires an exact semantic version');
@@ -14,7 +28,7 @@ export function prepareVersionRuntime(projectDir, version, plugins) {
     const metadataPath = join(directory, '.host_dependencies.json');
     const hostDependencies = existsSync(metadataPath)
         ? JSON.parse(readFileSync(metadataPath, 'utf8'))
-        : JSON.parse(execFileSync('pnpm', ['view', `@deepseek-ai/dsh@${version}`, 'dependencies', '--json'], { encoding: 'utf8' }));
+        : readHostDependencies(version);
     writeFileSync(metadataPath, JSON.stringify(hostDependencies));
     const dependencies = {
         '@deepseek-ai/dsh': version,
