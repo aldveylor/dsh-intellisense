@@ -51,6 +51,15 @@ export function* profileMembers(root: ProfileNamespace, enabled = true, parent =
     }
 }
 
+/** @brief Collect protected physical identities once for a complete initial Profile definition. */
+export function protectedToolNames(profile: ProfileSnapshot): ReadonlySet<string> {
+    const tools = new Set<string>();
+    for (const { node } of profileMembers(profile, false)) {
+        if (node.type === 'function' && !node.permissions.removable) tools.add((node as ProfileFunction).tool!);
+    }
+    return tools;
+}
+
 /** @brief Supplement original functions with scoped physical contracts only at a consumer boundary. */
 export function functionEntries(profile: ProfileSnapshot, tools: readonly PhysicalTool[], mode: PresentationMode, additions: ToolAdditions): FunctionEntry[] {
     const byTool = new Map(tools.map(tool => [tool.id, tool]));
@@ -115,9 +124,9 @@ export function declaration(entry: ManifestEntry, nested = true): string {
 export function serializeProfile(profile: ProfileSnapshot, tools: readonly PhysicalTool[], mode: PresentationMode, additions: ToolAdditions): SerializedNode {
     const entries = new Map(functionEntries(profile, tools, mode, additions).map(entry => [entry.path, entry]));
     const visit = (node: ProfileNode, name: string, path: string): SerializedNode => {
+        if (node.type === 'namespace') return { type: 'tree', name, permissions: node.permissions, description: (node as ProfileNamespace).description,
+            disabled: node.disabled, fixedLevel: node.fixedLevel as 0 | 1, children: [...(node as ProfileNamespace).children].map(([name, child]) => visit(child, name, path ? `${path}.${name}` : name)) };
         const data = node.serialize();
-        if (node.type === 'namespace') return { type: 'tree', name, permissions: node.permissions, description: data.description,
-            disabled: node.disabled, fixedLevel: data.fixedLevel as 0 | 1, children: [...(node as ProfileNamespace).children].map(([name, child]) => visit(child, name, path ? `${path}.${name}` : name)) };
         const entry = entries.get(path);
         return { type: 'leaf', name, permissions: node.permissions, disabled: node.disabled, fixedLevel: data.fixedLevel as 0 | 1 | 2,
             description: entry?.doc ?? data.function?.doc, preload: entry?.preload,

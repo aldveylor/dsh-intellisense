@@ -12,7 +12,7 @@ export class CommandStatistics {
     }
 
     /** @brief Load both counter collections. */
-    async load(recover = false): Promise<void> { await Promise.all([this.calls.load(recover), this.queries.load(recover)]); }
+    async load(recover: boolean | 'reset' = false): Promise<void> { await Promise.all([this.calls.load(recover), this.queries.load(recover)]); }
 
     /** @brief Persist pending increments in both collections. */
     async flush(): Promise<void> { await Promise.all([this.calls.flush(), this.queries.flush()]); }

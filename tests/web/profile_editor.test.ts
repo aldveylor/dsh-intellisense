@@ -255,13 +255,13 @@ test('profile brief edits appear in menus and persist or clear only after Save',
 });
 
 
-test('loading error overlay places Reset after Refresh and recovers failed data before reloading', async () => {
+test('loading error overlay places Repair and Reset after Refresh and repairs before reloading', async () => {
     const { registry, dom, document, requests } = await fixture(async registry => {
         await registry.manageProfile('create', 'Other', registry.snapshot().revision, undefined, false);
     }, undefined, true);
     try {
         const buttons = [...document.querySelectorAll<HTMLButtonElement>('.ts-load-overlay button')];
-        assert.deepEqual(buttons.map(button => button.textContent), ['Refresh', 'Reset']);
+        assert.deepEqual(buttons.map(button => button.textContent), ['Refresh', 'Repair', 'Reset']);
         assert.equal(document.querySelector('.ts-error-toast'), null);
         assert.equal(document.querySelector('dialog'), null);
         const before = registry.snapshot();
@@ -271,6 +271,18 @@ test('loading error overlay places Reset after Refresh and recovers failed data 
         assert.equal(requests[2]!.method, 'GET');
         assert.deepEqual(registry.snapshot(), before);
         assert.deepEqual(registry.configuration('Other').mappings, []);
+    } finally { dom.window.close(); }
+});
+
+test('loading overlay Reset discards saved Profiles before reloading', async () => {
+    const { registry, dom, document, requests } = await fixture(async registry => {
+        await registry.manageProfile('create', 'Other', registry.snapshot().revision, undefined, false);
+    }, undefined, true);
+    try {
+        document.querySelectorAll<HTMLButtonElement>('.ts-load-overlay button')[2]!.click();
+        await until(() => !document.querySelector('.ts-load-overlay'));
+        assert.deepEqual(await requests[1]!.json(), { action: 'recover', full: true });
+        assert.deepEqual(registry.profileSelection(), { profiles: ['Default'], selected: 'Default' });
     } finally { dom.window.close(); }
 });
 

@@ -5,12 +5,13 @@ import { SearchCorpus, searchParameters } from '../search/search.js';
 import { pluginCommands, projectBuiltin } from '../runtime/builtins.js';
 import type { NamespaceIntegration } from '../integration/namespace_integration.js';
 import { registerBuiltin } from './builtin_trace.js';
+import type { ProfileVersion } from '../profile/profile.js';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 
 /** @brief Build the search contract directly from the current registered engine selector. */
-export function searchDefinition(namespaces: Pick<NamespaceIntegration, 'entries' | 'addition' | 'searchEngines'>, mode: PresentationMode = 'native'): ToolDefinition {
+export function searchDefinition(namespaces: Pick<NamespaceIntegration, 'entries' | 'addition' | 'searchEngines' | 'searchGeneration'>, mode: PresentationMode = 'native'): ToolDefinition {
     const selector = namespaces.searchEngines.selector();
-    const corpora = new WeakMap<Agent, { generation: string; corpus: SearchCorpus }>();
+    const corpora = new WeakMap<Agent, { reference: ProfileVersion; generation: ReturnType<NamespaceIntegration['searchGeneration']>; corpus: SearchCorpus }>();
     return defineTool({
         name: 'tools_search', description: projectBuiltin(pluginCommands.searchCommand, mode).description,
         parameters: searchParameters(selector),
@@ -20,15 +21,18 @@ export function searchDefinition(namespaces: Pick<NamespaceIntegration, 'entries
             if (!agent) throw new Error('A live conversation is required');
             execution.signal.throwIfAborted();
             const addition = await namespaces.addition(agent);
-            if (!addition.profile.snapshot.resolve(pluginCommands.searchCommand.path)) throw new Error('Execution denied: tools.search');
-            const entries = (await namespaces.entries(agent)).map(entry => ({ path: entry.path, tool: entry.tool, schema: entry.schema, output: entry.output, doc: entry.node.serialize().function.doc ?? entry.doc }));
-            const generation = JSON.stringify([addition.profile.pointer, entries]);
-            let cached = corpora.get(agent);
-            if (cached?.generation !== generation) {
-                cached = { generation, corpus: new SearchCorpus(entries) };
-                corpora.set(agent, cached);
+            const reference = addition.profile;
+            const generation = namespaces.searchGeneration(agent);
+            const cached = corpora.get(agent);
+            if (cached?.reference === reference && cached.generation.length === generation.length && generation.every((value, index) => value === cached.generation[index])) {
+                return cached.corpus.search(args, namespaces.searchEngines.selector());
             }
-            return cached.corpus.search(args, namespaces.searchEngines.selector());
+            const snapshot = reference.snapshot;
+            if (!snapshot.resolve(pluginCommands.searchCommand.path)) throw new Error('Execution denied: tools.search');
+            const entries = (await namespaces.entries(agent, snapshot)).map(entry => ({ path: entry.path, tool: entry.tool, schema: entry.schema, doc: entry.node.serialize().function.doc ?? entry.doc }));
+            const corpus = new SearchCorpus(entries);
+            corpora.set(agent, { reference, generation, corpus });
+            return corpus.search(args, namespaces.searchEngines.selector());
         },
     });
 }

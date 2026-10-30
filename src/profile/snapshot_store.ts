@@ -1,7 +1,9 @@
-import type { Store } from '../storage/store.js';
+import { clearStore, type Store } from '../storage/store.js';
 import { JournalStore } from '../storage/journal_store.js';
 import type { ProfileSnapshot, ProfileVersion } from './profile.js';
-import type { ProfileData } from './catalog/profile_tree.js';
+import { ProfileSchema, type ProfileData } from './catalog/profile_tree.js';
+import { recoverProfile } from './catalog/recover_profile.js';
+import { upgradeProfileNodes } from '../storage/compatibility/profile_compatibility.js';
 import type { NamespaceDefinitions } from './namespace/definitions.js';
 
 /** @brief A numeric identity and immutable anonymous Profile; editing values are always detached. */
@@ -31,24 +33,53 @@ export class SnapshotStore {
     private sequence = 0;
     private loaded?: Promise<void>;
 
-    constructor(store: Store, private readonly definitions: NamespaceDefinitions) { this.journal = new JournalStore(store, 'profile_snapshot'); }
+    constructor(private store: Store, private readonly definitions: NamespaceDefinitions) { this.journal = new JournalStore(store, 'profile_snapshot'); }
 
     /** @brief Recover the counter and archived versions before opening references. */
-    load(): Promise<void> {
+    load(recover = false): Promise<void> {
+        if (recover) this.loaded = undefined;
         return this.loaded ??= (async () => {
-            const records = await this.journal.loadEntries<unknown>();
+            const records = await this.journal.loadEntries<unknown>(recover);
+            const upgrades: [string, unknown][] = [];
+            const references = new Map<number, ProfileVersion>();
+            let sequence = 0;
             for (const [key, value] of records) {
-                if (key === 'profile_snapshot_sequence') {
-                    if (!Number.isSafeInteger(value) || (value as number) < 0) throw new Error('Invalid Profile snapshot sequence');
-                    this.sequence = Math.max(this.sequence, value as number);
-                    continue;
+                try {
+                    if (key === 'profile_snapshot_sequence') {
+                        if (!Number.isSafeInteger(value) || (value as number) < 0) throw new Error('Invalid Profile snapshot sequence');
+                        sequence = Math.max(sequence, value as number);
+                        continue;
+                    }
+                    const pointer = Number(key.slice('profile_snapshot_'.length));
+                    if (!Number.isSafeInteger(pointer) || pointer <= 0) throw new Error('Invalid Profile snapshot identity');
+                    sequence = Math.max(sequence, pointer);
+                    const data = value as Pick<ProfileData, 'root' | 'brief'>;
+                    let upgraded = { ...data, root: upgradeProfileNodes(data?.root) as ProfileData['root'] };
+                    if (recover) upgraded = recoverProfile(upgraded, this.definitions.createInitialProfile());
+                    ProfileSchema.parse({ ...upgraded, name: 'Archived' });
+                    references.set(pointer, new ProfileReference(pointer, upgraded, this.definitions));
+                    if (JSON.stringify(data) !== JSON.stringify(upgraded)) upgrades.push([key, upgraded]);
+                } catch (error) {
+                    if (!recover) throw error;
+                    await this.store.remove(key);
                 }
-                const pointer = Number(key.slice('profile_snapshot_'.length));
-                if (!Number.isSafeInteger(pointer) || pointer <= 0) throw new Error('Invalid Profile snapshot identity');
-                this.references.set(pointer, new ProfileReference(pointer, value as Pick<ProfileData, 'root' | 'brief'>, this.definitions));
-                this.sequence = Math.max(this.sequence, pointer);
             }
+            if (recover) upgrades.push(['profile_snapshot_sequence', sequence]);
+            await this.journal.commit(upgrades);
+            this.references = references;
+            this.sequence = sequence;
         })();
+    }
+
+    /** @brief Clear the entire dedicated archive unit without interpreting old records. */
+    reset(): Promise<void> {
+        return this.write(async () => {
+            await this.journal.discard();
+            await clearStore(this.store);
+            this.references.clear();
+            this.sequence = 0;
+            this.loaded = undefined;
+        });
     }
 
     /** @brief Retrieve a version that has entered a session, including deleted or superseded catalog entries. */

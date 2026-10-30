@@ -31,7 +31,7 @@ test('startup loading failures keep management available and reset replaces obso
     await applyProfiles(ctx);
     await apply(ctx);
     assert.equal(warnings.length, 1);
-    assert.deepEqual(descriptors, [{ name: 'ts_intellisense', version: storageVersion, compatibleVersions: [1, 2], tables: ['state'], hasGlobal: false, layout: 'per-record' }, { name: 'intellisense_profile_snapshots', version: snapshotVersion, tables: ['state'], hasGlobal: false, layout: 'per-record' }]);
+    assert.deepEqual(descriptors, [{ name: 'ts_intellisense', version: storageVersion, compatibleVersions: [1, 2, 3], tables: ['state'], hasGlobal: false, layout: 'per-record' }, { name: 'intellisense_profile_snapshots', version: snapshotVersion, compatibleVersions: [1], tables: ['state'], hasGlobal: false, layout: 'per-record' }]);
     const route = routes.get('/api/ts-intellisense-state')!;
     assert.equal((await route(new Request('https://localhost/api/ts-intellisense-state'))).status, 400);
     const response = await route(new Request('https://localhost/api/ts-intellisense-state', {
@@ -43,6 +43,19 @@ test('startup loading failures keep management available and reset replaces obso
     const state = await restored.json();
     assert.deepEqual(state.state.mappings, []);
     assert.deepEqual(state.queriesByTool, { read: 4 });
+    records.unrecognized_old_key = { invalid: true };
+    records.profile_snapshot_journal = { invalid: true };
+    records.profile_snapshot_sequence = 'broken';
+    await ctx.intellisense.statistics.calls.increment('pending', ['discard_me']);
+    const reset = await route(new Request('https://localhost/api/ts-intellisense-state', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'recover', full: true }),
+    }));
+    assert.equal(reset.status, 200, await reset.text());
+    assert.equal(records.unrecognized_old_key, undefined);
+    assert.equal(records.profile_snapshot_journal, undefined);
+    assert.deepEqual(await ctx.intellisense.statistics.calls.snapshot(), {});
+    assert.deepEqual(await ctx.intellisense.statistics.queries.snapshot(), {});
+    assert.equal((await route(new Request('https://localhost/api/ts-intellisense-state'))).status, 200);
 });
 
 test('KV version upgrade retains compatible records for domain-level partial recovery', async () => {
@@ -73,7 +86,7 @@ test('KV version upgrade retains compatible records for domain-level partial rec
     } finally { await backend.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
-test('archived command-node Profiles are discarded when the snapshot schema changes', async () => {
+test('version 3 catalogs and command-node archives survive a real KV upgrade', async () => {
     const { JsonStorageBackend } = await import('@deepseek-ai/dsh-storage-json');
     const { mkdtemp, rm } = await import('node:fs/promises');
     const { tmpdir } = await import('node:os');
@@ -83,18 +96,31 @@ test('archived command-node Profiles are discarded when the snapshot schema chan
     const directory = await mkdtemp(join(tmpdir(), 'intellisense-snapshot-'));
     const backend = new JsonStorageBackend(directory);
     try {
+        const global = await backend.kv.open({ name: 'ts_intellisense', version: 3, tables: ['state'], hasGlobal: false, layout: 'per-record' });
+        const root = { type: 'namespace', children: { read: { type: 'command', command: { tool: 'read_file', doc: 'Read a file' } } } };
+        await global.putRecord('state', 'registry', { version: 3, revision: 7, profile: 'Work', profiles: { Work: { pointer: 1, root } } });
+        await global.putRecord('state', 'profile_session_existing', { name: 'Work', pointer: 1 });
+        await global.close();
         const obsolete = await backend.kv.open({ name: 'intellisense_profile_snapshots', version: 1, tables: ['state'], hasGlobal: false, layout: 'per-record' });
-        await obsolete.putRecord('state', 'profile_snapshot_1', { root: { type: 'namespace', children: {
-            tools: { type: 'namespace', children: { inspect: { type: 'command', command: { tool: 'tools_inspect' } } } },
-        } } });
+        await obsolete.putRecord('state', 'profile_snapshot_1', { root });
+        await obsolete.putRecord('state', 'profile_snapshot_sequence', 1);
         await obsolete.close();
-        const unit = await backend.kv.open({ name: 'ts_intellisense', version: storageVersion, compatibleVersions: [1, 2], tables: ['state'], hasGlobal: false, layout: 'per-record' });
-        const snapshots = await backend.kv.open({ name: 'intellisense_profile_snapshots', version: snapshotVersion, tables: ['state'], hasGlobal: false, layout: 'per-record' });
+        const unit = await backend.kv.open({ name: 'ts_intellisense', version: storageVersion, compatibleVersions: [1, 2, 3], tables: ['state'], hasGlobal: false, layout: 'per-record' });
+        const snapshots = await backend.kv.open({ name: 'intellisense_profile_snapshots', version: snapshotVersion, compatibleVersions: [1], tables: ['state'], hasGlobal: false, layout: 'per-record' });
         const store = new DshStore(snapshots);
-        assert.deepEqual(await store.loadEntries('profile_snapshot_'), []);
+        assert.equal((await store.loadEntries('profile_snapshot_')).length, 2);
         const registry = new SemanticRegistry(new DshStore(unit), 'global', undefined, store);
         await registry.load();
-        assert.deepEqual(registry.profileSelection().profiles, ['Default']);
+        assert.deepEqual(registry.profileSelection(), { profiles: ['Work'], selected: 'Work' });
+        const reference = await registry.reference('Work');
+        assert.equal(reference.pointer, 1);
+        assert.equal(reference.snapshot.resolve('read')?.type, 'function');
+        assert.deepEqual((await registry.snapshots.get(1)).serialize(), reference.serialize());
+        assert.deepEqual(await new DshStore(unit).load('profile_session_existing'), { name: 'Work', pointer: 1 });
+        assert.equal((await new DshStore(unit).load<{ version: number }>('registry'))!.version, storageVersion);
+        const restarted = new SemanticRegistry(new DshStore(unit), 'global', undefined, store);
+        await restarted.load();
+        assert.equal((await restarted.reference('Work')).pointer, 1);
     } finally { await backend.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
@@ -130,4 +156,35 @@ test('plugin teardown flushes delayed statistics before closing their storage ba
     assert.equal((records.command_calls as unknown as { counts: { read: number } }).counts.read, 1);
     assert.equal(records.command_calls_journal, undefined);
     assert.deepEqual((records.inspect_statistics as { counts: Record<string, number> }).counts, { 'std.read': 1 });
+});
+
+test('repair retains valid siblings around obsolete builtin members and invalid member names', async () => {
+    const { MemoryStore } = await import('../../src/storage/store.js');
+    const { SemanticRegistry } = await import('../../src/profile/catalog/registry.js');
+    const store = new MemoryStore();
+    const snapshots = new MemoryStore();
+    const registry = new SemanticRegistry(store, 'global', undefined, snapshots);
+    const root = registry.definitions.createInitialProfile().serialize();
+    root.children!.valid = { type: 'function', function: { tool: 'read_file' } };
+    root.children!.tools!.children!.profile!.children!.obsolete = { type: 'function', function: { tool: 'old_tool' } };
+    Object.defineProperty(root.children!, 'constructor', { value: { type: 'namespace' }, enumerable: true });
+    await snapshots.save('profile_snapshot_sequence', 1);
+    await snapshots.save('profile_snapshot_1', { root });
+    await snapshots.save('profile_snapshot_unknown', {});
+    await snapshots.save('profile_snapshot_journal', { version: 1, writes: [['foreign_key', {}]] });
+    await store.save('registry', { version: storageVersion, revision: 7, profile: 'Work', profiles: { Work: { pointer: 1, root } },
+        editor: { Work: { order: 'invalid' } } });
+    await assert.rejects(registry.load());
+    await registry.load(true);
+    const reference = await registry.reference('Work');
+    assert.equal(reference.snapshot.resolve('valid')?.type, 'function');
+    assert.equal(reference.snapshot.resolve('tools.profile.obsolete'), undefined);
+    assert.equal(reference.snapshot.resolve('tools.profile.load')?.type, 'function');
+    assert.equal(reference.snapshot.resolve('constructor'), undefined);
+    assert.equal((await registry.snapshots.get(1)).snapshot.resolve('valid')?.type, 'function');
+    assert.equal(await snapshots.load('foreign_key'), undefined);
+    assert.equal(await snapshots.load('profile_snapshot_unknown'), undefined);
+    const reopened = new SemanticRegistry(store, 'global', undefined, snapshots);
+    await reopened.load();
+    assert.equal((await reopened.reference('Work')).snapshot.resolve('valid')?.type, 'function');
 });

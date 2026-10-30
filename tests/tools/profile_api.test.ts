@@ -215,7 +215,7 @@ test('Profile load reads catalog data without replacing the working draft or ref
     const { call, load, catalog, registry, changed } = await fixture();
     const draft = await load();
     const copy = { ...draft, name: 'Copy', root: { ...draft.root, children: { ...draft.root.children, catalog_only: {
-        type: 'namespace', permissions: draft.root.permissions, children: {},
+        type: 'namespace' as const, permissions: draft.root.permissions, children: {},
     } } } };
     await call('tools_profile_save', { name: 'Copy', profile: profileWrite(copy) });
     const before = registry.snapshot();

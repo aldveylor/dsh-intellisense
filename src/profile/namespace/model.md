@@ -11,3 +11,6 @@ namespace.ts 的 profileMembers/queryNodes 直接遍历 ProfileNode 或调用 Pr
 内置行为由 tools/profile_nodes/ 的具体类拥有。definitions.ts 只维护初始 Profile 工厂、其序列化默认声明及保存观察者；builtin_profile.ts 仅选择 RootNamespace，不注册工具附加属性。
 
 DSH 0.2.2-alpha.2 的 jsonSchemaToTs 与 CodeRunFailedError 从 dsh-tool-executor-ptc 导入；工具定义、JSON Schema 校验和单次调用流水线仍由 dsh-tools 提供。
+serializeProfile 通过命名空间直接属性生成 DTO，不调用容器的递归 serialize。EditableNamespace.serialize 仅复制本层设置，子节点各自负责输出独立数据，避免重复深拷贝子树。
+
+protectedToolNames 从初始节点权限收集受保护物理工具身份。目录复用 definitions.revision 对应的初始树与身份集合；集成层复用 ToolsNamespace.revision 对应的集合，工厂变化后失效，批量工具列表不逐项重建初始 Profile。

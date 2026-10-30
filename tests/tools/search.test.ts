@@ -22,7 +22,7 @@ async function fixture(searchEngines = createSearchEngines()) {
     const physical = { id: 'read', description: 'Read documents', parameters: { type: 'object', properties: { path: { type: 'string' } } }, output: { type: 'string' } };
     registry.refresh([physical]);
     await registry.configure([{ id: 'read', path: 'files.read', pinned: false }], 0);
-    const namespaces = { searchEngines, addition: async () => ({ name: 'Default', profile: await registry.reference(), statistics: { increment: async () => {}, snapshot: async () => ({}) }, save: async () => {} }), entries: async () => manifest(registry, []).commands() };
+    const namespaces = { searchEngines, searchGeneration: () => [registry.generation], addition: async () => ({ name: 'Default', profile: await registry.reference(), statistics: { increment: async () => {}, snapshot: async () => ({}) }, save: async () => {} }), entries: async () => manifest(registry, []).commands() };
     const definition = searchDefinition(namespaces);
     registry.refresh([physical, { id: definition.name, description: definition.description, parameters: definition.parameters, output: definition.output.schema }]);
     const execution = { agent: { id: 'search', session: Session.create(SessionId('search')) }, callId: 'search-call', signal: new AbortController().signal } as unknown as ToolRunContext;
@@ -96,23 +96,54 @@ test('search reuses scoped manifest generations and isolates registries with equ
     assert.equal(second.generation, registry.generation);
     let current = registry;
     let projections = 0;
+    namespaces.searchGeneration = () => [current.generation];
     namespaces.addition = async () => ({ name: 'Default', profile: await current.reference(), statistics: { increment: async () => {}, snapshot: async () => ({}) }, save: async () => {} });
     namespaces.entries = async () => { projections++; return manifest(current, []).commands(); };
     const args = { keywords: ['documents'], method: 'accurate', target: 'description' };
     assert.deepEqual(await definition.execute(args, execution), ['files.read']);
     await definition.execute({ ...args, keywords: ['read'] }, execution);
-    assert.equal(projections, 2);
+    assert.equal(projections, 1);
     current = second;
     assert.deepEqual(await definition.execute(args, execution), ['other.read']);
-    assert.equal(projections, 3);
+    assert.equal(projections, 2);
     current = registry;
     assert.deepEqual(await definition.execute(args, execution), ['files.read']);
-    assert.equal(projections, 4);
+    assert.equal(projections, 3);
     await registry.replaceConfiguration({ ...registry.configuration(), toolComments: { read: 'Replacement phrase' } }, 'Default');
     assert.deepEqual(await definition.execute(args, execution), []);
     assert.deepEqual(await definition.execute({ ...args, keywords: ['replacement'] }, execution), ['files.read']);
-    assert.equal(projections, 6);
+    assert.equal(projections, 4);
     registry.refresh([]);
     assert.deepEqual(await definition.execute(args, execution), []);
-    assert.equal(projections, 7);
+    assert.equal(projections, 5);
+});
+
+test('search cache avoids snapshot copies and invalidates physical contracts and hidden metadata', async () => {
+    const { registry, namespaces, definition, execution } = await fixture();
+    const addition = await namespaces.addition();
+    const original = addition.profile;
+    let snapshots = 0;
+    const reference = {
+        pointer: original.pointer,
+        get snapshot() { snapshots++; return original.snapshot; },
+        serialize: () => original.serialize(),
+    };
+    namespaces.addition = async () => ({ ...addition, profile: reference });
+    const args = { keywords: ['documents'], method: 'accurate', target: 'description' };
+    assert.deepEqual(await definition.execute(args, execution), ['files.read']);
+    assert.deepEqual(await definition.execute({ ...args, keywords: ['read'] }, execution), ['files.read']);
+    assert.equal(snapshots, 1);
+    registry.refresh([
+        { id: 'read', description: 'Replacement phrase', parameters: { type: 'object', properties: { replacement: { type: 'string' } } }, output: {} },
+        { id: definition.name, description: definition.description, parameters: definition.parameters, output: definition.output.schema },
+    ]);
+    assert.deepEqual(await definition.execute(args, execution), []);
+    assert.deepEqual(await definition.execute({ ...args, keywords: ['replacement'], target: 'parameters' }, execution), ['files.read']);
+    assert.equal(snapshots, 2);
+    const show = registry.toolAdditions.set('read', { hidden: true });
+    assert.deepEqual(await definition.execute({ ...args, keywords: ['replacement'] }, execution), []);
+    assert.equal(snapshots, 3);
+    show();
+    assert.deepEqual(await definition.execute({ ...args, keywords: ['replacement'] }, execution), ['files.read']);
+    assert.equal(snapshots, 4);
 });

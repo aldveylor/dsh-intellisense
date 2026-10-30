@@ -10,6 +10,8 @@ import { NamespaceIntegration } from '../../src/integration/namespace_integratio
 import { SemanticRegistry } from '../../src/profile/catalog/registry.js';
 import { ProfileSessions } from '../../src/profile/catalog/profiles.js';
 import { MemoryStore } from '../../src/storage/store.js';
+import { searchDefinition } from '../../src/tools/tool_search.js';
+import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
 
 /** @brief Register a minimal physical command in a real global or preset scope. */
 function register(ctx: Context, name: string): void {
@@ -137,8 +139,13 @@ test('scope rebinding changes available contracts while retaining the same sessi
         const binding = bindScopeParent(agent, firstKey);
         const addition = await component.addition(agent);
         const pointer = addition.profile.pointer;
+        const search = searchDefinition(component);
+        const execution = { agent, signal: new AbortController().signal } as ToolRunContext;
+        const args = { keywords: ['read'], method: 'accurate', target: 'name' };
+        assert.deepEqual(await search.execute(args, execution), ['first.read']);
         assert.deepEqual((await component.entries(agent)).map(entry => entry.path), ['first.read']);
         binding.rebind(secondKey);
+        assert.deepEqual(await search.execute(args, execution), ['second.read']);
         assert.deepEqual((await component.entries(agent)).map(entry => entry.path), ['second.read']);
         assert.equal(addition.profile.pointer, pointer);
         await component.release(agent.id);

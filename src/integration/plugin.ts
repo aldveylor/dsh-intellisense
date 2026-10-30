@@ -35,7 +35,7 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
     let initialization: Promise<void> | undefined;
 
     /** @brief Keep management recovery available when a persisted domain fails initialization. */
-    async function initialize(recover = false): Promise<void> {
+    async function initialize(recover: boolean | 'reset' = false): Promise<void> {
         if (!recover && initialization) return initialization;
         const previous = initialization;
         initialization = (async () => {
@@ -74,7 +74,7 @@ export async function apply(ctx: Context, options: z.input<typeof Config> = {}):
         statistics,
         inspectStatistics: profiles.inspectStatistics,
         refresh: async () => { await initialize(); await namespaces!.refresh(); },
-        recover: () => initialize(true),
+        recover: mode => initialize(mode),
     });
     try { await initialize(); }
     catch (error) { ctx.logger.warn('Intellisense data could not be loaded; use Reset in the management panel to recover invalid portions.', error); }

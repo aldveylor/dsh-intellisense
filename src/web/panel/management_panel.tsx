@@ -387,6 +387,10 @@ export function ManagementPanel({ api, ProfileSelect, DefaultProfileSelect, orga
                         <ActionButton type="button" disabled={busy} title={t('reset_failed_data')} onClick={() => void action('loading', async () => {
                             await request(api, { action: 'recover' });
                             await reload(undefined, null);
+                        })}>{t('repair')}</ActionButton>
+                        <ActionButton type="button" disabled={busy} title={t('full_reset_hint')} onClick={() => void action('loading', async () => {
+                            await request(api, { action: 'recover', full: true });
+                            await reload(undefined, null);
                         })}>{t('reset')}</ActionButton>
                     </div></>}
         </div>}

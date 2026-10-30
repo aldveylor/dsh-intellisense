@@ -10,11 +10,11 @@ import * as presentation from './presentation.js';
 import type { Position } from '../protocol/events.js';
 import { type Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
-import { type ScopeKey } from '@deepseek-ai/dsh-scope';
+import { scopeChainOf, type ScopeKey } from '@deepseek-ai/dsh-scope';
 import '@deepseek-ai/dsh-agent-preset-registry';
 import type { PhysicalTool } from '../profile/catalog/registry.js';
 import type { ProfileSessionCollection } from '../profile/session.js';
-import { declaration, functionEntries, profileMembers, queryNodes, normalizeInspectQueries, nativeArgumentsFor, resultFor, type Aliases, type FunctionEntry } from '../profile/namespace/namespace.js';
+import { declaration, functionEntries, profileMembers, protectedToolNames, queryNodes, normalizeInspectQueries, nativeArgumentsFor, resultFor, type Aliases, type FunctionEntry } from '../profile/namespace/namespace.js';
 import type { AgentSessionAddition } from './agent_session_addition.js';
 import type { ProfileFunction } from '../profile/function.js';
 import { inspect } from '../tools/inspect.js';
@@ -44,6 +44,7 @@ export class NamespaceIntegration {
     private nativeTools = new Map<string, { source: string; names: string[]; fingerprint: string; disposers: (() => void)[] }>();
 
     private executors = new Map<string, () => void>();
+    private protectedTools?: { revision: string; tools: ReadonlySet<string> };
 
     private catalogRevision = 0;
     private get catalogVersion(): string { return `${this.catalogRevision}:${this.namespace.revision}:${this.catalog.toolAdditions.revision}`; }
@@ -92,7 +93,9 @@ export class NamespaceIntegration {
 
     /** @brief Derive protected physical identities from the service's initial node interfaces. */
     owns(tool: string): boolean {
-        return [...profileMembers(this.namespace.createInitialProfile(), false)].some(({ node }) => node.type === 'function' && !node.permissions.removable && (node as ProfileFunction).tool === tool);
+        const revision = this.namespace.revision;
+        if (this.protectedTools?.revision !== revision) this.protectedTools = { revision, tools: protectedToolNames(this.namespace.createInitialProfile()) };
+        return this.protectedTools.tools.has(tool);
     }
 
     /** @brief Read catalog names independently from a session's selected name and old version. */
@@ -189,6 +192,9 @@ export class NamespaceIntegration {
         for (const agent of this.ctx.agents.list()) for (const tool of this.physical(agent)) tools.set(tool.id, tool);
         this.catalog.refresh([...tools.values()]);
     }
+
+    /** @brief Invalidate scoped search projections after tool, Profile definition or presentation changes. */
+    searchGeneration(agent: Agent): readonly unknown[] { return [this.catalogVersion, this.isPtc(agent), agent.ctx.tools, ...scopeChainOf(agent)]; }
 
     /** @brief Derive flat physical contracts while retaining references to the original Profile commands. */
     async entries(agent: Agent, profile?: ProfileSnapshot): Promise<FunctionEntry[]> {
