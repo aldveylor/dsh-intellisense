@@ -29,7 +29,8 @@ test('host-compatible parent lookup inherits the parent working profile without 
     /** @brief Publish runtime ownership on old hosts and explicit session lineage on new hosts. */
     async function agent(name: string, parent?: Agent, enabled = true, profile?: string, lineage: SessionId | null | undefined = parent?.id): Promise<Agent> {
         const id = SessionId(name);
-        const value = { id, session: Session.create(id, [], { id, createdAt: Date.now(), ...(lineage == null ? {} : { parentSession: lineage }) }) } as Agent;
+        const header = Session.create(id).header;
+        const value = { id, session: Session.create(id, [], { ...header, ...(lineage == null ? {} : { parentSession: lineage }) }) } as Agent;
         const scope = createScope(ctx, value);
         scopes.push(scope);
         Object.assign(value, { ctx: scope.ctx });
