@@ -12,6 +12,9 @@ export interface DshCompatibility {
     /** @brief Check whether a session has entered any model turn. */
     isBlank(ctx: Context, agent: Agent): boolean;
 
+    /** @brief Resolve the live parent using the host's supported ownership or lineage contract. */
+    parentAgent(ctx: Context, agent: Agent): Agent | undefined;
+
     /** @brief Declare native transport in a presentation scope when required by the host. */
     presentNative(ctx: Context): void;
     /** @brief Install model-call execution and optionally filter its declared definitions. */

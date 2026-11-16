@@ -72,7 +72,7 @@ export class NamespaceIntegration {
     async addition(agent: Agent): Promise<AgentSessionAddition> {
         const fixed = this.fixedProfile(agent);
         const addition = await this.profiles.addition(agent.session, async () => {
-            const parent = this.ctx.agents.list().find(candidate => candidate !== agent && this.ctx.agents.isOwnedBy(agent.id, candidate));
+            const parent = dshCompatibility.parentAgent(this.ctx, agent);
             return parent && this.enabled(parent) ? this.addition(parent) : undefined;
         }, fixed);
         if (fixed !== undefined && addition.name !== fixed) return this.profiles.load(agent.session, fixed);
@@ -166,7 +166,7 @@ export class NamespaceIntegration {
             return;
         }
         if (!previous || previous.presentation !== config || previous.selection !== selection) {
-            const parent = !previous && this.ctx.agents.list().find(candidate => candidate !== agent && this.ctx.agents.isOwnedBy(agent.id, candidate));
+            const parent = !previous && dshCompatibility.parentAgent(this.ctx, agent);
             const addition = await this.addition(agent);
             const blank = selection && previous?.selection !== selection ? selection.blank : dshCompatibility.isBlank(this.ctx, agent);
             if (blank && !(parent && this.enabled(parent))) {

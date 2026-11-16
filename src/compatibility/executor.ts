@@ -2,9 +2,11 @@ import { NativeToolExecutor } from '@deepseek-ai/dsh-tool-executor-native';
 import { CodeRunFailedError, jsonSchemaToTs } from '@deepseek-ai/dsh-tool-executor-ptc';
 import { ToolExecutionPipeline } from '@deepseek-ai/dsh-tools/pipeline';
 import type { DshCompatibility } from './contracts.js';
+import { parentAgent } from './parent_agent.js';
 
 /** @brief Use DSH 0.2.2's executor declarations, batch transport and guarded child pipeline. */
 export const compatibility: DshCompatibility = {
+    parentAgent,
     jsonSchemaToTs,
     CodeRunFailedError,
     isBlank: (ctx, agent) => {

@@ -2,6 +2,7 @@ import * as tools from '@deepseek-ai/dsh-tools';
 import type { Session } from '@deepseek-ai/dsh-session';
 import type { ToolExecutionInput, ToolExecutionResult } from '@deepseek-ai/dsh-tools';
 import type { DshCompatibility } from './contracts.js';
+import { parentAgent } from './parent_agent.js';
 
 /** @brief Describe only the retired methods at the compatibility boundary. */
 interface LegacyTools {
@@ -13,6 +14,7 @@ const exports = tools as unknown as Pick<DshCompatibility, 'jsonSchemaToTs' | 'C
 
 /** @brief Use DSH 0.2.1's registry-owned invocation and mutable prompt declarations. */
 export const compatibility: DshCompatibility = {
+    parentAgent,
     jsonSchemaToTs: exports.jsonSchemaToTs,
     CodeRunFailedError: exports.CodeRunFailedError,
     isBlank: (ctx, agent) => {

@@ -11,8 +11,10 @@ import { NamespaceIntegration } from '../../src/integration/namespace_integratio
 import { ProfileSessions } from '../../src/profile/catalog/profiles.js';
 import { SemanticRegistry } from '../../src/profile/catalog/registry.js';
 import { MemoryStore } from '../../src/storage/store.js';
+import { dshCompatibility } from '../../src/compatibility/compatibility.js';
+import { version } from '../../src/compatibility/version.js';
 
-test('runtime child ownership inherits the nearest parent working profile without changing new root defaults', async () => {
+test('host-compatible parent lookup inherits the parent working profile without changing new root defaults', async () => {
     const ctx = new Context();
     await ctx.plugin(SessionProjectionRegistry);
     const mounted = await ctx.plugin(AgentRegistry);
@@ -24,15 +26,16 @@ test('runtime child ownership inherits the nearest parent working profile withou
     const scopes: ReturnType<typeof createScope>[] = [];
     const detach: (() => void)[] = [];
 
-    /** @brief Publish a real registry ownership relation separately from durable session lineage. */
-    async function agent(name: string, parent?: Agent, enabled = true, profile?: string): Promise<Agent> {
+    /** @brief Publish runtime ownership on old hosts and explicit session lineage on new hosts. */
+    async function agent(name: string, parent?: Agent, enabled = true, profile?: string, lineage: SessionId | null | undefined = parent?.id): Promise<Agent> {
         const id = SessionId(name);
-        const value = { id, session: Session.create(id) } as Agent;
+        const value = { id, session: Session.create(id, [], { id, createdAt: Date.now(), ...(lineage == null ? {} : { parentSession: lineage }) }) } as Agent;
         const scope = createScope(ctx, value);
         scopes.push(scope);
         Object.assign(value, { ctx: scope.ctx });
         if (enabled) await scope.ctx.plugin(presentation, { mode: 'native', profile });
-        detach.push(ctx.agents.enter(value, parent));
+        const enter = ctx.agents.enter.bind(ctx.agents) as (agent: Agent, owner?: Agent) => () => void;
+        detach.push(version.lt('0.2.2-rc.2', () => enter(value, parent)) ?? enter(value));
         return value;
     }
 
@@ -41,6 +44,15 @@ test('runtime child ownership inherits the nearest parent working profile withou
         const parent = await agent('parent');
         await profiles.load(parent.session, 'Work');
         const parentPointer = (await namespaces.addition(parent)).profile.pointer;
+        const restored = await agent('restored', undefined, true, undefined, parent.id);
+        assert.equal(dshCompatibility.parentAgent(ctx, restored), version.gte('0.2.2-rc.2', () => parent));
+        assert.equal((await namespaces.addition(restored)).name, version.gte('0.2.2-rc.2', () => 'Work') ?? 'Default');
+        const runtimeOnly = await agent('runtime_only', parent, true, undefined, null);
+        assert.equal(dshCompatibility.parentAgent(ctx, runtimeOnly), version.lt('0.2.2-rc.2', () => parent));
+        assert.equal((await namespaces.addition(runtimeOnly)).name, version.lt('0.2.2-rc.2', () => 'Work') ?? 'Default');
+        const orphan = await agent('orphan', undefined, true, undefined, SessionId('absent'));
+        assert.equal(dshCompatibility.parentAgent(ctx, orphan), undefined);
+        assert.equal((await namespaces.addition(orphan)).name, 'Default');
         await catalog.saveProfile('Work', { ...catalog.configuration('Work'), namespaces: [{ path: 'latest', description: 'Only catalog changed', alwaysVisible: true }] });
         const fixed = await agent('fixed', parent, true, 'Work');
         const fixedRegistry = await namespaces.addition(fixed);
@@ -53,6 +65,7 @@ test('runtime child ownership inherits the nearest parent working profile withou
         const missing = await agent('missing', undefined, true, 'Missing');
         await assert.rejects(namespaces.addition(missing), /Profile does not exist/);
         const child = await agent('child', parent);
+        assert.equal(dshCompatibility.parentAgent(ctx, child), parent);
         const childRegistry = await namespaces.addition(child);
         await namespaces.configure(child);
         assert.equal(childRegistry.name, 'Work');
@@ -64,12 +77,18 @@ test('runtime child ownership inherits the nearest parent working profile withou
         await namespaces.addition(grandchild);
         assert.deepEqual((await profiles.addition(grandchild.session)).profile.serialize(), (await profiles.addition(child.session)).profile.serialize());
         const root = await agent('root');
+        assert.equal(dshCompatibility.parentAgent(ctx, root), undefined);
         assert.equal((await namespaces.addition(root)).name, 'Default');
         const standard = await agent('standard', undefined, false);
         await profiles.load(standard.session, 'Work');
         const standalone = await agent('standalone', standard);
         assert.equal((await namespaces.addition(standalone)).name, 'Default');
         assert.equal(catalog.configuration('Work').namespaces[0]?.path, 'latest');
+        const departed = await agent('departed');
+        detach.at(-1)!();
+        const survivor = await agent('survivor', undefined, true, undefined, departed.id);
+        assert.equal(dshCompatibility.parentAgent(ctx, survivor), undefined);
+        assert.equal((await namespaces.addition(survivor)).name, 'Default');
     } finally {
         for (const remove of detach.reverse()) remove();
         for (const scope of scopes.reverse()) await scope.dispose();

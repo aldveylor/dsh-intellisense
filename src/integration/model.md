@@ -20,7 +20,7 @@ tool_catalog.ts 的 PhysicalToolCatalog 单独拥有物理工具契约与 ToolAd
 
 DSH 0.2.2-alpha.2 将批次执行交给 ToolExecutor。register 在 presentation 的 Agent 或 preset 作用域通过 ../compatibility/compatibility.ts 的 configureTools 安装 NativeToolExecutor 代理，后续绑定该作用域的会话直接继承执行器，无需依赖会话 configure 安装过滤。native 模式只声明 syncNative 标记的工具定义，PTC 模式只声明 tools_run_code；物理工具仍留在内部目录供命名空间子调用使用。工具声明由执行器 describe 生成；system-prompt/assemble 仅修改文本，不修改工具声明。执行器与 presentation 同生命周期，会话 release 仅撤销会话代理及缓存。
 
-presentation 挂载完成（包括 PTC runtime 注册）后，通过 configureScope 初始化该作用域及子作用域已有会话的 Profile/native 工具；尚未发布的会话由 agent/created 初始化。agent-preset/selected 标记该次预设选择是否发生在首轮开始前，并启动初始化；每次提交的选择事件均构成新的绑定边界，即使预设名称相同。configure 按 Agent 串行执行，首次启用或预设重绑时，空白根会话将当前名称切到全局最新指针，名称已删除则回退到全局默认名称。首次父子继承保持父指针；已开始会话保留快照；普通工具解析及全局保存不刷新引用。预设变化清除旧发现集合，离开 native 模式撤销会话代理。
+presentation 挂载完成（包括 PTC runtime 注册）后，通过 configureScope 初始化该作用域及子作用域已有会话的 Profile/native 工具；尚未发布的会话由 agent/created 初始化。agent-preset/selected 标记该次预设选择是否发生在首轮开始前，并启动初始化；每次提交的选择事件均构成新的绑定边界，即使预设名称相同。configure 按 Agent 串行执行，首次启用或预设重绑时，空白根会话将当前名称切到全局最新指针，名称已删除则回退到全局默认名称。首次父子继承保持父指针，父级统一由兼容层 parentAgent 解析：DSH 0.2.2-rc.2 起使用会话 header.parentSession 对应的存活 Agent（包括恢复会话），此前沿用运行时所有权；父级不存在或未启用 presentation 时按根会话处理；已开始会话保留快照；普通工具解析及全局保存不刷新引用。预设变化清除旧发现集合，离开 native 模式撤销会话代理。
 
 旧版 DSH 通过兼容层 presentNative 声明 native 作用域，并在 system-prompt/assemble 选择 assembly.tools；不加载新版执行器，也不修改新版真实轮次捕获后的工具集合。
 

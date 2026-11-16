@@ -8,6 +8,8 @@ legacy.ts 从 dsh-tools 获取 jsonSchemaToTs 和 CodeRunFailedError，在 prese
 
 executor.ts 从 dsh-tool-executor-ptc 获取声明生成及程序错误类型，在 presentation 的 Agent 或 preset 作用域安装 NativeToolExecutor，通过 describe 按工具定义筛选声明；单次子调用经 ToolExecutionPipeline 的 prepare/dispatch/complete，模型调用则适配 tools.execute 的批次输入与结果。新版提示词 waterfall 不修改工具声明。
 
+parent_agent.ts 提供统一 parentAgent(ctx, agent) 接口，以 0.2.2-rc.2 为版本分界：此前调用 agents.isOwnedBy 查找运行时父级；从该版本起读取 session.header.parentSession 并通过 agents.get 查找当前存活父级。没有父级、父级已释放或父级指向自身时返回 undefined，不使用异步 initiator 或 scope 链推断亲缘。新版恢复的子会话在父级存活时也按会话血缘继承 Profile；旧版仍保留运行时所有权语义。NamespaceIntegration 的首次继承和空白会话刷新判断均通过该接口。
+
 isBlank 在新版读取 agents.turnBoundaryOf，在旧版读取 sessionProjections 的 turnBoundary 状态；旧版尚未安装轮次投影时按未开始处理。
 
 兼容层只转换宿主 API。命名空间业务继续负责名称选择、子调用身份、审计事件、统计、附加上下文和结束回合标志，执行器与 presentation 作用域同生命周期，会话 release 只释放代理及缓存。
