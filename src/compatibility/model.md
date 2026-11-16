@@ -12,6 +12,6 @@ isBlank 在新版读取 agents.turnBoundaryOf，在旧版读取 sessionProjectio
 
 兼容层只转换宿主 API。命名空间业务继续负责名称选择、子调用身份、审计事件、统计、附加上下文和结束回合标志，执行器与 presentation 作用域同生命周期，会话 release 只释放代理及缓存。
 
-peerDependencies 使用单个 >= 最低版本声明：共享 DSH 包最低为 0.2.1-rc.2，两个执行器包最低为 0.2.2-alpha.2 且为可选 peer；开发依赖使用 >=0.2.2-alpha.2，显式提供相同版本的核心包，避免 pnpm 自动安装 peer 时混合两代接口。npm 对不同版本元组的预发布版本有独立的范围匹配规则，运行时版本比较直接使用 SemVer gte。
+peerDependencies 使用单个 >= 最低版本声明：共享 DSH 包最低为 0.2.1-rc.2，两个执行器包最低为 0.2.2-alpha.2 且为可选 peer；开发依赖固定使用 0.2.2-rc.3，显式提供相同版本的核心包，避免 pnpm 自动安装 peer 时混合两代接口。npm 对不同版本元组的预发布版本有独立的范围匹配规则，运行时版本比较直接使用 SemVer gte。
 
 node scripts/compatibility/verify.mjs 构建同一份源码，在当前开发依赖环境和 build/compatibility/legacy 下独立安装的 0.2.1-rc.2 环境运行核心回归。旧版检查禁止加载新版专有执行器与 pipeline，并检查编译后的主入口可以直接导入。依赖副本、构建副本和日志均位于 build/，不记录到 git。
